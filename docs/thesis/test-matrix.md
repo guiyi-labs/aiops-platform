@@ -95,6 +95,7 @@
 | M20 Phase 8 本地质量门禁 | `.artifacts/verification/verify-20260728-125500.json` | 通过，278.81 秒；Go 1.25 容器全包测试与构建、14 个 Vitest 文件/59 个用例、前端生产构建、三服务 healthy、Kustomize 16/5/22/3、运行态 HTTP 和 actionlint 1.7.7 零告警通过 |
 | M20 Phase 9 应用密钥再加密 | `.artifacts/credential-reencryption/credential-reencryption-20260728-141330.json`、`.artifacts/verification/verify-20260728-141111.json`、`docs/changes/2026-07-28-credential-key-reencryption.md` | 本地隔离实体验证通过；2 条 v1 凭据 dry-run 保持不变，损坏第二行使整批回滚且首行摘要不变，修复后 2 条转为 v2，v2-only 后端解密成功，五项清理断言通过；288.9 秒完整门禁含 163 个 Go 测试入口、14/59 前端测试、三服务 healthy 与 Kustomize 16/5/22/3 |
 | M20 Phase 9 托管 CI | `https://github.com/guiyi-labs/aiops-platform/actions/runs/30334216631` | 通过；revision `151bc7ee848391e37b74d59f489bbe804d9234ff` 的 Backend、Frontend、Manifests、隔离凭据再加密、PostgreSQL 恢复、随机生产配置 Compose、HTTP、脱敏上传与 teardown 全部成功 |
+| M20 Phase 10 签名审计归档 | `.artifacts/audit-archive/audit-archive-20260728-150840.json`、`.artifacts/verification/verify-20260728-153059.json`、`docs/changes/2026-07-28-signed-audit-archives.md` | 本地隔离 PostgreSQL 演练通过；2 条合成脱敏审计行按 ID 升序归档并由外部可信公钥验签，3 条候选在 `max-records=2` 时拒绝且无文件，一字节篡改被拒绝，五项清理通过；361.34 秒完整门禁含 167 个 Go 测试入口、三个后端二进制、14/59 前端测试、三服务 healthy 与 Kustomize 16/5/22/3；托管 CI 待归档 |
 | Real kind E2E | `.artifacts/e2e-kind/e2e-kind-20260726-171621.json` | 通过，三规则、处置幂等、RBAC 与默认自动清理均符合预期 |
 | 敏感信息扫描 | `docs/changes/2026-07-26-delivery-packaging.md` | 通过，未匹配私钥、长 token、CA payload 或 JWT bearer material |
 | 答辩环境冷启动/清理 | `.artifacts/demo/demo-ready-20260726-170602.json` | 通过，从空 kind 环境重建；全清理后数据库三类 QA 行为 0 |

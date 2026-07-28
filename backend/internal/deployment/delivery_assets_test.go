@@ -17,6 +17,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"backend/cmd/credential-reencrypt/main.go": {
 			"--apply", "batch-size", "max-records", "pg_try_advisory_lock",
 		},
+		"backend/cmd/audit-archive/main.go": {
+			"verify\", false", "trusted-public-key-file", "from-id", "max-records",
+		},
+		"backend/internal/audit/archive.go": {
+			"Ed25519", "ErrUntrustedSigner", "MaxArchiveRecords", "refusing to overwrite",
+		},
 		"backend/migrations/000016_credential_reencryption_runs.up.sql": {
 			"credential_reencryption_runs", "source_key_versions", "error_code",
 		},
@@ -29,6 +35,15 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		},
 		"docs/changes/2026-07-28-credential-key-reencryption.md": {
 			"M20 Phase 9", "credential-reencrypt", "v2-only backend", "30334216631",
+		},
+		"docs/adr/0031-offline-signed-audit-archives.md": {
+			"external trust anchor", "read-only PostgreSQL", "1..10000", "does not add an",
+		},
+		"docs/database/audit-archive.md": {
+			"Safety Preconditions", "trusted-public-key-file", "record limit exceeded", "not hash chained",
+		},
+		"docs/changes/2026-07-28-signed-audit-archives.md": {
+			"M20 Phase 10", "audit-archive", "one-byte mutation", "hosted CI acceptance pending",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",
@@ -55,9 +70,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"credential-reencrypt", "insecure-skip-tls-verify", "REENCRYPTION_FAILED",
 			"v2_only_backend_decryption", ".artifacts\\credential-reencryption", "finally",
 		},
+		"scripts/e2e-audit-archive.ps1": {
+			"audit-archive", "trusted-public-key-file", "record limit", ".artifacts\\audit-archive", "finally",
+		},
 		".github/workflows/ci.yml": {
 			"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
-			"e2e-credential-reencryption.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
+			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
 			"v*.*.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",

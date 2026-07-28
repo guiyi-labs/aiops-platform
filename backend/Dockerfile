@@ -20,7 +20,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
     -ldflags="-s -w" \
-    -o /out/credential-reencrypt ./cmd/credential-reencrypt
+    -o /out/credential-reencrypt ./cmd/credential-reencrypt && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${VERSION}" \
+    -o /out/audit-archive ./cmd/audit-archive
 
 FROM alpine:3.22
 
@@ -31,6 +35,7 @@ WORKDIR /app
 
 COPY --from=build /out/api /app/api
 COPY --from=build /out/credential-reencrypt /app/credential-reencrypt
+COPY --from=build /out/audit-archive /app/audit-archive
 
 EXPOSE 8080
 ENTRYPOINT ["/app/api"]

@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 9 implementation accepted at `151bc7ee848391e37b74d59f489bbe804d9234ff`; hosted CI run `30334216631`; private remote remains active
+- Baseline: M20 Phase 9 remains accepted at `151bc7ee848391e37b74d59f489bbe804d9234ff`; Phase 10 signed audit archives passed the complete local gate and await hosted acceptance
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
@@ -113,7 +113,11 @@ claimed yet.
   and explicit-apply offline command, per-batch transaction rollback, sanitized
   run metadata and an isolated v1-to-v2 physical gate. Local and hosted Ubuntu
   acceptance completed on 2026-07-28.
-- Continue with OIDC/MFA evaluation, signed audit archives, production backup
-  policy/PITR and HA validation.
+- Phase 10 adds bounded offline audit selection, canonical JSON plus a detached
+  Ed25519 manifest, externally anchored verification, overwrite refusal and an
+  isolated PostgreSQL tamper/overflow/cleanup gate. The 2026-07-28 complete
+  local gate is accepted; hosted acceptance is pending.
+- Continue with organization-specific OIDC/MFA requirements, production backup
+  retention/RPO/RTO, then PITR and HA validation.
 - Define bounded metrics retention and missing-sample semantics before storing
   historical time series.

@@ -2,8 +2,24 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 9 accepted implementation revision is `151bc7ee848391e37b74d59f489bbe804d9234ff`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
-- Current milestone: M20 Phase 9 application credential key re-encryption is accepted locally and in hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 10 signed audit archives are implemented locally but not yet committed or accepted in hosted CI
+- Current milestone: Phase 10 full local acceptance is complete; create/push the implementation revision and archive hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+
+M20 Phase 10 adds ADR 0031, the offline `/app/audit-archive` command and an
+isolated PostgreSQL drill. Archive creation requires an explicit ID range,
+output and Ed25519 private-key file, checks a reviewed 1..10000 maximum before
+writing, and emits canonical JSON plus a detached signed manifest. Verification
+requires a separately supplied trusted public key and checks signer identity,
+signature, exact payload SHA-256, metadata and ordering. The isolated run at
+2026-07-28 15:08 +08:00 passed two-row signing/verification, three-row overflow
+refusal with no output, one-byte tamper rejection and all five cleanup
+assertions. Evidence is
+`.artifacts/audit-archive/audit-archive-20260728-150840.json`. The 361.34-second
+full local gate passed all backend packages and three binaries, 167 Go `Test*`
+entries, 14 Vitest files / 59 tests, production build, three healthy services,
+Kustomize 16/5/22/3 and runtime HTTP checks. Evidence is
+`.artifacts/verification/verify-20260728-153059.json`; hosted evidence remains
+pending before the phase is accepted.
 
 M20 Phase 9 adds ADR 0030, migration 000016, an active-plus-legacy AES-GCM
 keyring and the default-dry-run `/app/credential-reencrypt` command. Apply is

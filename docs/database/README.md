@@ -8,6 +8,10 @@ Application credential encryption-key rotation is documented in
 `docs/database/credential-key-rotation.md`. Its isolated gate never connects to
 the retained Compose database and retains no key or credential material.
 
+Bounded offline audit signing and external-trust verification are documented
+in `docs/database/audit-archive.md`. The operation reads but does not mark or
+delete `audit_logs`, and it is not a backup or retention mechanism.
+
 数据库使用 PostgreSQL，迁移文件位于 `backend/migrations/`。
 
 原则：
@@ -59,6 +63,8 @@ the retained Compose database and retains no key or credential material.
 `diagnosis_records.sla_due_at` 是按严重级别在创建时确定的不可空截止时间；迁移对历史记录使用 `observed_at` 回填。`resolved_at` 记录最近一次解决时间，重新打开时清空。`diagnosis_assignments` 对首次自动认领和显式转派追加一行，并同时保存可置空的用户外键与不可变名称快照；删除用户不影响历史解释，删除诊断时转派记录级联清理。
 
 `audit_logs` 只追加，不提供修改或删除业务 API。操作者和集群外键使用 `ON DELETE SET NULL`，同时保存 `actor_name`、资源名称和 `details.cluster_id` 快照，保证对象删除后仍可解释。`details` 只允许方法、路由模板和数字标识等白名单字段，不保存凭据或请求体。
+
+离线 `/app/audit-archive` 在只读 repeatable-read 快照内按升序 ID 导出上述脱敏模型，先计数再执行最多 10000 行的读取；它生成 JSON payload 与 Ed25519 detached manifest，不修改数据库，也不新增迁移。验签必须使用独立渠道提供的可信公钥，不能仅信任 manifest 内嵌公钥。归档完整性不等于数据库导出前的完整性，范围连续性、加密存储、访问控制、留存与销毁由外部制度负责。
 
 `ai_explanations` 保存通过结构和引用校验的完成结果。建议操作与引用使用 JSONB；Provider、模型、非敏感响应 ID和 token 用量按行保存。API Key、完整提示词、上游错误正文和推理隐藏状态不入库。用户删除后操作者外键置空但名称快照保留，诊断删除时解释级联清理。
 

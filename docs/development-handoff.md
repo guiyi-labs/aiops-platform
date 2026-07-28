@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: repository has no initial commit; project files are currently untracked
-- Current milestone: M20 Phase 6 versioned CI/release pipeline accepted; pinned regular CI, semantic-version package/tag release, scheduled disposable real-kind gates, workflow contracts, operations documentation and the post-archive full gate are complete, while the initial Git baseline remains pending
+- Git state: local `main` has root baseline commit `2d46588f8c15ab626703e92eccc35b4de8b53ab2`; the worktree is clean and no remote is configured or pushed
+- Current milestone: M20 Phase 6 versioned CI/release pipeline and the human-reviewed initial Git baseline are complete; remote required checks, runner registration and release publication remain pending
 
 M20 Phase 6 adds ADR 0028, `.github/workflows/ci.yml`, `release.yml` and
 `real-kind-e2e.yml`, plus grouped weekly Dependabot updates. Pull requests use
@@ -15,8 +15,9 @@ assets and require `gh release create --verify-tag`. Physical kind suites run
 only weekly or manually on a dedicated `[self-hosted, windows, x64,
 aiops-kind]` runner and include the disposable diagnosis, fleet and search
 scripts. All marketplace actions are pinned to commit SHAs. The YAML/security
-contract test passed and actionlint 1.7.7 returned zero findings. No commit,
-remote workflow, tag, release or registry push was created. See
+contract test passed and actionlint 1.7.7 returned zero findings. At Phase 6
+acceptance no commit, remote workflow, tag, release or registry push was
+created. See
 `docs/changes/2026-07-28-versioned-ci-release-pipeline.md` and
 `docs/ci-release.md`.
 
@@ -25,6 +26,15 @@ The M20 Phase 6 post-archive gate passed at 2026-07-28 10:07:52 +08:00 in
 `.artifacts/verification/verify-20260728-100752.json`: 152 Go `Test*` entries,
 14 Vitest files / 59 tests, production builds, three healthy Compose services,
 Kustomize 16/5/22/3 and backend/frontend/proxy health all passed.
+
+The reviewed local root baseline was then created on `main` as
+`2d46588f8c15ab626703e92eccc35b4de8b53ab2` with author and committer
+`zjw <3342773648@qq.com>`. It contains 368 files and excludes `.env`, local
+tools, evidence, dependency/build output, `backend/server.exe` and frontend
+TypeScript build metadata. The commit-bound full gate passed at 2026-07-28
+10:21:10 +08:00 in 177.39 seconds with evidence at
+`.artifacts/verification/verify-20260728-102110.json`. No remote, tag or
+release was created.
 
 M20 Phase 5 adds `scripts/e2e-global-search-kind.ps1` without changing ADR 0026
 or the search API. The accepted run created two physically distinct Kubernetes
@@ -713,8 +723,8 @@ applied version.
 
 ## Next Priorities After Current Work
 
-1. Human review and initial Git baseline commit.
-2. After a remote baseline exists, enable required branch checks and register
+1. Configure and review the remote, then push the accepted baseline.
+2. After that remote baseline exists, enable required branch checks and register
    a dedicated non-production `aiops-kind` runner using `docs/ci-release.md`.
 3. Continue production hardening with OIDC/MFA evaluation, application-key
    re-encryption, signed audit archives, backup/restore and HA validation.

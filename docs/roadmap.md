@@ -1,16 +1,16 @@
 # Product Optimization Roadmap
 
-- Updated: 2026-07-27
-- Baseline: M20 Phase 6 accepted
+- Updated: 2026-07-28
+- Baseline: M20 Phase 6 accepted; local root commit `2d46588f8c15ab626703e92eccc35b4de8b53ab2`
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
 
-The repository still has no initial commit. Before a formal release, confirm the
-author identity and intended file scope, create the baseline revision, run the
-full gate, tag the release and recapture screenshots bound to that revision.
-Feature work may continue locally, but artifacts must not claim a Git revision
-until that prerequisite is complete.
+The human-reviewed local baseline and its commit-bound full gate are complete.
+Before a formal release, configure and review the remote, push the baseline,
+enable required checks, register the dedicated runner, tag the release and
+recapture screenshots bound to the reviewed revision. No hosted workflow,
+remote branch protection, tag or release is claimed yet.
 
 ## M16: Metrics Available Path
 
@@ -93,8 +93,9 @@ until that prerequisite is complete.
   API or persistence surface.
 - Phase 6 adds a pinned, least-privilege regular CI workflow, semantic-version
   package/tag release workflow, scheduled/manual disposable real-kind workflow
-  and grouped dependency updates. It does not create the pending baseline,
-  publish registry images or introduce release credentials.
+  and grouped dependency updates. The reviewed local baseline was subsequently
+  created and verified; registry publication and release credentials remain
+  outside this phase.
 - Add OIDC/MFA evaluation, application-key re-encryption, signed audit archives,
   backup/restore and HA validation.
 - Define bounded metrics retention and missing-sample semantics before storing

@@ -44,13 +44,24 @@ seconds. Evidence is
 Go `Test*` entries, server build, frontend typecheck, 14 Vitest files / 59
 tests, production build, three healthy Compose services, Kustomize
 16/5/22/3 and backend/frontend/proxy HTTP checks all passed. The phase does
-not claim a hosted GitHub run because the repository still lacks its
-human-approved initial commit and remote baseline.
+not claim a hosted GitHub run because no remote baseline is configured or
+pushed.
+
+## Post-Acceptance Baseline
+
+After human review of the file scope and Git identity, local `main` received
+the human-approved initial commit
+`2d46588f8c15ab626703e92eccc35b4de8b53ab2` with author and committer
+`zjw <3342773648@qq.com>`. The commit contains 368 files; ignored secrets,
+tools, evidence, dependencies and build output remain outside Git. Its
+commit-bound full gate passed at 2026-07-28 10:21:10 +08:00 in 177.39 seconds
+with evidence at `.artifacts/verification/verify-20260728-102110.json`.
 
 ## Boundaries And Follow-Up
 
-No initial commit, remote branch protection, release tag, GitHub Release,
-registry push, signing key or production runner was created. Those are external
-state changes and remain human-controlled. The next production-hardening slice
-should evaluate OIDC/MFA and application credential-key rotation before adding
+At phase acceptance no initial commit, remote branch protection, release tag,
+GitHub Release, registry push, signing key or production runner was created.
+Only the local baseline was added afterward; the remaining external state
+changes stay human-controlled. The next production-hardening slice should
+evaluate OIDC/MFA and application credential-key rotation before adding
 registry identity, artifact signing or provenance attestation.

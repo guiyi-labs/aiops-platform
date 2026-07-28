@@ -58,7 +58,7 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"Required Decisions", "--network none", "14 checks", "Production Integration Boundary",
 		},
 		"docs/changes/2026-07-28-identity-readiness-gate.md": {
-			"M20 Phase 11", "identity-readiness", "MFA/email-linking downgrades", "hosted acceptance pending",
+			"M20 Phase 11", "identity-readiness", "MFA/email-linking downgrades", "30345051371",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",

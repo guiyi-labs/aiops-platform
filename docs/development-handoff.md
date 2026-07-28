@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 11 identity readiness is accepted locally and awaiting implementation commit/hosted CI
-- Current milestone: M20 Phase 11 provides an offline OIDC/MFA readiness contract without claiming production SSO; organization identity decisions, production backup policy, runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 11 identity readiness is accepted at `216eb81e92b9ccc009c62c9d03ec58f9116bfd33` with hosted CI run `30345051371`
+- Current milestone: M20 Phase 11 offline OIDC/MFA readiness is accepted locally and in hosted CI without claiming production SSO; organization identity decisions, production backup policy, runner registration and release publication remain pending
 
 M20 Phase 11 adds ADR 0032, the strict offline `/app/identity-readiness`
 command, a policy template and a network-disabled synthetic drill. Fourteen
@@ -22,7 +22,10 @@ Actionlint 1.7.7 returned zero findings. The 300.97-second full local gate then
 passed 171 Go `Test*` entries and four backend targets, 14 Vitest files / 59
 tests, production frontend build, three healthy services, Kustomize 16/5/22/3
 and runtime HTTP checks. Evidence is
-`.artifacts/verification/verify-20260728-165939.json`. Hosted CI is pending.
+`.artifacts/verification/verify-20260728-165939.json`. Hosted CI run
+`30345051371` passed all four jobs at `216eb81`, including the network-disabled
+identity gate, all three isolated database drills, random-production-config
+Compose health, sanitized evidence upload and unconditional teardown.
 
 M20 Phase 10 adds ADR 0031, the offline `/app/audit-archive` command and an
 isolated PostgreSQL drill. Archive creation requires an explicit ID range,

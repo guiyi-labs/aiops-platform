@@ -89,10 +89,11 @@
 | M20 Phase 5 最终质量门禁 | `.artifacts/verification/verify-20260727-230204.json` | 通过，158.94 秒；151 个 Go 测试入口、14 个 Vitest 文件/59 个用例、生产构建、三服务 healthy、Kustomize 16/5/22/3、交付合同和运行态 HTTP 检查通过 |
 | M20 Phase 6 CI/release 合同 | `backend/internal/deployment/ci_workflows_test.go`、`docs/changes/2026-07-28-versioned-ci-release-pipeline.md` | 通过；3 个 workflow 和 Dependabot/actionlint 配置均可解析，官方 Actions 固定 SHA，PR 只读且无 secrets，手动发布只产包、tag 才可发布，自托管 kind 作业非取消式运行；actionlint 1.7.7 零告警 |
 | M20 Phase 6 最终质量门禁 | `.artifacts/verification/verify-20260728-100752.json` | 通过，180.85 秒；152 个 Go 测试入口、14 个 Vitest 文件/59 个用例、生产构建、三服务 healthy、Kustomize 16/5/22/3、CI/release 交付合同和运行态 HTTP 检查通过 |
+| M20 Phase 6 首次托管 CI | `https://github.com/guiyi-labs/aiops-platform/actions/runs/30325194933` | 通过；revision `648aea6c94fbc29fbf21d1f799df29880099d454` 的 Backend、Frontend、Manifests、Compose runtime 全部成功，运行态健康、脱敏证据上传和 teardown 通过 |
 | Real kind E2E | `.artifacts/e2e-kind/e2e-kind-20260726-171621.json` | 通过，三规则、处置幂等、RBAC 与默认自动清理均符合预期 |
 | 敏感信息扫描 | `docs/changes/2026-07-26-delivery-packaging.md` | 通过，未匹配私钥、长 token、CA payload 或 JWT bearer material |
 | 答辩环境冷启动/清理 | `.artifacts/demo/demo-ready-20260726-170602.json` | 通过，从空 kind 环境重建；全清理后数据库三类 QA 行为 0 |
-| 答辩截图 | `docs/thesis/screenshots/capture-metadata.json` | 通过，4 张 1440x1000 页面截图已人工检查；待初始 commit 后重采集绑定 revision |
+| 答辩截图 | `docs/thesis/screenshots/capture-metadata.json` | 通过，4 张 1440x1000 页面截图已人工检查；待按当前远端 revision 重采集绑定证据 |
 
 ## 故障注入数据
 

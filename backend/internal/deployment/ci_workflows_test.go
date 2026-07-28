@@ -10,6 +10,14 @@ import (
 )
 
 func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
+	const (
+		checkoutAction       = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+		setupGoAction        = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e"
+		setupNodeAction      = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
+		setupPnpmAction      = "pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1"
+		uploadArtifactAction = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+	)
+
 	root := repositoryRoot(t)
 	tests := []struct {
 		name      string
@@ -20,10 +28,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			name: ".github/workflows/ci.yml",
 			required: []string{
 				"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
-				"actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
-				"actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff",
-				"actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
-				"actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+				checkoutAction, setupGoAction, setupNodeAction, setupPnpmAction, uploadArtifactAction,
 				"go test -p=1 -count=1 ./...", "pnpm install --frozen-lockfile",
 				"docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 			},
@@ -33,6 +38,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			name: ".github/workflows/release.yml",
 			required: []string{
 				"tags:", "workflow_dispatch:", "uses: ./.github/workflows/ci.yml",
+				checkoutAction, uploadArtifactAction,
 				"SHA256SUMS", "--verify-tag", "gh release create", "contents: write",
 			},
 			forbidden: []string{"pull_request_target", "secrets.", "docker push"},
@@ -41,6 +47,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			name: ".github/workflows/real-kind-e2e.yml",
 			required: []string{
 				"schedule:", "workflow_dispatch:", "self-hosted", "aiops-kind",
+				checkoutAction, uploadArtifactAction,
 				"e2e-diagnosis-kind.ps1", "e2e-fleet-kind.ps1", "e2e-global-search-kind.ps1",
 				"cancel-in-progress: false", "retention-days: 14",
 			},

@@ -122,7 +122,7 @@ KRM 和 Ratel 仅用于需求、交互及部署思路参考。本仓库独立实
 
 ## Delivery Status
 
-当前已完成 M1-M19 和 M20 第一至第八阶段。固定操作目录包含 Deployment rollout restart/scale 与 CronJob
+当前已完成 M1-M19 和 M20 第一至第十二阶段。固定操作目录包含 Deployment rollout restart/scale 与 CronJob
 suspend/resume，全部经过 dry-run、typed diff、精确资源快照、一次性确认、幂等执行、
 审计和 namespaced RBAC；真实 kind 已验证执行、重放和 fixture 恢复。Deployment rollback
 因缺少精确 ReplicaSet revision/template 历史而明确延后，不接受客户端模板或任意 patch。
@@ -140,6 +140,11 @@ tag 发布前复用完整 CI 并生成 OCI 归档、源码、OpenAPI、依赖许
 真实集群门禁仅运行一次性诊断/fleet/search 套件。第七阶段完成依赖审查、major 更新隔离和
 Node 24 Actions 治理；第八阶段增加隔离 PostgreSQL 17 逻辑备份恢复门禁，在销毁源实例后
 恢复到全新实例并校验迁移、代表性关系、加密字节和外键一致性，且不声明生产 RPO/RTO、PITR 或 HA。
+第九至第十二阶段完成应用凭据再加密、签名审计归档、离线 OIDC/MFA 就绪准入和
+生产恢复策略准入，均已通过托管 CI，但仍不声明生产 SSO、PITR 或 HA 已启用。
+KRM/Ratel 复评后，后续路线已调整为 M21 历史可观测、M22 日常排障与治理、
+M23 安全部署更新/回滚、M24 固定跨集群发布、M25 集群工作负载备份集成和
+M26 组织集成/正式发布。
 运维合同见 `docs/ci-release.md`，归档见
 `docs/changes/2026-07-27-bounded-multi-cluster-health.md` 和
 `docs/changes/2026-07-27-two-cluster-fleet-e2e.md`、
@@ -148,5 +153,10 @@ Node 24 Actions 治理；第八阶段增加隔离 PostgreSQL 17 逻辑备份恢�
 `docs/changes/2026-07-27-two-cluster-global-search-e2e.md`、
 `docs/changes/2026-07-28-versioned-ci-release-pipeline.md`、
 `docs/changes/2026-07-28-dependency-governance.md`、
-`docs/changes/2026-07-28-postgres-backup-restore.md`，交接入口见
+`docs/changes/2026-07-28-postgres-backup-restore.md`、
+`docs/changes/2026-07-28-credential-key-reencryption.md`、
+`docs/changes/2026-07-28-signed-audit-archives.md`、
+`docs/changes/2026-07-28-identity-readiness-gate.md`、
+`docs/changes/2026-07-28-recovery-readiness-gate.md` 和
+`docs/changes/2026-07-28-product-roadmap-reprioritization.md`，交接入口见
 `docs/development-handoff.md`。本地初始 Git 基线已经冻结并通过全量门禁，远端流水线状态以页首 CI 徽章为准。

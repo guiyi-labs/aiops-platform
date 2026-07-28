@@ -47,7 +47,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			forbidden: []string{"pull_request_target", "secrets.", "KeepPlatformCluster"},
 		},
 		{
-			name: ".github/dependabot.yml",
+			name:     ".github/dependabot.yml",
 			required: []string{"github-actions", "gomod", "npm", "weekly"},
 		},
 		{

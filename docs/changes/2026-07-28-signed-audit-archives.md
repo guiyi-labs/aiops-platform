@@ -44,12 +44,14 @@ files / 59 tests, frontend production build, three healthy Compose services,
 Kustomize 16/5/22/3 and backend/frontend-proxy HTTP checks passed. Actionlint
 1.7.7 returned zero findings. Hosted CI acceptance pending.
 
-The first hosted attempt, run `30338972042`, correctly failed rather than
-overstating acceptance: Linux PowerShell normalized a restored unset process
-variable to an empty value, while the cleanup assertion compared it directly
-with `$null`. Containers, network, image and temporary files were removed. The
-assertion now uses the same null/empty normalization as the other accepted
-cross-platform drills; the replacement hosted run is pending.
+The first two hosted attempts correctly failed rather than overstating
+acceptance. Run `30338972042` exposed Linux PowerShell null/empty normalization
+in the environment-restoration assertion. After that correction, run
+`30339580960` exposed that the image's non-root application UID could not write
+the runner-owned bind mount. Both attempts removed their containers, network,
+image and temporary files. The gate now maps the Linux command container to the
+non-root runner UID/GID while retaining the image's default application user in
+normal operation; the replacement hosted run is pending.
 
 ## Security Boundary
 

@@ -1,9 +1,9 @@
 # M20 Phase 10: Signed Audit Archives
 
 - Date: 2026-07-28
-- Status: Implemented; hosted CI acceptance pending
-- Accepted revision: pending
-- Hosted CI: pending
+- Status: Accepted
+- Accepted revision: `c1449573c3b05d2825d4dd8d77b36e00680780aa`
+- Hosted CI: [run 30340088789](https://github.com/guiyi-labs/aiops-platform/actions/runs/30340088789)
 - Scope: bounded offline audit archival, external trust verification and tamper evidence
 
 ## Delivered
@@ -42,7 +42,7 @@ Evidence is `.artifacts/verification/verify-20260728-153059.json`: 167 Go
 `Test*` entries and all backend packages, all three backend binaries, 14 Vitest
 files / 59 tests, frontend production build, three healthy Compose services,
 Kustomize 16/5/22/3 and backend/frontend-proxy HTTP checks passed. Actionlint
-1.7.7 returned zero findings. Hosted CI acceptance pending.
+1.7.7 returned zero findings.
 
 The first two hosted attempts correctly failed rather than overstating
 acceptance. Run `30338972042` exposed Linux PowerShell null/empty normalization
@@ -51,7 +51,14 @@ in the environment-restoration assertion. After that correction, run
 the runner-owned bind mount. Both attempts removed their containers, network,
 image and temporary files. The gate now maps the Linux command container to the
 non-root runner UID/GID while retaining the image's default application user in
-normal operation; the replacement hosted run is pending.
+normal operation.
+
+Hosted CI run `30340088789` passed all four jobs at accepted revision
+`c1449573c3b05d2825d4dd8d77b36e00680780aa`. Backend formatting/vet/test and
+all three binaries, frontend typecheck/test/build, manifest/Compose rendering,
+the credential re-encryption, signed audit archive and PostgreSQL recovery
+drills, random-production-config Compose health, HTTP checks, sanitized
+evidence upload and unconditional teardown all succeeded on Ubuntu 24.04.
 
 ## Security Boundary
 
@@ -64,6 +71,6 @@ records policy.
 
 ## Next Route
 
-Complete hosted acceptance for this phase. Then document organization-specific
-OIDC/MFA requirements and production backup retention/RPO/RTO before selecting
-an identity provider or implementing PITR/HA drills.
+Document organization-specific OIDC/MFA requirements and production backup
+retention/RPO/RTO before selecting an identity provider or implementing
+PITR/HA drills.

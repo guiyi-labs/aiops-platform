@@ -14,11 +14,11 @@ for explicit review. Review the upstream tag and diff before replacing a SHA.
 `pull_request_target` is prohibited.
 
 Activation status: private remote `guiyi-labs/aiops-platform` is configured.
-Hosted CI run `30331048635` passed all four jobs at revision
-`24ed4af7b74ec85438c0c8cc005f27ecf6e74886`, including the isolated PostgreSQL
-recovery step and independent Compose runtime. The pnpm setup action runs on
-Node 24 without the prior deprecation warning. Required branch checks and the
-dedicated `aiops-kind` runner are not enabled yet.
+Hosted CI run `30340088789` passed all four jobs at revision
+`c1449573c3b05d2825d4dd8d77b36e00680780aa`, including signed audit archival,
+credential re-encryption, PostgreSQL recovery and independent Compose runtime.
+The pnpm setup action runs on Node 24 without the prior deprecation warning.
+Required branch checks and the dedicated `aiops-kind` runner are not enabled.
 
 ## Required Branch Protection
 

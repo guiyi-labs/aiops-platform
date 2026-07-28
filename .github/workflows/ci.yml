@@ -53,6 +53,7 @@ jobs:
           go build -trimpath -ldflags "-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${GITHUB_SHA}" -o /tmp/aiops-api ./cmd/server
           go build -trimpath -ldflags "-s -w" -o /tmp/credential-reencrypt ./cmd/credential-reencrypt
           go build -trimpath -ldflags "-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${GITHUB_SHA}" -o /tmp/audit-archive ./cmd/audit-archive
+          go build -trimpath -ldflags "-s -w" -o /tmp/identity-readiness ./cmd/identity-readiness
 
   frontend:
     name: Frontend
@@ -120,6 +121,9 @@ jobs:
       - name: Drill signed audit archive
         shell: pwsh
         run: ./scripts/e2e-audit-archive.ps1
+      - name: Evaluate synthetic OIDC and MFA readiness
+        shell: pwsh
+        run: ./scripts/e2e-identity-readiness.ps1
       - name: Drill isolated PostgreSQL backup and restore
         shell: pwsh
         run: ./scripts/e2e-postgres-backup-restore.ps1
@@ -181,6 +185,7 @@ jobs:
             .artifacts/ci/
             .artifacts/credential-reencryption/
             .artifacts/audit-archive/
+            .artifacts/identity-readiness/
             .artifacts/postgres-recovery/
           if-no-files-found: error
           retention-days: 7

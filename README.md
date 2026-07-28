@@ -1,12 +1,34 @@
 # Kubernetes Multi-Cluster AIOps Platform
 
-面向中小规模 Kubernetes 环境的多集群统一管理与可解释故障诊断平台。
+[![CI](https://github.com/guiyi-labs/aiops-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/guiyi-labs/aiops-platform/actions/workflows/ci.yml)
+![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)
+![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?logo=vuedotjs&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-1.34-326CE5?logo=kubernetes&logoColor=white)
 
-当前状态：功能型 MVP 主链路已经闭环，并进入生产安全加固阶段。系统支持认证、四类角色、系统管理员用户管理及全会话失效密码重置，加密集群接入、含 EndpointSlice 与可选 Metrics API 的固定 Kubernetes 资源查询、17 类资源的可深链只读详情与关联事件、固定 Pod/Deployment/Service/Ingress 的有界跨集群名称搜索、Ingress 到 Deployment 的完整只读资源拓扑、真实 CPU/内存绝对用量、七类可追溯规则诊断、分级 SLA、负责人转派、人工处置、可筛选及安全 CSV 导出的平台审计，以及默认关闭、严格引用规则证据、受并发与每日 token 预算保护、支持逐条人工评价且失败不影响主链路的 Responses-compatible AI 解释。Secret 只在公开模型中展示最小 metadata、类型、immutable 和 data key 名，不返回值、labels 或 annotations。
+> 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
-诊断创建、状态变化和负责人变化现可通过默认关闭的事务 outbox 投递到 HMAC-SHA256 签名 Webhook。投递支持持久重试、dead 状态和受 RBAC/审计保护的人工重新排队；事件 payload 不包含诊断证据、处置备注或凭据。
+![AIOps Dashboard](docs/thesis/screenshots/01-dashboard.png)
 
-受控操作保留与 confirmed Pod 诊断匹配的 Deployment rollout restart，并新增资源详情发起的 Deployment 扩缩容、CronJob 暂停和恢复。服务端先执行 Kubernetes server-side dry-run，再通过一次性确认 token、UID/resourceVersion 快照、字段级前后值、幂等键和审计记录执行固定 patch；不会接受任意 Kubernetes 写请求。
+## 核心能力
+
+- **多集群健康视图**：以固定并发、超时和采样上限汇总集群状态，显式呈现覆盖率、截断和局部失败。
+- **资源工作台**：提供 17 类常见 Kubernetes 资源的只读列表、详情、关联事件、拓扑和深链接。
+- **全局资源搜索**：在固定 Pod、Deployment、Service、Ingress 范围内执行有界跨集群名称搜索。
+- **证据型诊断**：七类确定性规则保留资源快照、事件和可追溯证据，AI 仅作为可选解释增强。
+- **真实 Metrics**：读取可选 Metrics API，展示 Node/Pod CPU、内存绝对用量、利用率和消费者排行。
+- **受控运维操作**：支持 Deployment rollout restart/scale 与 CronJob suspend/resume，统一经过 dry-run、确认、幂等和审计。
+- **安全与治理**：包含四类角色、加密集群凭据、会话管理、平台审计、安全 CSV 和签名 Webhook outbox。
+- **交付门禁**：覆盖 Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和。
+
+## 技术栈
+
+- Backend：Go、PostgreSQL/pgvector、Kubernetes client-go
+- Frontend：Vue 3、TypeScript、Vite、Lucide
+- Runtime：Docker Compose、Kustomize、kind、NGINX
+- Delivery：GitHub Actions、Dependabot、actionlint、版本化 OCI 归档
+
+当前功能型 MVP 主链路已经闭环，并进入生产安全加固阶段。完整架构、设计决策、
+测试矩阵和阶段归档见 [`docs/`](docs/README.md)。
 
 ## Quick Start
 
@@ -119,4 +141,4 @@ tag 发布前复用完整 CI 并生成 OCI 归档、源码、OpenAPI、依赖许
 `docs/changes/2026-07-27-user-owned-global-search-filters.md`、
 `docs/changes/2026-07-27-two-cluster-global-search-e2e.md`、
 `docs/changes/2026-07-28-versioned-ci-release-pipeline.md`，交接入口见
-`docs/development-handoff.md`。仓库尚无初始 Git commit，需人工确认作者身份和提交范围后再冻结 revision。
+`docs/development-handoff.md`。本地初始 Git 基线已经冻结并通过全量门禁，远端流水线状态以页首 CI 徽章为准。

@@ -2,7 +2,7 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; current reviewed main is `acbdccaecaafc6eac96987367c5e118071508fb1`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 7 code baseline is `acbdccaecaafc6eac96987367c5e118071508fb1`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
 - Current milestone: M20 Phase 7, dependency governance and Node 24 CI currency are complete; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
 
 M20 Phase 7 reviewed Dependabot PRs #1, #2, #5 and #6. The Actions and Go

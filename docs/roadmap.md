@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 7 accepted at `acbdccaecaafc6eac96987367c5e118071508fb1`; final hosted CI run `30328283896`; private remote remains active
+- Baseline: M20 Phase 7 final revision `48a86ec4f5b1314b51f381c40443ea9df0704395`; hosted CI run `30328906183`; private remote remains active
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
@@ -103,7 +103,12 @@ claimed yet.
   pnpm setup to the signed Node 24 action, and archives the account-plan limit
   on private-repository branch protection. Actions, Go modules, Vue patch
   updates and the final combined CI run were accepted without a release tag.
-- Add OIDC/MFA evaluation, application-key re-encryption, signed audit archives,
-  backup/restore and HA validation.
+- Phase 8 adds a two-instance PostgreSQL 17 logical backup/restore drill. It
+  applies the complete migration set, inserts synthetic relational data,
+  destroys the source, restores a fresh target, verifies migration/data/FK
+  invariants and removes all temporary backup material. Production RPO/RTO,
+  off-cluster retention, PITR and HA are explicitly not claimed.
+- Continue with OIDC/MFA evaluation, application-key re-encryption, signed audit
+  archives, production backup policy/PITR and HA validation.
 - Define bounded metrics retention and missing-sample semantics before storing
   historical time series.

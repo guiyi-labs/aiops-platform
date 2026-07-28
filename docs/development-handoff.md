@@ -2,8 +2,23 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 7 code baseline is `acbdccaecaafc6eac96987367c5e118071508fb1`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
-- Current milestone: M20 Phase 7, dependency governance and Node 24 CI currency are complete; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 7 final revision is `48a86ec4f5b1314b51f381c40443ea9df0704395`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
+- Current milestone: M20 Phase 8 isolated PostgreSQL backup/restore is locally accepted and awaiting hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+
+M20 Phase 8 adds ADR 0029, the recovery runbook and
+`scripts/e2e-postgres-backup-restore.ps1`. The script starts an isolated
+PostgreSQL 17 source with no host port, applies all 15 migrations, inserts
+synthetic relational fixtures, creates a custom-format dump, destroys the
+source and restores a fresh target. The 2026-07-28 local run preserved all
+expected migration/table/encrypted-byte invariants, found zero invalid foreign
+keys and removed both containers and temporary backup material. The regular CI
+runtime job now runs this drill and uploads only sanitized JSON evidence. This
+does not claim production retention, PITR, RPO/RTO, PVC recovery or HA.
+The post-change full local gate passed in 278.81 seconds with all backend
+packages, 14 Vitest files / 59 tests, production build, three healthy Compose
+services, Kustomize 16/5/22/3 and runtime HTTP checks. Evidence is
+`.artifacts/verification/verify-20260728-125500.json`; actionlint 1.7.7 also
+returned zero findings.
 
 M20 Phase 7 reviewed Dependabot PRs #1, #2, #5 and #6. The Actions and Go
 updates were merged after all four hosted checks passed; the Vue and vue-tsc
@@ -744,8 +759,9 @@ applied version.
    after an explicitly approved public-repository decision.
 2. Register a dedicated non-production `aiops-kind` runner using
    `docs/ci-release.md`.
-3. Continue production hardening with OIDC/MFA evaluation, application-key
-   re-encryption, signed audit archives, backup/restore and HA validation.
+3. Continue production hardening with application-key re-encryption, OIDC/MFA
+   evaluation, signed audit archives, production backup/PITR policy and HA
+   validation; the isolated logical restore gate is complete.
 4. Decide registry identity, artifact signing and provenance only after the
    release actor and key-management policy are reviewed.
 5. Evaluate explicit saved-filter ordering/pinning only if repeated operator

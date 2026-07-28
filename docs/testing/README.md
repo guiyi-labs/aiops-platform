@@ -350,8 +350,9 @@ fixtures are intentionally excluded from the retained defense demo.
 ## Delivery verification entry points
 
 - `.github/workflows/ci.yml` is the hosted regular gate. It reproduces backend,
-  frontend, Kustomize, Compose health and HTTP checks on Ubuntu with no PR
-  secret and unconditional ephemeral runtime teardown.
+  frontend, Kustomize, isolated PostgreSQL backup/restore, Compose health and
+  HTTP checks on Ubuntu with no PR secret and unconditional ephemeral runtime
+  teardown.
 - `.github/workflows/release.yml` must call the complete reusable CI, reject
   non-semantic versions, keep manual runs package-only and produce
   `SHA256SUMS` before a verified tag may create a GitHub Release.
@@ -392,6 +393,11 @@ fixtures are intentionally excluded from the retained defense demo.
   matches, verifies ordering/coverage/truncation and fault isolation, and
   requires complete cleanup. Sanitized results are written to
   `.artifacts/search-e2e`.
+- `scripts/e2e-postgres-backup-restore.ps1` is the isolated PostgreSQL 17
+  recovery gate. It applies every migration and synthetic relational fixtures,
+  destroys the source after a custom-format dump, restores a fresh target,
+  compares sanitized invariants and requires complete cleanup. Results are
+  written to `.artifacts/postgres-recovery`; the dump itself is never retained.
 - Saved-filter runtime acceptance uses the retained development PostgreSQL and
   authenticated API because the state is a platform preference and does not
   require a second target cluster. Test-created filters must be removed after

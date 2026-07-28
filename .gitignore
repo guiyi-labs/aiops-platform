@@ -32,3 +32,5 @@ frontend/coverage/
 data/
 tmp/
 *.log
+*.dump
+*.backup

@@ -33,6 +33,13 @@ type Config struct {
 	CredentialKeyVersion       string
 	CredentialDecryptionKeys   map[string]string
 	ClusterProbeTimeout        time.Duration
+	MetricsHistoryEnabled      bool
+	MetricsHistoryRetention    time.Duration
+	MetricsCollectionInterval  time.Duration
+	MetricsCollectionTimeout   time.Duration
+	MetricsCleanupInterval     time.Duration
+	MetricsMaxClusters         int
+	MetricsMaxConcurrency      int
 	AIEnabled                  bool
 	AIBaseURL                  string
 	AIAPIKey                   string
@@ -67,6 +74,49 @@ func Load() (Config, error) {
 	clusterProbeTimeout, err := durationFromEnv("CLUSTER_PROBE_TIMEOUT", 10*time.Second)
 	if err != nil {
 		return Config{}, err
+	}
+	metricsHistoryEnabled, err := boolFromEnv("METRICS_HISTORY_ENABLED", true)
+	if err != nil {
+		return Config{}, err
+	}
+	metricsHistoryRetention, err := durationFromEnv("METRICS_HISTORY_RETENTION", 7*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	metricsCollectionInterval, err := durationFromEnv("METRICS_COLLECTION_INTERVAL", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	metricsCollectionTimeout, err := durationFromEnv("METRICS_COLLECTION_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	metricsCleanupInterval, err := durationFromEnv("METRICS_CLEANUP_INTERVAL", time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	metricsMaxClusters, err := intFromEnv("METRICS_MAX_CLUSTERS", 20, 1, 20)
+	if err != nil {
+		return Config{}, err
+	}
+	metricsMaxConcurrency, err := intFromEnv("METRICS_MAX_CONCURRENCY", 4, 1, 4)
+	if err != nil {
+		return Config{}, err
+	}
+	if metricsHistoryRetention < time.Hour || metricsHistoryRetention > 30*24*time.Hour {
+		return Config{}, fmt.Errorf("METRICS_HISTORY_RETENTION must be between 1h and 720h")
+	}
+	if metricsCollectionInterval < 15*time.Second || metricsCollectionInterval > 24*time.Hour {
+		return Config{}, fmt.Errorf("METRICS_COLLECTION_INTERVAL must be between 15s and 24h")
+	}
+	if metricsCollectionTimeout < time.Second || metricsCollectionTimeout > time.Minute {
+		return Config{}, fmt.Errorf("METRICS_COLLECTION_TIMEOUT must be between 1s and 1m")
+	}
+	if metricsCleanupInterval < time.Minute || metricsCleanupInterval > 24*time.Hour {
+		return Config{}, fmt.Errorf("METRICS_CLEANUP_INTERVAL must be between 1m and 24h")
+	}
+	if metricsMaxConcurrency > metricsMaxClusters {
+		return Config{}, fmt.Errorf("METRICS_MAX_CONCURRENCY must not exceed METRICS_MAX_CLUSTERS")
 	}
 	aiRequestTimeout, err := durationFromEnv("AI_REQUEST_TIMEOUT", 30*time.Second)
 	if err != nil {
@@ -183,6 +233,13 @@ func Load() (Config, error) {
 		CredentialKeyVersion:       credentialKeyVersion,
 		CredentialDecryptionKeys:   credentialDecryptionKeys,
 		ClusterProbeTimeout:        clusterProbeTimeout,
+		MetricsHistoryEnabled:      metricsHistoryEnabled,
+		MetricsHistoryRetention:    metricsHistoryRetention,
+		MetricsCollectionInterval:  metricsCollectionInterval,
+		MetricsCollectionTimeout:   metricsCollectionTimeout,
+		MetricsCleanupInterval:     metricsCleanupInterval,
+		MetricsMaxClusters:         metricsMaxClusters,
+		MetricsMaxConcurrency:      metricsMaxConcurrency,
 		AIEnabled:                  aiEnabled,
 		AIBaseURL:                  aiBaseURL,
 		AIAPIKey:                   aiAPIKey,

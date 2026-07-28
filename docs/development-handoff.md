@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 1 is accepted at `51d2bb5048562feb5aa4b4b872b3e1f6fcf04ecc` with hosted CI run `30355560521`; M20 Phase 12 remains accepted and archived
-- Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 1 fixes and implements the PostgreSQL history contract, while provider-specific identity/recovery work remains organization-gated
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 1 is accepted at `51d2bb5048562feb5aa4b4b872b3e1f6fcf04ecc` with hosted CI run `30355560521`; Phase 2 background collection is locally accepted and awaits its implementation revision and hosted CI; M20 Phase 12 remains accepted and archived
+- Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 2 locally accepts enabled-cluster background collection over the PostgreSQL history contract, while provider-specific identity/recovery work remains organization-gated
 
 The 2026-07-28 KRM/Ratel reassessment found that the platform is already
 stronger in diagnosis evidence, credential safety, controlled mutation, audit
@@ -25,6 +25,25 @@ rebuild and readiness HTTP check passed. Hosted Backend, Frontend, Manifests
 and the 7m11s Compose runtime job also passed, including isolated PostgreSQL
 backup/restore with migration 17. The phase is archived in
 `docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md`.
+
+M21 Phase 2 adds ADR 0035 and `internal/metricshistory.Collector`. The API
+process now samples enabled clusters every minute by default, with stable ID
+ordering, a 20-cluster cap, four-way cluster concurrency, a ten-second
+per-cluster timeout and parallel Node/Pod reads. Official Kubernetes Quantity
+parsing stores exact CPU nanocores and memory bytes; malformed, negative or
+overflowing values fail one source atomically. Round-robin Node/Pod bundle
+allocation preserves both sources under the 1,800-point cap, and six stable
+codes record API absence, timeout, request, quantity, payload and limit outcomes
+without persisting raw upstream errors. Cleanup runs immediately and hourly,
+one bounded repository batch per tick. The server cancels and waits for both
+background services before closing PostgreSQL. The phase is archived in
+`docs/changes/2026-07-28-m21-bounded-background-metrics-collector.md`.
+The 782.71-second local repository gate passed 195 Go `Test*` entries and five
+backend targets, 14 Vitest files / 59 tests, production frontend and both
+Docker image builds, three healthy Compose services, Kustomize `16/5/22/3`
+and direct/proxied readiness. Evidence is
+`.artifacts/verification/verify-20260728-223526.json`; the implementation
+revision and hosted CI run remain to be recorded.
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
 template and a network-disabled gate consuming the newest real logical-restore
@@ -874,21 +893,19 @@ applied version in the current development database.
 
 ## Next Priorities After Current Work
 
-1. Implement M21 Phase 2: a bounded background collector over enabled clusters,
-   Kubernetes quantity conversion to nanocores/bytes, stable failure mapping,
-   per-cluster timeout/concurrency limits and deterministic cleanup scheduling.
-2. Expose the exact-series authenticated history route and prove query isolation,
+1. Implement M21 Phase 3: expose the exact-series authenticated history route
+   and prove query isolation,
    restart durability and sparse gaps before adding charts.
-3. Implement deterministic sustained-window evaluation, then add trend and
+2. Implement deterministic sustained-window evaluation, then add trend and
    incident-evidence views and validate sampling gaps,
    retention and restart recovery against a disposable real-kind fixture.
-4. Continue through M22 multi-container logs/governance coverage, M23 safe
+3. Continue through M22 multi-container logs/governance coverage, M23 safe
    Deployment update/rollback, M24 fixed cross-cluster promotion and M25
    optional backup inventory in the order recorded in `docs/roadmap.md`.
-5. In parallel, obtain identity/security/application-owner approval for the
+4. In parallel, obtain identity/security/application-owner approval for the
    Phase 11 policy and infrastructure-owner approval for the Phase 12 policy;
    do not block M21-M25 on unavailable provider decisions.
-6. Revisit branch protection, register the dedicated `aiops-kind` runner and
+5. Revisit branch protection, register the dedicated `aiops-kind` runner and
    decide registry/signing identity during M26 formal release preparation.
 
 ## Real kind Final Verification

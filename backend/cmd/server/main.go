@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/httpserver"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/store"
@@ -75,6 +77,18 @@ func main() {
 	clusterRegistry := cluster.NewRegistry(cfg.ClusterProbeTimeout)
 	clusterService := cluster.NewService(cluster.NewGormRepository(database.GORM()), credentialEncryptor, clusterRegistry)
 	kubernetesService := k8sgateway.NewService(clusterService, clusterRegistry)
+	metricsHistoryService, err := metricshistory.NewService(metricshistory.Config{Retention: cfg.MetricsHistoryRetention}, metricshistory.NewGormRepository(database.GORM()))
+	if err != nil {
+		logger.Fatal("configure metrics history", zap.Error(err))
+	}
+	metricsCollector, err := metricshistory.NewCollector(metricshistory.CollectorConfig{
+		Enabled: cfg.MetricsHistoryEnabled, CollectionInterval: cfg.MetricsCollectionInterval,
+		PerClusterTimeout: cfg.MetricsCollectionTimeout, CleanupInterval: cfg.MetricsCleanupInterval,
+		MaxClusters: cfg.MetricsMaxClusters, MaxConcurrentClusters: cfg.MetricsMaxConcurrency, MaxSamples: 1800,
+	}, clusterService, kubernetesService, metricsHistoryService, logger)
+	if err != nil {
+		logger.Fatal("configure metrics history collector", zap.Error(err))
+	}
 	fleetService := fleet.NewService(fleet.Config{MaxClusters: 20, MaxConcurrentClusters: 4, PerClusterTimeout: 4 * time.Second, ResourceSampleLimit: 100}, clusterService, kubernetesService)
 	globalSearchService := globalsearch.NewService(globalsearch.Config{MaxClusters: 20, MaxConcurrentClusters: 4, PerClusterTimeout: 4 * time.Second, MaxResults: 100, PerKindLimit: 100}, clusterService, kubernetesService)
 	savedFilterService := globalsearch.NewSavedFilterService(globalsearch.NewSavedFilterGormRepository(database.GORM()))
@@ -96,9 +110,18 @@ func main() {
 		RequestTimeout: cfg.NotificationRequestTimeout, RetryBase: cfg.NotificationRetryBase,
 		MaxAttempts: cfg.NotificationMaxAttempts, BatchSize: cfg.NotificationBatchSize,
 	}, notificationRepository, logger)
-	notificationContext, stopNotifications := context.WithCancel(context.Background())
-	defer stopNotifications()
-	go notificationService.Run(notificationContext)
+	backgroundContext, stopBackground := context.WithCancel(context.Background())
+	defer stopBackground()
+	var backgroundWait sync.WaitGroup
+	backgroundWait.Add(2)
+	go func() {
+		defer backgroundWait.Done()
+		notificationService.Run(backgroundContext)
+	}()
+	go func() {
+		defer backgroundWait.Done()
+		metricsCollector.Run(backgroundContext)
+	}()
 
 	server := &http.Server{
 		Addr: cfg.HTTPAddress,
@@ -146,12 +169,22 @@ func main() {
 	case err := <-errCh:
 		logger.Error("api server stopped unexpectedly", zap.Error(err))
 	}
-	stopNotifications()
+	stopBackground()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", zap.Error(err))
+	}
+	backgroundDone := make(chan struct{})
+	go func() {
+		backgroundWait.Wait()
+		close(backgroundDone)
+	}()
+	select {
+	case <-backgroundDone:
+	case <-shutdownCtx.Done():
+		logger.Error("background services did not stop before shutdown deadline", zap.Error(shutdownCtx.Err()))
 	}
 }
 

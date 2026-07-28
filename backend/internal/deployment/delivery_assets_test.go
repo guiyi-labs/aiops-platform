@@ -46,6 +46,13 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"defaultRetention", "defaultMaxSamplesPerCollection", "defaultMaxQueryWindow",
 			"ErrInvalidCollection", "SourceUnavailable", "DeleteExpired",
 		},
+		"backend/internal/metricshistory/collector.go": {
+			"MaxConcurrentClusters", "PerClusterTimeout", "METRICS_API_TIMEOUT",
+			"COLLECTION_LIMIT_REACHED", "allocateSamples", "CleanupOnce",
+		},
+		"backend/internal/metricshistory/quantity.go": {
+			"resource.ParseQuantity", "resource.Nano", "maximumMemoryQuantity",
+		},
 		".env.example": {"CREDENTIAL_DECRYPTION_KEYS={}"},
 		"docs/adr/0030-controlled-application-credential-key-reencryption.md": {
 			"defaults to dry-run", "FOR UPDATE SKIP LOCKED", "at most eight", "does not introduce envelope encryption",
@@ -94,6 +101,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		},
 		"docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md": {
 			"M21 Phase 1", "Migration 17", "sparse", "1,440 points", "Background collection",
+		},
+		"docs/adr/0035-bounded-background-metrics-collection.md": {
+			"60 seconds", "four clusters", "round-robin", "METRICS_QUANTITY_INVALID", "leader-election",
+		},
+		"docs/changes/2026-07-28-m21-bounded-background-metrics-collector.md": {
+			"M21 Phase 2", "Go 1.25.12", "1,800-point cap", "stable failure codes",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",

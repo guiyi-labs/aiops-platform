@@ -1,8 +1,8 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 12 recovery readiness accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4`; hosted CI run `30348664880`; private remote remains active
-- Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
+- Baseline: M20 Phase 12 implementation accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4` and archived at `b1f52e098ca2c6a44891f5e83fbed66e43a651af`; archive CI run `30349997290`; private remote remains active
+- Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
 
 ## Release Prerequisite
 
@@ -63,10 +63,10 @@ claimed yet.
 
 ## M20: Multi-Cluster Efficiency And Production Hardening
 
-- Status: In progress. Phase 1 bounded health fan-out, Phase 2 disposable fleet
-  E2E, Phase 3 fixed-kind global search, Phase 4 user-owned saved filters,
-  Phase 5 disposable search E2E and Phase 6 versioned CI/release pipeline were
-  accepted on 2026-07-27 and 2026-07-28; evidence is archived in
+- Status: Accepted through Phase 12 on 2026-07-28. Phase 1 bounded health
+  fan-out, Phase 2 disposable fleet E2E, Phase 3 fixed-kind global search,
+  Phase 4 user-owned saved filters, Phase 5 disposable search E2E and Phase 6
+  versioned CI/release pipeline are archived in
   `docs/changes/2026-07-27-bounded-multi-cluster-health.md` and
   `docs/changes/2026-07-27-two-cluster-fleet-e2e.md`, with the Phase 3 record at
   `docs/changes/2026-07-27-bounded-global-resource-search.md` and Phase 4 at
@@ -127,7 +127,94 @@ claimed yet.
   network-disabled 15-check gate. It marks the policy ready for PITR/HA
   implementation while explicitly refusing a production-recovery claim; local
   and hosted Ubuntu acceptance completed on 2026-07-28.
-- Continue with organization approval and isolated OIDC login integration,
-  then isolated PITR and HA validation against approved infrastructure.
-- Define bounded metrics retention and missing-sample semantics before storing
-  historical time series.
+
+## Competitive Reassessment
+
+The 2026-07-28 KRM/Ratel review is archived at
+`docs/references/krm-ratel-gap-analysis.md`. It found that this platform is
+stronger in diagnosis evidence, credential safety, controlled mutation, audit,
+recovery admission and delivery verification, but narrower in release
+lifecycle, cross-cluster promotion and cluster-workload backup. Historical
+observability is also incomplete for a product positioned as AIOps.
+
+Generic YAML/CRD mutation, sensitive-value display, unrestricted Pod exec/file
+transfer, bulk project migration and one-click restore are not accepted as
+parity targets.
+
+## M21: Historical Observability And Alert Evidence
+
+- Status: Next.
+- Define bounded retention plus cluster, series, point and query-window caps
+  before adding persistence. Missing samples remain missing, never zero.
+- Retain Node/Pod CPU and memory samples with explicit source timestamp,
+  collection result, coverage and expiry; clean expired data deterministically.
+- Add trend views and deterministic sustained-window evaluation linked to the
+  existing event, diagnosis and controlled-operation records.
+- Validate sampling, retention, gaps, restart recovery and query isolation
+  against real kind. Do not build a Prometheus replacement or allow unbounded
+  label cardinality.
+
+## M22: Daily Troubleshooting And Governance Workbench
+
+- Status: Planned after M21.
+- Make Pod logs explicitly container-aware and add bounded tail/since,
+  timestamp, current/previous, search and download controls with truncation
+  disclosed to the user.
+- Add fixed read-only contracts for PersistentVolume, PodDisruptionBudget,
+  NetworkPolicy, ServiceAccount, Role/ClusterRole and binding metadata.
+- Add redacted server-produced manifest inspection only for approved
+  non-sensitive kinds. Secret/ConfigMap values, ServiceAccount tokens and
+  StorageClass parameters remain excluded.
+- Split the dense resource workbench into predictable inventory/detail/task
+  surfaces while preserving deep links and keyboard/mobile behavior.
+
+## M23: Safe Deployment Release Lifecycle
+
+- Status: Planned after M22.
+- Derive rollout history from exact Deployment and ReplicaSet revision/template
+  evidence; never accept a client-owned rollback template.
+- Add fixed container-image update and exact revision rollback actions through
+  server-side dry-run, typed diff, one-time confirmation, idempotency, target
+  UID/resourceVersion preconditions and audit.
+- Expose rollout progress, failure reason and operation history in the resource
+  detail workflow, then prove update/rollback/restoration against disposable
+  real-kind fixtures.
+
+## M24: Fixed Cross-Cluster Promotion
+
+- Status: Planned after M23.
+- Start with a reviewed Deployment/Service/Ingress promotion bundle, explicit
+  source and target, Namespace mapping, dependency inventory and destination
+  capability preflight.
+- Strip runtime/server-owned fields, require mappings for referenced
+  ConfigMaps/Secrets instead of copying sensitive values, and fail closed on
+  unresolved dependencies or conflicts.
+- Reuse the controlled-operation contract for target dry-run, typed diff,
+  confirmation, idempotency, audit, partial-failure reporting and two-cluster
+  cleanup/restoration evidence. Do not add bulk project migration.
+
+## M25: Cluster Workload Protection Integration
+
+- Status: Planned after M24.
+- Detect an optional reviewed Velero API capability without making it a core
+  platform dependency; show bounded backup inventory, scope, phase, expiry and
+  failure details.
+- Add controlled backup creation only after read-only inventory and real-kind
+  compatibility are accepted. Never collect object-storage credentials through
+  the browser.
+- Keep restore disabled until destination isolation, resource conflict,
+  persistent-volume behavior, cutover and rollback policies have separate
+  approval and disposable recovery evidence.
+
+## M26: Organization Integration And Formal Release
+
+- Status: Gated; work that does not require provider decisions may proceed in
+  parallel with M21-M25.
+- Implement isolated-provider OIDC/MFA only after Phase 11 policy approval;
+  readiness admission alone is not production SSO.
+- Implement physical/WAL PITR and disposable HA failover/failback only after
+  Phase 12 policy approval; readiness admission alone is not production
+  recovery.
+- Register the dedicated real-kind runner, decide registry/signing identity,
+  enable required checks when the repository plan permits, rehearse a semantic
+  release and recapture screenshots bound to the reviewed revision.

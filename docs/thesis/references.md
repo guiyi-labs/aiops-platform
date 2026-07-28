@@ -1,6 +1,6 @@
 # References and Attribution
 
-更新时间：2026-07-26
+更新时间：2026-07-28
 
 本项目独立实现。参考仓库用于需求、交互、Kubernetes 权限和工程方法研究，没有把其应用源码、容器镜像内容或品牌资源复制进 `aiops-platform`。
 
@@ -12,7 +12,7 @@
 | KRM | `E:\k8s\毕设\krm-main\krm-main` | MIT；本地材料主要是 README、部署说明和截图 | 多集群资源导航、跨集群视角、资源操作流程 | 应用实现、镜像内容、账号配置、品牌与截图资产 |
 | Ratel | `E:\k8s\毕设\ratel-doc-master\ratel-doc-master` | Apache-2.0；项目已停止维护 | kubeconfig 接入、ServiceAccount/RBAC、资源编辑流程 | 过时认证方式、旧 Kubernetes API、文档和图片资产 |
 
-KubeSphere 的专项分析归档于 `docs/references/kubesphere-analysis.md`，独立实现决策归档于 ADR 0001 和 ADR 0002。
+KubeSphere 的专项分析归档于 `docs/references/kubesphere-analysis.md`；KRM/Ratel 的当前功能差距矩阵与 M21-M26 路线影响归档于 `docs/references/krm-ratel-gap-analysis.md`；独立实现决策归档于 ADR 0001 和 ADR 0002。
 
 ## 核心技术资料
 

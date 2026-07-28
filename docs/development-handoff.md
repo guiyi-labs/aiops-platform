@@ -2,8 +2,16 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 12 recovery readiness is accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4` with hosted CI run `30348664880`
-- Current milestone: M20 Phase 12 recovery readiness is accepted locally and in hosted CI without claiming production PITR/HA; organization identity and infrastructure approvals, runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 12 implementation is accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4`, archived at `b1f52e098ca2c6a44891f5e83fbed66e43a651af` and verified by hosted CI run `30349997290`
+- Current milestone: M20 is closed after Phase 12; the reprioritized next milestone is M21 bounded historical observability and alert evidence, while provider-specific identity/recovery work remains organization-gated
+
+The 2026-07-28 KRM/Ratel reassessment found that the platform is already
+stronger in diagnosis evidence, credential safety, controlled mutation, audit
+and delivery verification, but is visibly narrower in historical operations,
+Deployment release lifecycle, cross-cluster promotion and cluster-workload
+backup. The accepted M21-M26 sequence and explicit non-goals are archived in
+`docs/references/krm-ratel-gap-analysis.md` and
+`docs/changes/2026-07-28-product-roadmap-reprioritization.md`.
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
 template and a network-disabled gate consuming the newest real logical-restore
@@ -853,23 +861,20 @@ applied version.
 
 ## Next Priorities After Current Work
 
-1. Revisit required `Backend`, `Frontend`, `Manifests` and `Compose runtime`
-   checks when the private repository plan supports branch protection, or
-   after an explicitly approved public-repository decision.
-2. Register a dedicated non-production `aiops-kind` runner using
-   `docs/ci-release.md`.
-3. Obtain identity/security/application-owner approval for the Phase 11 policy,
-   then implement isolated-provider OIDC login and MFA validation; readiness
-   evaluation alone is not production SSO.
-4. Obtain infrastructure-owner approval for the Phase 12 policy, then implement
-   isolated physical/WAL PITR and disposable HA failover/failback validation;
-   policy readiness alone is not production recovery.
-5. Decide registry identity, artifact signing and provenance only after the
-   release actor and key-management policy are reviewed.
-6. Evaluate explicit saved-filter ordering/pinning only if repeated operator
-   evidence justifies it; sharing, schedules and alerts remain out of scope.
-7. Re-capture revision-bound screenshots and rehearse the M20 defense flow
-   after security, backup/restore and HA gates are accepted.
+1. Start M21 with a metrics-history ADR defining retention, cluster/series/point
+   and query caps, missing-sample semantics, cleanup and access predicates.
+2. Implement the bounded collector/repository path and deterministic sustained
+   window evaluation before adding charts or alert UI.
+3. Add trend and incident-evidence views, then validate sampling gaps,
+   retention and restart recovery against a disposable real-kind fixture.
+4. Continue through M22 multi-container logs/governance coverage, M23 safe
+   Deployment update/rollback, M24 fixed cross-cluster promotion and M25
+   optional backup inventory in the order recorded in `docs/roadmap.md`.
+5. In parallel, obtain identity/security/application-owner approval for the
+   Phase 11 policy and infrastructure-owner approval for the Phase 12 policy;
+   do not block M21-M25 on unavailable provider decisions.
+6. Revisit branch protection, register the dedicated `aiops-kind` runner and
+   decide registry/signing identity during M26 formal release preparation.
 
 ## Real kind Final Verification
 

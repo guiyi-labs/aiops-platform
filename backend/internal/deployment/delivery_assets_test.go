@@ -75,6 +75,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"docs/changes/2026-07-28-recovery-readiness-gate.md": {
 			"M20 Phase 12", "recovery-readiness", "ready_for_pitr_ha_implementation", "30348664880",
 		},
+		"docs/references/krm-ratel-gap-analysis.md": {
+			"Evidence Boundary", "Priority 0", "Fixed cross-cluster promotion", "Explicit Non-Goals",
+		},
+		"docs/changes/2026-07-28-product-roadmap-reprioritization.md": {
+			"M21", "M22", "M23", "M24", "M25", "M26", "Feature-Count Parity",
+		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",
 			"remediations/preview", "operations/preview", "deployment.scale",

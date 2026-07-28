@@ -6,7 +6,7 @@
 |---|---|
 | `development.md` | 本地开发、测试和运行方法 |
 | `development-handoff.md` | 当前里程碑、稳定基线、进行中工作和下次启动入口 |
-| `roadmap.md` | M19-M20 产品优化顺序、阶段状态、范围边界和发布前置条件 |
+| `roadmap.md` | M19-M26 产品优化顺序、阶段状态、范围边界和发布前置条件 |
 | `ci-release.md` | CI 分层、分支保护、tag 发布、产物校验和自托管 kind runner 运维合同 |
 | `conventions/` | 目录、命名、接口和提交规范 |
 | `architecture/` | 系统架构、模块和数据流设计 |
@@ -21,6 +21,7 @@
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-07-28-product-roadmap-reprioritization.md`：基于 KRM/Ratel 对比关闭 M20，并重排 M21-M26 历史可观测、日常排障、发布回滚、跨集群发布、备份与组织集成路线。
 - `docs/changes/2026-07-28-recovery-readiness-gate.md`：M20 第十二阶段生产恢复目标、策略一致性、真实逻辑恢复证据和 PITR/HA 实施准入边界。
 - `docs/changes/2026-07-28-identity-readiness-gate.md`：M20 第十一阶段 OIDC/MFA 就绪合同、离线 discovery/JWKS 校验和降级拒绝边界。
 - `docs/changes/2026-07-28-signed-audit-archives.md`：M20 第十阶段有界离线审计归档、Ed25519 签名、外部信任公钥验签和篡改拒绝。

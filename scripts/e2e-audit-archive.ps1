@@ -191,11 +191,23 @@ INSERT INTO audit_logs (action, resource_type, resource_namespace, resource_name
     Remove-Item -LiteralPath $TemporaryDirectory -Recurse -Force -ErrorAction SilentlyContinue
     $cleanup.temporary_files_deleted = -not (Test-Path -LiteralPath $TemporaryDirectory)
     foreach ($name in $previousEnvironment.Keys) { [Environment]::SetEnvironmentVariable($name, $previousEnvironment[$name], 'Process') }
-    $cleanup.process_environment_restored = @($previousEnvironment.Keys | Where-Object { [Environment]::GetEnvironmentVariable($_, 'Process') -cne $previousEnvironment[$_] }).Count -eq 0
+    $cleanup.process_environment_restored = @($previousEnvironment.Keys | Where-Object {
+        $actual = [Environment]::GetEnvironmentVariable($_, 'Process')
+        $expected = $previousEnvironment[$_]
+        if ([string]::IsNullOrEmpty($expected)) {
+            -not [string]::IsNullOrEmpty($actual)
+        } else {
+            $actual -cne $expected
+        }
+    }).Count -eq 0
     foreach ($entry in $cleanup.GetEnumerator()) { if (-not $entry.Value) { $cleanupFailures.Add("$($entry.Key) was not completed") } }
 }
 
-if ($cleanupFailures.Count -gt 0) { throw (($cleanupFailures -join '; ')) }
+if ($cleanupFailures.Count -gt 0) {
+    $cleanupError = $cleanupFailures -join '; '
+    if ($null -ne $failure) { throw "$($failure.Exception.Message); $cleanupError" }
+    throw $cleanupError
+}
 if ($null -ne $failure) { throw $failure }
 $summary.cleanup = $cleanup
 $evidencePath = Join-Path $ArtifactDirectory ("audit-archive-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))

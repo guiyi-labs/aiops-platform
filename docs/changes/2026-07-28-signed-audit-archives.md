@@ -26,13 +26,12 @@
 
 ## Verification
 
-Targeted Go 1.25 container tests cover trusted verification, payload tampering,
-untrusted signer/manifest tampering rejection and overwrite refusal. Audit,
-command and delivery
-contract packages pass.
+Targeted Go 1.25 container tests cover trusted verification, payload and
+manifest tampering, untrusted signer rejection and overwrite refusal. Audit,
+command and delivery contract packages pass.
 
-The isolated PostgreSQL run passed at 2026-07-28 15:08 +08:00. Evidence is
-`.artifacts/audit-archive/audit-archive-20260728-150840.json`: two synthetic
+The final isolated PostgreSQL run passed at 2026-07-28 15:40 +08:00. Evidence is
+`.artifacts/audit-archive/audit-archive-20260728-154047.json`: two synthetic
 sanitized rows were archived and verified; a three-row candidate was rejected
 against `max-records=2` with neither output file created; a one-byte mutation
 failed verification; and the database container, private network, temporary
@@ -44,6 +43,13 @@ Evidence is `.artifacts/verification/verify-20260728-153059.json`: 167 Go
 files / 59 tests, frontend production build, three healthy Compose services,
 Kustomize 16/5/22/3 and backend/frontend-proxy HTTP checks passed. Actionlint
 1.7.7 returned zero findings. Hosted CI acceptance pending.
+
+The first hosted attempt, run `30338972042`, correctly failed rather than
+overstating acceptance: Linux PowerShell normalized a restored unset process
+variable to an empty value, while the cleanup assertion compared it directly
+with `$null`. Containers, network, image and temporary files were removed. The
+assertion now uses the same null/empty normalization as the other accepted
+cross-platform drills; the replacement hosted run is pending.
 
 ## Security Boundary
 

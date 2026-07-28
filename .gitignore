@@ -1,0 +1,34 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.kubeconfig
+*.pem
+*.key
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Go
+backend/bin/
+backend/*.exe
+backend/coverage.out
+backend/coverage.html
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+.artifacts/
+frontend/.vite/
+frontend/coverage/
+
+# Runtime data
+.tools/
+.tools-ci/
+data/
+tmp/
+*.log

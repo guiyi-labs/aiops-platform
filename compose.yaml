@@ -1,0 +1,84 @@
+name: k8s-aiops
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.1-pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-aiops}
+      POSTGRES_USER: ${POSTGRES_USER:-aiops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+    ports:
+      - "${POSTGRES_PORT:-15432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/migrations/000001_init_schema.up.sql:/docker-entrypoint-initdb.d/000001_init_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        VERSION: ${APP_VERSION:-dev}
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      HTTP_ADDR: :8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-aiops}:${POSTGRES_PASSWORD:-change_me}@postgres:5432/${POSTGRES_DB:-aiops}?sslmode=disable
+      SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-10s}
+      JWT_SIGNING_KEY: ${JWT_SIGNING_KEY:-dev-only-signing-key-change-before-production}
+      ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-168h}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-change_me_now}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE=}
+      CREDENTIAL_KEY_VERSION: ${CREDENTIAL_KEY_VERSION:-v1}
+      CLUSTER_PROBE_TIMEOUT: ${CLUSTER_PROBE_TIMEOUT:-10s}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-5.4-mini}
+      AI_REQUEST_TIMEOUT: ${AI_REQUEST_TIMEOUT:-30s}
+      AI_DAILY_TOKEN_BUDGET: ${AI_DAILY_TOKEN_BUDGET:-100000}
+      AI_MAX_CONCURRENT_REQUESTS: ${AI_MAX_CONCURRENT_REQUESTS:-2}
+      AI_MAX_OUTPUT_TOKENS: ${AI_MAX_OUTPUT_TOKENS:-1200}
+      NOTIFICATION_ENABLED: ${NOTIFICATION_ENABLED:-false}
+      NOTIFICATION_WEBHOOK_URL: ${NOTIFICATION_WEBHOOK_URL:-}
+      NOTIFICATION_WEBHOOK_SECRET: ${NOTIFICATION_WEBHOOK_SECRET:-}
+      NOTIFICATION_POLL_INTERVAL: ${NOTIFICATION_POLL_INTERVAL:-5s}
+      NOTIFICATION_REQUEST_TIMEOUT: ${NOTIFICATION_REQUEST_TIMEOUT:-10s}
+      NOTIFICATION_RETRY_BASE: ${NOTIFICATION_RETRY_BASE:-10s}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
+      NOTIFICATION_BATCH_SIZE: ${NOTIFICATION_BATCH_SIZE:-10}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/api/v1/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-18080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

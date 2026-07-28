@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semantic version used for a package-only rehearsal
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Resolve semantic version
+        id: version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="$REQUESTED_VERSION"
+          fi
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            printf 'Invalid release version: %s\n' "$version"
+            exit 1
+          fi
+          printf 'version=%s\n' "$version" >>"$GITHUB_OUTPUT"
+
+  quality:
+    name: Required quality gate
+    uses: ./.github/workflows/ci.yml
+
+  package:
+    name: Build release package
+    needs: [validate, quality]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.validate.outputs.version }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Build versioned images
+        shell: bash
+        run: |
+          image_version="${VERSION#v}"
+          docker build --build-arg "VERSION=$image_version" --tag "aiops-platform-backend:$VERSION" backend
+          docker build --tag "aiops-platform-frontend:$VERSION" frontend
+      - name: Assemble checksummed release assets
+        shell: bash
+        run: |
+          mkdir -p .artifacts/release
+          docker save "aiops-platform-backend:$VERSION" | gzip -9 >".artifacts/release/aiops-platform-backend-${VERSION}-linux-amd64.tar.gz"
+          docker save "aiops-platform-frontend:$VERSION" | gzip -9 >".artifacts/release/aiops-platform-frontend-${VERSION}-linux-amd64.tar.gz"
+          git archive --format=tar.gz --output=".artifacts/release/aiops-platform-source-${VERSION}.tar.gz" "$GITHUB_SHA"
+          cp docs/api/openapi.yaml .artifacts/release/openapi.yaml
+          cp docs/thesis/dependency-licenses.md .artifacts/release/dependency-licenses.md
+          jq -n \
+            --arg version "$VERSION" \
+            --arg revision "$GITHUB_SHA" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            '{version:$version, revision:$revision, run_id:$run_id, images:["backend","frontend"], architecture:"linux-amd64"}' \
+            >.artifacts/release/release-metadata.json
+          (cd .artifacts/release && sha256sum *.tar.gz openapi.yaml dependency-licenses.md release-metadata.json >SHA256SUMS)
+      - name: Upload release rehearsal artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: aiops-platform-${{ env.VERSION }}
+          path: .artifacts/release/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish immutable tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$VERSION" .artifacts/release/* --verify-tag --generate-notes --title "AIOps Platform $VERSION"

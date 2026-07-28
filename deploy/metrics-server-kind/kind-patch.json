@@ -1,0 +1,12 @@
+[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/args/-",
+    "value": "--kubelet-insecure-tls"
+  },
+  {
+    "op": "replace",
+    "path": "/spec/template/spec/containers/0/image",
+    "value": "registry.cn-hangzhou.aliyuncs.com/google_containers/metrics-server:v0.8.0"
+  }
+]

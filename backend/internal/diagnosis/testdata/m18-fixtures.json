@@ -1,0 +1,109 @@
+{
+  "node": [
+    {
+      "name": "ready-memory-pressure",
+      "match": true,
+      "resource": {
+        "metadata": {"name": "pressure-worker", "uid": "node-pressure-1"},
+        "status": {"conditions": [
+          {"type": "Ready", "status": "True", "reason": "KubeletReady"},
+          {"type": "MemoryPressure", "status": "True", "reason": "KubeletHasInsufficientMemory", "message": "available memory is below threshold", "lastTransitionTime": "2026-07-27T08:00:00Z"}
+        ]}
+      }
+    },
+    {
+      "name": "healthy-ready-node",
+      "match": false,
+      "resource": {
+        "metadata": {"name": "healthy-worker", "uid": "node-healthy-1"},
+        "status": {"conditions": [
+          {"type": "Ready", "status": "True"},
+          {"type": "MemoryPressure", "status": "False"},
+          {"type": "DiskPressure", "status": "False"},
+          {"type": "PIDPressure", "status": "False"}
+        ]}
+      }
+    }
+  ],
+  "persistent_volume_claim": [
+    {
+      "name": "pending-with-warning",
+      "match": true,
+      "resource": {
+        "metadata": {"name": "data", "namespace": "demo", "uid": "pvc-1"},
+        "spec": {"storageClassName": "missing", "accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "16Mi"}}},
+        "status": {"phase": "Pending"}
+      },
+      "events": [
+        {"metadata": {"name": "provisioning-failed"}, "type": "Warning", "reason": "ProvisioningFailed", "message": "storageclass.storage.k8s.io missing not found", "count": 1}
+      ]
+    },
+    {
+      "name": "wait-for-first-consumer-without-warning",
+      "match": false,
+      "resource": {
+        "metadata": {"name": "deferred", "namespace": "demo", "uid": "pvc-2"},
+        "spec": {"storageClassName": "wait-consumer", "accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "16Mi"}}},
+        "status": {"phase": "Pending"}
+      },
+      "events": [
+        {"metadata": {"name": "wait"}, "type": "Normal", "reason": "WaitForFirstConsumer", "message": "waiting for first consumer", "count": 1}
+      ]
+    }
+  ],
+  "horizontal_pod_autoscaler": [
+    {
+      "name": "limited-at-maximum",
+      "match": true,
+      "resource": {
+        "metadata": {"name": "api", "namespace": "demo", "uid": "hpa-1"},
+        "spec": {
+          "scaleTargetRef": {"apiVersion": "apps/v1", "kind": "Deployment", "name": "api"},
+          "minReplicas": 1,
+          "maxReplicas": 4,
+          "metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": 70}}}]
+        },
+        "status": {"currentReplicas": 4, "desiredReplicas": 4, "conditions": [{"type": "ScalingLimited", "status": "True", "reason": "TooManyReplicas", "message": "desired count is above maximum"}]}
+      }
+    },
+    {
+      "name": "limited-at-minimum",
+      "match": false,
+      "resource": {
+        "metadata": {"name": "idle", "namespace": "demo", "uid": "hpa-2"},
+        "spec": {"scaleTargetRef": {"apiVersion": "apps/v1", "kind": "Deployment", "name": "idle"}, "minReplicas": 2, "maxReplicas": 8, "metrics": []},
+        "status": {"currentReplicas": 2, "desiredReplicas": 2, "conditions": [{"type": "ScalingLimited", "status": "True", "reason": "TooFewReplicas", "message": "desired count is below minimum"}]}
+      }
+    }
+  ],
+  "ingress": [
+    {
+      "name": "backend-without-ready-addresses",
+      "match": true,
+      "resource": {
+        "metadata": {"name": "broken", "namespace": "demo", "uid": "ingress-1"},
+        "spec": {"rules": [{"host": "broken.example.test", "http": {"paths": [{"path": "/api", "pathType": "Prefix", "backend": {"service": {"name": "api", "port": {"number": 80}}}}]}}]}
+      },
+      "services": {
+        "api": {"metadata": {"name": "api", "namespace": "demo", "uid": "service-1"}, "spec": {"type": "ClusterIP", "selector": {"app": "api"}, "ports": [{"port": 80, "targetPort": 8080}]}}
+      },
+      "endpoints": {
+        "api": {"metadata": {"name": "api", "namespace": "demo"}, "subsets": [{"notReadyAddresses": [{"ip": "10.0.0.8"}]}]}
+      }
+    },
+    {
+      "name": "backend-with-ready-address",
+      "match": false,
+      "resource": {
+        "metadata": {"name": "healthy", "namespace": "demo", "uid": "ingress-2"},
+        "spec": {"defaultBackend": {"service": {"name": "web", "port": {"name": "http"}}}}
+      },
+      "services": {
+        "web": {"metadata": {"name": "web", "namespace": "demo", "uid": "service-2"}, "spec": {"type": "ClusterIP", "selector": {"app": "web"}, "ports": [{"name": "http", "port": 80, "targetPort": 8080}]}}
+      },
+      "endpoints": {
+        "web": {"metadata": {"name": "web", "namespace": "demo"}, "subsets": [{"addresses": [{"ip": "10.0.0.9"}]}]}
+      }
+    }
+  ]
+}

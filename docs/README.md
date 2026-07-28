@@ -1,0 +1,82 @@
+# Documentation Index
+
+文档按用途归档，禁止将长期有效的设计说明放在临时聊天记录或源码注释中。
+
+| 目录或文件 | 内容 |
+|---|---|
+| `development.md` | 本地开发、测试和运行方法 |
+| `development-handoff.md` | 当前里程碑、稳定基线、进行中工作和下次启动入口 |
+| `roadmap.md` | M19-M20 产品优化顺序、阶段状态、范围边界和发布前置条件 |
+| `ci-release.md` | CI 分层、分支保护、tag 发布、产物校验和自托管 kind runner 运维合同 |
+| `conventions/` | 目录、命名、接口和提交规范 |
+| `architecture/` | 系统架构、模块和数据流设计 |
+| `adr/` | 重要技术决策及其原因 |
+| `changes/` | 按日期归档的阶段变更记录 |
+| `references/` | 外部项目的可追溯分析与采用边界 |
+| `api/` | API 契约和错误码 |
+| `database/` | 数据模型与迁移说明 |
+| `testing/` | 测试策略、报告和演示场景 |
+| `thesis/` | 论文图表、实验数据和答辩材料 |
+
+当前发布冻结候选归档：
+
+- `docs/changes/2026-07-28-versioned-ci-release-pipeline.md`：M20 第六阶段分层 CI、版本发布打包、定时真实 kind 门禁与信任边界。
+- `docs/changes/2026-07-27-two-cluster-global-search-e2e.md`：M20 第五阶段双真实 kind 集群固定资源搜索、故障隔离与完整清理证据。
+- `docs/changes/2026-07-27-user-owned-global-search-filters.md`：M20 第四阶段私有保存筛选器、并发上限、兼容状态、审计与响应式交互。
+- `docs/changes/2026-07-27-bounded-global-resource-search.md`：M20 第三阶段固定四类资源全局搜索、覆盖率、局部失败与深链接工作台。
+- `docs/changes/2026-07-27-two-cluster-fleet-e2e.md`：M20 第二阶段双真实 kind 集群、超时/恢复/不可用隔离与完整清理证据。
+- `docs/changes/2026-07-27-bounded-multi-cluster-health.md`：M20 第一阶段有界 fan-out、部分失败、采样覆盖与 Dashboard 集群比较。
+- `docs/changes/2026-07-27-controlled-operations-catalog.md`：M19 固定操作目录、typed diff、最小 RBAC、真实 kind 恢复与 rollback 延后依据。
+- `docs/changes/2026-07-27-evidence-based-diagnosis-expansion.md`：M18 四条证据型规则、可重放 fixture、真实 kind 与工作台验收。
+- `docs/changes/2026-07-27-common-workload-policy-coverage.md`：M17 九类常用工作负载/策略资源、Secret 安全边界、真实 kind 与响应式验收。
+- `docs/changes/2026-07-27-real-metrics-utilization-consumers.md`：M16 可选 Metrics Server fixture、真实利用率、Pod 消费排行与 available-path 响应式验收。
+- `docs/changes/2026-07-27-real-resource-metrics-foundation.md`：M15 固定 Node/Pod Metrics API、真实绝对用量、可选能力降级与响应式验收。
+- `docs/changes/2026-07-27-complete-ingress-backend-topology.md`：M14 固定 EndpointSlice API、完整入口到工作负载拓扑与真实 kind 响应式验收。
+- `docs/changes/2026-07-27-expanded-read-only-resource-workbench.md`：M13 四类扩展资源、安全字段裁剪、八类关联事件与诊断优先级回归修复。
+- `docs/changes/2026-07-27-deep-link-resource-workbench.md`：M12 四类资源视图、固定详情 API、URL 深链接和统一详情抽屉。
+- `docs/changes/2026-07-27-operations-cockpit-resource-topology.md`：M11 运维驾驶舱、selector 资源拓扑和控制台视觉升级。
+- `docs/changes/2026-07-26-event-center-ui-unification.md`：M10 Kubernetes 事件中心、导航语义、Dashboard 共享壳层与响应式验收。
+- `docs/changes/2026-07-26-release-freeze-candidate.md`：RC-Freeze 验证结果、演示状态、交付文档和提交前待确认事项。
+- `.artifacts/fleet-e2e/fleet-e2e-20260727-193711.json`：最新 M20 Phase 2 双真实集群脱敏证据，目录已加入 `.gitignore`。
+- `.artifacts/search-e2e/search-e2e-20260727-225358.json`：M20 Phase 5 双真实集群全局搜索脱敏证据，八项清理断言通过。
+- `.artifacts/verification/verify-20260728-100752.json`：M20 Phase 6 CI/release 流水线最终全量机器验证证据。
+- `.artifacts/verification/verify-20260727-230204.json`：M20 Phase 5 最终全量机器验证证据。
+- `.artifacts/verification/verify-20260727-194724.json`：最新 M20 Phase 2 全量机器验证证据。
+- `.artifacts/verification/verify-20260727-210308.json`：M20 Phase 3 全局搜索最终机器验证证据。
+- `.artifacts/verification/verify-20260727-222753.json`：M20 Phase 4 当前用户保存筛选器最终机器验证证据。
+- `.artifacts/verification/verify-20260727-190133.json`：M20 Phase 1 全量机器验证证据。
+
+文档状态建议使用：`Draft`、`Accepted`、`Superseded`。
+
+当前交付入口：
+
+- `docs/changes/2026-07-26-delivery-packaging.md`：M5 最终实现与验收记录。
+- `docs/changes/2026-07-26-defense-demo-readiness.md`：M6 演示准备、清理、截图与最终回归记录。
+- `docs/changes/2026-07-26-diagnosis-rule-expansion.md`：M7 Pending/OOMKilled 规则扩展、测试和范围边界。
+- `docs/changes/2026-07-26-node-deployment-diagnosis.md`：M8 Node/Deployment 健康诊断、API/UI 扩展与验证证据。
+- `docs/changes/2026-07-26-node-deployment-real-kind-e2e.md`：M9 两条规则的独立真实 kind 验证、只读 RBAC 和完整清理证据。
+- `docs/changes/2026-07-26-event-center-ui-unification.md`：M10 Kubernetes 实时事件中心和控制台壳层统一。
+- `docs/changes/2026-07-27-operations-cockpit-resource-topology.md`：M11 实时集群态势、资源拓扑和视觉验收。
+- `docs/changes/2026-07-27-deep-link-resource-workbench.md`：M12 分类资源工作台、深链接详情和响应式验收。
+- `docs/changes/2026-07-27-expanded-read-only-resource-workbench.md`：M13 扩展资源、安全合同、关联事件和真实 kind 回归。
+- `docs/changes/2026-07-27-complete-ingress-backend-topology.md`：M14 完整网络后端拓扑、空集合兼容和桌面/移动验收。
+- `docs/changes/2026-07-27-real-resource-metrics-foundation.md`：M15 真实资源指标基础、显式不可用状态和最小 Metrics RBAC。
+- `docs/changes/2026-07-27-real-metrics-utilization-consumers.md`：M16 Metrics available path、真实利用率和 Pod 消费排行。
+- `docs/changes/2026-07-27-common-workload-policy-coverage.md`：M17 常用工作负载、弹性/配额资源与 Secret 键名安全合同。
+- `docs/changes/2026-07-27-evidence-based-diagnosis-expansion.md`：M18 Node/PVC/HPA/Ingress 证据型诊断与持续重启边界。
+- `docs/changes/2026-07-27-controlled-operations-catalog.md`：M19 Deployment scale、CronJob suspend/resume 与固定操作安全合同。
+- `docs/changes/2026-07-27-bounded-multi-cluster-health.md`：M20 有界集群健康比较、超时与部分失败合同。
+- `docs/changes/2026-07-27-two-cluster-fleet-e2e.md`：M20 双独立 kind 集群 fan-out、故障隔离、恢复与清理验收。
+- `docs/changes/2026-07-27-bounded-global-resource-search.md`：M20 固定 Pod/Deployment/Service/Ingress 全局名称搜索与工作台深链。
+- `docs/changes/2026-07-27-user-owned-global-search-filters.md`：M20 当前用户私有搜索条件的保存、应用、维护与兼容迁移边界。
+- `docs/changes/2026-07-27-two-cluster-global-search-e2e.md`：M20 双独立 kind 集群固定资源搜索、故障隔离、恢复与清理验收。
+- `docs/thesis/README.md`：论文图表、测试矩阵、环境、许可证和答辩脚本索引。
+- `scripts/verify.ps1`：一键质量门禁。
+- `scripts/e2e-kind.ps1`：真实 kind 端到端验收。
+- `scripts/e2e-diagnosis-kind.ps1`：一次性真实 kind Node/Deployment 只读诊断验收。
+- `scripts/e2e-fleet-kind.ps1`：隔离平台与双真实 kind 集群 fleet 验收。
+- `scripts/e2e-global-search-kind.ps1`：隔离平台与双真实 kind 集群全局搜索验收。
+- `.github/workflows/ci.yml`：无 PR 密钥的后端、前端、清单和 Compose 常规门禁。
+- `.github/workflows/release.yml`：完整 CI 后的版本化打包与 tag 发布。
+- `.github/workflows/real-kind-e2e.yml`：专用自托管 Windows runner 的周期/手动一次性 kind 门禁。
+- `docs/ci-release.md`：流水线启用、分支保护、发布与 runner 运维手册。

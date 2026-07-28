@@ -1,0 +1,31 @@
+{
+  "captured_at": "2026-07-26T09:11:12.629Z",
+  "web_base": "http://127.0.0.1:18080",
+  "viewport": {
+    "width": 1440,
+    "height": 1000
+  },
+  "source_revision": "uncommitted-baseline",
+  "pages": [
+    {
+      "name": "Dashboard",
+      "route": "/",
+      "file": "01-dashboard.png"
+    },
+    {
+      "name": "Clusters",
+      "route": "/clusters",
+      "file": "02-clusters.png"
+    },
+    {
+      "name": "Workloads",
+      "route": "/workloads",
+      "file": "03-workloads.png"
+    },
+    {
+      "name": "Diagnoses",
+      "route": "/diagnoses",
+      "file": "04-diagnoses.png"
+    }
+  ]
+}

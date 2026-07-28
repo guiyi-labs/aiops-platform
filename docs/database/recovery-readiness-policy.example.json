@@ -1,0 +1,70 @@
+{
+  "format": "aiops.recovery-readiness-policy/v1",
+  "system_name": "REQUIRED_SYSTEM_NAME",
+  "data_classification": "REQUIRED_CLASSIFICATION",
+  "production_validation_required": true,
+  "owners": {
+    "service_owner": "REQUIRED_SERVICE_OWNER",
+    "database_owner": "REQUIRED_DATABASE_OWNER",
+    "security_owner": "REQUIRED_SECURITY_OWNER",
+    "incident_commander": "REQUIRED_INCIDENT_COMMANDER"
+  },
+  "objectives": {
+    "rpo_minutes": 0,
+    "rto_minutes": 0,
+    "maximum_tolerable_downtime_minutes": 0
+  },
+  "storage": {
+    "off_cluster": true,
+    "encrypted": true,
+    "retention_days": 0,
+    "immutable_days": 0,
+    "independent_copies": 0,
+    "regions": 0
+  },
+  "backup": {
+    "full_interval_hours": 0,
+    "verify_after_backup": true,
+    "least_privilege_identity": true,
+    "credential_rotation_days": 0
+  },
+  "pitr": {
+    "enabled": false,
+    "wal_archive_interval_seconds": 0,
+    "recovery_window_hours": 0,
+    "encrypted": false,
+    "gap_monitoring": false,
+    "restore_target_isolation": true,
+    "risk_acceptance_owner": "REQUIRED_IF_DISABLED",
+    "risk_acceptance_expires_at": "REQUIRED_RFC3339_IF_DISABLED"
+  },
+  "ha": {
+    "enabled": false,
+    "topology": "REQUIRED_IF_ENABLED",
+    "database_replicas": 0,
+    "automatic_failover": false,
+    "failover_owner": "REQUIRED_IF_ENABLED",
+    "writer_fencing": false,
+    "max_failover_minutes": 0,
+    "risk_acceptance_owner": "REQUIRED_IF_DISABLED",
+    "risk_acceptance_expires_at": "REQUIRED_RFC3339_IF_DISABLED"
+  },
+  "drills": {
+    "logical_restore_interval_days": 0,
+    "pitr_interval_days": 0,
+    "failover_interval_days": 0,
+    "production_representative_data": false,
+    "isolated_target": true
+  },
+  "cutover": {
+    "writer_freeze": true,
+    "traffic_owner": "REQUIRED_TRAFFIC_OWNER",
+    "validation_owner": "REQUIRED_VALIDATION_OWNER",
+    "rollback_plan": "REQUIRED_VERSIONED_RUNBOOK"
+  },
+  "approvals": {
+    "service_owner": "REQUIRED_APPROVAL",
+    "database_owner": "REQUIRED_APPROVAL",
+    "security_owner": "REQUIRED_APPROVAL"
+  }
+}

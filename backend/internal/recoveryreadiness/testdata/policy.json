@@ -1,0 +1,70 @@
+{
+  "format": "aiops.recovery-readiness-policy/v1",
+  "system_name": "synthetic-aiops-platform",
+  "data_classification": "confidential",
+  "production_validation_required": true,
+  "owners": {
+    "service_owner": "platform-team",
+    "database_owner": "database-team",
+    "security_owner": "security-team",
+    "incident_commander": "operations-lead"
+  },
+  "objectives": {
+    "rpo_minutes": 5,
+    "rto_minutes": 30,
+    "maximum_tolerable_downtime_minutes": 120
+  },
+  "storage": {
+    "off_cluster": true,
+    "encrypted": true,
+    "retention_days": 30,
+    "immutable_days": 7,
+    "independent_copies": 2,
+    "regions": 2
+  },
+  "backup": {
+    "full_interval_hours": 24,
+    "verify_after_backup": true,
+    "least_privilege_identity": true,
+    "credential_rotation_days": 90
+  },
+  "pitr": {
+    "enabled": true,
+    "wal_archive_interval_seconds": 60,
+    "recovery_window_hours": 168,
+    "encrypted": true,
+    "gap_monitoring": true,
+    "restore_target_isolation": true,
+    "risk_acceptance_owner": "",
+    "risk_acceptance_expires_at": ""
+  },
+  "ha": {
+    "enabled": true,
+    "topology": "single_region_multi_zone",
+    "database_replicas": 3,
+    "automatic_failover": true,
+    "failover_owner": "database-oncall",
+    "writer_fencing": true,
+    "max_failover_minutes": 10,
+    "risk_acceptance_owner": "",
+    "risk_acceptance_expires_at": ""
+  },
+  "drills": {
+    "logical_restore_interval_days": 30,
+    "pitr_interval_days": 30,
+    "failover_interval_days": 90,
+    "production_representative_data": true,
+    "isolated_target": true
+  },
+  "cutover": {
+    "writer_freeze": true,
+    "traffic_owner": "platform-oncall",
+    "validation_owner": "application-owner",
+    "rollback_plan": "reviewed-versioned-runbook"
+  },
+  "approvals": {
+    "service_owner": "approved-platform-owner",
+    "database_owner": "approved-database-owner",
+    "security_owner": "approved-security-owner"
+  }
+}

@@ -28,7 +28,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
     -ldflags="-s -w" \
-    -o /out/identity-readiness ./cmd/identity-readiness
+    -o /out/identity-readiness ./cmd/identity-readiness && \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /out/recovery-readiness ./cmd/recovery-readiness
 
 FROM alpine:3.22
 
@@ -41,6 +45,7 @@ COPY --from=build /out/api /app/api
 COPY --from=build /out/credential-reencrypt /app/credential-reencrypt
 COPY --from=build /out/audit-archive /app/audit-archive
 COPY --from=build /out/identity-readiness /app/identity-readiness
+COPY --from=build /out/recovery-readiness /app/recovery-readiness
 
 EXPOSE 8080
 ENTRYPOINT ["/app/api"]

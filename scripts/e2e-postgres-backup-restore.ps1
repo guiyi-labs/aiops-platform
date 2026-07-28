@@ -346,6 +346,7 @@ COMMIT;
     Assert-Snapshot -Actual $targetSnapshot -Expected $sourceSnapshot -Stage 'source-to-target'
 
     $summary = [ordered]@{
+        format = 'aiops.logical-restore-evidence/v1'
         verified_at = (Get-Date).ToString('o')
         postgres_image = $PostgresImage
         database_name = $DatabaseName

@@ -1,0 +1,33 @@
+{
+  "format": "aiops.logical-restore-evidence/v1",
+  "verified_at": "2026-07-28T11:00:00Z",
+  "postgres_image": "pgvector/pgvector:0.8.1-pg17",
+  "database_name": "aiops_restore_drill",
+  "migration_count": 16,
+  "latest_migration": "000016_credential_reencryption_runs.up.sql",
+  "backup": {
+    "format": "custom",
+    "bytes": 81920,
+    "sha256": "70bb77d98905c7718f9831bfda46918d3253776c16f5adbebf1e2be13d9dd60b",
+    "retained": false
+  },
+  "source_destroyed_before_restore": true,
+  "source_snapshot": {
+    "migrations": 16,
+    "users": 2,
+    "audit_logs": 1,
+    "invalid_foreign_keys": 0
+  },
+  "restored_snapshot": {
+    "migrations": 16,
+    "users": 2,
+    "audit_logs": 1,
+    "invalid_foreign_keys": 0
+  },
+  "cleanup": {
+    "source_container_deleted": true,
+    "target_container_deleted": true,
+    "temporary_files_deleted": true,
+    "process_environment_restored": true
+  }
+}

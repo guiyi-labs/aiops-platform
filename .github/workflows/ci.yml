@@ -54,6 +54,7 @@ jobs:
           go build -trimpath -ldflags "-s -w" -o /tmp/credential-reencrypt ./cmd/credential-reencrypt
           go build -trimpath -ldflags "-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${GITHUB_SHA}" -o /tmp/audit-archive ./cmd/audit-archive
           go build -trimpath -ldflags "-s -w" -o /tmp/identity-readiness ./cmd/identity-readiness
+          go build -trimpath -ldflags "-s -w" -o /tmp/recovery-readiness ./cmd/recovery-readiness
 
   frontend:
     name: Frontend
@@ -127,6 +128,9 @@ jobs:
       - name: Drill isolated PostgreSQL backup and restore
         shell: pwsh
         run: ./scripts/e2e-postgres-backup-restore.ps1
+      - name: Evaluate recovery policy readiness
+        shell: pwsh
+        run: ./scripts/e2e-recovery-readiness.ps1
       - name: Generate ephemeral runtime configuration
         shell: bash
         run: |
@@ -187,6 +191,7 @@ jobs:
             .artifacts/audit-archive/
             .artifacts/identity-readiness/
             .artifacts/postgres-recovery/
+            .artifacts/recovery-readiness/
           if-no-files-found: error
           retention-days: 7
       - name: Remove ephemeral runtime

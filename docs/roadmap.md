@@ -1,16 +1,18 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 6 accepted; local root commit `2d46588f8c15ab626703e92eccc35b4de8b53ab2`; private remote and hosted CI accepted at `648aea6c94fbc29fbf21d1f799df29880099d454`
+- Baseline: M20 Phase 7 accepted at `acbdccaecaafc6eac96987367c5e118071508fb1`; final hosted CI run `30328283896`; private remote remains active
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
 
-The human-reviewed local baseline, private remote, first push and complete
-hosted CI are accepted. Before a formal release, enable required checks,
-register the dedicated runner, review the grouped dependency updates, tag the
-release and recapture screenshots bound to the reviewed revision. No remote
-branch protection, tag, public repository or release is claimed yet.
+The human-reviewed baseline, private remote, hosted CI and dependency review
+are accepted. GitHub rejected branch protection for this private repository
+under the current account plan (HTTP 403); the repository remains private and
+no policy bypass is claimed. Before a formal release, register the dedicated
+runner, complete security/backup/HA review, tag the release and recapture
+screenshots bound to the reviewed revision. No public repository or release is
+claimed yet.
 
 ## M16: Metrics Available Path
 
@@ -96,6 +98,11 @@ branch protection, tag, public repository or release is claimed yet.
   and grouped dependency updates. The reviewed local baseline was subsequently
   created and verified; registry publication and release credentials remain
   outside this phase.
+- Phase 7 reviews grouped dependency updates, limits Dependabot groups to
+  minor/patch changes, separates major migrations into independent PRs, moves
+  pnpm setup to the signed Node 24 action, and archives the account-plan limit
+  on private-repository branch protection. Actions, Go modules, Vue patch
+  updates and the final combined CI run were accepted without a release tag.
 - Add OIDC/MFA evaluation, application-key re-encryption, signed audit archives,
   backup/restore and HA validation.
 - Define bounded metrics retention and missing-sample semantics before storing

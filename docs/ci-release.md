@@ -9,17 +9,19 @@
 | `Real kind E2E` | Saturday 18:17 UTC schedule or manual suite choice | self-hosted Windows `aiops-kind` | disposable diagnosis/fleet/search evidence retained for 14 days |
 
 All referenced marketplace actions are pinned to full commit SHAs. Dependabot
-opens grouped weekly updates; review the upstream tag and diff before replacing
-a SHA. `pull_request_target` is prohibited.
+groups only minor and patch updates; major updates are emitted as separate PRs
+for explicit review. Review the upstream tag and diff before replacing a SHA.
+`pull_request_target` is prohibited.
 
 Activation status: private remote `guiyi-labs/aiops-platform` is configured.
-Hosted CI run `30325194933` passed all four jobs at revision
-`648aea6c94fbc29fbf21d1f799df29880099d454`. Required branch checks and the
+Hosted CI run `30328283896` passed all four jobs at revision
+`acbdccaecaafc6eac96987367c5e118071508fb1`; the pnpm setup action now runs on
+Node 24 without the prior deprecation warning. Required branch checks and the
 dedicated `aiops-kind` runner are not enabled yet.
 
 ## Required Branch Protection
 
-After the initial baseline is pushed, protect `main` and require these checks:
+When the repository plan permits it, protect `main` and require these checks:
 
 - `Backend`
 - `Frontend`
@@ -27,6 +29,10 @@ After the initial baseline is pushed, protect `main` and require these checks:
 - `Compose runtime`
 
 Require pull-request review, dismiss stale approvals and block force pushes.
+The current private-repository account returned HTTP 403 for this API, stating
+that GitHub Pro or a public repository is required. Keep the repository private
+until publication is explicitly approved; do not weaken the workflow to work
+around the missing protection.
 Do not add repository or environment secrets to the `CI` workflow. The Compose
 job generates a private `.env`, uploads only service status/logs and removes
 the runtime, volume and `.env` in `always()` steps.

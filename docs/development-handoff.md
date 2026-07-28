@@ -2,8 +2,16 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2` and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
-- Current milestone: M20 Phase 6, the reviewed Git baseline, private GitHub remote and first hosted CI are complete; required branch checks, runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; current reviewed main is `acbdccaecaafc6eac96987367c5e118071508fb1`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
+- Current milestone: M20 Phase 7, dependency governance and Node 24 CI currency are complete; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+
+M20 Phase 7 reviewed Dependabot PRs #1, #2, #5 and #6. The Actions and Go
+updates were merged after all four hosted checks passed; the Vue and vue-tsc
+patch update was then merged and the combined `main` revision passed run
+`30328283896`. The multi-major frontend PR #3 was closed without merge, and the
+duplicate pnpm PR #4 was superseded by the reviewed `pnpm/action-setup` v6
+commit. `.github/dependabot.yml` now groups only minor/patch updates and the
+contract suite verifies all three ecosystem policies.
 
 M20 Phase 6 adds ADR 0028, `.github/workflows/ci.yml`, `release.yml` and
 `real-kind-e2e.yml`, plus grouped weekly Dependabot updates. Pull requests use
@@ -43,7 +51,8 @@ pre-existing `gofmt` mismatch in the workflow contract test; revision
 `30325194933` then passed on 2026-07-28 at 11:14:24 +08:00: Backend,
 Frontend, Manifests and the ephemeral Compose runtime all succeeded, including
 runtime health checks, sanitized artifact upload and guaranteed teardown. The
-three grouped Dependabot pull requests remain unmerged pending normal review.
+initial grouped Dependabot pull requests were reviewed; major frontend
+migrations remain intentionally deferred as separate future work.
 
 M20 Phase 5 adds `scripts/e2e-global-search-kind.ps1` without changing ADR 0026
 or the search API. The accepted run created two physically distinct Kubernetes
@@ -478,14 +487,12 @@ Verification baseline after this stage: all Go tests and server build, frontend 
 
 ## Recommended Next Work
 
-Review the complete untracked baseline and create the initial Git commit only
-after confirming author identity and commit scope. Then capture final UI
-screenshots again so metadata records that commit, rehearse the 10-minute
-script, and freeze a release tag. M20 should begin with bounded multi-cluster
-fan-out semantics and production hardening; each later controlled action still
-requires a separate allowlist, typed contract, risk analysis, dry-run,
-precondition, idempotency, restoration and audit review. Keep MFA/SSO as a
-separate identity-provider project.
+The Git baseline, private remote, hosted CI and dependency governance are
+already archived. Next, register the isolated `aiops-kind` runner, evaluate
+OIDC/MFA and application-key re-encryption, then validate signed audit
+archives, backup/restore and HA behavior. Only after those reviews should the
+project choose a registry identity, artifact-signing policy, license and formal
+release tag. Keep MFA/SSO as a separate identity-provider project.
 
 ## Controlled Remediation Contract (Archived)
 
@@ -732,8 +739,9 @@ applied version.
 
 ## Next Priorities After Current Work
 
-1. Enable required `Backend`, `Frontend`, `Manifests` and `Compose runtime`
-   checks on `main` after repository protection policy is reviewed.
+1. Revisit required `Backend`, `Frontend`, `Manifests` and `Compose runtime`
+   checks when the private repository plan supports branch protection, or
+   after an explicitly approved public-repository decision.
 2. Register a dedicated non-production `aiops-kind` runner using
    `docs/ci-release.md`.
 3. Continue production hardening with OIDC/MFA evaluation, application-key
@@ -743,7 +751,8 @@ applied version.
 5. Evaluate explicit saved-filter ordering/pinning only if repeated operator
    evidence justifies it; sharing, schedules and alerts remain out of scope.
 6. Re-capture revision-bound screenshots and rehearse the M20 defense flow
-   after the baseline revision exists.
+   after security, backup/restore and HA gates are accepted.
+
 ## Real kind Final Verification
 
 Fresh verification on 2026-07-17 passed backend format/vet, all Go packages

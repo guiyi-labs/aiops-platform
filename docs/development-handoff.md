@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` has root baseline commit `2d46588f8c15ab626703e92eccc35b4de8b53ab2`; the worktree is clean and no remote is configured or pushed
-- Current milestone: M20 Phase 6 versioned CI/release pipeline and the human-reviewed initial Git baseline are complete; remote required checks, runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2` and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
+- Current milestone: M20 Phase 6, the reviewed Git baseline, private GitHub remote and first hosted CI are complete; required branch checks, runner registration and release publication remain pending
 
 M20 Phase 6 adds ADR 0028, `.github/workflows/ci.yml`, `release.yml` and
 `real-kind-e2e.yml`, plus grouped weekly Dependabot updates. Pull requests use
@@ -35,6 +35,15 @@ TypeScript build metadata. The commit-bound full gate passed at 2026-07-28
 10:21:10 +08:00 in 177.39 seconds with evidence at
 `.artifacts/verification/verify-20260728-102110.json`. No remote, tag or
 release was created.
+
+The private GitHub remote was subsequently created at
+`https://github.com/guiyi-labs/aiops-platform`. The first push exposed one
+pre-existing `gofmt` mismatch in the workflow contract test; revision
+`648aea6c94fbc29fbf21d1f799df29880099d454` corrected it. Hosted CI run
+`30325194933` then passed on 2026-07-28 at 11:14:24 +08:00: Backend,
+Frontend, Manifests and the ephemeral Compose runtime all succeeded, including
+runtime health checks, sanitized artifact upload and guaranteed teardown. The
+three grouped Dependabot pull requests remain unmerged pending normal review.
 
 M20 Phase 5 adds `scripts/e2e-global-search-kind.ps1` without changing ADR 0026
 or the search API. The accepted run created two physically distinct Kubernetes
@@ -723,9 +732,10 @@ applied version.
 
 ## Next Priorities After Current Work
 
-1. Configure and review the remote, then push the accepted baseline.
-2. After that remote baseline exists, enable required branch checks and register
-   a dedicated non-production `aiops-kind` runner using `docs/ci-release.md`.
+1. Enable required `Backend`, `Frontend`, `Manifests` and `Compose runtime`
+   checks on `main` after repository protection policy is reviewed.
+2. Register a dedicated non-production `aiops-kind` runner using
+   `docs/ci-release.md`.
 3. Continue production hardening with OIDC/MFA evaluation, application-key
    re-encryption, signed audit archives, backup/restore and HA validation.
 4. Decide registry identity, artifact signing and provenance only after the

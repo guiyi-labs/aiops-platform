@@ -57,11 +57,20 @@ tools, evidence, dependencies and build output remain outside Git. Its
 commit-bound full gate passed at 2026-07-28 10:21:10 +08:00 in 177.39 seconds
 with evidence at `.artifacts/verification/verify-20260728-102110.json`.
 
+The baseline was later pushed to the private repository
+`https://github.com/guiyi-labs/aiops-platform`. The first hosted run identified
+one existing `gofmt` mismatch in this phase's Go contract test. Revision
+`648aea6c94fbc29fbf21d1f799df29880099d454` corrected that formatting issue,
+and hosted CI run `30325194933` passed Backend, Frontend, Manifests and Compose
+runtime at 2026-07-28 11:14:24 +08:00. Runtime evidence was sanitized,
+uploaded and torn down as designed.
+
 ## Boundaries And Follow-Up
 
 At phase acceptance no initial commit, remote branch protection, release tag,
 GitHub Release, registry push, signing key or production runner was created.
-Only the local baseline was added afterward; the remaining external state
-changes stay human-controlled. The next production-hardening slice should
-evaluate OIDC/MFA and application credential-key rotation before adding
-registry identity, artifact signing or provenance attestation.
+The local baseline and private remote were added afterward; branch protection,
+release tags, GitHub Releases, registry publication, signing keys and the
+self-hosted runner remain human-controlled. The next production-hardening
+slice should evaluate OIDC/MFA and application credential-key rotation before
+adding registry identity, artifact signing or provenance attestation.

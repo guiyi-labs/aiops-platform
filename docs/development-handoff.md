@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 1 is accepted at `51d2bb5048562feb5aa4b4b872b3e1f6fcf04ecc` with hosted CI run `30355560521`; Phase 2 background collection is locally accepted and awaits its implementation revision and hosted CI; M20 Phase 12 remains accepted and archived
-- Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 2 locally accepts enabled-cluster background collection over the PostgreSQL history contract, while provider-specific identity/recovery work remains organization-gated
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 2 is accepted at `62ed5a4d94622787e516a12502ef51e78b47479a` with hosted CI run `30369559322`; Phase 1 and M20 Phase 12 remain accepted and archived
+- Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 2 accepts enabled-cluster background collection over the PostgreSQL history contract, while provider-specific identity/recovery work remains organization-gated
 
 The 2026-07-28 KRM/Ratel reassessment found that the platform is already
 stronger in diagnosis evidence, credential safety, controlled mutation, audit
@@ -42,8 +42,11 @@ The 782.71-second local repository gate passed 195 Go `Test*` entries and five
 backend targets, 14 Vitest files / 59 tests, production frontend and both
 Docker image builds, three healthy Compose services, Kustomize `16/5/22/3`
 and direct/proxied readiness. Evidence is
-`.artifacts/verification/verify-20260728-223526.json`; the implementation
-revision and hosted CI run remain to be recorded.
+`.artifacts/verification/verify-20260728-223526.json`. Hosted Backend,
+Frontend and Manifests plus the 6m11s Compose runtime job passed in run
+`30369559322`, including all isolated drills, random-configuration startup,
+service health, direct/proxied HTTP, sanitized upload and teardown with the
+collector enabled.
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
 template and a network-disabled gate consuming the newest real logical-restore

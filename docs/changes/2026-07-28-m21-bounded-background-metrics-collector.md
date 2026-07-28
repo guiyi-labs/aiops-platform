@@ -39,8 +39,13 @@ builds, three healthy Compose services, Kustomize `16/5/22/3` and direct plus
 proxied readiness checks. Evidence is
 `.artifacts/verification/verify-20260728-223526.json`.
 
-The implementation revision and hosted CI run are appended after the
-implementation commit is accepted.
+- Implementation revision: `62ed5a4d94622787e516a12502ef51e78b47479a`.
+- Hosted CI: [run 30369559322](https://github.com/guiyi-labs/aiops-platform/actions/runs/30369559322)
+  passed Backend, Frontend and Manifests plus the 6m11s Compose runtime job.
+  The runtime job repeated credential, signed-audit, identity, PostgreSQL
+  backup/restore and recovery-readiness drills, then passed random-configuration
+  startup, service health, direct/proxied HTTP, sanitized upload and teardown
+  with the collector enabled.
 
 ## Boundary
 

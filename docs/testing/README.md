@@ -441,6 +441,11 @@ fixtures are intentionally excluded from the retained defense demo.
   refusal leaves no files, rejects a byte mutation and deletes all key/archive,
   image, network, container and process material. Only sanitized booleans and
   counts are written to `.artifacts/audit-archive`.
+- `scripts/e2e-identity-readiness.ps1` is the offline identity admission gate.
+  It runs the production-image command with networking disabled, accepts a
+  complete synthetic OIDC/MFA contract, rejects issuer/PKCE and MFA/email-linking
+  downgrades, deletes every temporary provider snapshot and image, and writes
+  only sanitized booleans/counts to `.artifacts/identity-readiness`.
 - Saved-filter runtime acceptance uses the retained development PostgreSQL and
   authenticated API because the state is a platform preference and does not
   require a second target cluster. Test-created filters must be removed after

@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 10 signed audit archives accepted at `c1449573c3b05d2825d4dd8d77b36e00680780aa`; hosted CI run `30340088789`; private remote remains active
+- Baseline: M20 Phase 10 signed audit archives accepted at `c1449573c3b05d2825d4dd8d77b36e00680780aa`; Phase 11 identity-readiness is accepted locally and awaiting hosted CI; private remote remains active
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
@@ -117,7 +117,11 @@ claimed yet.
   Ed25519 manifest, externally anchored verification, overwrite refusal and an
   isolated PostgreSQL tamper/overflow/cleanup gate. The 2026-07-28 complete
   local gate and Ubuntu hosted CI are accepted.
-- Continue with organization-specific OIDC/MFA requirements, production backup
-  retention/RPO/RTO, then PITR and HA validation.
+- Phase 11 adds a provider-neutral OIDC/MFA policy contract, strict offline
+  discovery/JWKS validation, 14 fail-closed admission checks and a
+  network-disabled downgrade drill. It creates no login endpoint and does not
+  claim production SSO; the local gate is accepted and hosted CI is pending.
+- Continue with organization approval and isolated OIDC login integration,
+  production backup retention/RPO/RTO, then PITR and HA validation.
 - Define bounded metrics retention and missing-sample semantics before storing
   historical time series.

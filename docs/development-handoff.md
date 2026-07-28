@@ -2,8 +2,27 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 10 is accepted at `c1449573c3b05d2825d4dd8d77b36e00680780aa` with hosted CI run `30340088789`
-- Current milestone: M20 Phase 10 signed audit archives are accepted locally and in hosted CI; branch protection is unavailable on the current private-repository plan, while OIDC/MFA requirements, production backup policy, runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 11 identity readiness is accepted locally and awaiting implementation commit/hosted CI
+- Current milestone: M20 Phase 11 provides an offline OIDC/MFA readiness contract without claiming production SSO; organization identity decisions, production backup policy, runner registration and release publication remain pending
+
+M20 Phase 11 adds ADR 0032, the strict offline `/app/identity-readiness`
+command, a policy template and a network-disabled synthetic drill. Fourteen
+checks cover accountable ownership, canonical HTTPS issuer/endpoints/redirects,
+Authorization Code + PKCE S256, scopes, asymmetric signing/JWKS structure,
+explicit claims, identity-provider MFA evidence, immutable-subject prelinking,
+bounded sessions/logout and offline break-glass controls. Unknown fields and
+files over 1 MiB fail closed; the schema has no client-secret field and the
+command adds no HTTP route, database state or network request.
+
+The final drill passed at 2026-07-28 16:54 +08:00, accepted the complete 14-check
+synthetic contract, rejected issuer/PKCE and MFA/email-linking downgrades and
+deleted its temporary image and snapshots. Evidence is
+`.artifacts/identity-readiness/identity-readiness-20260728-165405.json`.
+Actionlint 1.7.7 returned zero findings. The 300.97-second full local gate then
+passed 171 Go `Test*` entries and four backend targets, 14 Vitest files / 59
+tests, production frontend build, three healthy services, Kustomize 16/5/22/3
+and runtime HTTP checks. Evidence is
+`.artifacts/verification/verify-20260728-165939.json`. Hosted CI is pending.
 
 M20 Phase 10 adds ADR 0031, the offline `/app/audit-archive` command and an
 isolated PostgreSQL drill. Archive creation requires an explicit ID range,
@@ -808,14 +827,17 @@ applied version.
    after an explicitly approved public-repository decision.
 2. Register a dedicated non-production `aiops-kind` runner using
    `docs/ci-release.md`.
-3. Continue production hardening with OIDC/MFA evaluation, signed audit
-   archives, production backup/PITR policy and HA validation; isolated logical
-   restore and application-key re-encryption gates are complete locally.
-4. Decide registry identity, artifact signing and provenance only after the
+3. Obtain identity/security/application-owner approval for the Phase 11 policy,
+   then implement isolated-provider OIDC login and MFA validation; readiness
+   evaluation alone is not production SSO.
+4. Define production backup retention/RPO/RTO with the infrastructure owner,
+   then validate PITR and HA; isolated logical restore, application-key
+   re-encryption and signed audit archives are already accepted.
+5. Decide registry identity, artifact signing and provenance only after the
    release actor and key-management policy are reviewed.
-5. Evaluate explicit saved-filter ordering/pinning only if repeated operator
+6. Evaluate explicit saved-filter ordering/pinning only if repeated operator
    evidence justifies it; sharing, schedules and alerts remain out of scope.
-6. Re-capture revision-bound screenshots and rehearse the M20 defense flow
+7. Re-capture revision-bound screenshots and rehearse the M20 defense flow
    after security, backup/restore and HA gates are accepted.
 
 ## Real kind Final Verification

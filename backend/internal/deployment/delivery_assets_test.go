@@ -23,6 +23,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"backend/internal/audit/archive.go": {
 			"Ed25519", "ErrUntrustedSigner", "MaxArchiveRecords", "refusing to overwrite",
 		},
+		"backend/cmd/identity-readiness/main.go": {
+			"policy-file", "discovery-file", "jwks-file", "report.Ready",
+		},
+		"backend/internal/identityreadiness/readiness.go": {
+			"PKCERequired", "admin_prelinked_subject", "offline_secret_manager", "elliptic.P256().IsOnCurve",
+		},
 		"backend/migrations/000016_credential_reencryption_runs.up.sql": {
 			"credential_reencryption_runs", "source_key_versions", "error_code",
 		},
@@ -44,6 +50,15 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		},
 		"docs/changes/2026-07-28-signed-audit-archives.md": {
 			"M20 Phase 10", "audit-archive", "one-byte mutation", "30340088789",
+		},
+		"docs/adr/0032-offline-oidc-mfa-readiness-gate.md": {
+			"provider-neutral", "PKCE S256", "automatically linked by email", "no HTTP endpoint",
+		},
+		"docs/security/identity-readiness.md": {
+			"Required Decisions", "--network none", "14 checks", "Production Integration Boundary",
+		},
+		"docs/changes/2026-07-28-identity-readiness-gate.md": {
+			"M20 Phase 11", "identity-readiness", "MFA/email-linking downgrades", "hosted acceptance pending",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",
@@ -73,9 +88,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"scripts/e2e-audit-archive.ps1": {
 			"audit-archive", "trusted-public-key-file", "record limit", ".artifacts\\audit-archive", "finally",
 		},
+		"scripts/e2e-identity-readiness.ps1": {
+			"--network", "none", "issuer_mismatch_rejected", "automatic_email_linking_rejected", ".artifacts\\identity-readiness",
+		},
 		".github/workflows/ci.yml": {
 			"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
-			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
+			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
 			"v*.*.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",

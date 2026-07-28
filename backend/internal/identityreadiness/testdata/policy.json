@@ -1,0 +1,46 @@
+{
+  "format": "aiops.identity-readiness-policy/v1",
+  "provider_name": "synthetic-corporate-idp",
+  "issuer": "https://identity.example.test",
+  "client_id": "aiops-platform",
+  "redirect_uris": ["https://aiops.example.test/api/v1/auth/oidc/callback"],
+  "claim_mapping": {
+    "subject": "sub",
+    "username": "preferred_username",
+    "display_name": "name",
+    "groups": "groups"
+  },
+  "authorization": {
+    "required_scopes": ["openid", "profile", "groups"],
+    "allowed_signing_algorithms": ["ES256"],
+    "pkce_required": true
+  },
+  "mfa": {
+    "required": true,
+    "enforcement_owner": "identity_provider",
+    "evidence_claim": "acr",
+    "accepted_values": ["urn:example:loa:2"]
+  },
+  "account_linking": {
+    "mode": "admin_prelinked_subject",
+    "auto_link_by_email": false
+  },
+  "sessions": {
+    "max_age_minutes": 480,
+    "reauthentication_minutes": 60,
+    "revoke_local_sessions_on_identity_disable": true,
+    "logout_mode": "local_and_provider"
+  },
+  "break_glass": {
+    "enabled": true,
+    "owner_group": "platform-security",
+    "credential_storage": "offline_secret_manager",
+    "test_interval_days": 30,
+    "max_accounts": 2
+  },
+  "approvals": {
+    "identity_owner": "identity-team",
+    "security_owner": "security-team",
+    "application_owner": "platform-team"
+  }
+}

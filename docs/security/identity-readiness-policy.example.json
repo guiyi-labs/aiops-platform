@@ -1,0 +1,46 @@
+{
+  "format": "aiops.identity-readiness-policy/v1",
+  "provider_name": "REQUIRED_PROVIDER_NAME",
+  "issuer": "https://REQUIRED_CANONICAL_ISSUER",
+  "client_id": "REQUIRED_PUBLIC_CLIENT_ID",
+  "redirect_uris": ["https://REQUIRED_PLATFORM_HOST/api/v1/auth/oidc/callback"],
+  "claim_mapping": {
+    "subject": "sub",
+    "username": "REQUIRED_USERNAME_CLAIM",
+    "display_name": "REQUIRED_DISPLAY_NAME_CLAIM",
+    "groups": "REQUIRED_GROUPS_CLAIM"
+  },
+  "authorization": {
+    "required_scopes": ["openid", "profile", "REQUIRED_GROUP_SCOPE"],
+    "allowed_signing_algorithms": ["REQUIRED_RS256_PS256_ES256_OR_EdDSA"],
+    "pkce_required": true
+  },
+  "mfa": {
+    "required": true,
+    "enforcement_owner": "identity_provider",
+    "evidence_claim": "REQUIRED_acr_OR_amr",
+    "accepted_values": ["REQUIRED_ORGANIZATION_MFA_VALUE"]
+  },
+  "account_linking": {
+    "mode": "admin_prelinked_subject",
+    "auto_link_by_email": false
+  },
+  "sessions": {
+    "max_age_minutes": 480,
+    "reauthentication_minutes": 60,
+    "revoke_local_sessions_on_identity_disable": true,
+    "logout_mode": "local_and_provider"
+  },
+  "break_glass": {
+    "enabled": true,
+    "owner_group": "REQUIRED_SECURITY_OWNER_GROUP",
+    "credential_storage": "offline_secret_manager",
+    "test_interval_days": 30,
+    "max_accounts": 2
+  },
+  "approvals": {
+    "identity_owner": "REQUIRED_IDENTITY_OWNER",
+    "security_owner": "REQUIRED_SECURITY_OWNER",
+    "application_owner": "REQUIRED_APPLICATION_OWNER"
+  }
+}

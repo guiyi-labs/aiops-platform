@@ -84,6 +84,11 @@ AI 默认关闭。启用远程 Provider 时必须配置 API Key，生产环境�
 
 ## Run With Docker Compose
 
+OIDC/MFA is not enabled by runtime environment variables. Before adding a real
+provider, complete the offline policy and metadata admission gate described in
+`docs/security/identity-readiness.md`. The readiness files must never contain a
+client secret, token or private key, and a passing report does not enable SSO.
+
 ```powershell
 docker compose up --build
 ```

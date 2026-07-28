@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,6 +20,8 @@ type Repository interface {
 type GormRepository struct{ db *gorm.DB }
 
 func NewGormRepository(db *gorm.DB) *GormRepository { return &GormRepository{db: db} }
+
+var ErrArchiveRecordLimitExceeded = errors.New("audit archive record limit exceeded")
 
 func (r *GormRepository) Save(ctx context.Context, entry *Entry) error {
 	details, err := json.Marshal(entry.Details)
@@ -93,6 +96,51 @@ func (r *GormRepository) List(ctx context.Context, filter Filter) (ListResponse,
 		details::text AS details, created_at FROM audit_logs`+where+` ORDER BY created_at DESC, id DESC LIMIT ?`, queryArgs...).Scan(&stored).Error; err != nil {
 		return ListResponse{}, err
 	}
+	items, err := entriesFromStored(stored)
+	if err != nil {
+		return ListResponse{}, err
+	}
+	remaining := total - int64(len(items))
+	if remaining < 0 {
+		remaining = 0
+	}
+	return ListResponse{Items: items, Total: total, Remaining: remaining}, nil
+}
+
+// ArchiveRange returns a stable, ascending ID slice for the offline archive command.
+// The count check runs before records are materialized so callers can refuse an
+// over-broad selection before any archive file is written.
+func (r *GormRepository) ArchiveRange(ctx context.Context, firstID, lastID int64, maximum int) ([]Entry, error) {
+	if firstID < 1 || lastID < firstID || maximum < 1 || maximum > MaxArchiveRecords {
+		return nil, fmt.Errorf("invalid audit archive range")
+	}
+	var result []Entry
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY").Error; err != nil {
+			return fmt.Errorf("start read-only audit archive snapshot: %w", err)
+		}
+		var count int64
+		if err := tx.Raw("SELECT COUNT(*) FROM audit_logs WHERE id BETWEEN ? AND ?", firstID, lastID).Row().Scan(&count); err != nil {
+			return fmt.Errorf("count audit archive records: %w", err)
+		}
+		if count > int64(maximum) {
+			return ErrArchiveRecordLimitExceeded
+		}
+		var stored []storedEntry
+		if err := tx.Raw(`SELECT id, actor_user_id, actor_name, cluster_id, action,
+			COALESCE(resource_type, '') AS resource_type, COALESCE(resource_namespace, '') AS resource_namespace,
+			COALESCE(resource_name, '') AS resource_name, result, request_id, status_code, ip_address, user_agent,
+			details::text AS details, created_at FROM audit_logs WHERE id BETWEEN ? AND ? ORDER BY id ASC`, firstID, lastID).Scan(&stored).Error; err != nil {
+			return fmt.Errorf("read audit archive records: %w", err)
+		}
+		var err error
+		result, err = entriesFromStored(stored)
+		return err
+	})
+	return result, err
+}
+
+func entriesFromStored(stored []storedEntry) ([]Entry, error) {
 	items := make([]Entry, 0, len(stored))
 	for _, item := range stored {
 		entry := Entry{ID: item.ID, Actor: Actor{ID: item.ActorUserID.Int64, Name: item.ActorName}, Action: item.Action,
@@ -103,13 +151,9 @@ func (r *GormRepository) List(ctx context.Context, filter Filter) (ListResponse,
 			entry.ClusterID = &value
 		}
 		if err := json.Unmarshal([]byte(item.Details), &entry.Details); err != nil {
-			return ListResponse{}, fmt.Errorf("decode audit details: %w", err)
+			return nil, fmt.Errorf("decode audit details: %w", err)
 		}
 		items = append(items, entry)
 	}
-	remaining := total - int64(len(items))
-	if remaining < 0 {
-		remaining = 0
-	}
-	return ListResponse{Items: items, Total: total, Remaining: remaining}, nil
+	return items, nil
 }

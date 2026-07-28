@@ -72,6 +72,12 @@ dry-run，再显式使用 `/app/credential-reencrypt --apply`。完整操作顺�
 回滚和旧密钥退役条件见 `docs/database/credential-key-rotation.md`。不要直接替换
 主密钥后删除旧密钥，否则历史集群凭据将不可恢复。
 
+审计归档使用生产镜像内的离线 `/app/audit-archive`，不通过 HTTP 暴露。
+创建时必须显式提供 ID 范围、1..10000 行上限、新输出路径和 Ed25519 私钥文件；
+验签时必须从独立渠道提供 `--trusted-public-key-file`，不能信任归档旁的内嵌
+公钥。密钥、payload 和 detached manifest 均不得进入仓库或 CI 产物。完整
+操作与失败处理见 `docs/database/audit-archive.md`。
+
 AI 默认关闭。启用远程 Provider 时必须配置 API Key，生产环境的 `AI_BASE_URL` 必须使用 HTTPS。本地 `localhost`/loopback Provider 可以无 Key 运行，便于离线模型和集成测试。API Key 不进入数据库、审计、日志或前端。
 
 生成前会按“估算输入 token + `AI_MAX_OUTPUT_TOKENS`”预留每日预算；Provider 返回后删除预留并按实际 usage 记账。预留带过期时间，进程异常退出不会永久占用预算。每日统计按 UTC 计算，多个后端实例通过 PostgreSQL advisory lock 串行预算检查；并发上限当前是单进程门控，横向扩容时总并发约为实例数乘以配置值。

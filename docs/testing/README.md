@@ -362,6 +362,22 @@ fixtures are intentionally excluded from the retained defense demo.
 - Tests and evidence must never print or retain keys, plaintext kubeconfigs,
   ciphertext, database URLs or raw database/application errors.
 
+## Signed Audit Archive Tests
+
+- Unit tests verify Ed25519 success with a separately trusted public key,
+  payload tamper rejection, signer mismatch rejection, strict metadata/range
+  checks and non-overwriting output.
+- Repository selection must use ascending positive IDs in a read-only
+  repeatable-read snapshot, count before loading and reject bounds outside
+  1..10000. An over-limit selection must create neither payload nor manifest.
+- The isolated PostgreSQL gate must create only synthetic sanitized audit rows,
+  prove trusted verification and one-byte tamper rejection, and delete the
+  private seed, trusted-key file, archives, container, network, image and
+  process environment in `finally`.
+- Retained evidence may contain only format-independent counts, booleans and
+  cleanup state. It must not contain payloads, manifests, keys, database URLs,
+  request bodies, credentials or raw errors.
+
 ## Delivery verification entry points
 
 - `.github/workflows/ci.yml` is the hosted regular gate. It reproduces backend,
@@ -419,6 +435,12 @@ fixtures are intentionally excluded from the retained defense demo.
   v2-only backend decrypt path and requires complete runtime cleanup. Only
   sanitized counts and error codes are written to
   `.artifacts/credential-reencryption`.
+- `scripts/e2e-audit-archive.ps1` is the isolated signed-audit gate. It seeds
+  synthetic sanitized rows in a private PostgreSQL instance, signs and verifies
+  two records against an externally supplied public key, proves record-limit
+  refusal leaves no files, rejects a byte mutation and deletes all key/archive,
+  image, network, container and process material. Only sanitized booleans and
+  counts are written to `.artifacts/audit-archive`.
 - Saved-filter runtime acceptance uses the retained development PostgreSQL and
   authenticated API because the state is a platform preference and does not
   require a second target cluster. Test-created filters must be removed after

@@ -4,7 +4,7 @@
 
 | Workflow | Trigger | Runner | Result |
 |---|---|---|---|
-| `CI` | push to `main`, pull request, manual, reusable call | GitHub-hosted Ubuntu 24.04 | backend/frontend/manifests, isolated credential re-encryption, isolated PostgreSQL recovery and Compose runtime gates plus seven-day sanitized evidence |
+| `CI` | push to `main`, pull request, manual, reusable call | GitHub-hosted Ubuntu 24.04 | backend/frontend/manifests, isolated audit signing, credential re-encryption, PostgreSQL recovery and Compose runtime gates plus seven-day sanitized evidence |
 | `Release` | semantic-version tag or manual rehearsal | GitHub-hosted Ubuntu 24.04 | checksummed versioned package; tagged runs create a GitHub Release |
 | `Real kind E2E` | Saturday 18:17 UTC schedule or manual suite choice | self-hosted Windows `aiops-kind` | disposable diagnosis/fleet/search evidence retained for 14 days |
 
@@ -35,10 +35,11 @@ that GitHub Pro or a public repository is required. Keep the repository private
 until publication is explicitly approved; do not weaken the workflow to work
 around the missing protection.
 Do not add repository or environment secrets to the `CI` workflow. The Compose
-job first runs an isolated PostgreSQL source-to-target restore with random
-process credentials, then generates a private `.env` for the separate Compose
-runtime. It uploads only sanitized recovery evidence and service status/logs,
-and removes the runtime, volume and `.env` in `always()` steps.
+job first runs signed-audit, credential-key and PostgreSQL recovery drills with
+random ephemeral process material, then generates a private `.env` for the
+separate Compose runtime. It uploads only sanitized counts/hashes/status and
+service logs, never archive payloads, manifests or keys, and removes the
+runtime, volume and `.env` in `always()` steps.
 
 ## Release Procedure
 

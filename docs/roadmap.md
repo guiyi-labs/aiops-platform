@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 7 final revision `48a86ec4f5b1314b51f381c40443ea9df0704395`; hosted CI run `30328906183`; private remote remains active
+- Baseline: M20 Phase 8 accepted at `24ed4af7b74ec85438c0c8cc005f27ecf6e74886`; hosted CI run `30331048635`; private remote remains active
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
@@ -107,7 +107,8 @@ claimed yet.
   applies the complete migration set, inserts synthetic relational data,
   destroys the source, restores a fresh target, verifies migration/data/FK
   invariants and removes all temporary backup material. Production RPO/RTO,
-  off-cluster retention, PITR and HA are explicitly not claimed.
+  off-cluster retention, PITR and HA are explicitly not claimed. The local and
+  hosted Ubuntu gates were accepted on 2026-07-28.
 - Continue with OIDC/MFA evaluation, application-key re-encryption, signed audit
   archives, production backup policy/PITR and HA validation.
 - Define bounded metrics retention and missing-sample semantics before storing

@@ -41,7 +41,7 @@
 - `docs/changes/2026-07-26-release-freeze-candidate.md`：RC-Freeze 验证结果、演示状态、交付文档和提交前待确认事项。
 - `.artifacts/fleet-e2e/fleet-e2e-20260727-193711.json`：最新 M20 Phase 2 双真实集群脱敏证据，目录已加入 `.gitignore`。
 - `.artifacts/search-e2e/search-e2e-20260727-225358.json`：M20 Phase 5 双真实集群全局搜索脱敏证据，八项清理断言通过。
-- `.artifacts/postgres-recovery/postgres-recovery-20260728-124206.json`：M20 Phase 8 PostgreSQL 源实例销毁、全新实例恢复与清理断言的脱敏证据。
+- `.artifacts/postgres-recovery/postgres-recovery-20260728-131325.json`：M20 Phase 8 PostgreSQL 源实例销毁、全新实例恢复与清理断言的脱敏证据；托管 CI 为 run `30331048635`。
 - `.artifacts/verification/verify-20260728-100752.json`：M20 Phase 6 CI/release 流水线最终全量机器验证证据。
 - `.artifacts/verification/verify-20260727-230204.json`：M20 Phase 5 最终全量机器验证证据。
 - `.artifacts/verification/verify-20260727-194724.json`：最新 M20 Phase 2 全量机器验证证据。

@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M21 Phase 1 accepted at `51d2bb5048562feb5aa4b4b872b3e1f6fcf04ecc`; hosted CI run `30355560521`; M21-M26 reprioritization and M20 Phase 12 remain accepted and archived; private remote remains active
+- Baseline: M21 Phase 2 accepted at `62ed5a4d94622787e516a12502ef51e78b47479a`; hosted CI run `30369559322`; Phase 1, M21-M26 reprioritization and M20 Phase 12 remain accepted and archived; private remote remains active
 - Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
 
 ## Release Prerequisite
@@ -143,9 +143,8 @@ parity targets.
 
 ## M21: Historical Observability And Alert Evidence
 
-- Status: In progress. Phase 1 is accepted locally and in hosted CI; Phase 2
-  background collection is locally accepted on 2026-07-28 and awaits its
-  implementation revision and hosted CI.
+- Status: In progress. Phases 1 and 2 are accepted locally and in hosted CI on
+  2026-07-28; exact-series query and consumer work continues in Phase 3.
 - Phase 1 adds ADR 0034, migration 17 and a PostgreSQL-backed exact-series
   domain contract with seven-day default retention, 1,800-sample collection,
   24-hour query, 1,440-point and batch-cleanup caps. Missing samples remain

@@ -4,7 +4,7 @@
 
 | Workflow | Trigger | Runner | Result |
 |---|---|---|---|
-| `CI` | push to `main`, pull request, manual, reusable call | GitHub-hosted Ubuntu 24.04 | backend/frontend/manifests/Compose runtime gate plus seven-day sanitized runtime evidence |
+| `CI` | push to `main`, pull request, manual, reusable call | GitHub-hosted Ubuntu 24.04 | backend/frontend/manifests, isolated PostgreSQL recovery and Compose runtime gates plus seven-day sanitized evidence |
 | `Release` | semantic-version tag or manual rehearsal | GitHub-hosted Ubuntu 24.04 | checksummed versioned package; tagged runs create a GitHub Release |
 | `Real kind E2E` | Saturday 18:17 UTC schedule or manual suite choice | self-hosted Windows `aiops-kind` | disposable diagnosis/fleet/search evidence retained for 14 days |
 
@@ -14,8 +14,8 @@ for explicit review. Review the upstream tag and diff before replacing a SHA.
 `pull_request_target` is prohibited.
 
 Activation status: private remote `guiyi-labs/aiops-platform` is configured.
-Hosted CI run `30328283896` passed all four jobs at revision
-`acbdccaecaafc6eac96987367c5e118071508fb1`; the pnpm setup action now runs on
+Hosted CI run `30328906183` passed all four jobs at revision
+`48a86ec4f5b1314b51f381c40443ea9df0704395`; the pnpm setup action now runs on
 Node 24 without the prior deprecation warning. Required branch checks and the
 dedicated `aiops-kind` runner are not enabled yet.
 
@@ -34,8 +34,10 @@ that GitHub Pro or a public repository is required. Keep the repository private
 until publication is explicitly approved; do not weaken the workflow to work
 around the missing protection.
 Do not add repository or environment secrets to the `CI` workflow. The Compose
-job generates a private `.env`, uploads only service status/logs and removes
-the runtime, volume and `.env` in `always()` steps.
+job first runs an isolated PostgreSQL source-to-target restore with random
+process credentials, then generates a private `.env` for the separate Compose
+runtime. It uploads only sanitized recovery evidence and service status/logs,
+and removes the runtime, volume and `.env` in `always()` steps.
 
 ## Release Procedure
 

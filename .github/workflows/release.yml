@@ -81,7 +81,7 @@ jobs:
             --arg run_id "$GITHUB_RUN_ID" \
             '{version:$version, revision:$revision, run_id:$run_id, images:["backend","frontend"], architecture:"linux-amd64"}' \
             >.artifacts/release/release-metadata.json
-          (cd .artifacts/release && sha256sum *.tar.gz openapi.yaml dependency-licenses.md release-metadata.json >SHA256SUMS)
+          (cd .artifacts/release && sha256sum -- *.tar.gz openapi.yaml dependency-licenses.md release-metadata.json >SHA256SUMS)
       - name: Upload release rehearsal artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

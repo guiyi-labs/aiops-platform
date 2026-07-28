@@ -1,5 +1,9 @@
 # Database Documentation
 
+The repeatable logical recovery gate and production runbook boundary are
+documented in `docs/database/backup-restore.md`. The gate never connects to the
+retained Compose database or Kubernetes PostgreSQL Service.
+
 数据库使用 PostgreSQL，迁移文件位于 `backend/migrations/`。
 
 原则：

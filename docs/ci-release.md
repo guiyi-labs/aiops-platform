@@ -12,6 +12,11 @@ All referenced marketplace actions are pinned to full commit SHAs. Dependabot
 opens grouped weekly updates; review the upstream tag and diff before replacing
 a SHA. `pull_request_target` is prohibited.
 
+Activation status: private remote `guiyi-labs/aiops-platform` is configured.
+Hosted CI run `30325194933` passed all four jobs at revision
+`648aea6c94fbc29fbf21d1f799df29880099d454`. Required branch checks and the
+dedicated `aiops-kind` runner are not enabled yet.
+
 ## Required Branch Protection
 
 After the initial baseline is pushed, protect `main` and require these checks:

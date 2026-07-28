@@ -1,16 +1,16 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 6 accepted; local root commit `2d46588f8c15ab626703e92eccc35b4de8b53ab2`
+- Baseline: M20 Phase 6 accepted; local root commit `2d46588f8c15ab626703e92eccc35b4de8b53ab2`; private remote and hosted CI accepted at `648aea6c94fbc29fbf21d1f799df29880099d454`
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
 
-The human-reviewed local baseline and its commit-bound full gate are complete.
-Before a formal release, configure and review the remote, push the baseline,
-enable required checks, register the dedicated runner, tag the release and
-recapture screenshots bound to the reviewed revision. No hosted workflow,
-remote branch protection, tag or release is claimed yet.
+The human-reviewed local baseline, private remote, first push and complete
+hosted CI are accepted. Before a formal release, enable required checks,
+register the dedicated runner, review the grouped dependency updates, tag the
+release and recapture screenshots bound to the reviewed revision. No remote
+branch protection, tag, public repository or release is claimed yet.
 
 ## M16: Metrics Available Path
 

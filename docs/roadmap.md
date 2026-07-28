@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 12 implementation accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4` and archived at `b1f52e098ca2c6a44891f5e83fbed66e43a651af`; archive CI run `30349997290`; private remote remains active
+- Baseline: M21-M26 reprioritization accepted at `5cfbf694d52bc114ff8ee567525a290d4b85e4b0`; hosted CI run `30351531959`; M20 Phase 12 remains accepted and archived; private remote remains active
 - Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
 
 ## Release Prerequisite

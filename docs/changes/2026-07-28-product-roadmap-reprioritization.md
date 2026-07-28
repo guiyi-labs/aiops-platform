@@ -3,6 +3,8 @@
 - Date: 2026-07-28
 - Status: Accepted
 - Baseline: `b1f52e098ca2c6a44891f5e83fbed66e43a651af`
+- Accepted revision: `5cfbf694d52bc114ff8ee567525a290d4b85e4b0`
+- Hosted CI: [run 30351531959](https://github.com/guiyi-labs/aiops-platform/actions/runs/30351531959)
 - Scope: post-M20 competitive gap review and M21-M26 sequencing
 
 ## Evidence Reviewed

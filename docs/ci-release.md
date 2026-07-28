@@ -4,7 +4,7 @@
 
 | Workflow | Trigger | Runner | Result |
 |---|---|---|---|
-| `CI` | push to `main`, pull request, manual, reusable call | GitHub-hosted Ubuntu 24.04 | backend/frontend/manifests, isolated PostgreSQL recovery and Compose runtime gates plus seven-day sanitized evidence |
+| `CI` | push to `main`, pull request, manual, reusable call | GitHub-hosted Ubuntu 24.04 | backend/frontend/manifests, isolated credential re-encryption, isolated PostgreSQL recovery and Compose runtime gates plus seven-day sanitized evidence |
 | `Release` | semantic-version tag or manual rehearsal | GitHub-hosted Ubuntu 24.04 | checksummed versioned package; tagged runs create a GitHub Release |
 | `Real kind E2E` | Saturday 18:17 UTC schedule or manual suite choice | self-hosted Windows `aiops-kind` | disposable diagnosis/fleet/search evidence retained for 14 days |
 

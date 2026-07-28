@@ -4,6 +4,10 @@ The repeatable logical recovery gate and production runbook boundary are
 documented in `docs/database/backup-restore.md`. The gate never connects to the
 retained Compose database or Kubernetes PostgreSQL Service.
 
+Application credential encryption-key rotation is documented in
+`docs/database/credential-key-rotation.md`. Its isolated gate never connects to
+the retained Compose database and retains no key or credential material.
+
 数据库使用 PostgreSQL，迁移文件位于 `backend/migrations/`。
 
 原则：
@@ -33,6 +37,7 @@ retained Compose database or Kubernetes PostgreSQL Service.
 | `000013_controlled_remediation` | 受控 Deployment rollout restart 计划、确认摘要、资源版本快照、幂等租约和结果 |
 | `000014_controlled_operations_catalog` | 资源来源计划的可空诊断关联、Deployment/CronJob 类型化前后值以及严格 action/参数检查 |
 | `000015_saved_global_search_filters` | 当前用户私有的固定全局搜索条件、大小写不敏感名称唯一索引、schema version 与用户顺序索引 |
+| `000016_credential_reencryption_runs` | 应用凭据主密钥批量再加密运行的版本、状态、计数、时间与脱敏错误码 |
 
 刷新令牌采用单次轮换：成功刷新时在同一数据库事务内撤销旧记录并创建新记录。账号被停用时刷新事务回滚，不产生可用的新会话。
 会话设备列表只查询本人未撤销且未过期的 `refresh_tokens`。单会话/批量撤销在事务中先用当前 Cookie 摘要确认有效当前会话，再写 `revoked_at`；令牌摘要不离开仓储层，不进入 API、审计或前端。
@@ -43,9 +48,9 @@ retained Compose database or Kubernetes PostgreSQL Service.
 
 用户主动改密复用同一字段和表，不新增迁移；更新条件同时包含用户 ID 与读取到的旧 `password_hash`。受影响行数为 0 表示凭据已变化或当前密码无效，事务不会撤销新会话或覆盖密码。
 
-`cluster_credentials.encrypted_kubeconfig` 保存 AES-256-GCM 密文，随机 nonce 与密文一同存储；`encryption_key_version` 用于后续密钥轮换。密钥只来自进程环境，不进入数据库。删除集群时凭据和 Conditions 通过外键级联删除。
+`cluster_credentials.encrypted_kubeconfig` 保存 AES-256-GCM 密文，随机 nonce 与密文一同存储；`encryption_key_version` 选择当前或旧版解密密钥。新写入始终使用当前主密钥，离线批量命令按版本解密并分批事务再加密。密钥只来自进程 Secret，不进入数据库。删除集群时凭据和 Conditions 通过外键级联删除。
 
-注册集群凭据替换不新增表结构：事务锁定目标集群，原子更新 `cluster_credentials` 密文/密钥版本、`clusters.api_server`，清空旧 Kubernetes 版本与探测时间，并把现有 Conditions 更新为 Unknown。这里的“凭据轮换”是单集群 kubeconfig 替换；应用主加密密钥批量再加密仍是独立的后续能力。
+注册集群凭据替换不新增表结构：事务锁定目标集群，原子更新 `cluster_credentials` 密文/密钥版本、`clusters.api_server`，清空旧 Kubernetes 版本与探测时间，并把现有 Conditions 更新为 Unknown。这里的“凭据轮换”是单集群 kubeconfig 替换；应用主加密密钥批量再加密由 migration 000016、ADR 0030 和独立离线命令负责。
 
 诊断记录保存规则 ID、严重级别、资源定位、状态、结论、根因、建议和观察时间。证据按行保存为 JSONB，并通过事务与诊断记录一起提交。历史列表不联表展开证据，详情查询按 `diagnosis_id` 顺序读取证据行。诊断不保存完整 kubeconfig、Secret 或未裁剪的任意资源 YAML。
 

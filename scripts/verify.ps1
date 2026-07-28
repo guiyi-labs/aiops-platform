@@ -112,8 +112,9 @@ if ($null -ne $go) {
     Invoke-Native $go @('vet', './...') (Join-Path $Root 'backend')
     Invoke-Native $go @('test', '-p=1', '-count=1', './...') (Join-Path $Root 'backend')
 
-    Write-Host '[2/8] go build ./cmd/server'
+    Write-Host '[2/8] go build ./cmd/server and ./cmd/credential-reencrypt'
     Invoke-Native $go @('build', '-p=1', '-o', (Join-Path $ArtifactDirectory 'api.exe'), './cmd/server') (Join-Path $Root 'backend')
+    Invoke-Native $go @('build', '-p=1', '-o', (Join-Path $ArtifactDirectory 'credential-reencrypt.exe'), './cmd/credential-reencrypt') (Join-Path $Root 'backend')
 } else {
     $goVerificationMode = 'docker'
     Write-Host '[1/8] go vet and go test ./... (Docker Go toolchain)'
@@ -130,7 +131,7 @@ if ($null -ne $go) {
         'go', 'test', '-p=1', '-count=1', './...'
     ) $Root
 
-    Write-Host '[2/8] go build ./cmd/server (Docker Go toolchain)'
+    Write-Host '[2/8] go build ./cmd/server and ./cmd/credential-reencrypt (Docker Go toolchain)'
     Invoke-Native 'docker' @('build', '--target', 'build', '-t', 'aiops-platform-backend-build:local', '.') (Join-Path $Root 'backend')
 }
 

@@ -1,8 +1,11 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,9 +30,60 @@ func TestEncryptorRoundTripAndRandomNonce(t *testing.T) {
 	if string(first) == "secret kubeconfig" || string(first) == string(second) {
 		t.Fatal("encryption is plaintext or nonce was reused")
 	}
-	plaintext, err := encryptor.Decrypt(first)
+	plaintext, err := encryptor.Decrypt(first, "v1")
 	if err != nil || string(plaintext) != "secret kubeconfig" || version != "v1" {
 		t.Fatalf("round trip = %q, %q, %v", plaintext, version, err)
+	}
+}
+
+func TestEncryptorUsesVersionedLegacyKeyring(t *testing.T) {
+	legacyKey := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x11}, 32))
+	activeKey := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x22}, 32))
+	legacy, err := NewEncryptor(legacyKey, "v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ciphertext, _, err := legacy.Encrypt([]byte("legacy kubeconfig"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	keyring, err := NewEncryptor(activeKey, "v2", map[string]string{"v1": legacyKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	plaintext, err := keyring.Decrypt(ciphertext, "v1")
+	if err != nil || string(plaintext) != "legacy kubeconfig" {
+		t.Fatalf("legacy decrypt = %q, %v", plaintext, err)
+	}
+	newCiphertext, version, err := keyring.Encrypt(plaintext)
+	if err != nil || version != "v2" {
+		t.Fatalf("active encrypt version = %q, %v", version, err)
+	}
+	if _, err := keyring.Decrypt(newCiphertext, version); err != nil {
+		t.Fatalf("active decrypt error = %v", err)
+	}
+	if _, err := keyring.Decrypt(ciphertext, "missing"); !errors.Is(err, ErrUnknownEncryptionKeyVersion) {
+		t.Fatalf("unknown version error = %v", err)
+	}
+}
+
+func TestEncryptorRejectsUnsafeKeyringConfiguration(t *testing.T) {
+	key := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{0x33}, 32))
+	if _, err := NewEncryptor(key, "bad version"); !errors.Is(err, ErrInvalidEncryptionKeyVersion) {
+		t.Fatalf("invalid active version error = %v", err)
+	}
+	if _, err := NewEncryptor(key, "v2", map[string]string{"v2": key}); err == nil {
+		t.Fatal("active version was accepted in legacy key map")
+	}
+	if _, err := NewEncryptor(key, "v2", map[string]string{"bad version": key}); !errors.Is(err, ErrInvalidEncryptionKeyVersion) {
+		t.Fatalf("invalid legacy version error = %v", err)
+	}
+	tooMany := map[string]string{}
+	for index := 1; index <= 9; index++ {
+		tooMany[fmt.Sprintf("v%d", index)] = key
+	}
+	if _, err := NewEncryptor(key, "active", tooMany); err == nil {
+		t.Fatal("oversized legacy keyring was accepted")
 	}
 }
 

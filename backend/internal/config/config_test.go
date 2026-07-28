@@ -10,6 +10,7 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "")
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("SHUTDOWN_TIMEOUT", "")
+	t.Setenv("CREDENTIAL_DECRYPTION_KEYS", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -25,6 +26,41 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ShutdownTimeout != 10*time.Second {
 		t.Fatalf("ShutdownTimeout = %s, want 10s", cfg.ShutdownTimeout)
 	}
+}
+
+func TestLoadParsesCredentialDecryptionKeys(t *testing.T) {
+	t.Setenv("CREDENTIAL_KEY_VERSION", "v2")
+	t.Setenv("CREDENTIAL_DECRYPTION_KEYS", `{"v1":"cHJvZHVjdGlvbi1vbmx5LTMyLWJ5dGUta2V5ISE="}`)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(cfg.CredentialDecryptionKeys) != 1 || cfg.CredentialDecryptionKeys["v1"] == "" {
+		t.Fatalf("CredentialDecryptionKeys = %#v", cfg.CredentialDecryptionKeys)
+	}
+}
+
+func TestLoadRejectsInvalidCredentialDecryptionKeys(t *testing.T) {
+	t.Run("invalid JSON", func(t *testing.T) {
+		t.Setenv("CREDENTIAL_DECRYPTION_KEYS", "not-json")
+		if _, err := Load(); err == nil {
+			t.Fatal("Load() error = nil, want invalid legacy-key JSON error")
+		}
+	})
+	t.Run("active version duplicated", func(t *testing.T) {
+		t.Setenv("CREDENTIAL_KEY_VERSION", "v1")
+		t.Setenv("CREDENTIAL_DECRYPTION_KEYS", `{"v1":"cHJvZHVjdGlvbi1vbmx5LTMyLWJ5dGUta2V5ISE="}`)
+		if _, err := Load(); err == nil {
+			t.Fatal("Load() error = nil, want active-version duplication error")
+		}
+	})
+	t.Run("too many legacy keys", func(t *testing.T) {
+		t.Setenv("CREDENTIAL_KEY_VERSION", "v10")
+		t.Setenv("CREDENTIAL_DECRYPTION_KEYS", `{"v1":"a","v2":"b","v3":"c","v4":"d","v5":"e","v6":"f","v7":"g","v8":"h","v9":"i"}`)
+		if _, err := Load(); err == nil {
+			t.Fatal("Load() error = nil, want legacy-key count error")
+		}
+	})
 }
 
 func TestLoadRejectsInvalidDuration(t *testing.T) {

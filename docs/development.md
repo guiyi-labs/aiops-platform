@@ -38,6 +38,7 @@ PostgreSQL 默认映射到宿主机 `15432`，以避开 Windows/Hyper-V 常见�
 | `BOOTSTRAP_ADMIN_PASSWORD` | 空数据库首次启动管理员口令 | `change_me_now` |
 | `CREDENTIAL_ENCRYPTION_KEY` | Base64 编码的 32 字节 AES 密钥 | development-only value |
 | `CREDENTIAL_KEY_VERSION` | 凭据密钥版本标识 | `v1` |
+| `CREDENTIAL_DECRYPTION_KEYS` | 最多 8 个旧版本到 Base64 32 字节密钥的 JSON 映射，仅用于过渡解密 | `{}` |
 | `CLUSTER_PROBE_TIMEOUT` | Kubernetes API 探测超时 | `10s` |
 | `AI_ENABLED` | 是否启用引用式 AI 解释 | `false` |
 | `AI_BASE_URL` | Responses-compatible API 基础地址 | `https://api.openai.com/v1` |
@@ -65,6 +66,11 @@ $bytes = New-Object byte[] 32
 [Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
 [Convert]::ToBase64String($bytes)
 ```
+
+应用主密钥轮换必须先部署“新主密钥 + 旧解密密钥”的重叠配置，执行默认
+dry-run，再显式使用 `/app/credential-reencrypt --apply`。完整操作顺序、失败
+回滚和旧密钥退役条件见 `docs/database/credential-key-rotation.md`。不要直接替换
+主密钥后删除旧密钥，否则历史集群凭据将不可恢复。
 
 AI 默认关闭。启用远程 Provider 时必须配置 API Key，生产环境的 `AI_BASE_URL` 必须使用 HTTPS。本地 `localhost`/loopback Provider 可以无 Key 运行，便于离线模型和集成测试。API Key 不进入数据库、审计、日志或前端。
 

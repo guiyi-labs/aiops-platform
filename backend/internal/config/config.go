@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -30,6 +31,7 @@ type Config struct {
 	SecureCookies              bool
 	CredentialEncryptionKey    string
 	CredentialKeyVersion       string
+	CredentialDecryptionKeys   map[string]string
 	ClusterProbeTimeout        time.Duration
 	AIEnabled                  bool
 	AIBaseURL                  string
@@ -123,6 +125,14 @@ func Load() (Config, error) {
 	if environment == "production" && credentialKey == "ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE=" {
 		return Config{}, fmt.Errorf("CREDENTIAL_ENCRYPTION_KEY must be changed in production")
 	}
+	credentialKeyVersion := stringFromEnv("CREDENTIAL_KEY_VERSION", "v1")
+	credentialDecryptionKeys, err := stringMapFromEnv("CREDENTIAL_DECRYPTION_KEYS", 8)
+	if err != nil {
+		return Config{}, err
+	}
+	if _, duplicate := credentialDecryptionKeys[credentialKeyVersion]; duplicate {
+		return Config{}, fmt.Errorf("CREDENTIAL_DECRYPTION_KEYS must not contain the active CREDENTIAL_KEY_VERSION")
+	}
 	aiBaseURL := stringFromEnv("AI_BASE_URL", "https://api.openai.com/v1")
 	parsedAIBaseURL, err := url.Parse(aiBaseURL)
 	if err != nil || parsedAIBaseURL.Host == "" || (parsedAIBaseURL.Scheme != "https" && parsedAIBaseURL.Scheme != "http") {
@@ -170,7 +180,8 @@ func Load() (Config, error) {
 		BootstrapPassword:          bootstrapPassword,
 		SecureCookies:              environment == "production",
 		CredentialEncryptionKey:    credentialKey,
-		CredentialKeyVersion:       stringFromEnv("CREDENTIAL_KEY_VERSION", "v1"),
+		CredentialKeyVersion:       credentialKeyVersion,
+		CredentialDecryptionKeys:   credentialDecryptionKeys,
 		ClusterProbeTimeout:        clusterProbeTimeout,
 		AIEnabled:                  aiEnabled,
 		AIBaseURL:                  aiBaseURL,
@@ -196,6 +207,26 @@ func stringFromEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func stringMapFromEnv(key string, maximumEntries int) (map[string]string, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return map[string]string{}, nil
+	}
+	values := map[string]string{}
+	if err := json.Unmarshal([]byte(raw), &values); err != nil {
+		return nil, fmt.Errorf("%s must be a JSON object containing string values", key)
+	}
+	if len(values) > maximumEntries {
+		return nil, fmt.Errorf("%s must contain at most %d entries", key, maximumEntries)
+	}
+	for version, encodedKey := range values {
+		if version == "" || encodedKey == "" {
+			return nil, fmt.Errorf("%s versions and keys must not be empty", key)
+		}
+	}
+	return values, nil
 }
 
 func durationFromEnv(key string, fallback time.Duration) (time.Duration, error) {

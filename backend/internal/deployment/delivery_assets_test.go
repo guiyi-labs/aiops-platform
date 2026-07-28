@@ -73,7 +73,7 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"Required Decisions", "--network none", "15 checks", "Production Validation Boundary",
 		},
 		"docs/changes/2026-07-28-recovery-readiness-gate.md": {
-			"M20 Phase 12", "recovery-readiness", "ready_for_pitr_ha_implementation", "hosted acceptance pending",
+			"M20 Phase 12", "recovery-readiness", "ready_for_pitr_ha_implementation", "30348664880",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",

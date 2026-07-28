@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 12 recovery readiness is accepted locally and awaiting implementation commit/hosted CI
-- Current milestone: M20 Phase 12 makes production recovery decisions and logical evidence machine-checkable without claiming PITR/HA; organization identity and infrastructure approvals, runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 12 recovery readiness is accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4` with hosted CI run `30348664880`
+- Current milestone: M20 Phase 12 recovery readiness is accepted locally and in hosted CI without claiming production PITR/HA; organization identity and infrastructure approvals, runner registration and release publication remain pending
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
 template and a network-disabled gate consuming the newest real logical-restore
@@ -28,7 +28,10 @@ returned zero findings. The 199.35-second full local gate passed 175 Go `Test*`
 entries and five backend targets, 14 Vitest files / 59 tests, production
 frontend build, three healthy services, Kustomize 16/5/22/3 and runtime HTTP
 checks. Evidence is `.artifacts/verification/verify-20260728-175233.json`.
-Hosted CI is pending.
+Hosted CI run `30348664880` passed all four jobs at `0baf858`, including the
+network-disabled recovery gate after a fresh PostgreSQL logical restore, all
+existing isolated drills, random-production-config Compose health, sanitized
+evidence upload and unconditional teardown.
 
 M20 Phase 11 adds ADR 0032, the strict offline `/app/identity-readiness`
 command, a policy template and a network-disabled synthetic drill. Fourteen

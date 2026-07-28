@@ -52,6 +52,7 @@
 - `.artifacts/identity-readiness/identity-readiness-20260728-165405.json`：M20 Phase 11 无网络 OIDC/MFA 就绪检查、四类降级拒绝和完整清理的脱敏证据。
 - `.artifacts/postgres-recovery/postgres-recovery-20260728-174419.json`：M20 Phase 12 使用的 16 迁移逻辑备份、新实例恢复、一致性与清理版本化证据。
 - `.artifacts/recovery-readiness/recovery-readiness-20260728-174509.json`：M20 Phase 12 十五项恢复策略准入、降级拒绝和非生产声明证据。
+- [hosted CI run 30348664880](https://github.com/guiyi-labs/aiops-platform/actions/runs/30348664880)：M20 Phase 12 四个 job、真实 PostgreSQL 恢复后的无网络恢复准入、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。
 - `.artifacts/verification/verify-20260728-153059.json`：M20 Phase 10 后端全包与三个二进制、前端、镜像、Compose、Kustomize 和 HTTP 完整本地门禁证据。
 - [hosted CI run 30340088789](https://github.com/guiyi-labs/aiops-platform/actions/runs/30340088789)：M20 Phase 10 四个 job、三项隔离数据库演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。
 - [hosted CI run 30345051371](https://github.com/guiyi-labs/aiops-platform/actions/runs/30345051371)：M20 Phase 11 四个 job、无网络身份就绪门禁、三项隔离数据库演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。

@@ -1,7 +1,9 @@
 # M20 Phase 12: Production Recovery Readiness Gate
 
 - Date: 2026-07-28
-- Status: Local acceptance complete; hosted acceptance pending
+- Status: Accepted
+- Accepted revision: `0baf8583956e1e987ef5043b5fd70ce33aba90e4`
+- Hosted CI: [run 30348664880](https://github.com/guiyi-labs/aiops-platform/actions/runs/30348664880)
 - Scope: explicit recovery objectives, policy consistency and logical-restore evidence admission
 
 ## Delivered
@@ -40,7 +42,11 @@ production build, three healthy Compose services, Kustomize 16/5/22/3 and
 direct/proxied HTTP readiness. Evidence is
 `.artifacts/verification/verify-20260728-175233.json`.
 
-The accepted revision and hosted CI run will be added after remote acceptance.
+Hosted CI run `30348664880` passed all four jobs for revision `0baf858`. The
+Ubuntu Compose job accepted the network-disabled recovery contract after a
+fresh PostgreSQL logical restore, then passed random-production-config Compose
+health, direct/proxied HTTP checks, sanitized artifact upload and unconditional
+teardown.
 
 ## Boundary
 

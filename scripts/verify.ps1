@@ -117,6 +117,7 @@ if ($null -ne $go) {
     Invoke-Native $go @('build', '-p=1', '-o', (Join-Path $ArtifactDirectory 'credential-reencrypt.exe'), './cmd/credential-reencrypt') (Join-Path $Root 'backend')
     Invoke-Native $go @('build', '-p=1', '-o', (Join-Path $ArtifactDirectory 'audit-archive.exe'), './cmd/audit-archive') (Join-Path $Root 'backend')
     Invoke-Native $go @('build', '-p=1', '-o', (Join-Path $ArtifactDirectory 'identity-readiness.exe'), './cmd/identity-readiness') (Join-Path $Root 'backend')
+    Invoke-Native $go @('build', '-p=1', '-o', (Join-Path $ArtifactDirectory 'recovery-readiness.exe'), './cmd/recovery-readiness') (Join-Path $Root 'backend')
 } else {
     $goVerificationMode = 'docker'
     Write-Host '[1/8] go vet and go test ./... (Docker Go toolchain)'

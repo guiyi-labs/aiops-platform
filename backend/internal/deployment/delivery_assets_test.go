@@ -29,6 +29,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"backend/internal/identityreadiness/readiness.go": {
 			"PKCERequired", "admin_prelinked_subject", "offline_secret_manager", "elliptic.P256().IsOnCurve",
 		},
+		"backend/cmd/recovery-readiness/main.go": {
+			"policy-file", "logical-restore-evidence", "ReadyForPITRHAImplementation",
+		},
+		"backend/internal/recoveryreadiness/readiness.go": {
+			"ProductionRecoveryValidated", "RiskAcceptanceExpiresAt", "WriterFencing", "SourceDestroyedBeforeRestore",
+		},
 		"backend/migrations/000016_credential_reencryption_runs.up.sql": {
 			"credential_reencryption_runs", "source_key_versions", "error_code",
 		},
@@ -59,6 +65,15 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		},
 		"docs/changes/2026-07-28-identity-readiness-gate.md": {
 			"M20 Phase 11", "identity-readiness", "MFA/email-linking downgrades", "30345051371",
+		},
+		"docs/adr/0033-offline-production-recovery-readiness.md": {
+			"15 controls", "180 days", "production_recovery_validated: false", "network disabled",
+		},
+		"docs/database/recovery-readiness.md": {
+			"Required Decisions", "--network none", "15 checks", "Production Validation Boundary",
+		},
+		"docs/changes/2026-07-28-recovery-readiness-gate.md": {
+			"M20 Phase 12", "recovery-readiness", "ready_for_pitr_ha_implementation", "hosted acceptance pending",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",
@@ -91,9 +106,15 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"scripts/e2e-identity-readiness.ps1": {
 			"--network", "none", "issuer_mismatch_rejected", "automatic_email_linking_rejected", ".artifacts\\identity-readiness",
 		},
+		"scripts/e2e-recovery-readiness.ps1": {
+			"--network", "none", "inadequate_copies_rejected", "production_recovery_validated", ".artifacts\\recovery-readiness",
+		},
+		"scripts/e2e-postgres-backup-restore.ps1": {
+			"aiops.logical-restore-evidence/v1", "source_destroyed_before_restore", ".artifacts\\postgres-recovery", "finally",
+		},
 		".github/workflows/ci.yml": {
 			"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
-			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
+			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
 			"v*.*.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",

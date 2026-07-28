@@ -2,8 +2,33 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 11 identity readiness is accepted at `216eb81e92b9ccc009c62c9d03ec58f9116bfd33` with hosted CI run `30345051371`
-- Current milestone: M20 Phase 11 offline OIDC/MFA readiness is accepted locally and in hosted CI without claiming production SSO; organization identity decisions, production backup policy, runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 12 recovery readiness is accepted locally and awaiting implementation commit/hosted CI
+- Current milestone: M20 Phase 12 makes production recovery decisions and logical evidence machine-checkable without claiming PITR/HA; organization identity and infrastructure approvals, runner registration and release publication remain pending
+
+M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
+template and a network-disabled gate consuming the newest real logical-restore
+evidence. Fifteen checks cover owners, RPO/RTO/MTD, encrypted off-cluster
+immutable copies, backup frequency, PITR, HA or named 180-day risk acceptance,
+drills, cutover/rollback, approvals, evidence freshness/integrity/cleanup and a
+mandatory production-validation boundary. Inputs are strict and limited to 1
+MiB. No backup credential, payload, WAL material, database URL or HTTP endpoint
+is introduced.
+
+The final logical drill at 2026-07-28 17:44 +08:00 applied 16 migrations,
+created a custom archive, destroyed the source before a fresh-target restore,
+preserved all synthetic snapshots with zero invalid foreign keys and passed all
+four cleanup assertions. Evidence is
+`.artifacts/postgres-recovery/postgres-recovery-20260728-174419.json`. The
+recovery gate then accepted all 15 controls, rejected one-copy storage, stale
+evidence, a retained dump and incomplete cleanup, and removed its image/copied
+inputs. Evidence is
+`.artifacts/recovery-readiness/recovery-readiness-20260728-174509.json`.
+`production_recovery_validated` remains false by design. Actionlint 1.7.7
+returned zero findings. The 199.35-second full local gate passed 175 Go `Test*`
+entries and five backend targets, 14 Vitest files / 59 tests, production
+frontend build, three healthy services, Kustomize 16/5/22/3 and runtime HTTP
+checks. Evidence is `.artifacts/verification/verify-20260728-175233.json`.
+Hosted CI is pending.
 
 M20 Phase 11 adds ADR 0032, the strict offline `/app/identity-readiness`
 command, a policy template and a network-disabled synthetic drill. Fourteen
@@ -833,9 +858,9 @@ applied version.
 3. Obtain identity/security/application-owner approval for the Phase 11 policy,
    then implement isolated-provider OIDC login and MFA validation; readiness
    evaluation alone is not production SSO.
-4. Define production backup retention/RPO/RTO with the infrastructure owner,
-   then validate PITR and HA; isolated logical restore, application-key
-   re-encryption and signed audit archives are already accepted.
+4. Obtain infrastructure-owner approval for the Phase 12 policy, then implement
+   isolated physical/WAL PITR and disposable HA failover/failback validation;
+   policy readiness alone is not production recovery.
 5. Decide registry identity, artifact signing and provenance only after the
    release actor and key-management policy are reviewed.
 6. Evaluate explicit saved-filter ordering/pinning only if repeated operator

@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 11 identity readiness accepted at `216eb81e92b9ccc009c62c9d03ec58f9116bfd33`; hosted CI run `30345051371`; private remote remains active
+- Baseline: M20 Phase 11 identity readiness accepted at `216eb81e92b9ccc009c62c9d03ec58f9116bfd33`; Phase 12 recovery readiness is accepted locally and awaiting hosted CI; private remote remains active
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
@@ -122,7 +122,12 @@ claimed yet.
   network-disabled downgrade drill. It creates no login endpoint and does not
   claim production SSO; local and hosted Ubuntu acceptance completed on
   2026-07-28.
+- Phase 12 adds an explicit recovery-objective and infrastructure policy,
+  strict logical-evidence admission, bounded PITR/HA risk acceptance and a
+  network-disabled 15-check gate. It marks the policy ready for PITR/HA
+  implementation while explicitly refusing a production-recovery claim; local
+  gate is accepted locally and hosted CI is pending.
 - Continue with organization approval and isolated OIDC login integration,
-  production backup retention/RPO/RTO, then PITR and HA validation.
+  then isolated PITR and HA validation against approved infrastructure.
 - Define bounded metrics retention and missing-sample semantics before storing
   historical time series.

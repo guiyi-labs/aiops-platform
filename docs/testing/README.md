@@ -381,9 +381,9 @@ fixtures are intentionally excluded from the retained defense demo.
 ## Delivery verification entry points
 
 - `.github/workflows/ci.yml` is the hosted regular gate. It reproduces backend,
-  frontend, Kustomize, isolated credential re-encryption, isolated PostgreSQL
-  backup/restore, Compose health and HTTP checks on Ubuntu with no PR secret
-  and unconditional ephemeral runtime teardown.
+  frontend, Kustomize, isolated credential re-encryption, identity/recovery
+  readiness, isolated PostgreSQL backup/restore, Compose health and HTTP checks
+  on Ubuntu with no PR secret and unconditional ephemeral runtime teardown.
 - `.github/workflows/release.yml` must call the complete reusable CI, reject
   non-semantic versions, keep manual runs package-only and produce
   `SHA256SUMS` before a verified tag may create a GitHub Release.
@@ -446,6 +446,12 @@ fixtures are intentionally excluded from the retained defense demo.
   complete synthetic OIDC/MFA contract, rejects issuer/PKCE and MFA/email-linking
   downgrades, deletes every temporary provider snapshot and image, and writes
   only sanitized booleans/counts to `.artifacts/identity-readiness`.
+- `scripts/e2e-recovery-readiness.ps1` is the offline recovery-policy admission
+  gate. It consumes the newest real logical-restore evidence, runs the
+  production command without networking, accepts 15 implementation-readiness
+  checks, rejects inadequate copies/stale evidence/retained dump/incomplete
+  cleanup, and writes only sanitized booleans/counts to
+  `.artifacts/recovery-readiness` while keeping production validation false.
 - Saved-filter runtime acceptance uses the retained development PostgreSQL and
   authenticated API because the state is a platform preference and does not
   require a second target cluster. Test-created filters must be removed after

@@ -89,6 +89,12 @@ provider, complete the offline policy and metadata admission gate described in
 `docs/security/identity-readiness.md`. The readiness files must never contain a
 client secret, token or private key, and a passing report does not enable SSO.
 
+Production recovery is also not enabled by an application environment variable.
+Use `docs/database/recovery-readiness.md` to review explicit RPO/RTO, storage,
+PITR, HA, drill and cutover decisions against the newest logical-restore
+evidence. A passing report permits implementation work; it does not claim
+production PITR, failover or measured objectives.
+
 ```powershell
 docker compose up --build
 ```

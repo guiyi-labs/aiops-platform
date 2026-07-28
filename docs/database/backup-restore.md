@@ -67,3 +67,8 @@ instance/database, validate it, stop writers, take a final backup, and use an
 explicitly reviewed cutover plan. A Kubernetes PVC snapshot is not a substitute
 for a tested logical backup, and a logical backup is not a substitute for HA or
 point-in-time recovery.
+
+The Phase 12 admission contract and unresolved organization policy template are
+documented in `docs/database/recovery-readiness.md`. Passing that offline gate
+means PITR/HA implementation may begin; it does not change this production
+boundary or claim measured recovery objectives.

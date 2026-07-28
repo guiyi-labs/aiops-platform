@@ -21,6 +21,7 @@
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-07-28-recovery-readiness-gate.md`：M20 第十二阶段生产恢复目标、策略一致性、真实逻辑恢复证据和 PITR/HA 实施准入边界。
 - `docs/changes/2026-07-28-identity-readiness-gate.md`：M20 第十一阶段 OIDC/MFA 就绪合同、离线 discovery/JWKS 校验和降级拒绝边界。
 - `docs/changes/2026-07-28-signed-audit-archives.md`：M20 第十阶段有界离线审计归档、Ed25519 签名、外部信任公钥验签和篡改拒绝。
 - `docs/changes/2026-07-28-credential-key-reencryption.md`：M20 第九阶段版本化密钥环、离线批量再加密、整批回滚与脱敏实体验证。
@@ -49,6 +50,8 @@
 - `.artifacts/credential-reencryption/credential-reencryption-20260728-141330.json`：M20 Phase 9 dry-run、批次回滚、v1→v2 与 v2-only 解密的脱敏本地证据。
 - `.artifacts/audit-archive/audit-archive-20260728-154047.json`：M20 Phase 10 两条合成审计记录签名/外部信任验签、超限无输出、字节篡改拒绝和五项清理断言的最终脱敏证据。
 - `.artifacts/identity-readiness/identity-readiness-20260728-165405.json`：M20 Phase 11 无网络 OIDC/MFA 就绪检查、四类降级拒绝和完整清理的脱敏证据。
+- `.artifacts/postgres-recovery/postgres-recovery-20260728-174419.json`：M20 Phase 12 使用的 16 迁移逻辑备份、新实例恢复、一致性与清理版本化证据。
+- `.artifacts/recovery-readiness/recovery-readiness-20260728-174509.json`：M20 Phase 12 十五项恢复策略准入、降级拒绝和非生产声明证据。
 - `.artifacts/verification/verify-20260728-153059.json`：M20 Phase 10 后端全包与三个二进制、前端、镜像、Compose、Kustomize 和 HTTP 完整本地门禁证据。
 - [hosted CI run 30340088789](https://github.com/guiyi-labs/aiops-platform/actions/runs/30340088789)：M20 Phase 10 四个 job、三项隔离数据库演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。
 - [hosted CI run 30345051371](https://github.com/guiyi-labs/aiops-platform/actions/runs/30345051371)：M20 Phase 11 四个 job、无网络身份就绪门禁、三项隔离数据库演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。

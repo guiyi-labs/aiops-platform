@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 11 identity readiness accepted at `216eb81e92b9ccc009c62c9d03ec58f9116bfd33`; Phase 12 recovery readiness is accepted locally and awaiting hosted CI; private remote remains active
+- Baseline: M20 Phase 12 recovery readiness accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4`; hosted CI run `30348664880`; private remote remains active
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
@@ -126,7 +126,7 @@ claimed yet.
   strict logical-evidence admission, bounded PITR/HA risk acceptance and a
   network-disabled 15-check gate. It marks the policy ready for PITR/HA
   implementation while explicitly refusing a production-recovery claim; local
-  gate is accepted locally and hosted CI is pending.
+  and hosted Ubuntu acceptance completed on 2026-07-28.
 - Continue with organization approval and isolated OIDC login integration,
   then isolated PITR and HA validation against approved infrastructure.
 - Define bounded metrics retention and missing-sample semantics before storing

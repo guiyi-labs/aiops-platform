@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21-M26 reprioritization is accepted at `5cfbf694d52bc114ff8ee567525a290d4b85e4b0` with hosted CI run `30351531959`; M20 Phase 12 remains accepted and archived
-- Current milestone: M20 is closed after Phase 12; the reprioritized next milestone is M21 bounded historical observability and alert evidence, while provider-specific identity/recovery work remains organization-gated
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 1 is implemented and locally accepted, with the implementation commit and hosted CI still to be recorded; M20 Phase 12 remains accepted and archived
+- Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 1 fixes and implements the PostgreSQL history contract, while provider-specific identity/recovery work remains organization-gated
 
 The 2026-07-28 KRM/Ratel reassessment found that the platform is already
 stronger in diagnosis evidence, credential safety, controlled mutation, audit
@@ -12,6 +12,17 @@ Deployment release lifecycle, cross-cluster promotion and cluster-workload
 backup. The accepted M21-M26 sequence and explicit non-goals are archived in
 `docs/references/krm-ratel-gap-analysis.md` and
 `docs/changes/2026-07-28-product-roadmap-reprioritization.md`.
+
+M21 Phase 1 adds ADR 0034, migration 17 and `internal/metricshistory`. The
+accepted envelope is seven-day default/30-day maximum retention, at most 1,800
+canonical samples per collection, one exact cluster/resource/container/metric
+series per query, a 24-hour window, 1,440 returned points and bounded expiry
+cleanup. Collection runs retain Node/Pod result and coverage independently;
+queries report sparse points plus explicit missing/unavailable/timeout/failure
+counts and never manufacture zeroes. Local Go full-package tests, a real
+PostgreSQL migration, database constraints/index inspection, backend image
+rebuild and readiness HTTP check passed. The phase is archived in
+`docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md`.
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
 template and a network-disabled gate consuming the newest real logical-restore
@@ -856,16 +867,18 @@ The verify script uses a compatible host Go when available and otherwise runs
 Go 1.25 in Docker with the repository mounted read-only. `frontend/dist` and
 `.artifacts` are generated outputs and must not be treated as source or
 committed. The development PostgreSQL container remains healthy on port 15432;
-saved-filter acceptance rows are zero and migration 000015 is the latest
-applied version.
+saved-filter acceptance rows are zero and migration 000017 is the latest
+applied version in the current development database.
 
 ## Next Priorities After Current Work
 
-1. Start M21 with a metrics-history ADR defining retention, cluster/series/point
-   and query caps, missing-sample semantics, cleanup and access predicates.
-2. Implement the bounded collector/repository path and deterministic sustained
-   window evaluation before adding charts or alert UI.
-3. Add trend and incident-evidence views, then validate sampling gaps,
+1. Implement M21 Phase 2: a bounded background collector over enabled clusters,
+   Kubernetes quantity conversion to nanocores/bytes, stable failure mapping,
+   per-cluster timeout/concurrency limits and deterministic cleanup scheduling.
+2. Expose the exact-series authenticated history route and prove query isolation,
+   restart durability and sparse gaps before adding charts.
+3. Implement deterministic sustained-window evaluation, then add trend and
+   incident-evidence views and validate sampling gaps,
    retention and restart recovery against a disposable real-kind fixture.
 4. Continue through M22 multi-container logs/governance coverage, M23 safe
    Deployment update/rollback, M24 fixed cross-cluster promotion and M25

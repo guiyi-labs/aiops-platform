@@ -38,6 +38,14 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"backend/migrations/000016_credential_reencryption_runs.up.sql": {
 			"credential_reencryption_runs", "source_key_versions", "error_code",
 		},
+		"backend/migrations/000017_metrics_history.up.sql": {
+			"metric_collection_runs", "metric_samples", "metric_samples_run_cluster_fk",
+			"metric_collection_runs_result_consistency_check", "window_milliseconds",
+		},
+		"backend/internal/metricshistory/service.go": {
+			"defaultRetention", "defaultMaxSamplesPerCollection", "defaultMaxQueryWindow",
+			"ErrInvalidCollection", "SourceUnavailable", "DeleteExpired",
+		},
 		".env.example": {"CREDENTIAL_DECRYPTION_KEYS={}"},
 		"docs/adr/0030-controlled-application-credential-key-reencryption.md": {
 			"defaults to dry-run", "FOR UPDATE SKIP LOCKED", "at most eight", "does not introduce envelope encryption",
@@ -80,6 +88,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		},
 		"docs/changes/2026-07-28-product-roadmap-reprioritization.md": {
 			"M21", "M22", "M23", "M24", "M25", "M26", "Feature-Count Parity", "30351531959",
+		},
+		"docs/adr/0034-bounded-postgres-metrics-history.md": {
+			"seven-day retention", "1,800", "1,440", "does not insert zeroes", "generic PromQL",
+		},
+		"docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md": {
+			"M21 Phase 1", "Migration 17", "sparse", "1,440 points", "Background collection",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",

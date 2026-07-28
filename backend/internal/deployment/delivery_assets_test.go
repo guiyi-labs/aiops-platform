@@ -43,7 +43,7 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"Safety Preconditions", "trusted-public-key-file", "record limit exceeded", "not hash chained",
 		},
 		"docs/changes/2026-07-28-signed-audit-archives.md": {
-			"M20 Phase 10", "audit-archive", "one-byte mutation", "hosted CI acceptance pending",
+			"M20 Phase 10", "audit-archive", "one-byte mutation", "30340088789",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",

@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 10 signed audit archives are implemented locally but not yet committed or accepted in hosted CI
-- Current milestone: Phase 10 full local acceptance is complete; create/push the implementation revision and archive hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 10 is accepted at `c1449573c3b05d2825d4dd8d77b36e00680780aa` with hosted CI run `30340088789`
+- Current milestone: M20 Phase 10 signed audit archives are accepted locally and in hosted CI; branch protection is unavailable on the current private-repository plan, while OIDC/MFA requirements, production backup policy, runner registration and release publication remain pending
 
 M20 Phase 10 adds ADR 0031, the offline `/app/audit-archive` command and an
 isolated PostgreSQL drill. Archive creation requires an explicit ID range,
@@ -11,15 +11,17 @@ output and Ed25519 private-key file, checks a reviewed 1..10000 maximum before
 writing, and emits canonical JSON plus a detached signed manifest. Verification
 requires a separately supplied trusted public key and checks signer identity,
 signature, exact payload SHA-256, metadata and ordering. The isolated run at
-2026-07-28 15:08 +08:00 passed two-row signing/verification, three-row overflow
+2026-07-28 15:40 +08:00 passed two-row signing/verification, three-row overflow
 refusal with no output, one-byte tamper rejection and all five cleanup
 assertions. Evidence is
 `.artifacts/audit-archive/audit-archive-20260728-154047.json`. The 361.34-second
 full local gate passed all backend packages and three binaries, 167 Go `Test*`
 entries, 14 Vitest files / 59 tests, production build, three healthy services,
 Kustomize 16/5/22/3 and runtime HTTP checks. Evidence is
-`.artifacts/verification/verify-20260728-153059.json`; hosted evidence remains
-pending before the phase is accepted.
+`.artifacts/verification/verify-20260728-153059.json`. Hosted CI run
+`30340088789` passed all four jobs at `c144957`, including all three isolated
+database drills, random-production-config Compose health, sanitized evidence
+upload and unconditional teardown.
 
 Hosted runs `30338972042` and `30339580960` passed Backend, Frontend, Manifests
 and the existing credential drill but intentionally remain failed evidence.
@@ -28,7 +30,7 @@ cleanup assertion; the second then exposed the non-root image UID versus
 runner-owned bind-mount permission boundary. Actual disposable resources were
 removed in both attempts. Cleanup comparison is now null/empty-normalized and
 Linux command containers use the non-root runner UID/GID for the temporary
-mount; archive the replacement hosted run before accepting Phase 10.
+mount. The accepted replacement is run `30340088789`.
 
 M20 Phase 9 adds ADR 0030, migration 000016, an active-plus-legacy AES-GCM
 keyring and the default-dry-run `/app/credential-reencrypt` command. Apply is

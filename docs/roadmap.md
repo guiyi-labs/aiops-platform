@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
 - Updated: 2026-07-28
-- Baseline: M20 Phase 8 archive accepted at `849238a7a4b7b980facd40f3ce70184dd779f2af`; hosted CI run `30331346283`; private remote remains active
+- Baseline: M20 Phase 9 implementation accepted at `151bc7ee848391e37b74d59f489bbe804d9234ff`; hosted CI run `30334216631`; private remote remains active
 - Principle: deepen observable, evidence-based operations before adding generic Kubernetes CRUD
 
 ## Release Prerequisite
@@ -111,8 +111,8 @@ claimed yet.
   hosted Ubuntu gates were accepted on 2026-07-28.
 - Phase 9 adds a bounded active-plus-legacy credential keyring, default dry-run
   and explicit-apply offline command, per-batch transaction rollback, sanitized
-  run metadata and an isolated v1-to-v2 physical gate. Local implementation and
-  isolated acceptance are complete; hosted CI is pending.
+  run metadata and an isolated v1-to-v2 physical gate. Local and hosted Ubuntu
+  acceptance completed on 2026-07-28.
 - Continue with OIDC/MFA evaluation, signed audit archives, production backup
   policy/PITR and HA validation.
 - Define bounded metrics retention and missing-sample semantics before storing

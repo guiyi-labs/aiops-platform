@@ -1,9 +1,9 @@
 # M20 Phase 9: Application Credential Key Re-encryption
 
 - Date: 2026-07-28
-- Status: Accepted locally; hosted CI pending
-- Accepted revision: pending
-- Hosted CI: pending
+- Status: Accepted
+- Accepted revision: `151bc7ee848391e37b74d59f489bbe804d9234ff`
+- Hosted CI: [run 30334216631](https://github.com/guiyi-labs/aiops-platform/actions/runs/30334216631)
 - Scope: versioned keyring, controlled offline re-encryption, rollback and sanitized evidence
 
 ## Delivered
@@ -48,8 +48,14 @@ seconds. Evidence is
 `.artifacts/verification/verify-20260728-141111.json`: 163 Go `Test*` entries,
 all backend packages, both backend binaries, 14 Vitest files / 59 tests,
 frontend production build, three healthy Compose services, Kustomize
-16/5/22/3 and backend/frontend/proxy HTTP checks passed. Hosted CI remains
-pending and is not claimed by this local archive.
+16/5/22/3 and backend/frontend/proxy HTTP checks passed.
+
+Hosted CI run `30334216631` passed all four jobs at revision `151bc7e`.
+Backend formatting/vet/test and both binaries, frontend typecheck/test/build,
+manifest/Compose rendering, the isolated credential re-encryption drill, the
+independent PostgreSQL restore drill, random-production-config Compose health,
+HTTP checks, sanitized evidence upload and unconditional teardown all
+succeeded on Ubuntu 24.04.
 
 ## Security Boundary
 

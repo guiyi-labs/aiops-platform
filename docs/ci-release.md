@@ -14,9 +14,10 @@ for explicit review. Review the upstream tag and diff before replacing a SHA.
 `pull_request_target` is prohibited.
 
 Activation status: private remote `guiyi-labs/aiops-platform` is configured.
-Hosted CI run `30340088789` passed all four jobs at revision
-`c1449573c3b05d2825d4dd8d77b36e00680780aa`, including signed audit archival,
-credential re-encryption, PostgreSQL recovery and independent Compose runtime.
+Hosted CI run `30345051371` passed all four jobs at revision
+`216eb81e92b9ccc009c62c9d03ec58f9116bfd33`, including offline identity
+readiness, signed audit archival, credential re-encryption, PostgreSQL recovery
+and independent Compose runtime.
 The pnpm setup action runs on Node 24 without the prior deprecation warning.
 Required branch checks and the dedicated `aiops-kind` runner are not enabled.
 

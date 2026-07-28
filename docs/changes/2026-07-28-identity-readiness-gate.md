@@ -1,7 +1,9 @@
 # M20 Phase 11: OIDC and MFA Readiness Gate
 
 - Date: 2026-07-28
-- Status: Local acceptance complete; hosted acceptance pending
+- Status: Accepted
+- Accepted revision: `216eb81e92b9ccc009c62c9d03ec58f9116bfd33`
+- Hosted CI: [run 30345051371](https://github.com/guiyi-labs/aiops-platform/actions/runs/30345051371)
 - Scope: provider-neutral identity policy, offline metadata validation and downgrade rejection
 
 ## Delivered
@@ -36,7 +38,11 @@ frontend production build, three healthy Compose services, Kustomize
 16/5/22/3 and direct/proxied HTTP readiness. Evidence is
 `.artifacts/verification/verify-20260728-165939.json`.
 
-The accepted revision and hosted CI run will be added after remote acceptance.
+Hosted CI run `30345051371` passed all four jobs for revision `216eb81`. The
+Ubuntu Compose job accepted the network-disabled identity contract and all
+three existing isolated database drills, then passed random-production-config
+Compose health, direct/proxied HTTP checks, sanitized artifact upload and
+unconditional teardown.
 
 ## Boundary
 

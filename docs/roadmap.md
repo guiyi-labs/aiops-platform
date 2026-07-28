@@ -143,11 +143,17 @@ parity targets.
 
 ## M21: Historical Observability And Alert Evidence
 
-- Status: In progress. Phase 1 accepted locally and in hosted CI on 2026-07-28.
+- Status: In progress. Phase 1 is accepted locally and in hosted CI; Phase 2
+  background collection is locally accepted on 2026-07-28 and awaits its
+  implementation revision and hosted CI.
 - Phase 1 adds ADR 0034, migration 17 and a PostgreSQL-backed exact-series
   domain contract with seven-day default retention, 1,800-sample collection,
   24-hour query, 1,440-point and batch-cleanup caps. Missing samples remain
   missing, never zero.
+- Phase 2 adds ADR 0035 and an in-process collector over enabled clusters with
+  stable ID ordering, 20-cluster/four-way concurrency defaults, per-cluster
+  timeout, official Kubernetes quantity conversion, six stable failure codes,
+  fair Node/Pod cap allocation and deterministic bounded cleanup scheduling.
 - Retain Node/Pod CPU and memory samples with explicit source timestamp,
   collection result, coverage and expiry; clean expired data deterministically.
 - Add trend views and deterministic sustained-window evaluation linked to the

@@ -26,6 +26,11 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ShutdownTimeout != 10*time.Second {
 		t.Fatalf("ShutdownTimeout = %s, want 10s", cfg.ShutdownTimeout)
 	}
+	if !cfg.MetricsHistoryEnabled || cfg.MetricsHistoryRetention != 7*24*time.Hour ||
+		cfg.MetricsCollectionInterval != time.Minute || cfg.MetricsCollectionTimeout != 10*time.Second ||
+		cfg.MetricsCleanupInterval != time.Hour || cfg.MetricsMaxClusters != 20 || cfg.MetricsMaxConcurrency != 4 {
+		t.Fatalf("unexpected metrics history defaults: %#v", cfg)
+	}
 }
 
 func TestLoadParsesCredentialDecryptionKeys(t *testing.T) {
@@ -97,6 +102,44 @@ func TestLoadRejectsInvalidAIGuardrails(t *testing.T) {
 	t.Setenv("AI_MAX_CONCURRENT_REQUESTS", "0")
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want invalid AI concurrency error")
+	}
+}
+
+func TestLoadParsesMetricsHistoryConfiguration(t *testing.T) {
+	t.Setenv("METRICS_HISTORY_ENABLED", "false")
+	t.Setenv("METRICS_HISTORY_RETENTION", "72h")
+	t.Setenv("METRICS_COLLECTION_INTERVAL", "30s")
+	t.Setenv("METRICS_COLLECTION_TIMEOUT", "5s")
+	t.Setenv("METRICS_CLEANUP_INTERVAL", "30m")
+	t.Setenv("METRICS_MAX_CLUSTERS", "12")
+	t.Setenv("METRICS_MAX_CONCURRENCY", "3")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.MetricsHistoryEnabled || cfg.MetricsHistoryRetention != 72*time.Hour ||
+		cfg.MetricsCollectionInterval != 30*time.Second || cfg.MetricsCollectionTimeout != 5*time.Second ||
+		cfg.MetricsCleanupInterval != 30*time.Minute || cfg.MetricsMaxClusters != 12 || cfg.MetricsMaxConcurrency != 3 {
+		t.Fatalf("unexpected metrics history configuration: %#v", cfg)
+	}
+}
+
+func TestLoadRejectsMetricsHistoryConfigurationOutsideEnvelope(t *testing.T) {
+	tests := map[string]map[string]string{
+		"retention":   {"METRICS_HISTORY_RETENTION": "721h"},
+		"timeout":     {"METRICS_COLLECTION_TIMEOUT": "61s"},
+		"cleanup":     {"METRICS_CLEANUP_INTERVAL": "0s"},
+		"concurrency": {"METRICS_MAX_CLUSTERS": "2", "METRICS_MAX_CONCURRENCY": "3"},
+	}
+	for name, values := range tests {
+		t.Run(name, func(t *testing.T) {
+			for key, value := range values {
+				t.Setenv(key, value)
+			}
+			if _, err := Load(); err == nil {
+				t.Fatal("Load() error = nil, want metrics history configuration error")
+			}
+		})
 	}
 }
 

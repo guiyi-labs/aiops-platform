@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS ai_explanation_feedback_verdict_created_idx;
+DROP INDEX IF EXISTS ai_explanation_feedback_explanation_created_idx;
+DROP TABLE IF EXISTS ai_explanation_feedback;

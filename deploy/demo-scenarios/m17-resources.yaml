@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: demo-stateful
+  namespace: aiops-demo
+spec:
+  serviceName: healthy-nginx
+  replicas: 0
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-stateful
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-stateful
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: demo-node-agent
+  namespace: aiops-demo
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-node-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-node-agent
+    spec:
+      nodeSelector:
+        aiops.local/m17-fixture: "true"
+      containers:
+        - name: agent
+          image: registry.k8s.io/pause:3.10.1
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: demo-replica
+  namespace: aiops-demo
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-replica
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-replica
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: demo-backup
+  namespace: aiops-demo
+spec:
+  suspend: true
+  completions: 1
+  parallelism: 1
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-backup
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: backup
+          image: busybox:1.37
+          command: ["/bin/sh", "-c", "echo demo backup"]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: demo-cleanup
+  namespace: aiops-demo
+spec:
+  schedule: "17 2 * * *"
+  timeZone: Asia/Shanghai
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: demo-cleanup
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: cleanup
+              image: busybox:1.37
+              command: ["/bin/sh", "-c", "echo demo cleanup"]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: healthy-nginx
+  namespace: aiops-demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: healthy-nginx
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: demo-budget
+  namespace: aiops-demo
+spec:
+  hard:
+    pods: "50"
+    requests.cpu: "8"
+    requests.memory: 8Gi
+    limits.cpu: "16"
+    limits.memory: 16Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: demo-storage-bounds
+  namespace: aiops-demo
+spec:
+  limits:
+    - type: PersistentVolumeClaim
+      min:
+        storage: 1Mi
+      max:
+        storage: 10Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-key-catalog
+  namespace: aiops-demo
+  annotations:
+    aiops.local/demo-note: must-not-enter-public-secret-model
+type: Opaque
+immutable: true
+data:
+  example-key: cHVibGljLWRlbW8=

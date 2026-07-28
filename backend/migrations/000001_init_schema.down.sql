@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS cluster_credentials;
+DROP TABLE IF EXISTS clusters;
+DROP TABLE IF EXISTS user_roles;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS roles;

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiops-demo
+  labels:
+    app.kubernetes.io/part-of: k8s-aiops-platform
+    app.kubernetes.io/purpose: diagnosis-demo

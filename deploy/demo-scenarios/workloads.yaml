@@ -1,0 +1,215 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: healthy-nginx
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: healthy-nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: healthy-nginx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: healthy-nginx
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: image-pull-backoff
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: image-pull-backoff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: image-pull-backoff
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: image-pull-backoff
+    spec:
+      containers:
+        - name: broken-image
+          image: nginx:aiops-demo-tag-does-not-exist
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crash-loop-backoff
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: crash-loop-backoff
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: crash-loop-backoff
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: crash-loop-backoff
+    spec:
+      containers:
+        - name: intentional-crash
+          image: busybox:1.36.1
+          command:
+            - /bin/sh
+            - -c
+            - echo intentional crash for AIOps diagnosis >&2; exit 42
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-without-endpoints
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: service-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: service-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: service-backend
+    spec:
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-without-endpoints
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: service-without-endpoints
+spec:
+  selector:
+    app.kubernetes.io/name: intentionally-unmatched
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: healthy-nginx
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: healthy-nginx
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: healthy-nginx.demo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: healthy-nginx
+                port:
+                  name: http
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-cache
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: demo-cache
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard
+  resources:
+    requests:
+      storage: 32Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-runtime-profile
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: demo-runtime-profile
+data:
+  APP_MODE: demo
+  LOG_LEVEL: info
+  REGION: local-kind
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: healthy-nginx
+  namespace: aiops-demo
+  labels:
+    app.kubernetes.io/name: healthy-nginx
+spec:
+  selector:
+    app.kubernetes.io/name: healthy-nginx
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

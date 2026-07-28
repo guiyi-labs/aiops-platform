@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: aiops-system
+resources:
+  - namespace.yaml
+  - service-accounts.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - backend.yaml
+  - frontend.yaml
+  - ingress.yaml
+  - network-policies.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: k8s-aiops
+      app.kubernetes.io/managed-by: kustomize

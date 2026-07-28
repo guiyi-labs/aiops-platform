@@ -1,0 +1,388 @@
+openapi: 3.0.3
+info:
+  title: AIOps Platform API
+  version: 1.0.0
+  description: >-
+    Versioned HTTP contract for the AIOps platform. Sensitive credentials,
+    passwords, tokens and Kubernetes evidence payloads are intentionally not
+    represented in response schemas.
+servers:
+  - url: /
+tags:
+  - name: health
+  - name: auth
+  - name: users
+  - name: clusters
+  - name: kubernetes
+  - name: diagnoses
+  - name: ai
+  - name: notifications
+  - name: remediation
+  - name: audit
+  - name: fleet
+paths:
+  /api/v1/fleet/health:
+    get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
+  /api/v1/fleet/resources/search:
+    get:
+      tags: [fleet]
+      summary: Search fixed resource kinds across a bounded enabled-cluster set
+      operationId: searchFleetResources
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 64 } }
+        - { name: namespace, in: query, schema: { type: string, maxLength: 63 } }
+        - { name: kinds, in: query, description: Comma-separated subset of pods deployments services ingresses, schema: { type: string } }
+        - { name: cluster_limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: Bounded global search response, content: { application/json: { schema: { $ref: '#/components/schemas/GlobalSearchResponse' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/fleet/resources/search/filters:
+    get:
+      tags: [fleet]
+      summary: List the current user's saved global-search filters
+      operationId: listGlobalSearchFilters
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: User-owned saved filters and the fixed per-user limit, content: { application/json: { schema: { $ref: '#/components/schemas/SavedGlobalSearchFilterList' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [fleet]
+      summary: Save the current bounded global-search query for the current user
+      operationId: createGlobalSearchFilter
+      security: [{ bearerAuth: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SavedGlobalSearchFilterCreate' } } } }
+      responses:
+        '201': { description: Saved filter, content: { application/json: { schema: { $ref: '#/components/schemas/SavedGlobalSearchFilter' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/fleet/resources/search/filters/{filter_id}:
+    patch:
+      tags: [fleet]
+      summary: Rename a saved filter or overwrite it with a complete bounded query
+      operationId: updateGlobalSearchFilter
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FilterID' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SavedGlobalSearchFilterUpdate' } } } }
+      responses:
+        '200': { description: Updated saved filter, content: { application/json: { schema: { $ref: '#/components/schemas/SavedGlobalSearchFilter' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [fleet]
+      summary: Delete one of the current user's saved global-search filters
+      operationId: deleteGlobalSearchFilter
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/FilterID' }]
+      responses:
+        '204': { description: Saved filter deleted }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /metrics:
+    get:
+      tags: [health]
+      summary: Prometheus request metrics
+      description: Internal scrape endpoint. Restrict it to a trusted monitoring network; it has no user authentication.
+      operationId: metrics
+      responses:
+        '200':
+          description: Prometheus text exposition
+          content:
+            text/plain:
+              schema: { type: string }
+  /api/v1/health/live:
+    get: { tags: [health], summary: Process liveness, operationId: healthLive, responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/health/ready:
+    get: { tags: [health], summary: Dependency readiness, operationId: healthReady, responses: { '200': { $ref: '#/components/responses/Ok' }, '503': { $ref: '#/components/responses/Error' } } }
+  /api/v1/auth/login:
+    post: { tags: [auth], summary: Create access and refresh session, operationId: login, requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Login' }, '401': { $ref: '#/components/responses/Error' } } }
+  /api/v1/auth/refresh:
+    post: { tags: [auth], summary: Rotate refresh cookie and issue access token, operationId: refresh, security: [{ refreshCookie: [] }], responses: { '200': { $ref: '#/components/responses/Login' }, '401': { $ref: '#/components/responses/Error' } } }
+  /api/v1/auth/logout:
+    post: { tags: [auth], summary: Revoke current refresh session, operationId: logout, security: [{ refreshCookie: [] }], responses: { '204': { description: Revoked } } }
+  /api/v1/auth/me:
+    get: { tags: [auth], summary: Current user, operationId: me, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/User' }, '401': { $ref: '#/components/responses/Error' } } }
+  /api/v1/auth/password-change:
+    post: { tags: [auth], summary: Change own password, operationId: changePassword, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PasswordChangeRequest' } } } }, responses: { '204': { description: Password changed and sessions revoked }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/auth/sessions:
+    get: { tags: [auth], summary: List own refresh sessions, operationId: sessions, security: [{ bearerAuth: [], refreshCookie: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/auth/sessions/{session_id}:
+    delete: { tags: [auth], summary: Revoke another own session, operationId: revokeSession, security: [{ bearerAuth: [], refreshCookie: [] }], parameters: [{ $ref: '#/components/parameters/SessionID' }], responses: { '204': { description: Revoked }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/auth/sessions/revoke-others:
+    post: { tags: [auth], summary: Revoke all other sessions, operationId: revokeOtherSessions, security: [{ bearerAuth: [], refreshCookie: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/users:
+    get: { tags: [users], summary: List users, operationId: listUsers, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post: { tags: [users], summary: Create user, operationId: createUser, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UserWrite' } } } }, responses: { '201': { $ref: '#/components/responses/User' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/users/assignable:
+    get: { tags: [users], summary: List assignable operators, operationId: assignableUsers, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/users/{user_id}:
+    patch: { tags: [users], summary: Update user status, display name or roles, operationId: updateUser, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/UserID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UserPatch' } } } }, responses: { '200': { $ref: '#/components/responses/User' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/users/{user_id}/password-reset:
+    post: { tags: [users], summary: Reset another user's password, operationId: resetPassword, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/UserID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PasswordResetRequest' } } } }, responses: { '204': { description: Reset and sessions revoked }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters:
+    get: { tags: [clusters], summary: List registered clusters, operationId: listClusters, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post: { tags: [clusters], summary: Register encrypted kubeconfig, operationId: createCluster, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ClusterWrite' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}:
+    get: { tags: [clusters], summary: Cluster detail, operationId: getCluster, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    patch: { tags: [clusters], summary: Enable or disable cluster, operationId: updateCluster, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], responses: { '204': { description: Updated } } }
+    delete: { tags: [clusters], summary: Delete cluster and credential, operationId: deleteCluster, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], responses: { '204': { description: Deleted } } }
+  /api/v1/clusters/{cluster_id}/credentials:
+    put: { tags: [clusters], summary: Atomically replace encrypted kubeconfig, operationId: rotateClusterCredentials, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CredentialRotationRequest' } } } }, responses: { '204': { description: Replaced and probe state reset }, '400': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/probe:
+    post: { tags: [clusters], summary: Probe cluster connectivity, operationId: probeCluster, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/namespaces:
+    get: { tags: [kubernetes], summary: List namespaces, operationId: listNamespaces, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/nodes:
+    get: { tags: [kubernetes], summary: List nodes, operationId: listNodes, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/metrics/nodes:
+    get: { tags: [kubernetes], summary: List bounded Node metrics, operationId: listNodeMetrics, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '424': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/metrics/pods:
+    get: { tags: [kubernetes], summary: List bounded Pod metrics, operationId: listPodMetrics, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '424': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/nodes/{name}:
+    get: { tags: [kubernetes], summary: Node detail, operationId: getNode, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/pods:
+    get: { tags: [kubernetes], summary: List pods, operationId: listPods, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/events:
+    get: { tags: [kubernetes], summary: List events, operationId: listEvents, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/deployments:
+    get: { tags: [kubernetes], summary: List deployments, operationId: listDeployments, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/deployments/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Deployment detail, operationId: getDeployment, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/statefulsets:
+    get: { tags: [kubernetes], summary: List StatefulSets, operationId: listStatefulSets, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/statefulsets/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: StatefulSet detail, operationId: getStatefulSet, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/daemonsets:
+    get: { tags: [kubernetes], summary: List DaemonSets, operationId: listDaemonSets, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/daemonsets/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: DaemonSet detail, operationId: getDaemonSet, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/replicasets:
+    get: { tags: [kubernetes], summary: List ReplicaSets, operationId: listReplicaSets, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/replicasets/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: ReplicaSet detail, operationId: getReplicaSet, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/jobs:
+    get: { tags: [kubernetes], summary: List Jobs, operationId: listJobs, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/jobs/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Job detail, operationId: getJob, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/cronjobs:
+    get: { tags: [kubernetes], summary: List CronJobs, operationId: listCronJobs, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/cronjobs/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: CronJob detail, operationId: getCronJob, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/horizontalpodautoscalers:
+    get: { tags: [kubernetes], summary: List sanitized HPAs, operationId: listHorizontalPodAutoscalers, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/horizontalpodautoscalers/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Sanitized HPA detail, operationId: getHorizontalPodAutoscaler, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/resourcequotas:
+    get: { tags: [kubernetes], summary: List ResourceQuotas, operationId: listResourceQuotas, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/resourcequotas/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: ResourceQuota detail, operationId: getResourceQuota, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/limitranges:
+    get: { tags: [kubernetes], summary: List LimitRanges, operationId: listLimitRanges, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/limitranges/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: LimitRange detail, operationId: getLimitRange, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/secrets:
+    get: { tags: [kubernetes], summary: List Secret metadata and key names without values, operationId: listSecrets, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/secrets/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Secret metadata and key names without values or annotations, operationId: getSecret, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/services:
+    get: { tags: [kubernetes], summary: List services, operationId: listServices, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/services/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Service detail, operationId: getService, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/ingresses:
+    get: { tags: [kubernetes], summary: List ingresses, operationId: listIngresses, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/ingresses/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Ingress detail, operationId: getIngress, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/endpointslices:
+    get: { tags: [kubernetes], summary: List sanitized EndpointSlices, operationId: listEndpointSlices, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/persistentvolumeclaims:
+    get: { tags: [kubernetes], summary: List persistent volume claims, operationId: listPersistentVolumeClaims, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/persistentvolumeclaims/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Persistent volume claim detail, operationId: getPersistentVolumeClaim, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/storageclasses:
+    get: { tags: [kubernetes], summary: List storage classes without parameters, operationId: listStorageClasses, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/storageclasses/{name}:
+    get: { tags: [kubernetes], summary: Storage class detail without parameters, operationId: getStorageClass, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/configmaps:
+    get: { tags: [kubernetes], summary: List ConfigMap metadata and key names, operationId: listConfigMaps, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/configmaps/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: ConfigMap metadata and key names, operationId: getConfigMap, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/pods/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: Pod detail, operationId: getPod, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/pods/{namespace}/{name}/logs:
+    get: { tags: [kubernetes], summary: Bounded pod logs, operationId: getPodLogs, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }, { name: tail_lines, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 200 } }, { name: previous, in: query, schema: { type: boolean, default: false } }], responses: { '200': { description: Log text, content: { text/plain: { schema: { type: string } } } } } }
+  /api/v1/clusters/{cluster_id}/diagnoses:
+    post: { tags: [diagnoses], summary: Run deterministic diagnosis, operationId: createDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DiagnosisRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '422': { $ref: '#/components/responses/Error' } } }
+  /api/v1/diagnoses:
+    get: { tags: [diagnoses], summary: Diagnosis history, operationId: listDiagnoses, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/diagnoses/summary:
+    get: { tags: [diagnoses], summary: Diagnosis summary, operationId: diagnosisSummary, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/diagnoses/{diagnosis_id}:
+    get: { tags: [diagnoses], summary: Diagnosis detail, operationId: getDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    patch: { tags: [diagnoses], summary: Transition diagnosis status, operationId: transitionDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '204': { description: Updated }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/diagnoses/{diagnosis_id}/assignment:
+    patch: { tags: [diagnoses], summary: Assign diagnosis, operationId: assignDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '204': { description: Assigned } } }
+  /api/v1/diagnoses/{diagnosis_id}/feedback:
+    post: { tags: [diagnoses], summary: Submit rule feedback, operationId: diagnosisFeedback, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '204': { description: Recorded } } }
+  /api/v1/diagnoses/{diagnosis_id}/remediations:
+    get: { tags: [remediation], summary: List remediation plans, operationId: listRemediationPlans, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/diagnoses/{diagnosis_id}/remediations/preview:
+    post: { tags: [remediation], summary: Preview a confirmed deployment restart, operationId: previewRemediation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RemediationPreviewRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/operations:
+    get: { tags: [remediation], summary: List resource-originated controlled operation plans, operationId: listControlledOperations, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: target_kind, in: query, schema: { type: string, enum: [Deployment, CronJob] } }, { name: target_name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/operations/preview:
+    post: { tags: [remediation], summary: Dry-run a fixed resource operation, operationId: previewControlledOperation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ControlledOperationPreviewRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/remediations/{remediation_id}/execute:
+    post: { tags: [remediation], summary: Execute a confirmed remediation plan, operationId: executeRemediation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/RemediationID' }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RemediationExecuteRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' }, '502': { $ref: '#/components/responses/Error' } } }
+  /api/v1/diagnoses/{diagnosis_id}/explanations:
+    get: { tags: [ai], summary: List cited AI explanations, operationId: listExplanations, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post: { tags: [ai], summary: Generate cited AI explanation, operationId: generateExplanation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '201': { $ref: '#/components/responses/Ok' }, '429': { $ref: '#/components/responses/Error' } } }
+  /api/v1/ai/status:
+    get: { tags: [ai], summary: AI runtime status, operationId: aiStatus, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/ai/quality:
+    get: { tags: [ai], summary: AI feedback quality summary, operationId: aiQuality, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/ai/explanations/{explanation_id}/feedback:
+    post: { tags: [ai], summary: Rate one AI explanation, operationId: aiFeedback, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ExplanationID' }], responses: { '204': { description: Recorded }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/notification-deliveries:
+    get: { tags: [notifications], summary: List diagnosis notification deliveries, operationId: listNotificationDeliveries, security: [{ bearerAuth: [] }], parameters: [{ name: diagnosis_id, in: query, schema: { type: integer, format: int64 } }, { name: event_type, in: query, schema: { type: string, enum: [diagnosis.created, diagnosis.status_changed, diagnosis.assigned] } }, { name: status, in: query, schema: { type: string, enum: [pending, delivering, delivered, dead] } }, { $ref: '#/components/parameters/Limit' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/notification-deliveries/{delivery_id}/retry:
+    post: { tags: [notifications], summary: Retry a dead diagnosis notification, operationId: retryNotificationDelivery, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DeliveryID' }], responses: { '202': { description: Retry queued }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/audit-logs:
+    get: { tags: [audit], summary: Query audit logs, operationId: listAuditLogs, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/audit-logs/export:
+    get: { tags: [audit], summary: Export safe UTF-8 CSV, operationId: exportAuditLogs, security: [{ bearerAuth: [] }], responses: { '200': { description: CSV export, content: { text/csv: { schema: { type: string } } } } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    refreshCookie: { type: apiKey, in: cookie, name: aiops_refresh }
+  parameters:
+    ClusterID: { name: cluster_id, in: path, required: true, schema: { type: integer, format: int64 } }
+    UserID: { name: user_id, in: path, required: true, schema: { type: integer, format: int64 } }
+    SessionID: { name: session_id, in: path, required: true, schema: { type: integer, format: int64 } }
+    DiagnosisID: { name: diagnosis_id, in: path, required: true, schema: { type: integer, format: int64 } }
+    ExplanationID: { name: explanation_id, in: path, required: true, schema: { type: integer, format: int64 } }
+    DeliveryID: { name: delivery_id, in: path, required: true, schema: { type: integer, format: int64 } }
+    RemediationID: { name: remediation_id, in: path, required: true, schema: { type: string, format: uuid } }
+    FilterID: { name: filter_id, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+    Namespace: { name: namespace, in: path, required: true, schema: { type: string } }
+    Name: { name: name, in: path, required: true, schema: { type: string } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+  responses:
+    Ok: { description: Successful JSON response, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+    User: { description: User response without password material, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+    Login: { description: Login or refresh response, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
+    Error: { description: Structured error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    SavedGlobalSearchFilterCreate:
+      type: object
+      additionalProperties: false
+      required: [name, query]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+        query: { type: string, minLength: 2, maxLength: 64 }
+        namespace: { type: string, maxLength: 63, default: '' }
+        kinds: { type: array, minItems: 1, maxItems: 4, uniqueItems: true, description: Omission selects all four supported kinds, items: { type: string, enum: [Pod, Deployment, Service, Ingress] } }
+    SavedGlobalSearchFilterUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Name may be changed alone. Query, namespace and kinds must be supplied together when overwriting the query.
+      properties:
+        name: { type: string, minLength: 1, maxLength: 40 }
+        query: { type: string, minLength: 2, maxLength: 64 }
+        namespace: { type: string, maxLength: 63 }
+        kinds: { type: array, minItems: 1, maxItems: 4, uniqueItems: true, items: { type: string, enum: [Pod, Deployment, Service, Ingress] } }
+    SavedGlobalSearchFilter:
+      type: object
+      required: [id, name, query, kinds, schema_version, compatible, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        query: { type: string }
+        namespace: { type: string }
+        kinds: { type: array, items: { type: string, enum: [Pod, Deployment, Service, Ingress] } }
+        schema_version: { type: integer }
+        compatible: { type: boolean }
+        incompatibility_code: { type: string, enum: [SCHEMA_VERSION, QUERY_SHAPE] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SavedGlobalSearchFilterList:
+      type: object
+      required: [items, total, limit]
+      properties:
+        items: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/SavedGlobalSearchFilter' } }
+        total: { type: integer, minimum: 0, maximum: 20 }
+        limit: { type: integer, enum: [20] }
+    GlobalSearchResponse:
+      type: object
+      required: [query, kinds, items, total, remaining, clusters_total, clusters_searched, clusters_remaining, complete, failures, checked_at, limits]
+      properties:
+        query: { type: string }
+        namespace: { type: string }
+        kinds: { type: array, items: { type: string, enum: [Pod, Deployment, Service, Ingress] } }
+        items: { type: array, items: { $ref: '#/components/schemas/GlobalSearchItem' } }
+        total: { type: integer, minimum: 0, description: Known matches in searched clusters and successful kind reads }
+        remaining: { type: integer, minimum: 0, description: Known matches omitted by the result limit }
+        clusters_total: { type: integer, minimum: 0, description: Enabled clusters present when the query started }
+        clusters_searched: { type: integer, minimum: 0 }
+        clusters_remaining: { type: integer, minimum: 0, description: Enabled clusters omitted by cluster_limit }
+        complete: { type: boolean }
+        failures: { type: array, items: { $ref: '#/components/schemas/GlobalSearchFailure' } }
+        checked_at: { type: string, format: date-time }
+        limits:
+          type: object
+          required: [max_clusters, max_concurrent_clusters, per_cluster_timeout_ms, max_results, per_kind_limit]
+          properties:
+            max_clusters: { type: integer }
+            max_concurrent_clusters: { type: integer }
+            per_cluster_timeout_ms: { type: integer }
+            max_results: { type: integer }
+            per_kind_limit: { type: integer }
+    GlobalSearchItem:
+      type: object
+      required: [cluster_id, cluster_name, kind, namespace, name, health, summary]
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        cluster_name: { type: string }
+        kind: { type: string, enum: [Pod, Deployment, Service, Ingress] }
+        namespace: { type: string }
+        name: { type: string }
+        health: { type: string, enum: [healthy, degraded, unknown] }
+        summary: { type: string }
+    GlobalSearchFailure:
+      type: object
+      required: [cluster_id, cluster_name, kind, code]
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        cluster_name: { type: string }
+        kind: { type: string, enum: [Pod, Deployment, Service, Ingress] }
+        code: { type: string, enum: [TIMEOUT, QUERY_FAILED] }
+    Error: { type: object, required: [code, message, request_id], properties: { code: { type: string }, message: { type: string }, request_id: { type: string } } }
+    LoginRequest: { type: object, required: [username, password], properties: { username: { type: string }, password: { type: string, format: password } } }
+    LoginResponse: { type: object, required: [access_token, token_type, expires_in, user], properties: { access_token: { type: string }, token_type: { type: string, example: Bearer }, expires_in: { type: integer }, user: { $ref: '#/components/schemas/User' } } }
+    User: { type: object, properties: { id: { type: integer }, username: { type: string }, display_name: { type: string }, roles: { type: array, items: { type: string } }, status: { type: string } } }
+    UserWrite: { type: object, required: [username, display_name, password, roles], properties: { username: { type: string }, display_name: { type: string }, password: { type: string, format: password }, roles: { type: array, items: { type: string } } } }
+    UserPatch: { type: object, properties: { display_name: { type: string }, status: { type: string, enum: [active, disabled] }, roles: { type: array, items: { type: string } } } }
+    PasswordChangeRequest: { type: object, required: [current_password, new_password], properties: { current_password: { type: string, format: password }, new_password: { type: string, format: password } } }
+    PasswordResetRequest: { type: object, required: [password], properties: { password: { type: string, format: password } } }
+    ClusterWrite: { type: object, required: [name, kubeconfig], properties: { name: { type: string }, kubeconfig: { type: string, writeOnly: true } } }
+    CredentialRotationRequest: { type: object, required: [kubeconfig], properties: { kubeconfig: { type: string, writeOnly: true } } }
+    DiagnosisRequest: { type: object, required: [resource_kind, name], properties: { resource_kind: { type: string, enum: [Pod, Service, Node, Deployment, Ingress, PersistentVolumeClaim, HorizontalPodAutoscaler] }, namespace: { type: string, description: Required for namespaced resources; empty for Node }, name: { type: string } } }
+    RemediationPreviewRequest: { type: object, required: [action, target_name], properties: { action: { type: string, enum: [deployment.rollout_restart] }, target_name: { type: string, maxLength: 253 } } }
+    ControlledOperationPreviewRequest:
+      oneOf:
+        - $ref: '#/components/schemas/DeploymentScaleOperation'
+        - $ref: '#/components/schemas/CronJobScheduleOperation'
+    DeploymentScaleOperation: { type: object, additionalProperties: false, required: [action, namespace, target_name, desired_replicas], properties: { action: { type: string, enum: [deployment.scale] }, namespace: { type: string, maxLength: 63 }, target_name: { type: string, maxLength: 253 }, desired_replicas: { type: integer, minimum: 0, maximum: 1000 } } }
+    CronJobScheduleOperation: { type: object, additionalProperties: false, required: [action, namespace, target_name], properties: { action: { type: string, enum: [cronjob.suspend, cronjob.resume] }, namespace: { type: string, maxLength: 63 }, target_name: { type: string, maxLength: 253 } } }
+    RemediationExecuteRequest: { type: object, required: [confirmation_token], properties: { confirmation_token: { type: string, writeOnly: true } } }

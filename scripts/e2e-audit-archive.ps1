@@ -18,6 +18,7 @@ $DatabaseName = 'aiops_audit_archive'
 $DatabaseUser = 'aiops_audit'
 $TemporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $TemporaryDirectory = [IO.Path]::GetFullPath((Join-Path $TemporaryRoot "aiops-audit-archive-$RunID"))
+$ContainerUser = $null
 
 if (-not $TemporaryDirectory.StartsWith($TemporaryRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'audit archive temporary directory escaped the system temporary root'
@@ -105,13 +106,17 @@ function Invoke-AuditArchive {
     param([Parameter(Mandatory)] [string[]]$CommandArguments, [int]$ExpectedExitCode = 0, [switch]$ReadOnlyMount)
 
     $mountMode = if ($ReadOnlyMount) { ',readonly' } else { '' }
-    $arguments = @('run', '--rm', '--network', $Network, '--mount', "type=bind,source=$TemporaryDirectory,target=/work$mountMode")
+    $arguments = @('run', '--rm')
+    if ($null -ne $ContainerUser) { $arguments += @('--user', $ContainerUser) }
+    $arguments += @('--network', $Network, '--mount', "type=bind,source=$TemporaryDirectory,target=/work$mountMode")
     if (-not $ReadOnlyMount) {
         $arguments += @('--env', 'APP_ENV', '--env', 'DATABASE_URL', '--env', 'JWT_SIGNING_KEY', '--env', 'BOOTSTRAP_ADMIN_PASSWORD', '--env', 'CREDENTIAL_ENCRYPTION_KEY', '--env', 'AI_ENABLED', '--env', 'NOTIFICATION_ENABLED')
     }
     $arguments += @('--entrypoint', '/app/audit-archive', $BackendImage) + $CommandArguments
     $result = Invoke-NativeResult -File 'docker' -Arguments $arguments
-    Assert-Equal -Actual $result.ExitCode -Expected $ExpectedExitCode -Message 'audit archive command exit code mismatch'
+    if ($result.ExitCode -ne $ExpectedExitCode) {
+        throw "audit archive command exit code mismatch; expected $ExpectedExitCode, got $($result.ExitCode): $($result.Output)"
+    }
     return $result.Output
 }
 
@@ -126,6 +131,11 @@ $cleanup = [ordered]@{ database_container_deleted = $false; network_deleted = $f
 
 try {
     Get-Command docker -ErrorAction Stop | Out-Null
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Unix) {
+        $uid = Invoke-NativeText -File 'id' -Arguments @('-u')
+        $gid = Invoke-NativeText -File 'id' -Arguments @('-g')
+        $ContainerUser = "${uid}:${gid}"
+    }
     $env:APP_ENV = 'production'
     $env:POSTGRES_DB = $DatabaseName
     $env:POSTGRES_USER = $DatabaseUser

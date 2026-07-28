@@ -21,12 +21,14 @@ Kustomize 16/5/22/3 and runtime HTTP checks. Evidence is
 `.artifacts/verification/verify-20260728-153059.json`; hosted evidence remains
 pending before the phase is accepted.
 
-Hosted run `30338972042` passed Backend, Frontend, Manifests and the existing
-credential drill but failed the new drill's process-environment cleanup
-assertion because Linux PowerShell represents a restored unset variable as
-empty rather than `$null`. The actual resources were removed. The assertion is
-now null/empty-normalized and passed the final local rerun; push and archive the
-replacement hosted run before accepting Phase 10.
+Hosted runs `30338972042` and `30339580960` passed Backend, Frontend, Manifests
+and the existing credential drill but intentionally remain failed evidence.
+The first exposed Linux PowerShell null/empty behavior in the process-environment
+cleanup assertion; the second then exposed the non-root image UID versus
+runner-owned bind-mount permission boundary. Actual disposable resources were
+removed in both attempts. Cleanup comparison is now null/empty-normalized and
+Linux command containers use the non-root runner UID/GID for the temporary
+mount; archive the replacement hosted run before accepting Phase 10.
 
 M20 Phase 9 adds ADR 0030, migration 000016, an active-plus-legacy AES-GCM
 keyring and the default-dry-run `/app/credential-reencrypt` command. Apply is

@@ -21,6 +21,7 @@
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md`：M21 第一阶段 PostgreSQL 历史指标合同、采集覆盖、稀疏缺样本语义、容量上限和有界清理。
 - `docs/changes/2026-07-28-product-roadmap-reprioritization.md`：基于 KRM/Ratel 对比关闭 M20，并重排 M21-M26 历史可观测、日常排障、发布回滚、跨集群发布、备份与组织集成路线。
 - `docs/changes/2026-07-28-recovery-readiness-gate.md`：M20 第十二阶段生产恢复目标、策略一致性、真实逻辑恢复证据和 PITR/HA 实施准入边界。
 - `docs/changes/2026-07-28-identity-readiness-gate.md`：M20 第十一阶段 OIDC/MFA 就绪合同、离线 discovery/JWKS 校验和降级拒绝边界。

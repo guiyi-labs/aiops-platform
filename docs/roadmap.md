@@ -143,9 +143,12 @@ parity targets.
 
 ## M21: Historical Observability And Alert Evidence
 
-- Status: Next.
-- Define bounded retention plus cluster, series, point and query-window caps
-  before adding persistence. Missing samples remain missing, never zero.
+- Status: In progress. Phase 1 accepted locally on 2026-07-28; hosted CI is
+  pending the implementation commit.
+- Phase 1 adds ADR 0034, migration 17 and a PostgreSQL-backed exact-series
+  domain contract with seven-day default retention, 1,800-sample collection,
+  24-hour query, 1,440-point and batch-cleanup caps. Missing samples remain
+  missing, never zero.
 - Retain Node/Pod CPU and memory samples with explicit source timestamp,
   collection result, coverage and expiry; clean expired data deterministically.
 - Add trend views and deterministic sustained-window evaluation linked to the

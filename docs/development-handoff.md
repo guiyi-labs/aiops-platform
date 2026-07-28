@@ -2,8 +2,8 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 8 archive baseline is `849238a7a4b7b980facd40f3ce70184dd779f2af`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
-- Current milestone: M20 Phase 9 application credential key re-encryption is accepted locally and awaiting hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 9 accepted implementation revision is `151bc7ee848391e37b74d59f489bbe804d9234ff`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
+- Current milestone: M20 Phase 9 application credential key re-encryption is accepted locally and in hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
 
 M20 Phase 9 adds ADR 0030, migration 000016, an active-plus-legacy AES-GCM
 keyring and the default-dry-run `/app/credential-reencrypt` command. Apply is
@@ -17,8 +17,10 @@ all dedicated containers, network, image and process environment were cleaned.
 The full local gate passed in 288.9 seconds with 163 Go `Test*` entries, both
 backend binaries, 14 Vitest files / 59 tests, frontend production build, three
 healthy Compose services, Kustomize 16/5/22/3 and runtime HTTP checks. Evidence
-is `.artifacts/verification/verify-20260728-141111.json`. Hosted CI remains
-pending and is not yet claimed.
+is `.artifacts/verification/verify-20260728-141111.json`. Hosted CI run
+`30334216631` passed all four jobs at revision `151bc7e`, including the isolated
+re-encryption and PostgreSQL recovery drills, random-production-config Compose
+health, sanitized evidence upload and unconditional teardown.
 
 M20 Phase 8 adds ADR 0029, the recovery runbook and
 `scripts/e2e-postgres-backup-restore.ps1`. The script starts an isolated
@@ -524,8 +526,8 @@ Verification baseline after this stage: all Go tests and server build, frontend 
 The Git baseline, private remote, hosted CI and dependency governance are
 already archived. Next, register the isolated `aiops-kind` runner, evaluate
 OIDC/MFA, then validate signed audit archives, production backup/PITR and HA
-behavior. Application-key re-encryption is locally complete and awaits hosted
-CI. Only after those reviews should the
+behavior. Application-key re-encryption is accepted locally and in hosted CI.
+Only after those reviews should the
 project choose a registry identity, artifact-signing policy, license and formal
 release tag. Keep MFA/SSO as a separate identity-provider project.
 

@@ -45,6 +45,7 @@
 - `.artifacts/postgres-recovery/postgres-recovery-20260728-131325.json`：M20 Phase 8 PostgreSQL 源实例销毁、全新实例恢复与清理断言的脱敏证据；托管 CI 为 run `30331048635`。
 - `.artifacts/credential-reencryption/credential-reencryption-20260728-141330.json`：M20 Phase 9 dry-run、批次回滚、v1→v2 与 v2-only 解密的脱敏本地证据。
 - `.artifacts/verification/verify-20260728-141111.json`：M20 Phase 9 后端、前端、镜像、Compose、Kustomize 与 HTTP 完整本地门禁证据。
+- [hosted CI run 30334216631](https://github.com/guiyi-labs/aiops-platform/actions/runs/30334216631)：M20 Phase 9 四个托管 CI job、两项隔离 PostgreSQL 演练、脱敏上传和 teardown 通过记录。
 - `.artifacts/verification/verify-20260728-100752.json`：M20 Phase 6 CI/release 流水线最终全量机器验证证据。
 - `.artifacts/verification/verify-20260727-230204.json`：M20 Phase 5 最终全量机器验证证据。
 - `.artifacts/verification/verify-20260727-194724.json`：最新 M20 Phase 2 全量机器验证证据。

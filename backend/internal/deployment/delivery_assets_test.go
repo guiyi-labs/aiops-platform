@@ -28,7 +28,7 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"Safety Preconditions", "--apply", "UNKNOWN_KEY_VERSION", "Never query, export or paste",
 		},
 		"docs/changes/2026-07-28-credential-key-reencryption.md": {
-			"M20 Phase 9", "credential-reencrypt", "v2-only backend", "hosted CI pending",
+			"M20 Phase 9", "credential-reencrypt", "v2-only backend", "30334216631",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",

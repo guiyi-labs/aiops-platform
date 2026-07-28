@@ -347,12 +347,27 @@ The 2026-07-26 run passed on kind v0.30.0 / Kubernetes v1.34.0. It is
 archived in `docs/changes/2026-07-26-node-deployment-real-kind-e2e.md`. The
 fixtures are intentionally excluded from the retained defense demo.
 
+## Application Credential Key Re-encryption Tests
+
+- Unit tests cover active/legacy key selection, invalid versions, dry-run
+  no-write behavior, plaintext-preserving conversion, sanitized unknown-version
+  failure, full-batch rollback and both preflight/concurrent record limits.
+- Migration and repository behavior are exercised against isolated PostgreSQL
+  by `scripts/e2e-credential-reencryption.ps1`, including real API-created
+  ciphertext and the `FOR UPDATE SKIP LOCKED` apply path.
+- A passing physical run requires v1 rows to remain unchanged after dry-run, a
+  corrupt second row to leave the first row unchanged, successful v1-to-v2
+  conversion, zero remaining rows, v2-only backend decryption, three sanitized
+  audit rows and all cleanup assertions.
+- Tests and evidence must never print or retain keys, plaintext kubeconfigs,
+  ciphertext, database URLs or raw database/application errors.
+
 ## Delivery verification entry points
 
 - `.github/workflows/ci.yml` is the hosted regular gate. It reproduces backend,
-  frontend, Kustomize, isolated PostgreSQL backup/restore, Compose health and
-  HTTP checks on Ubuntu with no PR secret and unconditional ephemeral runtime
-  teardown.
+  frontend, Kustomize, isolated credential re-encryption, isolated PostgreSQL
+  backup/restore, Compose health and HTTP checks on Ubuntu with no PR secret
+  and unconditional ephemeral runtime teardown.
 - `.github/workflows/release.yml` must call the complete reusable CI, reject
   non-semantic versions, keep manual runs package-only and produce
   `SHA256SUMS` before a verified tag may create a GitHub Release.
@@ -398,6 +413,12 @@ fixtures are intentionally excluded from the retained defense demo.
   destroys the source after a custom-format dump, restores a fresh target,
   compares sanitized invariants and requires complete cleanup. Results are
   written to `.artifacts/postgres-recovery`; the dump itself is never retained.
+- `scripts/e2e-credential-reencryption.ps1` is the isolated application-key
+  gate. It creates v1 ciphertext through the real API, proves dry-run no-write
+  behavior and whole-batch rollback, applies v1-to-v2 conversion, verifies a
+  v2-only backend decrypt path and requires complete runtime cleanup. Only
+  sanitized counts and error codes are written to
+  `.artifacts/credential-reencryption`.
 - Saved-filter runtime acceptance uses the retained development PostgreSQL and
   authenticated API because the state is a platform preference and does not
   require a second target cluster. Test-created filters must be removed after

@@ -49,7 +49,9 @@ jobs:
         run: go test -p=1 -count=1 ./...
       - name: Build server
         working-directory: backend
-        run: go build -trimpath -ldflags "-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${GITHUB_SHA}" -o /tmp/aiops-api ./cmd/server
+        run: |
+          go build -trimpath -ldflags "-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${GITHUB_SHA}" -o /tmp/aiops-api ./cmd/server
+          go build -trimpath -ldflags "-s -w" -o /tmp/credential-reencrypt ./cmd/credential-reencrypt
 
   frontend:
     name: Frontend
@@ -111,6 +113,9 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Drill isolated credential key re-encryption
+        shell: pwsh
+        run: ./scripts/e2e-credential-reencryption.ps1
       - name: Drill isolated PostgreSQL backup and restore
         shell: pwsh
         run: ./scripts/e2e-postgres-backup-restore.ps1
@@ -127,6 +132,7 @@ jobs:
             "BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 24)" \
             "CREDENTIAL_ENCRYPTION_KEY=$(openssl rand -base64 32)" \
             'CREDENTIAL_KEY_VERSION=v1' \
+            'CREDENTIAL_DECRYPTION_KEYS={}' \
             'AI_ENABLED=false' \
             'NOTIFICATION_ENABLED=false' >.env
       - name: Build and start Compose runtime
@@ -169,6 +175,7 @@ jobs:
           name: compose-runtime-${{ github.run_id }}
           path: |
             .artifacts/ci/
+            .artifacts/credential-reencryption/
             .artifacts/postgres-recovery/
           if-no-files-found: error
           retention-days: 7

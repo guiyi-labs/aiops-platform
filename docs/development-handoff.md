@@ -2,8 +2,23 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 8 accepted code revision is `24ed4af7b74ec85438c0c8cc005f27ecf6e74886`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
-- Current milestone: M20 Phase 8 isolated PostgreSQL backup/restore is accepted locally and in hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; the M20 Phase 8 archive baseline is `849238a7a4b7b980facd40f3ce70184dd779f2af`, root baseline is `2d46588f8c15ab626703e92eccc35b4de8b53ab2`, and the first passing hosted-CI revision is `648aea6c94fbc29fbf21d1f799df29880099d454`
+- Current milestone: M20 Phase 9 application credential key re-encryption is accepted locally and awaiting hosted CI; branch protection is unavailable on the current private-repository plan, while runner registration and release publication remain pending
+
+M20 Phase 9 adds ADR 0030, migration 000016, an active-plus-legacy AES-GCM
+keyring and the default-dry-run `/app/credential-reencrypt` command. Apply is
+explicit, bounded to 100 rows per transaction and 10000 reviewed candidates,
+serialized by a PostgreSQL advisory lock and audited with versions, counts and
+sanitized error codes only. The isolated 2026-07-28 run created two real v1
+credentials through the API, proved no-write dry-run and whole-batch rollback,
+converted both to v2, then proved a v2-only backend decrypt path. Evidence is
+`.artifacts/credential-reencryption/credential-reencryption-20260728-141330.json`;
+all dedicated containers, network, image and process environment were cleaned.
+The full local gate passed in 288.9 seconds with 163 Go `Test*` entries, both
+backend binaries, 14 Vitest files / 59 tests, frontend production build, three
+healthy Compose services, Kustomize 16/5/22/3 and runtime HTTP checks. Evidence
+is `.artifacts/verification/verify-20260728-141111.json`. Hosted CI remains
+pending and is not yet claimed.
 
 M20 Phase 8 adds ADR 0029, the recovery runbook and
 `scripts/e2e-postgres-backup-restore.ps1`. The script starts an isolated
@@ -19,7 +34,7 @@ packages, 14 Vitest files / 59 tests, production build, three healthy Compose
 services, Kustomize 16/5/22/3 and runtime HTTP checks. Evidence is
 `.artifacts/verification/verify-20260728-125500.json`; actionlint 1.7.7 also
 returned zero findings.
-Hosted CI run `30331048635` passed all four jobs at revision `24ed4af`,
+Hosted CI run `30331346283` passed all four jobs for the final Phase 8 archive,
 including the PostgreSQL source-to-fresh-target restore on Ubuntu PowerShell,
 the independent Compose runtime health checks, sanitized evidence upload and
 unconditional teardown.
@@ -508,8 +523,9 @@ Verification baseline after this stage: all Go tests and server build, frontend 
 
 The Git baseline, private remote, hosted CI and dependency governance are
 already archived. Next, register the isolated `aiops-kind` runner, evaluate
-OIDC/MFA and application-key re-encryption, then validate signed audit
-archives, backup/restore and HA behavior. Only after those reviews should the
+OIDC/MFA, then validate signed audit archives, production backup/PITR and HA
+behavior. Application-key re-encryption is locally complete and awaits hosted
+CI. Only after those reviews should the
 project choose a registry identity, artifact-signing policy, license and formal
 release tag. Keep MFA/SSO as a separate identity-provider project.
 
@@ -763,9 +779,9 @@ applied version.
    after an explicitly approved public-repository decision.
 2. Register a dedicated non-production `aiops-kind` runner using
    `docs/ci-release.md`.
-3. Continue production hardening with application-key re-encryption, OIDC/MFA
-   evaluation, signed audit archives, production backup/PITR policy and HA
-   validation; the isolated logical restore gate is complete.
+3. Continue production hardening with OIDC/MFA evaluation, signed audit
+   archives, production backup/PITR policy and HA validation; isolated logical
+   restore and application-key re-encryption gates are complete locally.
 4. Decide registry identity, artifact signing and provenance only after the
    release actor and key-management policy are reviewed.
 5. Evaluate explicit saved-filter ordering/pinning only if repeated operator

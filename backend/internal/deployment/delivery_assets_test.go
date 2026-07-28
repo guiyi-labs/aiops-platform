@@ -12,7 +12,23 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 	required := map[string][]string{
 		"scripts/verify.ps1": {
 			"go test", "pnpm typecheck", "pnpm test", "pnpm build",
-			"docker compose config", "kubectl kustomize", "/api/v1/health/ready",
+			"credential-reencrypt", "docker compose config", "kubectl kustomize", "/api/v1/health/ready",
+		},
+		"backend/cmd/credential-reencrypt/main.go": {
+			"--apply", "batch-size", "max-records", "pg_try_advisory_lock",
+		},
+		"backend/migrations/000016_credential_reencryption_runs.up.sql": {
+			"credential_reencryption_runs", "source_key_versions", "error_code",
+		},
+		".env.example": {"CREDENTIAL_DECRYPTION_KEYS={}"},
+		"docs/adr/0030-controlled-application-credential-key-reencryption.md": {
+			"defaults to dry-run", "FOR UPDATE SKIP LOCKED", "at most eight", "does not introduce envelope encryption",
+		},
+		"docs/database/credential-key-rotation.md": {
+			"Safety Preconditions", "--apply", "UNKNOWN_KEY_VERSION", "Never query, export or paste",
+		},
+		"docs/changes/2026-07-28-credential-key-reencryption.md": {
+			"M20 Phase 9", "credential-reencrypt", "v2-only backend", "hosted CI pending",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",
@@ -35,9 +51,13 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"kind-v0.30.0.exe", "fleet/resources/search", "cluster_limit=1", "TIMEOUT", "QUERY_FAILED",
 			"preexisting_kind_clusters_preserved", ".artifacts\\search-e2e", "finally",
 		},
+		"scripts/e2e-credential-reencryption.ps1": {
+			"credential-reencrypt", "insecure-skip-tls-verify", "REENCRYPTION_FAILED",
+			"v2_only_backend_decryption", ".artifacts\\credential-reencryption", "finally",
+		},
 		".github/workflows/ci.yml": {
 			"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
-			"docker compose up -d --build", "docker compose down --volumes --remove-orphans",
+			"e2e-credential-reencryption.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
 			"v*.*.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",

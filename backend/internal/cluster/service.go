@@ -44,7 +44,7 @@ func (s *Service) Access(ctx context.Context, id int64) (Cluster, []byte, error)
 	if !item.Enabled {
 		return item, nil, ErrDisabled
 	}
-	plaintext, err := s.encryptor.Decrypt(credential.EncryptedKubeconfig)
+	plaintext, err := s.encryptor.Decrypt(credential.EncryptedKubeconfig, credential.EncryptionKeyVersion)
 	if err != nil {
 		return item, nil, err
 	}
@@ -113,7 +113,7 @@ func (s *Service) Probe(ctx context.Context, id int64) (Cluster, error) {
 		return Cluster{}, err
 	}
 	now := s.now().UTC()
-	plaintext, err := s.encryptor.Decrypt(credential.EncryptedKubeconfig)
+	plaintext, err := s.encryptor.Decrypt(credential.EncryptedKubeconfig, credential.EncryptionKeyVersion)
 	if err != nil {
 		conditions := probeConditions(now, false, false, "CredentialDecryptFailed", err.Error())
 		_ = s.repository.UpdateProbe(ctx, id, StatusUnreachable, "", now, conditions)

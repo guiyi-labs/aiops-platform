@@ -68,7 +68,7 @@ func main() {
 		logger.Warn("bootstrap administrator created; change the default password before production",
 			zap.String("username", cfg.BootstrapUsername))
 	}
-	credentialEncryptor, err := cluster.NewEncryptor(cfg.CredentialEncryptionKey, cfg.CredentialKeyVersion)
+	credentialEncryptor, err := cluster.NewEncryptor(cfg.CredentialEncryptionKey, cfg.CredentialKeyVersion, cfg.CredentialDecryptionKeys)
 	if err != nil {
 		logger.Fatal("configure credential encryption", zap.Error(err))
 	}

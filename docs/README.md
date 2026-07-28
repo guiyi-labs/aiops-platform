@@ -20,6 +20,7 @@
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-07-28-credential-key-reencryption.md`：M20 第九阶段版本化密钥环、离线批量再加密、整批回滚与脱敏实体验证。
 - `docs/changes/2026-07-28-postgres-backup-restore.md`：M20 第八阶段隔离 PostgreSQL 备份、全新实例恢复、一致性校验与清理边界。
 - `docs/changes/2026-07-28-dependency-governance.md`：M20 第七阶段依赖审查、major 更新隔离和 Node 24 Actions 治理。
 - `docs/changes/2026-07-28-versioned-ci-release-pipeline.md`：M20 第六阶段分层 CI、版本发布打包、定时真实 kind 门禁与信任边界。
@@ -42,6 +43,8 @@
 - `.artifacts/fleet-e2e/fleet-e2e-20260727-193711.json`：最新 M20 Phase 2 双真实集群脱敏证据，目录已加入 `.gitignore`。
 - `.artifacts/search-e2e/search-e2e-20260727-225358.json`：M20 Phase 5 双真实集群全局搜索脱敏证据，八项清理断言通过。
 - `.artifacts/postgres-recovery/postgres-recovery-20260728-131325.json`：M20 Phase 8 PostgreSQL 源实例销毁、全新实例恢复与清理断言的脱敏证据；托管 CI 为 run `30331048635`。
+- `.artifacts/credential-reencryption/credential-reencryption-20260728-141330.json`：M20 Phase 9 dry-run、批次回滚、v1→v2 与 v2-only 解密的脱敏本地证据。
+- `.artifacts/verification/verify-20260728-141111.json`：M20 Phase 9 后端、前端、镜像、Compose、Kustomize 与 HTTP 完整本地门禁证据。
 - `.artifacts/verification/verify-20260728-100752.json`：M20 Phase 6 CI/release 流水线最终全量机器验证证据。
 - `.artifacts/verification/verify-20260727-230204.json`：M20 Phase 5 最终全量机器验证证据。
 - `.artifacts/verification/verify-20260727-194724.json`：最新 M20 Phase 2 全量机器验证证据。
@@ -80,6 +83,7 @@
 - `scripts/e2e-fleet-kind.ps1`：隔离平台与双真实 kind 集群 fleet 验收。
 - `scripts/e2e-global-search-kind.ps1`：隔离平台与双真实 kind 集群全局搜索验收。
 - `scripts/e2e-postgres-backup-restore.ps1`：隔离 PostgreSQL 17 逻辑备份、源实例销毁、全新实例恢复和一致性验收。
+- `scripts/e2e-credential-reencryption.ps1`：隔离 PostgreSQL/backend 应用凭据密钥再加密、失败回滚和 v2-only 解密验收。
 - `.github/workflows/ci.yml`：无 PR 密钥的后端、前端、清单和 Compose 常规门禁。
 - `.github/workflows/release.yml`：完整 CI 后的版本化打包与 tag 发布。
 - `.github/workflows/real-kind-e2e.yml`：专用自托管 Windows runner 的周期/手动一次性 kind 门禁。

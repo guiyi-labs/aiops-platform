@@ -14,7 +14,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 		checkoutAction       = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
 		setupGoAction        = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e"
 		setupNodeAction      = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
-		setupPnpmAction      = "pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1"
+		setupPnpmAction      = "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271"
 		uploadArtifactAction = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 	)
 

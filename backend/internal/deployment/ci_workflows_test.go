@@ -90,3 +90,50 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 		})
 	}
 }
+
+func TestDependabotGroupsKeepMajorUpdatesSeparate(t *testing.T) {
+	root := repositoryRoot(t)
+	contents, err := os.ReadFile(filepath.Join(root, ".github", "dependabot.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var config struct {
+		Updates []struct {
+			PackageEcosystem string `yaml:"package-ecosystem"`
+			Groups           map[string]struct {
+				UpdateTypes []string `yaml:"update-types"`
+			} `yaml:"groups"`
+		} `yaml:"updates"`
+	}
+	if err := yaml.Unmarshal(contents, &config); err != nil {
+		t.Fatalf("invalid Dependabot YAML: %v", err)
+	}
+
+	expectedGroups := map[string]string{
+		"github-actions": "actions",
+		"gomod":          "go-modules",
+		"npm":            "frontend-packages",
+	}
+	seen := make(map[string]bool, len(expectedGroups))
+	for _, update := range config.Updates {
+		groupName, ok := expectedGroups[update.PackageEcosystem]
+		if !ok {
+			continue
+		}
+		group, ok := update.Groups[groupName]
+		if !ok {
+			t.Errorf("%s is missing group %q", update.PackageEcosystem, groupName)
+			continue
+		}
+		if len(group.UpdateTypes) != 2 || group.UpdateTypes[0] != "minor" || group.UpdateTypes[1] != "patch" {
+			t.Errorf("%s group %q update types = %v, want [minor patch]", update.PackageEcosystem, groupName, group.UpdateTypes)
+		}
+		seen[update.PackageEcosystem] = true
+	}
+	for ecosystem := range expectedGroups {
+		if !seen[ecosystem] {
+			t.Errorf("missing reviewed Dependabot policy for %s", ecosystem)
+		}
+	}
+}

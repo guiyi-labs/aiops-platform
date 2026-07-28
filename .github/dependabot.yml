@@ -10,6 +10,9 @@ updates:
     groups:
       actions:
         patterns: ['*']
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: gomod
     directory: /backend
     schedule:
@@ -20,6 +23,9 @@ updates:
     groups:
       go-modules:
         patterns: ['*']
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: npm
     directory: /frontend
     schedule:
@@ -30,3 +36,6 @@ updates:
     groups:
       frontend-packages:
         patterns: ['*']
+        update-types:
+          - minor
+          - patch

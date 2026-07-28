@@ -1,7 +1,9 @@
 # M20 Phase 8: Isolated PostgreSQL Backup And Restore
 
 - Date: 2026-07-28
-- Status: Implemented and locally accepted; hosted CI pending
+- Status: Accepted
+- Accepted revision: `24ed4af7b74ec85438c0c8cc005f27ecf6e74886`
+- Hosted CI: [run 30331048635](https://github.com/guiyi-labs/aiops-platform/actions/runs/30331048635)
 - Scope: repeatable logical backup, fresh-instance restore, invariants and cleanup
 
 ## Delivered
@@ -32,12 +34,12 @@ The isolated drill passed on Docker Engine 29.6.1 with PostgreSQL 17:
 - roles/users/user roles/clusters/credential blobs/diagnosis/audit/saved filter
   counts matched before and after restore;
 - invalid foreign-key count was zero;
-- the 81,265-byte custom archive was recognized by `pg_restore --list`;
+- the latest 81,270-byte custom archive was recognized by `pg_restore --list`;
 - the source was destroyed before restore; and
 - both containers, the temporary backup and process credentials were cleaned.
 
 Sanitized local evidence:
-`.artifacts/postgres-recovery/postgres-recovery-20260728-124206.json`.
+`.artifacts/postgres-recovery/postgres-recovery-20260728-131325.json`.
 
 The complete local quality gate also passed in 278.81 seconds with all backend
 packages, 14 Vitest files / 59 tests, the production frontend build, three
@@ -49,6 +51,14 @@ zero findings after correcting the pre-existing release checksum glob warning.
 A controlled negative run with `-ReadyTimeoutSeconds 0` failed as expected and
 still left zero drill-owned containers and temporary directories while
 preserving the caller's PostgreSQL environment.
+
+Hosted CI run `30331048635` passed Backend, Frontend, Manifests and Compose
+runtime at revision `24ed4af7b74ec85438c0c8cc005f27ecf6e74886`. The Ubuntu
+PowerShell recovery step completed source migration/backup/destruction,
+fresh-target restore, invariant verification and cleanup before the independent
+Compose runtime was built and health checked. The first hosted attempt exposed
+an unset-versus-empty environment comparison difference on Linux; revision
+`24ed4af` normalized that comparison while preserving exact non-empty values.
 
 ## Not Claimed
 

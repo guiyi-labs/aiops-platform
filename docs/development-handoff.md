@@ -14,12 +14,19 @@ signature, exact payload SHA-256, metadata and ordering. The isolated run at
 2026-07-28 15:08 +08:00 passed two-row signing/verification, three-row overflow
 refusal with no output, one-byte tamper rejection and all five cleanup
 assertions. Evidence is
-`.artifacts/audit-archive/audit-archive-20260728-150840.json`. The 361.34-second
+`.artifacts/audit-archive/audit-archive-20260728-154047.json`. The 361.34-second
 full local gate passed all backend packages and three binaries, 167 Go `Test*`
 entries, 14 Vitest files / 59 tests, production build, three healthy services,
 Kustomize 16/5/22/3 and runtime HTTP checks. Evidence is
 `.artifacts/verification/verify-20260728-153059.json`; hosted evidence remains
 pending before the phase is accepted.
+
+Hosted run `30338972042` passed Backend, Frontend, Manifests and the existing
+credential drill but failed the new drill's process-environment cleanup
+assertion because Linux PowerShell represents a restored unset variable as
+empty rather than `$null`. The actual resources were removed. The assertion is
+now null/empty-normalized and passed the final local rerun; push and archive the
+replacement hosted run before accepting Phase 10.
 
 M20 Phase 9 adds ADR 0030, migration 000016, an active-plus-legacy AES-GCM
 keyring and the default-dry-run `/app/credential-reencrypt` command. Apply is

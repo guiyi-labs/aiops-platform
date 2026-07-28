@@ -2,7 +2,7 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 1 is implemented and locally accepted, with the implementation commit and hosted CI still to be recorded; M20 Phase 12 remains accepted and archived
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 1 is accepted at `51d2bb5048562feb5aa4b4b872b3e1f6fcf04ecc` with hosted CI run `30355560521`; M20 Phase 12 remains accepted and archived
 - Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 1 fixes and implements the PostgreSQL history contract, while provider-specific identity/recovery work remains organization-gated
 
 The 2026-07-28 KRM/Ratel reassessment found that the platform is already
@@ -21,7 +21,9 @@ cleanup. Collection runs retain Node/Pod result and coverage independently;
 queries report sparse points plus explicit missing/unavailable/timeout/failure
 counts and never manufacture zeroes. Local Go full-package tests, a real
 PostgreSQL migration, database constraints/index inspection, backend image
-rebuild and readiness HTTP check passed. The phase is archived in
+rebuild and readiness HTTP check passed. Hosted Backend, Frontend, Manifests
+and the 7m11s Compose runtime job also passed, including isolated PostgreSQL
+backup/restore with migration 17. The phase is archived in
 `docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md`.
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy

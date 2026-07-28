@@ -34,8 +34,12 @@ duplicate rejection, failure-code admission and cleanup batching.
 - The rebuilt backend returned HTTP 200 from `/api/v1/health/ready` after the
   migration.
 
-Hosted PostgreSQL/Compose migration verification is recorded after the
-implementation commit is accepted by CI.
+- Implementation revision: `51d2bb5048562feb5aa4b4b872b3e1f6fcf04ecc`.
+- Hosted CI: [run 30355560521](https://github.com/guiyi-labs/aiops-platform/actions/runs/30355560521)
+  passed Backend, Frontend, Manifests and the 7m11s Compose runtime job. The
+  runtime job repeated credential, signed-audit, identity, PostgreSQL
+  backup/restore, recovery-readiness, random-configuration startup, HTTP,
+  sanitized upload and teardown gates with migration 17 included.
 
 Background collection, Kubernetes quantity conversion, authenticated history
 HTTP routes, trend views and sustained-window evaluation remain for the next

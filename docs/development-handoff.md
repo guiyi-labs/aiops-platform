@@ -2,7 +2,7 @@
 
 - Last updated: 2026-07-28
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M20 Phase 12 implementation is accepted at `0baf8583956e1e987ef5043b5fd70ce33aba90e4`, archived at `b1f52e098ca2c6a44891f5e83fbed66e43a651af` and verified by hosted CI run `30349997290`
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21-M26 reprioritization is accepted at `5cfbf694d52bc114ff8ee567525a290d4b85e4b0` with hosted CI run `30351531959`; M20 Phase 12 remains accepted and archived
 - Current milestone: M20 is closed after Phase 12; the reprioritized next milestone is M21 bounded historical observability and alert evidence, while provider-specific identity/recovery work remains organization-gated
 
 The 2026-07-28 KRM/Ratel reassessment found that the platform is already

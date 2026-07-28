@@ -79,7 +79,7 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"Evidence Boundary", "Priority 0", "Fixed cross-cluster promotion", "Explicit Non-Goals",
 		},
 		"docs/changes/2026-07-28-product-roadmap-reprioritization.md": {
-			"M21", "M22", "M23", "M24", "M25", "M26", "Feature-Count Parity",
+			"M21", "M22", "M23", "M24", "M25", "M26", "Feature-Count Parity", "30351531959",
 		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",

@@ -39,8 +39,12 @@ entries, five backend build targets, 14 Vitest files / 59 tests, the frontend
 production build, both Docker images, three healthy Compose services,
 Kustomize `16/5/22/3` and direct/proxied readiness all succeeded.
 
-The implementation revision and hosted CI run are appended after the
-implementation push.
+Implementation revision `cf20c66c588e35b9a29d492661bc99a8e1cb498b` passed
+hosted CI run `30411146049`. Backend, Frontend and Manifests succeeded, and the
+8m21s Compose runtime passed every retained security/recovery drill, random
+configuration startup, three-service health, the authenticated history
+isolation/restart drill, direct/proxied HTTP, sanitized evidence upload and
+unconditional teardown.
 
 ## Boundary
 

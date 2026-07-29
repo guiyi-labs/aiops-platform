@@ -2,7 +2,7 @@
 
 - Last updated: 2026-07-29
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 2 is accepted at `62ed5a4d94622787e516a12502ef51e78b47479a` with hosted CI run `30369559322`; Phase 3 exact-series history API has passed local acceptance and awaits its implementation revision and hosted CI; Phase 1 and M20 Phase 12 remain accepted and archived
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 3 is accepted at `cf20c66c588e35b9a29d492661bc99a8e1cb498b` with hosted CI run `30411146049`; Phases 1 and 2 plus M20 Phase 12 remain accepted and archived
 - Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 3 exposes the accepted sparse PostgreSQL history contract through one authenticated exact-series route, while provider-specific identity/recovery work remains organization-gated
 
 The 2026-07-28 KRM/Ratel reassessment found that the platform is already
@@ -63,7 +63,10 @@ Go `Test*` entries, five backend build targets, 14 Vitest files / 59 tests,
 the frontend production build, both Docker images, three healthy Compose
 services, Kustomize `16/5/22/3` and direct/proxied readiness. Evidence is
 `.artifacts/verification/verify-20260729-082024.json`. The implementation
-revision and hosted CI acceptance remain to be recorded after push.
+revision is `cf20c66c588e35b9a29d492661bc99a8e1cb498b`. Hosted CI run
+`30411146049` passed Backend, Frontend and Manifests plus the 8m21s Compose
+runtime, including the authenticated history isolation/restart drill,
+direct/proxied HTTP, sanitized evidence upload and unconditional teardown.
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
 template and a network-disabled gate consuming the newest real logical-restore

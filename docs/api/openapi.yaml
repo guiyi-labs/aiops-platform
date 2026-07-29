@@ -20,6 +20,7 @@ tags:
   - name: remediation
   - name: audit
   - name: fleet
+  - name: metrics-history
 paths:
   /api/v1/fleet/health:
     get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
@@ -148,6 +149,29 @@ paths:
     get: { tags: [kubernetes], summary: List bounded Node metrics, operationId: listNodeMetrics, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '424': { $ref: '#/components/responses/Error' } } }
   /api/v1/clusters/{cluster_id}/metrics/pods:
     get: { tags: [kubernetes], summary: List bounded Pod metrics, operationId: listPodMetrics, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '424': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/metrics/history:
+    get:
+      tags: [metrics-history]
+      summary: Query one exact bounded historical metric series
+      description: Returns sparse points and explicit collection coverage; missing collections are never represented as zero-valued points.
+      operationId: getMetricHistorySeries
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClusterID' }
+        - { name: resource_kind, in: query, required: true, schema: { type: string, enum: [Node, Pod] } }
+        - { name: namespace, in: query, description: Required for Pod and forbidden for Node, schema: { type: string, maxLength: 63 } }
+        - { name: name, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 253 } }
+        - { name: container, in: query, description: Required for Pod and forbidden for Node, schema: { type: string, maxLength: 253 } }
+        - { name: metric, in: query, required: true, schema: { type: string, enum: [cpu, memory] } }
+        - { name: from, in: query, required: true, description: Inclusive RFC3339 collection timestamp, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, description: Exclusive RFC3339 collection timestamp; at most 24 hours after from, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1440, default: 1440 } }
+      responses:
+        '200': { description: Exact sparse metric series with collection coverage, content: { application/json: { schema: { $ref: '#/components/schemas/MetricHistoryResponse' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/clusters/{cluster_id}/nodes/{name}:
     get: { tags: [kubernetes], summary: Node detail, operationId: getNode, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/clusters/{cluster_id}/pods:
@@ -283,6 +307,59 @@ components:
     Login: { description: Login or refresh response, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
     Error: { description: Structured error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   schemas:
+    MetricHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [series, from, to, points, coverage, limits, truncated]
+      properties:
+        series: { $ref: '#/components/schemas/MetricHistorySeries' }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        points: { type: array, maxItems: 1440, items: { $ref: '#/components/schemas/MetricHistoryPoint' } }
+        coverage: { $ref: '#/components/schemas/MetricHistoryCoverage' }
+        limits: { $ref: '#/components/schemas/MetricHistoryLimits' }
+        truncated: { type: boolean }
+    MetricHistorySeries:
+      type: object
+      additionalProperties: false
+      required: [cluster_id, resource_kind, resource_name, metric_name, unit]
+      properties:
+        cluster_id: { type: integer, format: int64, minimum: 1 }
+        resource_kind: { type: string, enum: [Node, Pod] }
+        resource_namespace: { type: string, maxLength: 63 }
+        resource_name: { type: string, minLength: 1, maxLength: 253 }
+        container_name: { type: string, maxLength: 253 }
+        metric_name: { type: string, enum: [cpu, memory] }
+        unit: { type: string, enum: [nanocores, bytes] }
+    MetricHistoryPoint:
+      type: object
+      additionalProperties: false
+      required: [value, source_timestamp, window_milliseconds, collected_at]
+      properties:
+        value: { type: integer, format: int64, minimum: 0 }
+        source_timestamp: { type: string, format: date-time }
+        window_milliseconds: { type: integer, minimum: 1000, maximum: 3600000 }
+        collected_at: { type: string, format: date-time }
+    MetricHistoryCoverage:
+      type: object
+      additionalProperties: false
+      required: [collections, succeeded, partial, unavailable, timed_out, failed, points, missing]
+      properties:
+        collections: { type: integer, minimum: 0 }
+        succeeded: { type: integer, minimum: 0 }
+        partial: { type: integer, minimum: 0 }
+        unavailable: { type: integer, minimum: 0 }
+        timed_out: { type: integer, minimum: 0 }
+        failed: { type: integer, minimum: 0 }
+        points: { type: integer, minimum: 0 }
+        missing: { type: integer, minimum: 0 }
+    MetricHistoryLimits:
+      type: object
+      additionalProperties: false
+      required: [max_window_seconds, max_points]
+      properties:
+        max_window_seconds: { type: integer, enum: [86400] }
+        max_points: { type: integer, enum: [1440] }
     SavedGlobalSearchFilterCreate:
       type: object
       additionalProperties: false

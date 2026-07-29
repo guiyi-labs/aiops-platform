@@ -62,6 +62,7 @@
 - [hosted CI run 30345051371](https://github.com/guiyi-labs/aiops-platform/actions/runs/30345051371)：M20 Phase 11 四个 job、无网络身份就绪门禁、三项隔离数据库演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。
 - `.artifacts/metrics-history-e2e/metrics-history-e2e-20260729-081759.json`：M21 Phase 3 真实 PostgreSQL 精确序列隔离、稀疏覆盖、重启持久性与清理证据。
 - `.artifacts/verification/verify-20260729-082024.json`：M21 Phase 3 后端、前端、镜像、Compose、Kustomize 与 HTTP 完整本地门禁证据。
+- [hosted CI run 30411146049](https://github.com/guiyi-labs/aiops-platform/actions/runs/30411146049)：M21 Phase 3 四个 job、精确序列历史隔离/重启演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。
 - `.artifacts/verification/verify-20260728-141111.json`：M20 Phase 9 后端、前端、镜像、Compose、Kustomize 与 HTTP 完整本地门禁证据。
 - [hosted CI run 30334216631](https://github.com/guiyi-labs/aiops-platform/actions/runs/30334216631)：M20 Phase 9 四个托管 CI job、两项隔离 PostgreSQL 演练、脱敏上传和 teardown 通过记录。
 - `.artifacts/verification/verify-20260728-100752.json`：M20 Phase 6 CI/release 流水线最终全量机器验证证据。

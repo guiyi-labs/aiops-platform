@@ -1,9 +1,9 @@
 # Development Handoff
 
-- Last updated: 2026-07-28
+- Last updated: 2026-07-29
 - Repository: `E:\k8s\毕设\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 2 is accepted at `62ed5a4d94622787e516a12502ef51e78b47479a` with hosted CI run `30369559322`; Phase 1 and M20 Phase 12 remain accepted and archived
-- Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 2 accepts enabled-cluster background collection over the PostgreSQL history contract, while provider-specific identity/recovery work remains organization-gated
+- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 2 is accepted at `62ed5a4d94622787e516a12502ef51e78b47479a` with hosted CI run `30369559322`; Phase 3 exact-series history API has passed local acceptance and awaits its implementation revision and hosted CI; Phase 1 and M20 Phase 12 remain accepted and archived
+- Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 3 exposes the accepted sparse PostgreSQL history contract through one authenticated exact-series route, while provider-specific identity/recovery work remains organization-gated
 
 The 2026-07-28 KRM/Ratel reassessment found that the platform is already
 stronger in diagnosis evidence, credential safety, controlled mutation, audit
@@ -47,6 +47,23 @@ Frontend and Manifests plus the 6m11s Compose runtime job passed in run
 `30369559322`, including all isolated drills, random-configuration startup,
 service health, direct/proxied HTTP, sanitized upload and teardown with the
 collector enabled.
+
+M21 Phase 3 adds ADR 0036 and authenticated
+`GET /api/v1/clusters/{cluster_id}/metrics/history`. The route accepts only one
+exact Node or Pod CPU/memory series, explicit RFC3339 bounds, at most 24 hours
+and 1,440 points. It preserves sparse points and explicit collection coverage,
+never fills gaps with zero and hides repository failures behind stable HTTP
+codes. OpenAPI and Gin route parity are mechanically checked. The real
+PostgreSQL E2E at
+`.artifacts/metrics-history-e2e/metrics-history-e2e-20260729-081759.json`
+proved cross-cluster and exact-series isolation, two ordered points across
+three collections with one missing sample, backend restart durability and
+complete fixture cleanup. The 115.83-second full local gate passed Go vet, 199
+Go `Test*` entries, five backend build targets, 14 Vitest files / 59 tests,
+the frontend production build, both Docker images, three healthy Compose
+services, Kustomize `16/5/22/3` and direct/proxied readiness. Evidence is
+`.artifacts/verification/verify-20260729-082024.json`. The implementation
+revision and hosted CI acceptance remain to be recorded after push.
 
 M20 Phase 12 adds ADR 0033, `/app/recovery-readiness`, an unresolved policy
 template and a network-disabled gate consuming the newest real logical-restore
@@ -896,10 +913,9 @@ applied version in the current development database.
 
 ## Next Priorities After Current Work
 
-1. Implement M21 Phase 3: expose the exact-series authenticated history route
-   and prove query isolation,
-   restart durability and sparse gaps before adding charts.
-2. Implement deterministic sustained-window evaluation, then add trend and
+1. Implement M21 Phase 4 deterministic sustained-window evaluation over the
+   accepted exact-series route before adding alert consumers.
+2. Add trend and
    incident-evidence views and validate sampling gaps,
    retention and restart recovery against a disposable real-kind fixture.
 3. Continue through M22 multi-container logs/governance coverage, M23 safe

@@ -38,6 +38,7 @@
 | GET | `/api/v1/clusters/{cluster_id}/nodes` | Node 列表 |
 | GET | `/api/v1/clusters/{cluster_id}/metrics/nodes` | Node CPU/内存绝对用量；Metrics API 可选 |
 | GET | `/api/v1/clusters/{cluster_id}/metrics/pods` | Pod 容器 CPU/内存绝对用量；可用 `namespace` 筛选 |
+| GET | `/api/v1/clusters/{cluster_id}/metrics/history` | 鉴权的精确 Node/Pod CPU/内存稀疏历史序列 |
 | GET | `/api/v1/clusters/{cluster_id}/pods` | Pod 列表；可用 `namespace` 筛选 |
 | GET | `/api/v1/clusters/{cluster_id}/pods/{namespace}/{name}` | Pod 详情 |
 | GET | `/api/v1/clusters/{cluster_id}/pods/{namespace}/{name}/logs` | 当前或 previous 容器日志 |
@@ -85,6 +86,13 @@
 访问令牌通过 `Authorization: Bearer <jwt>` 传递。刷新令牌不进入 JSON，由 `/api/v1/auth` 路径下的 HttpOnly Cookie 传递并在每次刷新时轮换。平台角色为 `system_admin`、`operations_admin`、`security_auditor`、`viewer`。
 
 Metrics 端点只访问服务端固定构造的 `metrics.k8s.io/v1beta1` Node/Pod 列表路径，分页上限 100、上游响应上限 10 MiB。公共响应只保留 metadata、timestamp、window、usage 和 Pod container name，不开放任意 group/version/path。目标集群未安装或未提供 Metrics API 时返回 HTTP 424 和 `METRICS_API_UNAVAILABLE`；集群不存在、停用、权限拒绝与其他上游错误继续使用各自原有语义。CPU/内存值保留 Kubernetes quantity，Dashboard 只展示解析后的绝对用量，不在缺少真实分母时伪造利用率百分比。
+
+历史端点 `GET /api/v1/clusters/{cluster_id}/metrics/history` 只接受一个完整
+精确序列：`resource_kind=Node|Pod`、资源名、`cpu|memory`，Pod 还必须提供
+Namespace 和 container。`from`/`to` 为必填 RFC3339 时间戳，窗口最多 24 小时，
+`limit` 为 1..1440。响应按采集时间稳定返回真实稀疏点，并显式提供成功、部分、
+不可用、超时、失败、缺样本和截断信息；缺样本不会补零。所有平台身份均须先鉴权，
+接口不接受任意标签、聚合、selector、GVK 或 PromQL。详见 ADR 0036。
 
 主动改密请求为 `{"current_password":"...","new_password":"..."}`。新密码要求 12–128 字符且不能与当前密码相同。服务端先校验当前 bcrypt 摘要，再以旧摘要作为 compare-and-swap 条件提交更新，避免并发管理员重置后被旧操作覆盖。成功响应为 204，同时递增 `auth_version`、撤销全部刷新会话并清除当前 Cookie；当前访问令牌在下一请求立即失效，前端返回登录页。错误码包括 `CURRENT_PASSWORD_INVALID`、`PASSWORD_UNCHANGED` 与 `INVALID_NEW_PASSWORD`。审计操作为 `auth.password.change`，不记录请求体。
 

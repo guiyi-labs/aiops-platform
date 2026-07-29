@@ -1,7 +1,7 @@
 # Product Optimization Roadmap
 
-- Updated: 2026-07-28
-- Baseline: M21 Phase 2 accepted at `62ed5a4d94622787e516a12502ef51e78b47479a`; hosted CI run `30369559322`; Phase 1, M21-M26 reprioritization and M20 Phase 12 remain accepted and archived; private remote remains active
+- Updated: 2026-07-29
+- Baseline: M21 Phase 2 accepted at `62ed5a4d94622787e516a12502ef51e78b47479a`; hosted CI run `30369559322`; Phase 3 has passed local acceptance and awaits its implementation revision and hosted CI; Phase 1, M21-M26 reprioritization and M20 Phase 12 remain accepted and archived; private remote remains active
 - Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
 
 ## Release Prerequisite
@@ -143,8 +143,9 @@ parity targets.
 
 ## M21: Historical Observability And Alert Evidence
 
-- Status: In progress. Phases 1 and 2 are accepted locally and in hosted CI on
-  2026-07-28; exact-series query and consumer work continues in Phase 3.
+- Status: In progress. Phases 1 and 2 are accepted locally and in hosted CI;
+  Phase 3 authenticated exact-series history passed local acceptance on
+  2026-07-29 and awaits its implementation revision and hosted CI.
 - Phase 1 adds ADR 0034, migration 17 and a PostgreSQL-backed exact-series
   domain contract with seven-day default retention, 1,800-sample collection,
   24-hour query, 1,440-point and batch-cleanup caps. Missing samples remain
@@ -153,6 +154,9 @@ parity targets.
   stable ID ordering, 20-cluster/four-way concurrency defaults, per-cluster
   timeout, official Kubernetes quantity conversion, six stable failure codes,
   fair Node/Pod cap allocation and deterministic bounded cleanup scheduling.
+- Phase 3 adds ADR 0036 and an authenticated exact-series HTTP contract with
+  strict Node/Pod shape, explicit RFC3339 window, sparse coverage, stable
+  errors, OpenAPI parity and PostgreSQL restart/isolation E2E.
 - Retain Node/Pod CPU and memory samples with explicit source timestamp,
   collection result, coverage and expiry; clean expired data deterministically.
 - Add trend views and deterministic sustained-window evaluation linked to the

@@ -15,28 +15,30 @@ import (
 	"k8s-aiops.local/backend/internal/fleet"
 	"k8s-aiops.local/backend/internal/globalsearch"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
 
 type Options struct {
-	Probe         readinessProbe
-	Auth          *auth.Service
-	Clusters      *cluster.Service
-	Kubernetes    *k8sgateway.Service
-	Diagnosis     *diagnosis.Service
-	Audit         *audit.Service
-	AIExplanation *aiexplain.Service
-	SecureCookies bool
-	RefreshTTL    time.Duration
-	Version       string
-	Metrics       *Metrics
-	Notifications *notification.Service
-	Remediation   *remediation.Service
-	Fleet         *fleet.Service
-	GlobalSearch  *globalsearch.Service
-	SavedFilters  *globalsearch.SavedFilterService
+	Probe          readinessProbe
+	Auth           *auth.Service
+	Clusters       *cluster.Service
+	Kubernetes     *k8sgateway.Service
+	Diagnosis      *diagnosis.Service
+	Audit          *audit.Service
+	AIExplanation  *aiexplain.Service
+	SecureCookies  bool
+	RefreshTTL     time.Duration
+	Version        string
+	Metrics        *Metrics
+	Notifications  *notification.Service
+	Remediation    *remediation.Service
+	Fleet          *fleet.Service
+	GlobalSearch   *globalsearch.Service
+	SavedFilters   *globalsearch.SavedFilterService
+	MetricsHistory *metricshistory.Service
 }
 
 func New(logger *zap.Logger, options Options) http.Handler {
@@ -66,6 +68,10 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		v1.GET("/health/live", health.live)
 		v1.GET("/health/ready", health.ready)
 		if options.Auth != nil {
+			if options.MetricsHistory != nil {
+				historyAPI := metricsHistoryHandler{service: options.MetricsHistory}
+				v1.GET("/clusters/:cluster_id/metrics/history", withAuthentication(options.Auth), withClusterContext(), historyAPI.series)
+			}
 			if options.Fleet != nil {
 				fleetAPI := fleetHandler{service: options.Fleet}
 				v1.GET("/fleet/health", withAuthentication(options.Auth), fleetAPI.health)

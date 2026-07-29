@@ -53,6 +53,9 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"backend/internal/metricshistory/quantity.go": {
 			"resource.ParseQuantity", "resource.Nano", "maximumMemoryQuantity",
 		},
+		"backend/internal/httpserver/metrics_history.go": {
+			"resource_kind", "requiredHistoryTime", "METRICS_HISTORY_QUERY_FAILED", "CLUSTER_NOT_FOUND",
+		},
 		".env.example": {"CREDENTIAL_DECRYPTION_KEYS={}"},
 		"docs/adr/0030-controlled-application-credential-key-reencryption.md": {
 			"defaults to dry-run", "FOR UPDATE SKIP LOCKED", "at most eight", "does not introduce envelope encryption",
@@ -108,6 +111,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"docs/changes/2026-07-28-m21-bounded-background-metrics-collector.md": {
 			"M21 Phase 2", "Go 1.25.12", "1,800-point cap", "stable failure codes",
 		},
+		"docs/adr/0036-authenticated-exact-series-metrics-history.md": {
+			"24-hour", "1,440", "Missing collections never become", "METRICS_HISTORY_QUERY_FAILED",
+		},
+		"docs/changes/2026-07-29-m21-authenticated-exact-series-history-api.md": {
+			"M21 Phase 3", "/api/v1/clusters/{cluster_id}/metrics/history", "restart durability", "one sparse gap",
+		},
 		"scripts/e2e-kind.ps1": {
 			"kubectl create token", "/api/v1/clusters", "/diagnoses",
 			"remediations/preview", "operations/preview", "deployment.scale",
@@ -145,9 +154,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"scripts/e2e-postgres-backup-restore.ps1": {
 			"aiops.logical-restore-evidence/v1", "source_destroyed_before_restore", ".artifacts\\postgres-recovery", "finally",
 		},
+		"scripts/e2e-metrics-history.ps1": {
+			"cross_cluster_isolation", "exact_series_isolation", "restart_durability", ".artifacts\\metrics-history-e2e", "cleanup_complete",
+		},
 		".github/workflows/ci.yml": {
 			"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
-			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
+			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "e2e-metrics-history.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
 			"v*.*.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",

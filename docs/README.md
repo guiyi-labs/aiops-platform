@@ -21,6 +21,7 @@
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-07-29-m21-authenticated-exact-series-history-api.md`：M21 第三阶段鉴权精确序列历史 API、稀疏覆盖、查询隔离和重启持久性验证。
 - `docs/changes/2026-07-28-m21-bounded-background-metrics-collector.md`：M21 第二阶段已启用集群后台采集、Quantity 标准化、并发/超时隔离、稳定失败码与定时清理。
 - `docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md`：M21 第一阶段 PostgreSQL 历史指标合同、采集覆盖、稀疏缺样本语义、容量上限和有界清理。
 - `docs/changes/2026-07-28-product-roadmap-reprioritization.md`：基于 KRM/Ratel 对比关闭 M20，并重排 M21-M26 历史可观测、日常排障、发布回滚、跨集群发布、备份与组织集成路线。
@@ -59,6 +60,8 @@
 - `.artifacts/verification/verify-20260728-153059.json`：M20 Phase 10 后端全包与三个二进制、前端、镜像、Compose、Kustomize 和 HTTP 完整本地门禁证据。
 - [hosted CI run 30340088789](https://github.com/guiyi-labs/aiops-platform/actions/runs/30340088789)：M20 Phase 10 四个 job、三项隔离数据库演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。
 - [hosted CI run 30345051371](https://github.com/guiyi-labs/aiops-platform/actions/runs/30345051371)：M20 Phase 11 四个 job、无网络身份就绪门禁、三项隔离数据库演练、随机 Compose、HTTP、脱敏上传和 teardown 通过记录。
+- `.artifacts/metrics-history-e2e/metrics-history-e2e-20260729-081759.json`：M21 Phase 3 真实 PostgreSQL 精确序列隔离、稀疏覆盖、重启持久性与清理证据。
+- `.artifacts/verification/verify-20260729-082024.json`：M21 Phase 3 后端、前端、镜像、Compose、Kustomize 与 HTTP 完整本地门禁证据。
 - `.artifacts/verification/verify-20260728-141111.json`：M20 Phase 9 后端、前端、镜像、Compose、Kustomize 与 HTTP 完整本地门禁证据。
 - [hosted CI run 30334216631](https://github.com/guiyi-labs/aiops-platform/actions/runs/30334216631)：M20 Phase 9 四个托管 CI job、两项隔离 PostgreSQL 演练、脱敏上传和 teardown 通过记录。
 - `.artifacts/verification/verify-20260728-100752.json`：M20 Phase 6 CI/release 流水线最终全量机器验证证据。

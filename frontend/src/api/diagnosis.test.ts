@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService, executeRemediation, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisSummary, listControlledOperations, listDiagnosisExplanations, listRemediationPlans, previewControlledOperation, previewRemediation, transitionDiagnosis } from './diagnosis'
+import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService, executeRemediation, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisSummary, getRolloutHistory, getRolloutStatus, listControlledOperations, listDiagnosisExplanations, listRemediationPlans, previewControlledOperation, previewRemediation, transitionDiagnosis } from './diagnosis'
 
 describe('diagnosis API', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -132,10 +132,27 @@ describe('diagnosis API', () => {
     await previewControlledOperation('token', 7, { action: 'deployment.scale', namespace: 'demo', target_name: 'api', desired_replicas: 3 })
     await previewControlledOperation('token', 7, { action: 'cronjob.suspend', namespace: 'demo', target_name: 'cleanup' })
     await previewControlledOperation('token', 7, { action: 'cronjob.resume', namespace: 'demo', target_name: 'cleanup' })
+    await previewControlledOperation('token', 7, { action: 'deployment.image_update', namespace: 'demo', target_name: 'api', container_name: 'app', desired_image: 'nginx:1.27.1' })
+    await previewControlledOperation('token', 7, { action: 'deployment.rollback', namespace: 'demo', target_name: 'api', rollback_revision: 1 })
     await listControlledOperations('token', 7, 'demo', 'CronJob', 'cleanup')
     expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/clusters/7/operations/preview', expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'deployment.scale', namespace: 'demo', target_name: 'api', desired_replicas: 3 }) }))
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/clusters/7/operations/preview', expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'cronjob.suspend', namespace: 'demo', target_name: 'cleanup' }) }))
     expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/v1/clusters/7/operations/preview', expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'cronjob.resume', namespace: 'demo', target_name: 'cleanup' }) }))
-    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/v1/clusters/7/operations?namespace=demo&target_kind=CronJob&target_name=cleanup', expect.any(Object))
+    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/v1/clusters/7/operations/preview', expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'deployment.image_update', namespace: 'demo', target_name: 'api', container_name: 'app', desired_image: 'nginx:1.27.1' }) }))
+    expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/v1/clusters/7/operations/preview', expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'deployment.rollback', namespace: 'demo', target_name: 'api', rollback_revision: 1 }) }))
+    expect(fetchMock).toHaveBeenNthCalledWith(6, '/api/v1/clusters/7/operations?namespace=demo&target_kind=CronJob&target_name=cleanup', expect.any(Object))
+  })
+
+  it('reads rollout history and status for a deployment', async () => {
+    const history = { deployment: 'api', namespace: 'demo', current_revision: 2, revisions: [{ revision: 2, replicaset_name: 'api-new', uid: 'rs-2', resource_version: '20', created_at: '', replicas: 3, ready_replicas: 3, available_replicas: 3, images: ['nginx:1.27.1'], current: true }] }
+    const status = { deployment: 'api', namespace: 'demo', current_revision: 2, desired_replicas: 3, updated_replicas: 3, ready_replicas: 3, available_replicas: 3, unavailable_replicas: 0, phase: 'complete' }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(history), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(status), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(getRolloutHistory('token', 7, 'demo', 'api')).resolves.toEqual(history)
+    await expect(getRolloutStatus('token', 7, 'demo', 'api')).resolves.toEqual(status)
+    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/clusters/7/deployments/demo/api/rollout/history', expect.any(Object))
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/clusters/7/deployments/demo/api/rollout/status', expect.any(Object))
   })
 })

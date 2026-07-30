@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
 	"k8s-aiops.local/backend/internal/apiquery"
@@ -15,7 +16,9 @@ import (
 
 var (
 	ErrResourceNotFound      = errors.New("Kubernetes resource not found")
+	ErrResourceConflict      = errors.New("Kubernetes resource already exists")
 	ErrMetricsAPIUnavailable = errors.New("Kubernetes Metrics API is unavailable")
+	ErrVeleroUnavailable     = errors.New("Velero API is not installed")
 )
 
 type CredentialSource interface {
@@ -26,6 +29,9 @@ type Gateway interface {
 }
 type PatchGateway interface {
 	Patch(context.Context, int64, []byte, string, url.Values, string, []byte, int64) ([]byte, error)
+}
+type CreateGateway interface {
+	Create(context.Context, int64, []byte, string, url.Values, string, []byte, int64) ([]byte, error)
 }
 
 type Service struct {
@@ -45,6 +51,15 @@ type ObjectMeta struct {
 	Labels            map[string]string `json:"labels,omitempty"`
 	Annotations       map[string]string `json:"annotations,omitempty"`
 	ResourceVersion   string            `json:"resourceVersion,omitempty"`
+	OwnerReferences   []OwnerReference  `json:"ownerReferences,omitempty"`
+}
+
+type OwnerReference struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	UID        string `json:"uid"`
+	Controller *bool  `json:"controller,omitempty"`
 }
 
 type Namespace struct {
@@ -121,11 +136,12 @@ type Deployment struct {
 		} `json:"template"`
 	} `json:"spec"`
 	Status struct {
-		Replicas            int32 `json:"replicas"`
-		ReadyReplicas       int32 `json:"readyReplicas"`
-		AvailableReplicas   int32 `json:"availableReplicas"`
-		UpdatedReplicas     int32 `json:"updatedReplicas"`
-		UnavailableReplicas int32 `json:"unavailableReplicas"`
+		Replicas            int32               `json:"replicas"`
+		ReadyReplicas       int32               `json:"readyReplicas"`
+		AvailableReplicas   int32               `json:"availableReplicas"`
+		UpdatedReplicas     int32               `json:"updatedReplicas"`
+		UnavailableReplicas int32               `json:"unavailableReplicas"`
+		Conditions          []WorkloadCondition `json:"conditions,omitempty"`
 	} `json:"status"`
 }
 
@@ -146,6 +162,18 @@ type WorkloadTemplate struct {
 	Spec struct {
 		Containers []WorkloadContainer `json:"containers"`
 	} `json:"spec"`
+	Raw json.RawMessage `json:"-"`
+}
+
+func (template *WorkloadTemplate) UnmarshalJSON(data []byte) error {
+	type workloadTemplateAlias WorkloadTemplate
+	var decoded workloadTemplateAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*template = WorkloadTemplate(decoded)
+	template.Raw = append(template.Raw[:0], data...)
+	return nil
 }
 
 type StatefulSet struct {
@@ -363,6 +391,160 @@ func (s *Service) Deployment(ctx context.Context, clusterID int64, namespace, na
 	return item, err
 }
 
+type RolloutRevision struct {
+	Revision          int32    `json:"revision"`
+	ReplicaSetName    string   `json:"replicaset_name"`
+	UID               string   `json:"uid"`
+	ResourceVersion   string   `json:"resource_version"`
+	CreatedAt         string   `json:"created_at"`
+	Replicas          int32    `json:"replicas"`
+	ReadyReplicas     int32    `json:"ready_replicas"`
+	AvailableReplicas int32    `json:"available_replicas"`
+	Images            []string `json:"images"`
+	Current           bool     `json:"current"`
+}
+
+type RolloutHistory struct {
+	Deployment      string            `json:"deployment"`
+	Namespace       string            `json:"namespace"`
+	CurrentRevision int32             `json:"current_revision"`
+	Revisions       []RolloutRevision `json:"revisions"`
+}
+
+type RolloutStatus struct {
+	Deployment          string              `json:"deployment"`
+	Namespace           string              `json:"namespace"`
+	CurrentRevision     int32               `json:"current_revision"`
+	DesiredReplicas     int32               `json:"desired_replicas"`
+	UpdatedReplicas     int32               `json:"updated_replicas"`
+	ReadyReplicas       int32               `json:"ready_replicas"`
+	AvailableReplicas   int32               `json:"available_replicas"`
+	UnavailableReplicas int32               `json:"unavailable_replicas"`
+	Phase               string              `json:"phase"`
+	Reason              string              `json:"reason,omitempty"`
+	Message             string              `json:"message,omitempty"`
+	Conditions          []WorkloadCondition `json:"conditions,omitempty"`
+}
+
+const deploymentRevisionAnnotation = "deployment.kubernetes.io/revision"
+
+func (s *Service) ReplicaSetsByOwner(ctx context.Context, clusterID int64, namespace, ownerUID string) ([]ReplicaSet, error) {
+	path := namespacedListPath("/apis/apps/v1", namespace, "replicasets")
+	var envelope listEnvelope[ReplicaSet]
+	if err := s.getJSON(ctx, clusterID, path, nil, &envelope); err != nil {
+		return nil, err
+	}
+	owned := make([]ReplicaSet, 0, len(envelope.Items))
+	for _, item := range envelope.Items {
+		for _, owner := range item.Metadata.OwnerReferences {
+			if owner.UID == ownerUID && owner.Kind == "Deployment" {
+				owned = append(owned, item)
+				break
+			}
+		}
+	}
+	return owned, nil
+}
+
+func (s *Service) RolloutHistory(ctx context.Context, clusterID int64, namespace, name string) (RolloutHistory, error) {
+	deployment, err := s.Deployment(ctx, clusterID, namespace, name)
+	if err != nil {
+		return RolloutHistory{}, err
+	}
+	if deployment.Metadata.UID == "" {
+		return RolloutHistory{}, ErrResourceNotFound
+	}
+	currentRevision := parseRevision(deployment.Metadata.Annotations[deploymentRevisionAnnotation])
+	replicaSets, err := s.ReplicaSetsByOwner(ctx, clusterID, namespace, deployment.Metadata.UID)
+	if err != nil {
+		return RolloutHistory{}, err
+	}
+	revisions := make([]RolloutRevision, 0, len(replicaSets))
+	for _, rs := range replicaSets {
+		revision := parseRevision(rs.Metadata.Annotations[deploymentRevisionAnnotation])
+		if revision == 0 {
+			continue
+		}
+		images := make([]string, 0, len(rs.Spec.Template.Spec.Containers))
+		for _, container := range rs.Spec.Template.Spec.Containers {
+			images = append(images, container.Image)
+		}
+		revisions = append(revisions, RolloutRevision{
+			Revision:          revision,
+			ReplicaSetName:    rs.Metadata.Name,
+			UID:               rs.Metadata.UID,
+			ResourceVersion:   rs.Metadata.ResourceVersion,
+			CreatedAt:         rs.Metadata.CreationTimestamp,
+			Replicas:          rs.Status.Replicas,
+			ReadyReplicas:     rs.Status.ReadyReplicas,
+			AvailableReplicas: rs.Status.AvailableReplicas,
+			Images:            images,
+			Current:           revision == currentRevision,
+		})
+	}
+	sort.SliceStable(revisions, func(i, j int) bool { return revisions[i].Revision < revisions[j].Revision })
+	return RolloutHistory{Deployment: name, Namespace: namespace, CurrentRevision: currentRevision, Revisions: revisions}, nil
+}
+
+func (s *Service) RolloutStatus(ctx context.Context, clusterID int64, namespace, name string) (RolloutStatus, error) {
+	deployment, err := s.Deployment(ctx, clusterID, namespace, name)
+	if err != nil {
+		return RolloutStatus{}, err
+	}
+	if deployment.Metadata.UID == "" {
+		return RolloutStatus{}, ErrResourceNotFound
+	}
+	desired := int32(1)
+	if deployment.Spec.Replicas != nil {
+		desired = *deployment.Spec.Replicas
+	}
+	currentRevision := parseRevision(deployment.Metadata.Annotations[deploymentRevisionAnnotation])
+	status := RolloutStatus{
+		Deployment:          name,
+		Namespace:           namespace,
+		CurrentRevision:     currentRevision,
+		DesiredReplicas:     desired,
+		UpdatedReplicas:     deployment.Status.UpdatedReplicas,
+		ReadyReplicas:       deployment.Status.ReadyReplicas,
+		AvailableReplicas:   deployment.Status.AvailableReplicas,
+		UnavailableReplicas: deployment.Status.UnavailableReplicas,
+		Conditions:          deployment.Status.Conditions,
+	}
+	status.Phase, status.Reason, status.Message = deriveRolloutPhase(deployment.Status.Conditions, deployment.Status.UpdatedReplicas, deployment.Status.UnavailableReplicas, deployment.Status.ReadyReplicas, deployment.Status.AvailableReplicas, desired)
+	if status.Conditions == nil {
+		status.Conditions = []WorkloadCondition{}
+	}
+	return status, nil
+}
+
+func deriveRolloutPhase(conditions []WorkloadCondition, updated, unavailable, ready, available, desired int32) (phase, reason, message string) {
+	for _, condition := range conditions {
+		if condition.Type == "Progressing" && condition.Status == "False" && condition.Reason != "NewReplicaSetCreated" {
+			return "failed", condition.Reason, condition.Message
+		}
+	}
+	if updated < desired || unavailable > 0 {
+		for _, condition := range conditions {
+			if condition.Type == "Progressing" {
+				return "progressing", condition.Reason, condition.Message
+			}
+		}
+		return "progressing", "", ""
+	}
+	if ready >= desired && available >= desired {
+		return "complete", "", ""
+	}
+	return "progressing", "", ""
+}
+
+func parseRevision(value string) int32 {
+	n, err := strconv.ParseInt(value, 10, 32)
+	if err != nil {
+		return 0
+	}
+	return int32(n)
+}
+
 func (s *Service) Node(ctx context.Context, clusterID int64, name string) (Node, error) {
 	var item Node
 	err := s.getJSON(ctx, clusterID, "/api/v1/nodes/"+url.PathEscape(name), nil, &item)
@@ -502,6 +684,58 @@ type StorageClass struct {
 	AllowVolumeExpansion *bool      `json:"allowVolumeExpansion,omitempty"`
 }
 
+type PersistentVolume struct {
+	Metadata ObjectMeta `json:"metadata"`
+	Spec     struct {
+		Capacity                      map[string]string `json:"capacity,omitempty"`
+		AccessModes                   []string          `json:"accessModes,omitempty"`
+		PersistentVolumeReclaimPolicy string            `json:"persistentVolumeReclaimPolicy,omitempty"`
+		StorageClassName              string            `json:"storageClassName,omitempty"`
+		VolumeMode                    string            `json:"volumeMode,omitempty"`
+		ClaimRef                      *struct {
+			Namespace string `json:"namespace"`
+			Name      string `json:"name"`
+		} `json:"claimRef,omitempty"`
+	} `json:"spec"`
+	Status struct {
+		Phase   string `json:"phase"`
+		Message string `json:"message,omitempty"`
+	} `json:"status"`
+}
+
+type PodDisruptionBudget struct {
+	Metadata ObjectMeta `json:"metadata"`
+	Spec     struct {
+		MinAvailable   interface{} `json:"minAvailable,omitempty"`
+		MaxUnavailable interface{} `json:"maxUnavailable,omitempty"`
+		Selector       interface{} `json:"selector,omitempty"`
+	} `json:"spec"`
+	Status struct {
+		CurrentHealthy     int32 `json:"currentHealthy"`
+		DesiredHealthy     int32 `json:"desiredHealthy"`
+		DisruptionsAllowed int32 `json:"disruptionsAllowed"`
+		ExpectedPods       int32 `json:"expectedPods"`
+	} `json:"status"`
+}
+
+type NetworkPolicy struct {
+	Metadata ObjectMeta `json:"metadata"`
+	Spec     struct {
+		PodSelector interface{}   `json:"podSelector,omitempty"`
+		PolicyTypes []string      `json:"policyTypes,omitempty"`
+		Ingress     []interface{} `json:"ingress,omitempty"`
+		Egress      []interface{} `json:"egress,omitempty"`
+	} `json:"spec"`
+}
+
+type ServiceAccount struct {
+	Metadata                     ObjectMeta `json:"metadata"`
+	AutomountServiceAccountToken *bool      `json:"automountServiceAccountToken,omitempty"`
+	ImagePullSecrets             []struct {
+		Name string `json:"name"`
+	} `json:"imagePullSecrets,omitempty"`
+}
+
 type ConfigMap struct {
 	Metadata       ObjectMeta `json:"metadata"`
 	Immutable      *bool      `json:"immutable,omitempty"`
@@ -514,6 +748,73 @@ type rawConfigMap struct {
 	Immutable  *bool             `json:"immutable,omitempty"`
 	Data       map[string]string `json:"data,omitempty"`
 	BinaryData map[string]string `json:"binaryData,omitempty"`
+}
+
+// VeleroCapability reports whether the Velero API group is installed on the
+// target cluster. The platform never makes Velero a core dependency; callers
+// must check Installed before listing backups.
+type VeleroCapability struct {
+	Installed bool   `json:"installed"`
+	Version   string `json:"version,omitempty"`
+}
+
+// VeleroBackup is the bounded, read-only projection of a Velero Backup CR.
+// It carries scope (included namespaces), phase, expiry, failure details and
+// timestamps — not the full Velero spec/status.
+type VeleroBackup struct {
+	Name               string   `json:"name"`
+	Namespace          string   `json:"namespace"`
+	Phase              string   `json:"phase"`
+	IncludedNamespaces []string `json:"included_namespaces,omitempty"`
+	StorageLocation    string   `json:"storage_location,omitempty"`
+	TTL                string   `json:"ttl,omitempty"`
+	Expiration         string   `json:"expiration,omitempty"`
+	StartedAt          string   `json:"started_at,omitempty"`
+	CompletedAt        string   `json:"completed_at,omitempty"`
+	FailureReason      string   `json:"failure_reason,omitempty"`
+	Errors             int      `json:"errors"`
+	Warnings           int      `json:"warnings"`
+	CreatedAt          string   `json:"created_at"`
+}
+
+// rawVeleroBackup is the raw Velero Backup CR shape used for decoding. It is
+// not exposed to HTTP callers; VeleroBackup is the public projection.
+type rawVeleroBackup struct {
+	Metadata ObjectMeta `json:"metadata"`
+	Spec     struct {
+		IncludedNamespaces []string    `json:"includedNamespaces,omitempty"`
+		StorageLocation    string      `json:"storageLocation,omitempty"`
+		SnapshotVolumes    *bool       `json:"snapshotVolumes,omitempty"`
+		TTL                string      `json:"ttl,omitempty"`
+		LabelSelector      interface{} `json:"labelSelector,omitempty"`
+	} `json:"spec"`
+	Status struct {
+		Phase               string `json:"phase,omitempty"`
+		Expiration          string `json:"expiration,omitempty"`
+		StartTimestamp      string `json:"startTimestamp,omitempty"`
+		CompletionTimestamp string `json:"completionTimestamp,omitempty"`
+		FailureReason       string `json:"failureReason,omitempty"`
+		Errors              int    `json:"errors,omitempty"`
+		Warnings            int    `json:"warnings,omitempty"`
+	} `json:"status"`
+}
+
+func (raw rawVeleroBackup) project() VeleroBackup {
+	return VeleroBackup{
+		Name:               raw.Metadata.Name,
+		Namespace:          raw.Metadata.Namespace,
+		Phase:              raw.Status.Phase,
+		IncludedNamespaces: raw.Spec.IncludedNamespaces,
+		StorageLocation:    raw.Spec.StorageLocation,
+		TTL:                raw.Spec.TTL,
+		Expiration:         raw.Status.Expiration,
+		StartedAt:          raw.Status.StartTimestamp,
+		CompletedAt:        raw.Status.CompletionTimestamp,
+		FailureReason:      raw.Status.FailureReason,
+		Errors:             raw.Status.Errors,
+		Warnings:           raw.Status.Warnings,
+		CreatedAt:          raw.Metadata.CreationTimestamp,
+	}
 }
 
 type EndpointTargetRef struct {
@@ -598,15 +899,20 @@ type Pod struct {
 			Name  string `json:"name"`
 			Image string `json:"image"`
 		} `json:"containers"`
+		InitContainers []struct {
+			Name  string `json:"name"`
+			Image string `json:"image"`
+		} `json:"initContainers,omitempty"`
 	} `json:"spec"`
 	Status struct {
-		Phase             string            `json:"phase"`
-		PodIP             string            `json:"podIP,omitempty"`
-		HostIP            string            `json:"hostIP,omitempty"`
-		Reason            string            `json:"reason,omitempty"`
-		Message           string            `json:"message,omitempty"`
-		Conditions        []PodCondition    `json:"conditions,omitempty"`
-		ContainerStatuses []ContainerStatus `json:"containerStatuses,omitempty"`
+		Phase                 string            `json:"phase"`
+		PodIP                 string            `json:"podIP,omitempty"`
+		HostIP                string            `json:"hostIP,omitempty"`
+		Reason                string            `json:"reason,omitempty"`
+		Message               string            `json:"message,omitempty"`
+		Conditions            []PodCondition    `json:"conditions,omitempty"`
+		ContainerStatuses     []ContainerStatus `json:"containerStatuses,omitempty"`
+		InitContainerStatuses []ContainerStatus `json:"initContainerStatuses,omitempty"`
 	} `json:"status"`
 }
 type Event struct {
@@ -928,6 +1234,226 @@ func (s *Service) StorageClass(ctx context.Context, clusterID int64, name string
 	return item, err
 }
 
+func (s *Service) PersistentVolumes(ctx context.Context, clusterID int64, query apiquery.ListQuery) (apiquery.ListResponse[PersistentVolume], error) {
+	var envelope listEnvelope[PersistentVolume]
+	if err := s.getJSON(ctx, clusterID, "/api/v1/persistentvolumes", selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[PersistentVolume]{}, err
+	}
+	return pageResponse(envelope.Items, query, func(item PersistentVolume) string { return item.Metadata.Name }), nil
+}
+
+func (s *Service) PersistentVolume(ctx context.Context, clusterID int64, name string) (PersistentVolume, error) {
+	var item PersistentVolume
+	err := s.getJSON(ctx, clusterID, "/api/v1/persistentvolumes/"+url.PathEscape(name), nil, &item)
+	return item, err
+}
+
+func (s *Service) PodDisruptionBudgets(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[PodDisruptionBudget], error) {
+	path := "/apis/policy/v1/poddisruptionbudgets"
+	if namespace != "" {
+		path = "/apis/policy/v1/namespaces/" + url.PathEscape(namespace) + "/poddisruptionbudgets"
+	}
+	var envelope listEnvelope[PodDisruptionBudget]
+	if err := s.getJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[PodDisruptionBudget]{}, err
+	}
+	return pageResponse(envelope.Items, query, func(item PodDisruptionBudget) string { return item.Metadata.Name }), nil
+}
+
+func (s *Service) PodDisruptionBudget(ctx context.Context, clusterID int64, namespace, name string) (PodDisruptionBudget, error) {
+	var item PodDisruptionBudget
+	err := s.getJSON(ctx, clusterID, "/apis/policy/v1/namespaces/"+url.PathEscape(namespace)+"/poddisruptionbudgets/"+url.PathEscape(name), nil, &item)
+	return item, err
+}
+
+func (s *Service) NetworkPolicies(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[NetworkPolicy], error) {
+	path := "/networking.k8s.io/v1/networkpolicies"
+	if namespace != "" {
+		path = "/api/v1/namespaces/" + url.PathEscape(namespace) + "/networkpolicies"
+	}
+	var envelope listEnvelope[NetworkPolicy]
+	if err := s.getJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[NetworkPolicy]{}, err
+	}
+	return pageResponse(envelope.Items, query, func(item NetworkPolicy) string { return item.Metadata.Name }), nil
+}
+
+func (s *Service) NetworkPolicy(ctx context.Context, clusterID int64, namespace, name string) (NetworkPolicy, error) {
+	var item NetworkPolicy
+	err := s.getJSON(ctx, clusterID, "/api/v1/namespaces/"+url.PathEscape(namespace)+"/networkpolicies/"+url.PathEscape(name), nil, &item)
+	return item, err
+}
+
+func (s *Service) ServiceAccounts(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[ServiceAccount], error) {
+	path := "/api/v1/serviceaccounts"
+	if namespace != "" {
+		path = "/api/v1/namespaces/" + url.PathEscape(namespace) + "/serviceaccounts"
+	}
+	var envelope listEnvelope[ServiceAccount]
+	if err := s.getJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[ServiceAccount]{}, err
+	}
+	return pageResponse(envelope.Items, query, func(item ServiceAccount) string { return item.Metadata.Name }), nil
+}
+
+func (s *Service) ServiceAccount(ctx context.Context, clusterID int64, namespace, name string) (ServiceAccount, error) {
+	var item ServiceAccount
+	err := s.getJSON(ctx, clusterID, "/api/v1/namespaces/"+url.PathEscape(namespace)+"/serviceaccounts/"+url.PathEscape(name), nil, &item)
+	return item, err
+}
+
+var manifestAllowlist = map[string]bool{
+	"Pod":                   true,
+	"Deployment":            true,
+	"Service":               true,
+	"Ingress":               true,
+	"PersistentVolumeClaim": true,
+	"PersistentVolume":      true,
+	"PodDisruptionBudget":   true,
+	"NetworkPolicy":         true,
+	"ServiceAccount":        true,
+	"Role":                  true,
+	"ClusterRole":           true,
+}
+
+var manifestSensitiveFields = map[string]bool{
+	"password":      true,
+	"passwd":        true,
+	"secret":        true,
+	"token":         true,
+	"access_key":    true,
+	"secret_key":    true,
+	"private_key":   true,
+	"client_secret": true,
+	"api_key":       true,
+	"auth":          true,
+	"credential":    true,
+	"credentials":   true,
+	"kubeconfig":    true,
+}
+
+func (s *Service) Manifest(ctx context.Context, clusterID int64, kind, namespace, name string) (map[string]interface{}, error) {
+	if !manifestAllowlist[kind] {
+		return nil, ErrResourceNotFound
+	}
+	path := manifestPath(kind, namespace, name)
+	body, err := s.getRaw(ctx, clusterID, path)
+	if err != nil {
+		return nil, err
+	}
+	var raw map[string]interface{}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("decode manifest: %w", err)
+	}
+	redactManifest(raw, "")
+	return raw, nil
+}
+
+func manifestPath(kind, namespace, name string) string {
+	switch kind {
+	case "Pod":
+		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/pods/" + url.PathEscape(name)
+	case "Service":
+		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/services/" + url.PathEscape(name)
+	case "ServiceAccount":
+		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/serviceaccounts/" + url.PathEscape(name)
+	case "PersistentVolumeClaim":
+		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/persistentvolumeclaims/" + url.PathEscape(name)
+	case "PersistentVolume":
+		return "/api/v1/persistentvolumes/" + url.PathEscape(name)
+	case "PodDisruptionBudget":
+		return "/apis/policy/v1/namespaces/" + url.PathEscape(namespace) + "/poddisruptionbudgets/" + url.PathEscape(name)
+	case "NetworkPolicy":
+		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/networkpolicies/" + url.PathEscape(name)
+	case "Deployment":
+		return "/apis/apps/v1/namespaces/" + url.PathEscape(namespace) + "/deployments/" + url.PathEscape(name)
+	case "Ingress":
+		return "/apis/networking.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/ingresses/" + url.PathEscape(name)
+	case "Role":
+		return "/apis/rbac.authorization.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/roles/" + url.PathEscape(name)
+	case "ClusterRole":
+		return "/apis/rbac.authorization.k8s.io/v1/clusterroles/" + url.PathEscape(name)
+	default:
+		return ""
+	}
+}
+
+func (s *Service) getRaw(ctx context.Context, clusterID int64, path string) ([]byte, error) {
+	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	body, err := s.gateway.Get(ctx, clusterID, kubeconfig, path, nil, 10<<20)
+	if err != nil {
+		return nil, mapGatewayError(err)
+	}
+	return body, nil
+}
+
+func redactManifest(obj map[string]interface{}, prefix string) {
+	for key, value := range obj {
+		lowerKey := strings.ToLower(key)
+		if manifestSensitiveFields[lowerKey] {
+			obj[key] = "<redacted>"
+			continue
+		}
+		if key == "data" || key == "stringData" {
+			obj[key] = "<redacted>"
+			continue
+		}
+		if key == "secrets" && prefix == ".spec" {
+			obj[key] = "<redacted>"
+			continue
+		}
+		if isSensitiveValueKey(lowerKey) {
+			if hasSensitiveNameSibling(obj) {
+				obj[key] = "<redacted>"
+				continue
+			}
+		}
+		switch v := value.(type) {
+		case map[string]interface{}:
+			redactManifest(v, prefix+"."+key)
+		case []interface{}:
+			for i, item := range v {
+				if m, ok := item.(map[string]interface{}); ok {
+					redactManifest(m, prefix+"."+key+"["+strconv.Itoa(i)+"]")
+				}
+			}
+		}
+	}
+}
+
+func isSensitiveValueKey(key string) bool {
+	switch key {
+	case "value", "default", "optional", "host", "port":
+		return true
+	}
+	return false
+}
+
+func hasSensitiveNameSibling(obj map[string]interface{}) bool {
+	nameVal, ok := obj["name"]
+	if !ok {
+		return false
+	}
+	nameStr, ok := nameVal.(string)
+	if !ok {
+		return false
+	}
+	return containsSensitiveWord(nameStr)
+}
+
+func containsSensitiveWord(s string) bool {
+	lower := strings.ToLower(s)
+	for word := range manifestSensitiveFields {
+		if strings.Contains(lower, word) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Service) ConfigMaps(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[ConfigMap], error) {
 	path := "/api/v1/configmaps"
 	if namespace != "" {
@@ -1098,6 +1624,75 @@ func (s *Service) ResourceEvents(ctx context.Context, clusterID int64, namespace
 	return response.Items, err
 }
 
+type PodContainerInfo struct {
+	Name         string `json:"name"`
+	Ready        bool   `json:"ready"`
+	RestartCount int32  `json:"restart_count"`
+	State        string `json:"state"`
+	IsInit       bool   `json:"is_init"`
+	Image        string `json:"image"`
+}
+
+type PodLogLine struct {
+	Timestamp string `json:"timestamp"`
+	Message   string `json:"message"`
+}
+
+type PodContainerLog struct {
+	Container        string       `json:"container"`
+	Lines            []PodLogLine `json:"lines"`
+	Truncated        bool         `json:"truncated"`
+	TruncationReason string       `json:"truncation_reason,omitempty"`
+}
+
+type PodLogsResponse struct {
+	Containers []PodContainerLog `json:"containers"`
+	Previous   bool              `json:"previous"`
+}
+
+func (s *Service) Containers(ctx context.Context, clusterID int64, namespace, name string) ([]PodContainerInfo, error) {
+	pod, err := s.Pod(ctx, clusterID, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]PodContainerInfo, 0, len(pod.Spec.Containers)+len(pod.Spec.InitContainers))
+	for _, c := range pod.Spec.Containers {
+		info := PodContainerInfo{Name: c.Name, Image: c.Image, IsInit: false}
+		for _, cs := range pod.Status.ContainerStatuses {
+			if cs.Name == c.Name {
+				info.Ready = cs.Ready
+				info.RestartCount = cs.RestartCount
+				info.State = containerStateLabel(cs.State)
+				break
+			}
+		}
+		result = append(result, info)
+	}
+	for _, c := range pod.Spec.InitContainers {
+		info := PodContainerInfo{Name: c.Name, Image: c.Image, IsInit: true}
+		for _, cs := range pod.Status.InitContainerStatuses {
+			if cs.Name == c.Name {
+				info.Ready = cs.Ready
+				info.RestartCount = cs.RestartCount
+				info.State = containerStateLabel(cs.State)
+				break
+			}
+		}
+		result = append(result, info)
+	}
+	return result, nil
+}
+
+func containerStateLabel(state ContainerState) string {
+	if state.Waiting != nil {
+		return "waiting"
+	}
+	if state.Terminated != nil {
+		return "terminated"
+	}
+	return "running"
+}
+
 func (s *Service) Logs(ctx context.Context, clusterID int64, namespace, name, container string, previous bool, tailLines int) (string, error) {
 	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
 	if err != nil {
@@ -1112,6 +1707,83 @@ func (s *Service) Logs(ctx context.Context, clusterID int64, namespace, name, co
 	}
 	body, err := s.gateway.Get(ctx, clusterID, kubeconfig, "/api/v1/namespaces/"+url.PathEscape(namespace)+"/pods/"+url.PathEscape(name)+"/log", query, 1<<20)
 	return string(body), mapGatewayError(err)
+}
+
+func (s *Service) LogsSince(ctx context.Context, clusterID int64, namespace, name, container string, previous bool, tailLines int, sinceSeconds int, sinceTime string) (PodContainerLog, error) {
+	if sinceSeconds > 0 && strings.TrimSpace(sinceTime) != "" {
+		return PodContainerLog{}, errors.New("sinceSeconds and sinceTime are mutually exclusive")
+	}
+	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
+	if err != nil {
+		return PodContainerLog{}, err
+	}
+	query := url.Values{"tailLines": {fmt.Sprintf("%d", tailLines)}, "timestamps": {"true"}}
+	if container != "" {
+		query.Set("container", container)
+	}
+	if previous {
+		query.Set("previous", "true")
+	}
+	if sinceSeconds > 0 {
+		query.Set("sinceSeconds", fmt.Sprintf("%d", sinceSeconds))
+	} else if sinceTime != "" {
+		query.Set("sinceTime", sinceTime)
+	}
+	body, err := s.gateway.Get(ctx, clusterID, kubeconfig, "/api/v1/namespaces/"+url.PathEscape(namespace)+"/pods/"+url.PathEscape(name)+"/log", query, 1<<20)
+	if err != nil {
+		return PodContainerLog{}, mapGatewayError(err)
+	}
+	lines := parseLogLines(string(body))
+	truncated := len(body) >= 1<<20-1
+	reason := ""
+	if truncated {
+		reason = "body_limit"
+	}
+	return PodContainerLog{
+		Container:        container,
+		Lines:            lines,
+		Truncated:        truncated,
+		TruncationReason: reason,
+	}, nil
+}
+
+func parseLogLines(raw string) []PodLogLine {
+	if raw == "" {
+		return nil
+	}
+	segments := strings.Split(strings.TrimSuffix(raw, "\n"), "\n")
+	lines := make([]PodLogLine, 0, len(segments))
+	for _, seg := range segments {
+		seg = strings.TrimSpace(seg)
+		if seg == "" {
+			continue
+		}
+		idx := strings.Index(seg, " ")
+		if idx > 0 && seg[0] >= '0' && seg[0] <= '9' {
+			lines = append(lines, PodLogLine{Timestamp: seg[:idx], Message: seg[idx+1:]})
+		} else {
+			lines = append(lines, PodLogLine{Timestamp: "", Message: seg})
+		}
+	}
+	return lines
+}
+
+func (s *Service) AllContainerLogs(ctx context.Context, clusterID int64, namespace, name string, previous bool, tailLines int, sinceSeconds int) (PodLogsResponse, error) {
+	containers, err := s.Containers(ctx, clusterID, namespace, name)
+	if err != nil {
+		return PodLogsResponse{}, err
+	}
+	result := PodLogsResponse{Previous: previous}
+	for _, c := range containers {
+		log, err := s.LogsSince(ctx, clusterID, namespace, name, c.Name, previous, tailLines, sinceSeconds, "")
+		if err != nil {
+			log.Container = c.Name
+			log.Truncated = true
+			log.TruncationReason = "fetch_error"
+		}
+		result.Containers = append(result.Containers, log)
+	}
+	return result, nil
 }
 
 func (s *Service) getJSON(ctx context.Context, clusterID int64, path string, query url.Values, target any) error {
@@ -1145,10 +1817,205 @@ func (s *Service) metricsJSON(ctx context.Context, clusterID int64, path string,
 	return ErrResourceNotFound
 }
 
+// veleroJSON mirrors metricsJSON: on a 404 for the resource path, it probes the
+// Velero API group root. If the group root also 404s, Velero is not installed;
+// otherwise the resource itself is missing.
+func (s *Service) veleroJSON(ctx context.Context, clusterID int64, path string, query url.Values, target any) error {
+	err := s.getJSON(ctx, clusterID, path, query, target)
+	if !errors.Is(err, ErrResourceNotFound) {
+		return err
+	}
+	var discovery struct{}
+	discoveryErr := s.getJSON(ctx, clusterID, "/apis/velero.io/v1", nil, &discovery)
+	if errors.Is(discoveryErr, ErrResourceNotFound) {
+		return ErrVeleroUnavailable
+	}
+	if discoveryErr != nil {
+		return discoveryErr
+	}
+	return ErrResourceNotFound
+}
+
 func mapGatewayError(err error) error {
 	var status cluster.APIStatusError
 	if errors.As(err, &status) && status.StatusCode == 404 {
 		return ErrResourceNotFound
+	}
+	return err
+}
+
+// CreateResource posts a new resource to the Kubernetes API. The body must be a
+// complete JSON manifest. When dryRun is true the server validates admission
+// without persisting. The path selects the collection, e.g.
+// "/apis/apps/v1/namespaces/<ns>/deployments".
+func (s *Service) CreateResource(ctx context.Context, clusterID int64, path string, body []byte, dryRun bool) ([]byte, error) {
+	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	createGateway, ok := s.gateway.(CreateGateway)
+	if !ok {
+		return nil, errors.New("Kubernetes create gateway is unavailable")
+	}
+	query := url.Values{}
+	if dryRun {
+		query.Set("dryRun", "All")
+	}
+	response, err := createGateway.Create(ctx, clusterID, kubeconfig, path, query, "application/json", body, 10<<20)
+	if err != nil {
+		return nil, mapCreateGatewayError(err)
+	}
+	return response, nil
+}
+
+// RawManifest returns the unredacted JSON manifest for a resource. It is
+// intended for internal promotion use only; the HTTP-facing manifest endpoint
+// applies redaction. The kind must be one of the promotion-allowlisted kinds.
+func (s *Service) RawManifest(ctx context.Context, clusterID int64, kind, namespace, name string) (json.RawMessage, error) {
+	if !validPromotionKind(kind) {
+		return nil, fmt.Errorf("unsupported promotion kind %q", kind)
+	}
+	path, err := promotionPath(kind, namespace, name)
+	if err != nil {
+		return nil, err
+	}
+	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
+	if err != nil {
+		return nil, err
+	}
+	body, err := s.gateway.Get(ctx, clusterID, kubeconfig, path, nil, 4<<20)
+	if err != nil {
+		return nil, mapGatewayError(err)
+	}
+	return json.RawMessage(body), nil
+}
+
+// ResourceExists reports whether a resource at the given path exists. A 404
+// returns (false, nil); any other non-2xx returns an error.
+func (s *Service) ResourceExists(ctx context.Context, clusterID int64, path string) (bool, error) {
+	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
+	if err != nil {
+		return false, err
+	}
+	if _, err := s.gateway.Get(ctx, clusterID, kubeconfig, path, nil, 1<<20); err != nil {
+		var status cluster.APIStatusError
+		if errors.As(err, &status) && status.StatusCode == 404 {
+			return false, nil
+		}
+		return false, mapGatewayError(err)
+	}
+	return true, nil
+}
+
+// NamespaceExists reports whether the Namespace exists on the target cluster.
+func (s *Service) NamespaceExists(ctx context.Context, clusterID int64, namespace string) (bool, error) {
+	return s.ResourceExists(ctx, clusterID, "/api/v1/namespaces/"+url.PathEscape(namespace))
+}
+
+// ConfigMapExists reports whether the ConfigMap exists on the target cluster.
+func (s *Service) ConfigMapExists(ctx context.Context, clusterID int64, namespace, name string) (bool, error) {
+	return s.ResourceExists(ctx, clusterID, "/api/v1/namespaces/"+url.PathEscape(namespace)+"/configmaps/"+url.PathEscape(name))
+}
+
+// SecretExists reports whether the Secret exists on the target cluster. The
+// observer Role grants Secret metadata reads; values are never fetched.
+func (s *Service) SecretExists(ctx context.Context, clusterID int64, namespace, name string) (bool, error) {
+	return s.ResourceExists(ctx, clusterID, "/api/v1/namespaces/"+url.PathEscape(namespace)+"/secrets/"+url.PathEscape(name))
+}
+
+// VeleroCapability probes the Velero API group on the target cluster. A 404
+// for /apis/velero.io/v1 means Velero is not installed; the method returns
+// {Installed: false} without error. Any other probe failure is propagated.
+func (s *Service) VeleroCapability(ctx context.Context, clusterID int64) (VeleroCapability, error) {
+	var discovery struct {
+		GroupVersion string `json:"groupVersion"`
+		Kind         string `json:"kind"`
+	}
+	err := s.getJSON(ctx, clusterID, "/apis/velero.io/v1", nil, &discovery)
+	if errors.Is(err, ErrResourceNotFound) {
+		return VeleroCapability{Installed: false}, nil
+	}
+	if err != nil {
+		return VeleroCapability{}, err
+	}
+	return VeleroCapability{Installed: true, Version: "v1"}, nil
+}
+
+// Backups lists Velero Backup CRs on the target cluster. When namespace is
+// empty, backups across all namespaces are returned. If the Velero API group
+// is not installed, the method returns ErrVeleroUnavailable.
+func (s *Service) Backups(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[VeleroBackup], error) {
+	path := "/apis/velero.io/v1/backups"
+	if namespace != "" {
+		path = "/apis/velero.io/v1/namespaces/" + url.PathEscape(namespace) + "/backups"
+	}
+	var envelope listEnvelope[rawVeleroBackup]
+	if err := s.veleroJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[VeleroBackup]{}, err
+	}
+	projected := make([]VeleroBackup, 0, len(envelope.Items))
+	for _, raw := range envelope.Items {
+		projected = append(projected, raw.project())
+	}
+	return pageResponse(projected, query, func(item VeleroBackup) string { return item.Name }), nil
+}
+
+// Backup reads a single Velero Backup CR by namespace and name. If the Velero
+// API group is not installed, the method returns ErrVeleroUnavailable.
+func (s *Service) Backup(ctx context.Context, clusterID int64, namespace, name string) (VeleroBackup, error) {
+	var raw rawVeleroBackup
+	path := "/apis/velero.io/v1/namespaces/" + url.PathEscape(namespace) + "/backups/" + url.PathEscape(name)
+	if err := s.veleroJSON(ctx, clusterID, path, nil, &raw); err != nil {
+		return VeleroBackup{}, err
+	}
+	return raw.project(), nil
+}
+
+func validPromotionKind(kind string) bool {
+	switch kind {
+	case "Deployment", "Service", "Ingress":
+		return true
+	}
+	return false
+}
+
+// promotionPath returns the Kubernetes API path for reading a promotion-allowlisted
+// resource. It mirrors the GET paths used by the typed readers.
+func promotionPath(kind, namespace, name string) (string, error) {
+	switch kind {
+	case "Deployment":
+		return "/apis/apps/v1/namespaces/" + url.PathEscape(namespace) + "/deployments/" + url.PathEscape(name), nil
+	case "Service":
+		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/services/" + url.PathEscape(name), nil
+	case "Ingress":
+		return "/apis/networking.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/ingresses/" + url.PathEscape(name), nil
+	}
+	return "", fmt.Errorf("unsupported promotion kind %q", kind)
+}
+
+// promotionCreatePath returns the Kubernetes API collection path for creating a
+// promotion-allowlisted resource in a namespace.
+func promotionCreatePath(kind, namespace string) (string, error) {
+	switch kind {
+	case "Deployment":
+		return "/apis/apps/v1/namespaces/" + url.PathEscape(namespace) + "/deployments", nil
+	case "Service":
+		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/services", nil
+	case "Ingress":
+		return "/apis/networking.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/ingresses", nil
+	}
+	return "", fmt.Errorf("unsupported promotion kind %q", kind)
+}
+
+func mapCreateGatewayError(err error) error {
+	var status cluster.APIStatusError
+	if errors.As(err, &status) {
+		switch status.StatusCode {
+		case 404:
+			return ErrResourceNotFound
+		case 409:
+			return ErrResourceConflict
+		}
 	}
 	return err
 }

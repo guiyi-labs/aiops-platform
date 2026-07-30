@@ -28,6 +28,11 @@ const router = createRouter({
       component: () => import('../views/WorkloadsView.vue'),
     },
     {
+      path: '/clusters/:clusterId/resources/:kind/:namespace/:name',
+      name: 'resource-detail',
+      component: () => import('../views/ResourceDetailView.vue'),
+    },
+    {
       path: '/search',
       name: 'global-search',
       component: () => import('../views/GlobalSearchView.vue'),
@@ -46,6 +51,17 @@ const router = createRouter({
       path: '/diagnoses',
       name: 'diagnoses',
       component: () => import('../views/DiagnosesView.vue'),
+    },
+    {
+      path: '/promotions',
+      name: 'promotions',
+      component: () => import('../views/PromotionView.vue'),
+      meta: { roles: ['system_admin', 'operations_admin'] },
+    },
+    {
+      path: '/workload-protection',
+      name: 'workload-protection',
+      component: () => import('../views/WorkloadProtectionView.vue'),
     },
     {
       path: '/audit-logs',

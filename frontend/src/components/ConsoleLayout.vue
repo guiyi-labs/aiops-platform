@@ -10,7 +10,9 @@ import {
   Network,
   Search,
   Send,
+  ShieldCheck,
   Stethoscope,
+  Shuffle,
   Users,
 } from 'lucide-vue-next'
 import { computed } from 'vue'
@@ -44,6 +46,8 @@ const navigationGroups = computed(() => [
     label: '分析与治理',
     items: [
       { label: '智能诊断', icon: Stethoscope, route: '/diagnoses' },
+      { label: '跨集群 Promotion', icon: Shuffle, route: '/promotions', adminOnly: true },
+      { label: '工作负载保护', icon: ShieldCheck, route: '/workload-protection' },
       { label: '通知投递', icon: Send, route: '/notifications', auditOnly: true },
       { label: '审计日志', icon: FileClock, route: '/audit-logs', auditOnly: true },
       { label: '用户管理', icon: Users, route: '/users', adminOnly: true },

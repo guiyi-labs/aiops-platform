@@ -8,6 +8,8 @@ import (
 const (
 	ActionDeploymentRolloutRestart = "deployment.rollout_restart"
 	ActionDeploymentScale          = "deployment.scale"
+	ActionDeploymentImageUpdate    = "deployment.image_update"
+	ActionDeploymentRollback       = "deployment.rollback"
 	ActionCronJobSuspend           = "cronjob.suspend"
 	ActionCronJobResume            = "cronjob.resume"
 	StatusAwaitingConfirmation     = "awaiting_confirmation"
@@ -31,6 +33,7 @@ var (
 	ErrExecutionFailed      = errors.New("remediation execution failed")
 	ErrInvalidOperation     = errors.New("controlled operation parameters are invalid")
 	ErrOperationNoChange    = errors.New("controlled operation would not change the target")
+	ErrRevisionNotFound     = errors.New("rollout revision not found")
 )
 
 type ActorRef struct {
@@ -47,32 +50,39 @@ type TargetRef struct {
 }
 
 type Plan struct {
-	ID                    string     `gorm:"primaryKey;size:36" json:"id"`
-	DiagnosisID           *int64     `json:"diagnosis_id,omitempty"`
-	ClusterID             int64      `json:"cluster_id"`
-	Action                string     `json:"action"`
-	Status                string     `json:"status"`
-	TargetKind            string     `json:"-"`
-	TargetNamespace       string     `json:"-"`
-	TargetName            string     `json:"-"`
-	TargetUID             string     `json:"-"`
-	TargetResourceVersion string     `json:"-"`
-	RestartAt             *time.Time `json:"restart_at,omitempty"`
-	BeforeReplicas        *int32     `json:"-"`
-	DesiredReplicas       *int32     `json:"-"`
-	BeforeSuspended       *bool      `json:"-"`
-	DesiredSuspended      *bool      `json:"-"`
-	ConfirmationTokenHash []byte     `json:"-"`
-	RequestedByUserID     *int64     `json:"-"`
-	RequestedByName       string     `json:"-"`
-	ExpiresAt             time.Time  `json:"expires_at"`
-	IdempotencyKey        string     `json:"-"`
-	LockedAt              *time.Time `json:"-"`
-	ExecutedAt            *time.Time `json:"executed_at,omitempty"`
-	LastError             string     `json:"last_error,omitempty"`
-	CreatedAt             time.Time  `json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
-	ConfirmationToken     string     `gorm:"-" json:"confirmation_token,omitempty"`
+	ID                                string     `gorm:"primaryKey;size:36" json:"id"`
+	DiagnosisID                       *int64     `json:"diagnosis_id,omitempty"`
+	ClusterID                         int64      `json:"cluster_id"`
+	Action                            string     `json:"action"`
+	Status                            string     `json:"status"`
+	TargetKind                        string     `json:"-"`
+	TargetNamespace                   string     `json:"-"`
+	TargetName                        string     `json:"-"`
+	TargetUID                         string     `json:"-"`
+	TargetResourceVersion             string     `json:"-"`
+	RestartAt                         *time.Time `json:"restart_at,omitempty"`
+	BeforeReplicas                    *int32     `json:"-"`
+	DesiredReplicas                   *int32     `json:"-"`
+	BeforeSuspended                   *bool      `json:"-"`
+	DesiredSuspended                  *bool      `json:"-"`
+	ContainerName                     string     `json:"-"`
+	BeforeImage                       string     `json:"-"`
+	DesiredImage                      string     `json:"-"`
+	RollbackRevision                  *int32     `json:"-"`
+	RollbackReplicaSetName            string     `gorm:"column:rollback_replicaset_name" json:"-"`
+	RollbackReplicaSetUID             string     `gorm:"column:rollback_replicaset_uid" json:"-"`
+	RollbackReplicaSetResourceVersion string     `gorm:"column:rollback_replicaset_resource_version" json:"-"`
+	ConfirmationTokenHash             []byte     `json:"-"`
+	RequestedByUserID                 *int64     `json:"-"`
+	RequestedByName                   string     `json:"-"`
+	ExpiresAt                         time.Time  `json:"expires_at"`
+	IdempotencyKey                    string     `json:"-"`
+	LockedAt                          *time.Time `json:"-"`
+	ExecutedAt                        *time.Time `json:"executed_at,omitempty"`
+	LastError                         string     `json:"last_error,omitempty"`
+	CreatedAt                         time.Time  `json:"created_at"`
+	UpdatedAt                         time.Time  `json:"updated_at"`
+	ConfirmationToken                 string     `gorm:"-" json:"confirmation_token,omitempty"`
 }
 
 func (Plan) TableName() string { return "remediation_plans" }
@@ -100,6 +110,10 @@ type PlanResponse struct {
 type OperationParameters struct {
 	DesiredReplicas  *int32 `json:"desired_replicas,omitempty"`
 	DesiredSuspended *bool  `json:"desired_suspended,omitempty"`
+	ContainerName    string `json:"container_name,omitempty"`
+	BeforeImage      string `json:"before_image,omitempty"`
+	DesiredImage     string `json:"desired_image,omitempty"`
+	RollbackRevision *int32 `json:"rollback_revision,omitempty"`
 }
 
 type OperationChange struct {
@@ -120,6 +134,18 @@ func Response(plan Plan) PlanResponse {
 		response.Parameters.DesiredSuspended = plan.DesiredSuspended
 		if plan.BeforeSuspended != nil && plan.DesiredSuspended != nil {
 			response.Change = &OperationChange{Field: "spec.suspend", Before: *plan.BeforeSuspended, After: *plan.DesiredSuspended}
+		}
+	case ActionDeploymentImageUpdate:
+		response.Parameters.ContainerName = plan.ContainerName
+		response.Parameters.BeforeImage = plan.BeforeImage
+		response.Parameters.DesiredImage = plan.DesiredImage
+		if plan.BeforeImage != "" && plan.DesiredImage != "" {
+			response.Change = &OperationChange{Field: "spec.template.spec.containers[" + plan.ContainerName + "].image", Before: plan.BeforeImage, After: plan.DesiredImage}
+		}
+	case ActionDeploymentRollback:
+		response.Parameters.RollbackRevision = plan.RollbackRevision
+		if plan.RollbackRevision != nil {
+			response.Change = &OperationChange{Field: "spec.template (revision rollback)", Before: "current", After: *plan.RollbackRevision}
 		}
 	}
 	return response

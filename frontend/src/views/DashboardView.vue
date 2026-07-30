@@ -20,20 +20,23 @@ import {
 
 import { listClusters } from '../api/clusters'
 import { getFleetHealth } from '../api/fleet'
-import { getDiagnosisSummary } from '../api/diagnosis'
+import { diagnoseNodeMetrics, getDiagnosisSummary } from '../api/diagnosis'
 import { getReadiness } from '../api/health'
 import { APIError } from '../api/auth'
+import { evaluateMetricHistory, getMetricHistory } from '../api/metrics-history'
 import { listDeployments, listEvents, listNodeMetrics, listNodes, listPodMetrics, listPods, listServices } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { DiagnosisSummary } from '../types/diagnosis'
+import type { DiagnosisRecord, DiagnosisSummary } from '../types/diagnosis'
 import type { HealthResponse } from '../types/health'
 import type { FleetClusterHealth, FleetHealthResponse, FleetHealthStatus, FleetResourceSummary } from '../types/fleet'
 import type { Deployment, KubernetesEvent, NodeMetric, NodeResource, Pod, PodMetric, ServiceResource } from '../types/kubernetes'
+import type { MetricHistoryEvaluationResponse, MetricHistoryResponse } from '../types/metrics-history'
 import { deploymentHealth, podHealth } from '../utils/resource-health'
-import { aggregateNodeAllocatable, aggregateNodeMetrics, formatCPU, formatMemory, rankPodMetrics, utilizationPercent } from '../utils/resource-metrics'
+import { aggregateNodeAllocatable, aggregateNodeMetrics, cpuMillicores, formatCPU, formatMemory, memoryBytes, rankPodMetrics, utilizationPercent } from '../utils/resource-metrics'
 import type { PodMetricSummary } from '../utils/resource-metrics'
+import { buildMetricChart, formatMetricValue, METRIC_CHART, metricHistoryWindow } from '../utils/metrics-history'
 
 type LoadState = 'loading' | 'ready' | 'unavailable'
 type MetricsState = 'idle' | 'loading' | 'ready' | 'unavailable' | 'error'
@@ -62,6 +65,15 @@ const podMetrics = ref<PodMetric[]>([])
 const podMetricsTotal = ref(0)
 const lastSyncedAt = ref<Date | null>(null)
 const diagnosisSummary = ref<DiagnosisSummary>({ total: 0, open: 0, confirmed: 0, resolved: 0, dismissed: 0, overdue: 0, recent: [] })
+const trendState = ref<'idle' | 'loading' | 'ready' | 'unavailable' | 'error'>('idle')
+const trendCpuHistory = ref<MetricHistoryResponse | null>(null)
+const trendCpuEvaluation = ref<MetricHistoryEvaluationResponse | null>(null)
+const trendMemoryHistory = ref<MetricHistoryResponse | null>(null)
+const trendMemoryEvaluation = ref<MetricHistoryEvaluationResponse | null>(null)
+const trendError = ref('')
+const diagnoseMetricsLoading = ref(false)
+const diagnoseMetricsError = ref('')
+const diagnoseMetricsRecord = ref<DiagnosisRecord | null>(null)
 let requestController: AbortController | null = null
 
 const selectedCluster = computed(() => clusters.value.find((item) => item.id === selectedClusterID.value))
@@ -86,6 +98,68 @@ const memoryUtilization = computed(() => nodeAllocatable.value ? utilizationPerc
 const topPodConsumers = computed(() => rankPodMetrics(podMetrics.value, metricRankingMode.value))
 const topConsumerValue = computed(() => topPodConsumers.value[0]?.[metricRankingMode.value === 'cpu' ? 'cpuMillicores' : 'memoryBytes'] ?? 0)
 const fleetHealthyCount = computed(() => fleetHealth.value?.items.filter((item) => item.status === 'healthy').length ?? 0)
+const topNodeName = computed(() => {
+  if (nodeMetrics.value.length > 0) return nodeMetrics.value[0].metadata.name
+  return nodes.value[0]?.metadata.name ?? ''
+})
+const topNodeAllocatable = computed(() => {
+  const nodeName = topNodeName.value
+  if (!nodeName) return null
+  const node = nodes.value.find((n) => n.metadata.name === nodeName)
+  if (!node?.status?.allocatable) return null
+  const cpu = cpuMillicores(node.status.allocatable.cpu)
+  const memory = memoryBytes(node.status.allocatable.memory)
+  if (cpu === null || memory === null || cpu <= 0 || memory <= 0) return null
+  return { cpu, memory }
+})
+const trendCpuThreshold = computed(() => {
+  if (!topNodeAllocatable.value) return null
+  return Math.round(topNodeAllocatable.value.cpu * 1_000_000 * 0.8)
+})
+const trendMemoryThreshold = computed(() => {
+  if (!topNodeAllocatable.value) return null
+  return Math.round(topNodeAllocatable.value.memory * 0.85)
+})
+const trendCpuChart = computed(() => {
+  if (!trendCpuHistory.value) return null
+  const model = buildMetricChart(trendCpuHistory.value.points, trendCpuHistory.value.from, trendCpuHistory.value.to, trendCpuHistory.value.series.unit, trendCpuHistory.value.coverage.collections)
+  return {
+    linePoints: model.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
+    areaPath: model.points.length > 0
+      ? `M ${model.points[0].x.toFixed(2)} ${(METRIC_CHART.height - METRIC_CHART.bottom).toFixed(2)} ${model.points.map((p) => `L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')} L ${model.points[model.points.length - 1].x.toFixed(2)} ${(METRIC_CHART.height - METRIC_CHART.bottom).toFixed(2)} Z`
+      : '',
+  }
+})
+const trendMemoryChart = computed(() => {
+  if (!trendMemoryHistory.value) return null
+  const model = buildMetricChart(trendMemoryHistory.value.points, trendMemoryHistory.value.from, trendMemoryHistory.value.to, trendMemoryHistory.value.series.unit, trendMemoryHistory.value.coverage.collections)
+  return {
+    linePoints: model.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
+    areaPath: model.points.length > 0
+      ? `M ${model.points[0].x.toFixed(2)} ${(METRIC_CHART.height - METRIC_CHART.bottom).toFixed(2)} ${model.points.map((p) => `L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')} L ${model.points[model.points.length - 1].x.toFixed(2)} ${(METRIC_CHART.height - METRIC_CHART.bottom).toFixed(2)} Z`
+      : '',
+  }
+})
+const trendCpuPeak = computed(() => {
+  if (!trendCpuHistory.value?.points.length) return null
+  return formatMetricValue(Math.max(...trendCpuHistory.value.points.map((p) => p.value)), trendCpuHistory.value.series.unit)
+})
+const trendMemoryPeak = computed(() => {
+  if (!trendMemoryHistory.value?.points.length) return null
+  return formatMetricValue(Math.max(...trendMemoryHistory.value.points.map((p) => p.value)), trendMemoryHistory.value.series.unit)
+})
+const trendCpuCoverage = computed(() => {
+  const c = trendCpuHistory.value?.coverage
+  if (!c || c.collections === 0) return null
+  const pct = Math.min(100, Math.round((c.points / c.collections) * 100))
+  return { pct, degraded: c.missing > 0 || c.unavailable > 0 || c.timed_out > 0 || c.failed > 0 }
+})
+const trendMemoryCoverage = computed(() => {
+  const c = trendMemoryHistory.value?.coverage
+  if (!c || c.collections === 0) return null
+  const pct = Math.min(100, Math.round((c.points / c.collections) * 100))
+  return { pct, degraded: c.missing > 0 || c.unavailable > 0 || c.timed_out > 0 || c.failed > 0 }
+})
 
 function percentage(value: number, total: number): number { return total > 0 ? Math.round((value / total) * 100) : 0 }
 function eventTimestamp(event: KubernetesEvent): string | undefined { return event.series?.lastObservedTime || event.eventTime || event.lastTimestamp || event.firstTimestamp || event.metadata.creationTimestamp }
@@ -196,8 +270,96 @@ async function loadClusterMetrics() {
   }
 }
 
+async function loadTrendData() {
+  const clusterID = selectedClusterID.value
+  const nodeName = topNodeName.value
+  if (!clusterID || !nodeName || metricsState.value !== 'ready') {
+    trendState.value = 'idle'
+    trendCpuHistory.value = null
+    trendCpuEvaluation.value = null
+    trendMemoryHistory.value = null
+    trendMemoryEvaluation.value = null
+    return
+  }
+  trendState.value = 'loading'
+  trendError.value = ''
+  const { from, to } = metricHistoryWindow(new Date(), 6)
+  const abort = new AbortController()
+  try {
+    const [cpuHistory, memHistory] = await Promise.all([
+      getMetricHistory(auth.accessToken, clusterID, { resourceKind: 'Node', name: nodeName, metric: 'cpu', from, to }),
+      getMetricHistory(auth.accessToken, clusterID, { resourceKind: 'Node', name: nodeName, metric: 'memory', from, to }),
+    ])
+    trendCpuHistory.value = cpuHistory
+    trendMemoryHistory.value = memHistory
+    trendState.value = 'ready'
+    if (cpuHistory.points.length >= 2 && trendCpuThreshold.value !== null) {
+      try {
+        trendCpuEvaluation.value = await evaluateMetricHistory(
+          auth.accessToken,
+          clusterID,
+          { resourceKind: 'Node', name: nodeName, metric: 'cpu', from, to, operator: 'gte', threshold: trendCpuThreshold.value, forSeconds: 60, minimumPoints: 2 },
+        )
+      } catch {
+        trendCpuEvaluation.value = null
+      }
+    }
+    if (memHistory.points.length >= 2 && trendMemoryThreshold.value !== null) {
+      try {
+        trendMemoryEvaluation.value = await evaluateMetricHistory(
+          auth.accessToken,
+          clusterID,
+          { resourceKind: 'Node', name: nodeName, metric: 'memory', from, to, operator: 'gte', threshold: trendMemoryThreshold.value, forSeconds: 60, minimumPoints: 2 },
+        )
+      } catch {
+        trendMemoryEvaluation.value = null
+      }
+    }
+  } catch (error) {
+    if (abort.signal.aborted) return
+    trendState.value = 'error'
+    trendError.value = error instanceof Error ? error.message : '趋势历史加载失败'
+  }
+}
+
+async function runDiagnoseNodeMetrics(metric: 'node_cpu' | 'node_memory') {
+  const clusterID = selectedClusterID.value
+  const nodeName = topNodeName.value
+  if (!clusterID || !nodeName) return
+  const threshold = metric === 'node_cpu' ? trendCpuThreshold.value : trendMemoryThreshold.value
+  if (threshold === null) return
+  diagnoseMetricsLoading.value = true
+  diagnoseMetricsError.value = ''
+  diagnoseMetricsRecord.value = null
+  try {
+    diagnoseMetricsRecord.value = await diagnoseNodeMetrics(auth.accessToken, clusterID, {
+      name: nodeName,
+      metric,
+      operator: 'gte',
+      threshold,
+      for_seconds: 60,
+      minimum_points: 2,
+    })
+  } catch (error) {
+    const message = error instanceof APIError ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : '指标诊断失败'
+    if (error instanceof APIError && error.code === 'NO_RULE_MATCH') {
+      diagnoseMetricsError.value = '过去 6 小时内未检测到持续突破阈值的指标'
+    } else {
+      diagnoseMetricsError.value = message
+    }
+  } finally {
+    diagnoseMetricsLoading.value = false
+  }
+}
+
+function openDiagnosisDetail(record: DiagnosisRecord) {
+  const query: Record<string, string> = { cluster: String(record.cluster_id) }
+  void router.push({ path: '/diagnoses', query })
+}
+
 async function loadClusterData() {
   await Promise.all([loadClusterResources(), loadClusterMetrics()])
+  await loadTrendData()
 }
 
 async function refreshAll() {
@@ -281,6 +443,69 @@ onBeforeUnmount(() => requestController?.abort())
         <button v-for="(item, index) in topPodConsumers" :key="`${item.namespace}/${item.name}`" type="button" class="metrics-consumer-row" @click="openMetricPod(item)">
           <b>{{ index + 1 }}</b><span><strong>{{ item.name }}</strong><small>{{ item.namespace || 'default' }} · {{ item.containers }} containers</small></span><div><i :style="{ width: consumerWidth(item) }" /></div><em>{{ formatConsumerValue(item) }}</em><ChevronRight :size="15" />
         </button>
+      </div>
+    </section>
+
+    <section v-if="metricsState === 'ready'" class="trend-consumers" aria-label="节点历史趋势">
+      <header>
+        <div><p class="context-label">METRICS TREND</p><h2>节点历史趋势（6h）</h2><span v-if="topNodeName">节点：{{ topNodeName }}</span></div>
+        <div class="trend-actions">
+          <span v-if="trendState === 'loading'" class="trend-loading">加载中...</span>
+          <button v-if="trendState === 'ready' && trendCpuEvaluation?.state === 'firing'" type="button" class="trend-action-btn" :disabled="diagnoseMetricsLoading" @click="runDiagnoseNodeMetrics('node_cpu')">
+            <Stethoscope :size="14" />{{ diagnoseMetricsLoading ? '诊断中...' : '诊断 CPU 突破' }}
+          </button>
+          <button v-if="trendState === 'ready' && trendMemoryEvaluation?.state === 'firing'" type="button" class="trend-action-btn" :disabled="diagnoseMetricsLoading" @click="runDiagnoseNodeMetrics('node_memory')">
+            <Stethoscope :size="14" />{{ diagnoseMetricsLoading ? '诊断中...' : '诊断内存突破' }}
+          </button>
+        </div>
+      </header>
+      <div v-if="trendState === 'error'" class="trend-error"><TriangleAlert :size="15" />{{ trendError }}</div>
+      <div v-else-if="trendState === 'idle'" class="trend-empty">选择集群后自动查询历史指标</div>
+      <div v-else class="trend-grid">
+        <article class="trend-card">
+          <header>
+            <span><Cpu :size="15" />CPU Usage</span>
+            <em v-if="trendCpuPeak">峰值 {{ trendCpuPeak }}</em>
+          </header>
+          <div v-if="trendCpuChart" class="trend-chart-wrapper">
+            <svg class="trend-chart" :viewBox="`0 0 ${METRIC_CHART.width} ${METRIC_CHART.height}`" preserveAspectRatio="none">
+              <path class="trend-chart-area" :d="trendCpuChart.areaPath" />
+              <polyline class="trend-chart-line" :points="trendCpuChart.linePoints" />
+            </svg>
+          </div>
+          <div v-if="trendCpuCoverage" class="trend-meta">
+            <span>覆盖 {{ trendCpuCoverage.pct }}%</span>
+            <span v-if="trendCpuCoverage.degraded" class="degraded">存在缺失</span>
+            <span v-if="trendCpuEvaluation" :class="['eval-state', trendCpuEvaluation.state]">
+              {{ trendCpuEvaluation.state === 'firing' ? 'Firing' : trendCpuEvaluation.state === 'normal' ? 'Normal' : 'Insufficient' }}
+            </span>
+          </div>
+        </article>
+        <article class="trend-card">
+          <header>
+            <span><MemoryStick :size="15" />Memory Usage</span>
+            <em v-if="trendMemoryPeak">峰值 {{ trendMemoryPeak }}</em>
+          </header>
+          <div v-if="trendMemoryChart" class="trend-chart-wrapper">
+            <svg class="trend-chart" :viewBox="`0 0 ${METRIC_CHART.width} ${METRIC_CHART.height}`" preserveAspectRatio="none">
+              <path class="trend-chart-area memory" :d="trendMemoryChart.areaPath" />
+              <polyline class="trend-chart-line memory" :points="trendMemoryChart.linePoints" />
+            </svg>
+          </div>
+          <div v-if="trendMemoryCoverage" class="trend-meta">
+            <span>覆盖 {{ trendMemoryCoverage.pct }}%</span>
+            <span v-if="trendMemoryCoverage.degraded" class="degraded">存在缺失</span>
+            <span v-if="trendMemoryEvaluation" :class="['eval-state', trendMemoryEvaluation.state]">
+              {{ trendMemoryEvaluation.state === 'firing' ? 'Firing' : trendMemoryEvaluation.state === 'normal' ? 'Normal' : 'Insufficient' }}
+            </span>
+          </div>
+        </article>
+      </div>
+      <div v-if="diagnoseMetricsError" class="trend-diagnosis-result error"><TriangleAlert :size="15" />{{ diagnoseMetricsError }}</div>
+      <div v-else-if="diagnoseMetricsRecord" class="trend-diagnosis-result success" @click="openDiagnosisDetail(diagnoseMetricsRecord!)">
+        <CheckCircle2 :size="15" />
+        <span><strong>{{ diagnoseMetricsRecord.summary }}</strong><small>规则：{{ diagnoseMetricsRecord.rule_id }} · 严重度：{{ diagnoseMetricsRecord.severity }}</small></span>
+        <em>查看详情<ChevronRight :size="14" /></em>
       </div>
     </section>
 

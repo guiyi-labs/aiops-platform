@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -419,6 +420,170 @@ func (h kubernetesHandler) logs(c *gin.Context) {
 	}
 }
 
+func (h kubernetesHandler) containers(c *gin.Context) {
+	containers, err := h.service.Containers(c.Request.Context(), currentClusterID(c), c.Param("namespace"), c.Param("name"))
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, gin.H{"items": containers, "total": len(containers), "remaining": 0})
+	}
+}
+
+func (h kubernetesHandler) logsSince(c *gin.Context) {
+	previous, err := strconv.ParseBool(defaultString(c.Query("previous"), "false"))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "previous must be true or false")
+		return
+	}
+	tailLines, err := strconv.Atoi(defaultString(c.Query("tail_lines"), "200"))
+	if err != nil || tailLines < 1 || tailLines > 2000 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "tail_lines must be between 1 and 2000")
+		return
+	}
+	sinceSeconds, _ := strconv.Atoi(c.Query("since_seconds"))
+	if sinceSeconds < 0 || sinceSeconds > 86400 {
+		sinceSeconds = 0
+	}
+	sinceTime := c.Query("since_time")
+	if sinceSeconds > 0 && sinceTime != "" {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "provide either since_seconds or since_time, not both")
+		return
+	}
+	log, err := h.service.LogsSince(c.Request.Context(), currentClusterID(c), c.Param("namespace"), c.Param("name"), c.Query("container"), previous, tailLines, sinceSeconds, sinceTime)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, log)
+	}
+}
+
+func (h kubernetesHandler) allContainerLogs(c *gin.Context) {
+	previous, err := strconv.ParseBool(defaultString(c.Query("previous"), "false"))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "previous must be true or false")
+		return
+	}
+	tailLines, err := strconv.Atoi(defaultString(c.Query("tail_lines"), "200"))
+	if err != nil || tailLines < 1 || tailLines > 2000 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "tail_lines must be between 1 and 2000")
+		return
+	}
+	sinceSeconds, _ := strconv.Atoi(c.Query("since_seconds"))
+	if sinceSeconds < 0 || sinceSeconds > 86400 {
+		sinceSeconds = 0
+	}
+	response, err := h.service.AllContainerLogs(c.Request.Context(), currentClusterID(c), c.Param("namespace"), c.Param("name"), previous, tailLines, sinceSeconds)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+func (h kubernetesHandler) persistentVolumes(c *gin.Context) {
+	query, ok := parseKubernetesListQuery(c)
+	if !ok {
+		return
+	}
+	response, err := h.service.PersistentVolumes(c.Request.Context(), currentClusterID(c), query)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+func (h kubernetesHandler) persistentVolume(c *gin.Context) {
+	item, err := h.service.PersistentVolume(c.Request.Context(), currentClusterID(c), c.Param("name"))
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func (h kubernetesHandler) podDisruptionBudgets(c *gin.Context) {
+	query, ok := parseKubernetesListQuery(c)
+	if !ok {
+		return
+	}
+	response, err := h.service.PodDisruptionBudgets(c.Request.Context(), currentClusterID(c), c.Query("namespace"), query)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+func (h kubernetesHandler) podDisruptionBudget(c *gin.Context) {
+	item, err := h.service.PodDisruptionBudget(c.Request.Context(), currentClusterID(c), c.Param("namespace"), c.Param("name"))
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func (h kubernetesHandler) networkPolicies(c *gin.Context) {
+	query, ok := parseKubernetesListQuery(c)
+	if !ok {
+		return
+	}
+	response, err := h.service.NetworkPolicies(c.Request.Context(), currentClusterID(c), c.Query("namespace"), query)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+func (h kubernetesHandler) networkPolicy(c *gin.Context) {
+	item, err := h.service.NetworkPolicy(c.Request.Context(), currentClusterID(c), c.Param("namespace"), c.Param("name"))
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func (h kubernetesHandler) serviceAccounts(c *gin.Context) {
+	query, ok := parseKubernetesListQuery(c)
+	if !ok {
+		return
+	}
+	response, err := h.service.ServiceAccounts(c.Request.Context(), currentClusterID(c), c.Query("namespace"), query)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+func (h kubernetesHandler) serviceAccount(c *gin.Context) {
+	item, err := h.service.ServiceAccount(c.Request.Context(), currentClusterID(c), c.Param("namespace"), c.Param("name"))
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, item)
+	}
+}
+
+func (h kubernetesHandler) manifest(c *gin.Context) {
+	kind := c.Param("kind")
+	namespace := c.Param("namespace")
+	name := c.Param("name")
+	manifest, err := h.service.Manifest(c.Request.Context(), currentClusterID(c), kind, namespace, name)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, manifest)
+	}
+}
+
+func (h kubernetesHandler) veleroCapability(c *gin.Context) {
+	capability, err := h.service.VeleroCapability(c.Request.Context(), currentClusterID(c))
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, capability)
+	}
+}
+
+func (h kubernetesHandler) backups(c *gin.Context) {
+	query, ok := parseKubernetesListQuery(c)
+	if !ok {
+		return
+	}
+	namespace := strings.TrimSpace(c.Query("namespace"))
+	response, err := h.service.Backups(c.Request.Context(), currentClusterID(c), namespace, query)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+func (h kubernetesHandler) backup(c *gin.Context) {
+	namespace := strings.TrimSpace(c.Param("namespace"))
+	name := strings.TrimSpace(c.Param("name"))
+	item, err := h.service.Backup(c.Request.Context(), currentClusterID(c), namespace, name)
+	if !h.writeServiceError(c, err) {
+		c.JSON(http.StatusOK, item)
+	}
+}
+
 func (h kubernetesHandler) writeServiceError(c *gin.Context, err error) bool {
 	if err == nil {
 		return false
@@ -432,6 +597,8 @@ func (h kubernetesHandler) writeServiceError(c *gin.Context, err error) bool {
 		writeError(c, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Kubernetes resource does not exist")
 	case errors.Is(err, k8sgateway.ErrMetricsAPIUnavailable):
 		writeError(c, http.StatusFailedDependency, "METRICS_API_UNAVAILABLE", "Kubernetes Metrics API is not installed or not available")
+	case errors.Is(err, k8sgateway.ErrVeleroUnavailable):
+		writeError(c, http.StatusFailedDependency, "VELERO_UNAVAILABLE", "Velero API is not installed on this cluster")
 	default:
 		writeError(c, http.StatusBadGateway, "KUBERNETES_API_ERROR", "unable to query Kubernetes API")
 	}

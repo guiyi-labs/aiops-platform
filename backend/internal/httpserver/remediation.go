@@ -25,10 +25,13 @@ type previewRemediationRequest struct {
 }
 
 type previewOperationRequest struct {
-	Action          string `json:"action"`
-	Namespace       string `json:"namespace"`
-	TargetName      string `json:"target_name"`
-	DesiredReplicas *int32 `json:"desired_replicas,omitempty"`
+	Action           string `json:"action"`
+	Namespace        string `json:"namespace"`
+	TargetName       string `json:"target_name"`
+	DesiredReplicas  *int32 `json:"desired_replicas,omitempty"`
+	ContainerName    string `json:"container_name,omitempty"`
+	DesiredImage     string `json:"desired_image,omitempty"`
+	RollbackRevision *int32 `json:"rollback_revision,omitempty"`
 }
 
 type executeRemediationRequest struct {
@@ -90,6 +93,8 @@ func (h remediationHandler) previewOperation(c *gin.Context) {
 	plan, err := h.service.PreviewOperation(c.Request.Context(), currentClusterID(c), remediation.OperationRequest{
 		Action: strings.TrimSpace(request.Action), Namespace: strings.TrimSpace(request.Namespace),
 		TargetName: strings.TrimSpace(request.TargetName), DesiredReplicas: request.DesiredReplicas,
+		ContainerName: strings.TrimSpace(request.ContainerName), DesiredImage: strings.TrimSpace(request.DesiredImage),
+		RollbackRevision: request.RollbackRevision,
 	}, remediation.ActorRef{ID: metadata.ActorID, Name: metadata.ActorDisplayName})
 	if plan.ID != "" {
 		setAuditTarget(c, "RemediationPlan", plan.TargetNamespace, plan.ID)
@@ -100,6 +105,28 @@ func (h remediationHandler) previewOperation(c *gin.Context) {
 		return
 	}
 	h.writeError(c, err, "unable to preview controlled operation")
+}
+
+func (h remediationHandler) rolloutHistory(c *gin.Context) {
+	namespace := strings.TrimSpace(c.Param("namespace"))
+	name := strings.TrimSpace(c.Param("name"))
+	history, err := h.service.RolloutHistory(c.Request.Context(), currentClusterID(c), namespace, name)
+	if err == nil {
+		c.JSON(http.StatusOK, history)
+		return
+	}
+	h.writeError(c, err, "unable to read rollout history")
+}
+
+func (h remediationHandler) rolloutStatus(c *gin.Context) {
+	namespace := strings.TrimSpace(c.Param("namespace"))
+	name := strings.TrimSpace(c.Param("name"))
+	status, err := h.service.RolloutStatus(c.Request.Context(), currentClusterID(c), namespace, name)
+	if err == nil {
+		c.JSON(http.StatusOK, status)
+		return
+	}
+	h.writeError(c, err, "unable to read rollout status")
 }
 
 func (h remediationHandler) listOperations(c *gin.Context) {
@@ -151,6 +178,8 @@ func (remediationHandler) writeError(c *gin.Context, err error, fallback string)
 		writeError(c, http.StatusBadRequest, "INVALID_OPERATION", "controlled operation parameters are invalid")
 	case errors.Is(err, remediation.ErrOperationNoChange):
 		writeError(c, http.StatusConflict, "OPERATION_NO_CHANGE", "the target already has the requested value")
+	case errors.Is(err, remediation.ErrRevisionNotFound):
+		writeError(c, http.StatusNotFound, "REVISION_NOT_FOUND", "the requested rollout revision does not exist")
 	case errors.Is(err, remediation.ErrDiagnosisNotEligible):
 		writeError(c, http.StatusConflict, "DIAGNOSIS_NOT_ELIGIBLE", "only confirmed Pod diagnoses can be remediated")
 	case errors.Is(err, remediation.ErrTargetMismatch):

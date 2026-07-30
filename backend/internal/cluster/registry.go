@@ -71,6 +71,16 @@ func (r *Registry) Patch(ctx context.Context, clusterID int64, kubeconfig []byte
 	return r.request(ctx, clusterID, kubeconfig, http.MethodPatch, path, query, contentType, body, maxBytes)
 }
 
+func (r *Registry) Create(ctx context.Context, clusterID int64, kubeconfig []byte, path string, query url.Values, contentType string, body []byte, maxBytes int64) ([]byte, error) {
+	if contentType != "application/json" {
+		return nil, fmt.Errorf("unsupported Kubernetes create content type")
+	}
+	if len(body) == 0 || len(body) > 262144 {
+		return nil, fmt.Errorf("Kubernetes create body must contain 1 to 262144 bytes")
+	}
+	return r.request(ctx, clusterID, kubeconfig, http.MethodPost, path, query, contentType, body, maxBytes)
+}
+
 func (r *Registry) request(ctx context.Context, clusterID int64, kubeconfig []byte, method, path string, query url.Values, contentType string, body []byte, maxBytes int64) ([]byte, error) {
 	if !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
 		return nil, fmt.Errorf("invalid Kubernetes API path")

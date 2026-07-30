@@ -21,8 +21,44 @@ env:
   KUBECTL_VERSION: v1.34.0
 
 jobs:
+  changes:
+    name: Change scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      runtime_required: ${{ steps.scope.outputs.runtime_required }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Detect documentation-only changes
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          runtime_required=true
+          if [ "$EVENT_NAME" = push ] || [ "$EVENT_NAME" = pull_request ]; then
+            base="$BEFORE_SHA"
+            if [ "$EVENT_NAME" = pull_request ]; then
+              base="$PR_BASE_SHA"
+            fi
+            if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$' || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+              base="$(git rev-parse HEAD^)"
+            fi
+            changed="$(git diff --name-only "$base" "$GITHUB_SHA")"
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -Ev '^(docs/|README\.md$)' >/dev/null; then
+              runtime_required=false
+            fi
+          fi
+          printf 'runtime_required=%s\n' "$runtime_required" >>"$GITHUB_OUTPUT"
+
   backend:
     name: Backend
+    needs: changes
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -58,6 +94,8 @@ jobs:
 
   frontend:
     name: Frontend
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -88,6 +126,8 @@ jobs:
 
   manifests:
     name: Manifests
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -108,29 +148,104 @@ jobs:
       - name: Validate Compose model
         run: docker compose config --quiet
 
-  runtime:
-    name: Compose runtime
-    needs: [backend, frontend, manifests]
+  credential-drill:
+    name: Credential drill
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Drill isolated credential key re-encryption
         shell: pwsh
         run: ./scripts/e2e-credential-reencryption.ps1
+      - name: Upload credential evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: credential-reencryption-${{ github.run_id }}
+          path: .artifacts/credential-reencryption/
+          if-no-files-found: error
+          retention-days: 7
+
+  audit-drill:
+    name: Audit archive drill
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Drill signed audit archive
         shell: pwsh
         run: ./scripts/e2e-audit-archive.ps1
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: audit-archive-${{ github.run_id }}
+          path: .artifacts/audit-archive/
+          if-no-files-found: error
+          retention-days: 7
+
+  identity-drill:
+    name: Identity readiness drill
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Evaluate synthetic OIDC and MFA readiness
         shell: pwsh
         run: ./scripts/e2e-identity-readiness.ps1
+      - name: Upload identity evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: identity-readiness-${{ github.run_id }}
+          path: .artifacts/identity-readiness/
+          if-no-files-found: error
+          retention-days: 7
+
+  recovery-drill:
+    name: Recovery readiness drill
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Drill isolated PostgreSQL backup and restore
         shell: pwsh
         run: ./scripts/e2e-postgres-backup-restore.ps1
       - name: Evaluate recovery policy readiness
         shell: pwsh
         run: ./scripts/e2e-recovery-readiness.ps1
+      - name: Upload recovery evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: recovery-readiness-${{ github.run_id }}
+          path: |
+            .artifacts/postgres-recovery/
+            .artifacts/recovery-readiness/
+          if-no-files-found: error
+          retention-days: 7
+
+  runtime:
+    name: Compose runtime
+    needs: [changes, backend, frontend, manifests]
+    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend.result == 'success' && needs.frontend.result == 'success' && needs.manifests.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate ephemeral runtime configuration
         shell: bash
         run: |
@@ -190,11 +305,6 @@ jobs:
           name: compose-runtime-${{ github.run_id }}
           path: |
             .artifacts/ci/
-            .artifacts/credential-reencryption/
-            .artifacts/audit-archive/
-            .artifacts/identity-readiness/
-            .artifacts/postgres-recovery/
-            .artifacts/recovery-readiness/
             .artifacts/metrics-history-e2e/
           if-no-files-found: error
           retention-days: 7
@@ -203,3 +313,35 @@ jobs:
         run: |
           docker compose down --volumes --remove-orphans
           rm -f .env
+
+  result:
+    name: CI result
+    if: always()
+    needs: [changes, backend, frontend, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      RUNTIME_REQUIRED: ${{ needs.changes.outputs.runtime_required }}
+      CHANGE_SCOPE_RESULT: ${{ needs.changes.result }}
+      BACKEND_RESULT: ${{ needs.backend.result }}
+      FRONTEND_RESULT: ${{ needs.frontend.result }}
+      MANIFESTS_RESULT: ${{ needs.manifests.result }}
+      CREDENTIAL_RESULT: ${{ needs.credential-drill.result }}
+      AUDIT_RESULT: ${{ needs.audit-drill.result }}
+      IDENTITY_RESULT: ${{ needs.identity-drill.result }}
+      RECOVERY_RESULT: ${{ needs.recovery-drill.result }}
+      RUNTIME_RESULT: ${{ needs.runtime.result }}
+    steps:
+      - name: Enforce required results
+        shell: bash
+        run: |
+          if [ "$CHANGE_SCOPE_RESULT" != success ] || [ "$BACKEND_RESULT" != success ]; then
+            exit 1
+          fi
+          if [ "$RUNTIME_REQUIRED" = true ]; then
+            for result in "$FRONTEND_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
+              if [ "$result" != success ]; then
+                exit 1
+              fi
+            done
+          fi

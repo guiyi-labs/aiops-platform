@@ -14,6 +14,9 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"go test", "pnpm typecheck", "pnpm test", "pnpm build",
 			"credential-reencrypt", "docker compose config", "kubectl kustomize", "/api/v1/health/ready",
 		},
+		"scripts/verify-fast.ps1": {
+			"git", "diff", "--check", "go vet", "go test", "typecheck", "kubectl", "kustomize",
+		},
 		"backend/cmd/credential-reencrypt/main.go": {
 			"--apply", "batch-size", "max-records", "pg_try_advisory_lock",
 		},
@@ -55,6 +58,15 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		},
 		"backend/internal/httpserver/metrics_history.go": {
 			"resource_kind", "requiredHistoryTime", "METRICS_HISTORY_QUERY_FAILED", "CLUSTER_NOT_FOUND",
+		},
+		"backend/internal/metricshistory/evaluator.go": {
+			"insufficient_data", "firing", "normal", "ObservedSpanSeconds", "ErrInvalidEvaluation",
+		},
+		"backend/internal/httpserver/metrics_evaluation.go": {
+			"operator", "threshold", "for_seconds", "minimum_points", "METRICS_EVALUATION_FAILED",
+		},
+		"frontend/src/components/MetricsHistoryPanel.vue": {
+			"资源趋势", "缺失采集不会补零", "coverage.missing", "response.truncated",
 		},
 		".env.example": {"CREDENTIAL_DECRYPTION_KEYS={}"},
 		"docs/adr/0030-controlled-application-credential-key-reencryption.md": {
@@ -157,8 +169,13 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"scripts/e2e-metrics-history.ps1": {
 			"cross_cluster_isolation", "exact_series_isolation", "restart_durability", ".artifacts\\metrics-history-e2e", "cleanup_complete",
 		},
+		"scripts/e2e-m21-history-kind.ps1": {
+			"aiops-test", "metrics/history/evaluate", "insufficient_data", ".artifacts\\m21-history-kind", "cleanup_complete",
+			"docker image inspect", "docker pull", "docker build", "--platform linux/amd64", "load", "docker-image", "imagePullPolicy: IfNotPresent", "docker image rm",
+		},
 		".github/workflows/ci.yml": {
 			"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
+			"runtime_required", "credential-drill:", "audit-drill:", "identity-drill:", "recovery-drill:", "CI result",
 			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "e2e-metrics-history.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
@@ -166,7 +183,7 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"gh release create", "--verify-tag",
 		},
 		".github/workflows/real-kind-e2e.yml": {
-			"schedule:", "self-hosted", "aiops-kind", "e2e-diagnosis-kind.ps1",
+			"schedule:", "self-hosted", "aiops-kind", "e2e-diagnosis-kind.ps1", "e2e-m21-history-kind.ps1",
 			"e2e-fleet-kind.ps1", "e2e-global-search-kind.ps1", "retention-days: 14",
 		},
 		".github/dependabot.yml": {"github-actions", "gomod", "npm", "weekly"},
@@ -278,5 +295,112 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 				t.Errorf("delivery asset %s is missing marker %q", name, marker)
 			}
 		}
+	}
+}
+
+func TestVerificationNativeWrappersJudgeCommandsByExitCode(t *testing.T) {
+	root := repositoryRoot(t)
+	for _, relativePath := range []string{"scripts/verify.ps1", "scripts/verify-fast.ps1"} {
+		contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relativePath)))
+		if err != nil {
+			t.Fatalf("read %s: %v", relativePath, err)
+		}
+		text := string(contents)
+		for _, marker := range []string{
+			"$previousErrorAction = $ErrorActionPreference",
+			"$ErrorActionPreference = 'Continue'",
+			"$exitCode = $LASTEXITCODE",
+			"$ErrorActionPreference = $previousErrorAction",
+		} {
+			if !strings.Contains(text, marker) {
+				t.Errorf("%s must handle native stderr and judge success by exit code; missing %q", relativePath, marker)
+			}
+		}
+	}
+}
+
+func TestNewKindAcceptanceScriptsRemainWindowsPowerShellCompatible(t *testing.T) {
+	root := repositoryRoot(t)
+	for _, name := range []string{
+		"e2e-m21-history-kind.ps1",
+		"e2e-m23-release-lifecycle-kind.ps1",
+		"e2e-m24-cross-cluster-promotion-kind.ps1",
+		"e2e-m25-workload-protection-kind.ps1",
+	} {
+		contents, err := os.ReadFile(filepath.Join(root, "scripts", name))
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		if strings.Contains(string(contents), "??") {
+			t.Errorf("%s uses the PowerShell 7-only null-coalescing operator", name)
+		}
+	}
+}
+
+func TestM25KindAcceptanceWaitsForVeleroCRDBeforeApplyingBackups(t *testing.T) {
+	root := repositoryRoot(t)
+	contents, err := os.ReadFile(filepath.Join(root, "scripts", "e2e-m25-workload-protection-kind.ps1"))
+	if err != nil {
+		t.Fatalf("read M25 kind acceptance script: %v", err)
+	}
+	text := string(contents)
+
+	waitMarker := "@('wait', '--for=condition=Established', 'crd/backups.velero.io', '--timeout=60s')"
+	fixtureMarker := "deploy\\m25-workload-protection-e2e\\primary\\sample-backups.yaml"
+	waitIndex := strings.Index(text, waitMarker)
+	fixtureIndex := strings.Index(text, fixtureMarker)
+	if waitIndex < 0 {
+		t.Fatalf("M25 acceptance must wait for backups.velero.io CRD establishment")
+	}
+	if fixtureIndex < 0 {
+		t.Fatalf("M25 acceptance must apply sample backups after installing the CRD")
+	}
+	if waitIndex > fixtureIndex {
+		t.Fatalf("M25 acceptance must wait for CRD establishment before applying sample backups")
+	}
+
+	kustomization, err := os.ReadFile(filepath.Join(root, "deploy", "m25-workload-protection-e2e", "primary", "kustomization.yaml"))
+	if err != nil {
+		t.Fatalf("read M25 primary kustomization: %v", err)
+	}
+	if strings.Contains(string(kustomization), "sample-backups.yaml") {
+		t.Fatalf("sample backups must not share the CRD installation apply operation")
+	}
+}
+
+func TestM21KindAcceptanceScriptUsesNativeWrapperForDockerBuild(t *testing.T) {
+	root := repositoryRoot(t)
+	contents, err := os.ReadFile(filepath.Join(root, "scripts", "e2e-m21-history-kind.ps1"))
+	if err != nil {
+		t.Fatalf("read M21 kind acceptance script: %v", err)
+	}
+	text := string(contents)
+
+	if !strings.Contains(text, "[string]$InputText") {
+		t.Fatalf("Invoke-NativeText must accept stdin text so Docker BuildKit stderr does not bypass native command handling")
+	}
+	if !strings.Contains(text, "System.Management.Automation.ErrorRecord") || !strings.Contains(text, "$_.Exception.Message") {
+		t.Fatalf("Invoke-NativeText must preserve native stderr text instead of logging PowerShell ErrorRecord type names")
+	}
+	if strings.Contains(text, "| & docker build") {
+		t.Fatalf("docker build must be invoked through Invoke-NativeText instead of a direct PowerShell native pipeline")
+	}
+	if !strings.Contains(text, "-FilePath 'docker' -Arguments @('build'") || !strings.Contains(text, "-InputText $workloadDockerfile") {
+		t.Fatalf("docker build must route the generated Dockerfile through Invoke-NativeText -InputText")
+	}
+
+	buildIndex := strings.Index(text, "docker build --platform linux/amd64")
+	if buildIndex < 0 {
+		t.Fatalf("script is missing the M21 disposable docker build step")
+	}
+	initializationIndex := strings.Index(text, "$workloadImageBuilt = $false")
+	if initializationIndex < 0 {
+		t.Fatalf("script must initialize the disposable image cleanup flag")
+	}
+	if initializationIndex > buildIndex {
+		t.Fatalf("$workloadImageBuilt must be initialized before the docker build step so cleanup state is not reset after a successful build")
+	}
+	if strings.Contains(text[buildIndex:], "$workloadImageBuilt = $false") {
+		t.Fatalf("$workloadImageBuilt must not be reset after docker build succeeds")
 	}
 }

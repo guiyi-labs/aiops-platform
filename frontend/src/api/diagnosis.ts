@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { AIExplanationFeedbackResult, AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, ControlledOperationRequest, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisStatus, DiagnosisSummary, FeedbackVerdict, RemediationAction, RemediationPlan } from '../types/diagnosis'
+import type { AIExplanationFeedbackResult, AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, ControlledOperationRequest, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisStatus, DiagnosisSummary, DiagnoseNodeMetricsRequest, FeedbackVerdict, RemediationAction, RemediationPlan, RolloutHistory, RolloutStatus } from '../types/diagnosis'
 
 export function diagnosePod(token: string, clusterID: number, namespace: string, name: string): Promise<DiagnosisRecord> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/diagnoses`, token, {
@@ -16,6 +16,12 @@ export function diagnoseService(token: string, clusterID: number, namespace: str
 export function diagnoseNode(token: string, clusterID: number, name: string): Promise<DiagnosisRecord> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/diagnoses`, token, {
     method: 'POST', body: JSON.stringify({ resource_kind: 'Node', namespace: '', name }),
+  })
+}
+
+export function diagnoseNodeMetrics(token: string, clusterID: number, request: DiagnoseNodeMetricsRequest): Promise<DiagnosisRecord> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/diagnoses/node_metrics`, token, {
+    method: 'POST', body: JSON.stringify(request),
   })
 }
 
@@ -102,6 +108,14 @@ export function previewControlledOperation(token: string, clusterID: number, req
 export function listControlledOperations(token: string, clusterID: number, namespace: string, targetKind: 'Deployment' | 'CronJob', targetName: string): Promise<{ items: RemediationPlan[]; total: number; remaining: number }> {
   const query = new URLSearchParams({ namespace, target_kind: targetKind, target_name: targetName })
   return authorizedRequest(`/api/v1/clusters/${clusterID}/operations?${query}`, token)
+}
+
+export function getRolloutHistory(token: string, clusterID: number, namespace: string, name: string): Promise<RolloutHistory> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/deployments/${namespace}/${name}/rollout/history`, token)
+}
+
+export function getRolloutStatus(token: string, clusterID: number, namespace: string, name: string): Promise<RolloutStatus> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/deployments/${namespace}/${name}/rollout/status`, token)
 }
 
 export function listDiagnosisExplanations(token: string, diagnosisID: number): Promise<{ items: DiagnosisAIExplanation[]; total: number; remaining: number }> {

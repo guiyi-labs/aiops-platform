@@ -37,23 +37,26 @@ func (r *GormRepository) List(ctx context.Context, diagnosisID int64) ([]Plan, e
 }
 
 func (r *GormRepository) ListOperations(ctx context.Context, clusterID int64, namespace, kind, name string) ([]Plan, error) {
-	query := r.db.WithContext(ctx).Model(&Plan{}).
-		Where("cluster_id = ? AND diagnosis_id IS NULL", clusterID)
-	if namespace != "" {
-		query = query.Where("target_namespace = ?", namespace)
+	newQuery := func() *gorm.DB {
+		query := r.db.WithContext(ctx).Model(&Plan{}).
+			Where("cluster_id = ? AND diagnosis_id IS NULL", clusterID)
+		if namespace != "" {
+			query = query.Where("target_namespace = ?", namespace)
+		}
+		if kind != "" {
+			query = query.Where("target_kind = ?", kind)
+		}
+		if name != "" {
+			query = query.Where("target_name = ?", name)
+		}
+		return query
 	}
-	if kind != "" {
-		query = query.Where("target_kind = ?", kind)
-	}
-	if name != "" {
-		query = query.Where("target_name = ?", name)
-	}
-	if err := query.Where("status = ? AND expires_at <= NOW()", StatusAwaitingConfirmation).
+	if err := newQuery().Where("status = ? AND expires_at <= NOW()", StatusAwaitingConfirmation).
 		Updates(map[string]any{"status": StatusExpired, "updated_at": time.Now().UTC()}).Error; err != nil {
 		return nil, err
 	}
 	var plans []Plan
-	err := query.Order("created_at DESC, id DESC").Limit(50).Find(&plans).Error
+	err := newQuery().Order("created_at DESC, id DESC").Limit(50).Find(&plans).Error
 	return plans, err
 }
 

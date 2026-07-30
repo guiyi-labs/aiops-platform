@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aiops-m25-e2e
+  labels:
+    app.kubernetes.io/part-of: aiops-m25-workload-protection-e2e

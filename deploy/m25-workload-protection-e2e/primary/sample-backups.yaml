@@ -1,0 +1,42 @@
+# Sample Velero Backup CRs for the M25 read-only inventory E2E.
+# These are plain CRs applied against the CRD stub; no controller reconciles
+# them. The platform projects the bounded shape (phase, scope, storage
+# location, errors/warnings, timestamps) and never the raw object-storage
+# references.
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  name: completed-backup
+  namespace: aiops-m25-e2e
+  creationTimestamp: '2026-07-29T10:00:00Z'
+spec:
+  includedNamespaces:
+    - prod
+  storageLocation: default
+  ttl: 720h
+status:
+  phase: Completed
+  expiration: '2026-08-28T10:00:00Z'
+  startTimestamp: '2026-07-29T10:00:00Z'
+  completionTimestamp: '2026-07-29T10:05:00Z'
+  errors: 0
+  warnings: 2
+---
+apiVersion: velero.io/v1
+kind: Backup
+metadata:
+  name: failed-backup
+  namespace: aiops-m25-e2e
+  creationTimestamp: '2026-07-29T11:00:00Z'
+spec:
+  includedNamespaces:
+    - staging
+  storageLocation: default
+  ttl: 720h
+status:
+  phase: Failed
+  failureReason: snapshot timeout
+  startTimestamp: '2026-07-29T11:00:00Z'
+  completionTimestamp: '2026-07-29T11:03:00Z'
+  errors: 3
+  warnings: 1

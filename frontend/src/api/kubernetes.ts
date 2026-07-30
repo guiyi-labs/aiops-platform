@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { ConfigMapResource, CronJobResource, DaemonSetResource, Deployment, EndpointSliceResource, HorizontalPodAutoscalerResource, IngressResource, JobResource, KubernetesEvent, LimitRangeResource, ListResponse, Namespace, NodeMetric, NodeResource, PersistentVolumeClaim, Pod, PodMetric, ReplicaSetResource, ResourceQuotaResource, SecretResource, ServiceResource, StatefulSetResource, StorageClassResource } from '../types/kubernetes'
+import type { ConfigMapResource, CronJobResource, DaemonSetResource, Deployment, EndpointSliceResource, HorizontalPodAutoscalerResource, IngressResource, JobResource, KubernetesEvent, LimitRangeResource, ListResponse, Namespace, NodeMetric, NodeResource, PersistentVolume, PersistentVolumeClaim, Pod, PodContainerInfo, PodContainerLog, PodDisruptionBudgetResource, PodLogsResponse, PodMetric, NetworkPolicyResource, ReplicaSetResource, ResourceQuotaResource, SecretResource, ServiceAccountResource, ServiceResource, StatefulSetResource, StorageClassResource, VeleroBackup, VeleroCapability } from '../types/kubernetes'
 
 function queryString(values: Record<string, string | number | boolean | undefined>): string {
   const query = new URLSearchParams()
@@ -166,4 +166,74 @@ export function getConfigMap(token: string, clusterID: number, namespace: string
 
 export function getPodLogs(token: string, clusterID: number, namespace: string, name: string, container = '', previous = false): Promise<{ logs: string; previous: boolean }> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/logs${queryString({ container, previous, tail_lines: 200 })}`, token)
+}
+
+export function listPodContainers(token: string, clusterID: number, namespace: string, name: string): Promise<ListResponse<PodContainerInfo>> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/containers`, token)
+}
+
+export function getPodLogsSince(token: string, clusterID: number, namespace: string, name: string, opts: { container?: string; previous?: boolean; tail_lines?: number; since_seconds?: number; since_time?: string }): Promise<PodContainerLog> {
+  const params: Record<string, string | number | boolean | undefined> = {
+    container: opts.container,
+    previous: opts.previous ?? false,
+    tail_lines: opts.tail_lines ?? 200,
+  }
+  if (opts.since_seconds) params.since_seconds = opts.since_seconds
+  if (opts.since_time) params.since_time = opts.since_time
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/logs_since${queryString(params)}`, token)
+}
+
+export function getAllPodLogs(token: string, clusterID: number, namespace: string, name: string, opts: { previous?: boolean; tail_lines?: number; since_seconds?: number } = {}): Promise<PodLogsResponse> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/pods/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/all_logs${queryString({ previous: opts.previous ?? false, tail_lines: opts.tail_lines ?? 200, since_seconds: opts.since_seconds })}`, token)
+}
+
+export function listPersistentVolumes(token: string, clusterID: number): Promise<ListResponse<PersistentVolume>> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/persistentvolumes`, token)
+}
+
+export function getPersistentVolume(token: string, clusterID: number, name: string): Promise<PersistentVolume> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/persistentvolumes/${encodeURIComponent(name)}`, token)
+}
+
+export function listPodDisruptionBudgets(token: string, clusterID: number, namespace?: string): Promise<ListResponse<PodDisruptionBudgetResource>> {
+  const qs = queryString({ namespace })
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/poddisruptionbudgets${qs}`, token)
+}
+
+export function getPodDisruptionBudget(token: string, clusterID: number, namespace: string, name: string): Promise<PodDisruptionBudgetResource> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/poddisruptionbudgets/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`, token)
+}
+
+export function listNetworkPolicies(token: string, clusterID: number, namespace?: string): Promise<ListResponse<NetworkPolicyResource>> {
+  const qs = queryString({ namespace })
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/networkpolicies${qs}`, token)
+}
+
+export function getNetworkPolicy(token: string, clusterID: number, namespace: string, name: string): Promise<NetworkPolicyResource> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/networkpolicies/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`, token)
+}
+
+export function listServiceAccounts(token: string, clusterID: number, namespace?: string): Promise<ListResponse<ServiceAccountResource>> {
+  const qs = queryString({ namespace })
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/serviceaccounts${qs}`, token)
+}
+
+export function getServiceAccount(token: string, clusterID: number, namespace: string, name: string): Promise<ServiceAccountResource> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/serviceaccounts/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`, token)
+}
+
+export function getResourceManifest(token: string, clusterID: number, kind: string, namespace: string, name: string): Promise<Record<string, unknown>> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/resources/${encodeURIComponent(kind)}/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}/manifest`, token)
+}
+
+export function getVeleroCapability(token: string, clusterID: number): Promise<VeleroCapability> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/velero/capability`, token)
+}
+
+export function listBackups(token: string, clusterID: number, namespace = '', name = ''): Promise<ListResponse<VeleroBackup>> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/backups${queryString({ namespace, name, limit: 100, sort_by: 'name', ascending: true })}`, token)
+}
+
+export function getBackup(token: string, clusterID: number, namespace: string, name: string): Promise<VeleroBackup> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/backups/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`, token)
 }

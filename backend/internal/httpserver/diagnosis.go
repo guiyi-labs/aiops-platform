@@ -12,6 +12,7 @@ import (
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
 
@@ -23,6 +24,14 @@ type diagnoseRequest struct {
 	ResourceKind string `json:"resource_kind" binding:"required"`
 	Namespace    string `json:"namespace"`
 	Name         string `json:"name" binding:"required"`
+}
+type diagnoseNodeMetricsRequest struct {
+	Name          string `json:"name" binding:"required"`
+	Metric        string `json:"metric" binding:"required"`
+	Operator      string `json:"operator" binding:"required"`
+	Threshold     int64  `json:"threshold" binding:"required"`
+	ForSeconds    int    `json:"for_seconds" binding:"required"`
+	MinimumPoints int    `json:"minimum_points"`
 }
 type transitionDiagnosisRequest struct {
 	Status  string `json:"status" binding:"required"`
@@ -85,6 +94,69 @@ func (h diagnosisHandler) create(c *gin.Context) {
 		writeError(c, http.StatusNotFound, "CLUSTER_NOT_FOUND", "cluster does not exist")
 	case errors.Is(err, k8sgateway.ErrResourceNotFound):
 		writeError(c, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Kubernetes resource does not exist")
+	default:
+		writeError(c, http.StatusBadGateway, "DIAGNOSIS_FAILED", "unable to collect diagnosis evidence")
+	}
+}
+
+func (h diagnosisHandler) diagnoseNodeMetrics(c *gin.Context) {
+	var request diagnoseNodeMetricsRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "name, metric, operator, threshold and for_seconds are required")
+		return
+	}
+	request.Name = strings.TrimSpace(request.Name)
+	request.Metric = strings.TrimSpace(request.Metric)
+	request.Operator = strings.TrimSpace(request.Operator)
+	if request.Name == "" || request.Metric == "" || request.Operator == "" {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "name, metric and operator cannot be empty")
+		return
+	}
+	if request.Operator != metricshistory.OperatorGreaterThanOrEqual && request.Operator != metricshistory.OperatorLessThanOrEqual {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "operator must be gte or lte")
+		return
+	}
+	if request.ForSeconds < 60 || request.ForSeconds > 86400 {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "for_seconds must be between 60 and 86400")
+		return
+	}
+	minimumPoints := request.MinimumPoints
+	if minimumPoints < 2 {
+		minimumPoints = 2
+	}
+	if minimumPoints > 1440 {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "minimum_points must not exceed 1440")
+		return
+	}
+	var internalMetric string
+	switch request.Metric {
+	case "node_cpu":
+		internalMetric = metricshistory.MetricCPU
+	case "node_memory":
+		internalMetric = metricshistory.MetricMemory
+	default:
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "metric must be node_cpu or node_memory")
+		return
+	}
+	setAuditTarget(c, metricshistory.ResourceNode, "", request.Name)
+	record, err := h.service.DiagnoseNodeMetrics(c.Request.Context(), currentClusterID(c), request.Name, internalMetric, metricshistory.EvaluationRule{
+		Operator: request.Operator, Threshold: request.Threshold, ForSeconds: request.ForSeconds, MinimumPoints: minimumPoints,
+	})
+	if err == nil {
+		c.JSON(http.StatusCreated, record)
+		return
+	}
+	switch {
+	case errors.Is(err, diagnosis.ErrNoRuleMatch):
+		writeError(c, http.StatusUnprocessableEntity, "NO_RULE_MATCH", "no sustained metric breach was detected in the evaluation window")
+	case errors.Is(err, cluster.ErrDisabled):
+		writeError(c, http.StatusConflict, "CLUSTER_DISABLED", "cluster must be enabled before diagnosis")
+	case errors.Is(err, cluster.ErrNotFound):
+		writeError(c, http.StatusNotFound, "CLUSTER_NOT_FOUND", "cluster does not exist")
+	case errors.Is(err, metricshistory.ErrInvalidQuery), errors.Is(err, metricshistory.ErrInvalidEvaluation):
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "the evaluation rule or metric series query is invalid")
+	case errors.Is(err, metricshistory.ErrClusterNotFound):
+		writeError(c, http.StatusNotFound, "CLUSTER_NOT_FOUND", "cluster does not exist")
 	default:
 		writeError(c, http.StatusBadGateway, "DIAGNOSIS_FAILED", "unable to collect diagnosis evidence")
 	}

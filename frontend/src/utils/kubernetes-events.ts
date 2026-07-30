@@ -1,6 +1,6 @@
 import type { KubernetesEvent } from '../types/kubernetes'
 
-export type EventResourceKind = 'Pod' | 'Deployment' | 'StatefulSet' | 'DaemonSet' | 'ReplicaSet' | 'Job' | 'CronJob' | 'Node' | 'Service' | 'Ingress' | 'PVC' | 'StorageClass' | 'HPA' | 'ResourceQuota' | 'LimitRange' | 'ConfigMap' | 'Secret'
+export type EventResourceKind = 'Pod' | 'Deployment' | 'StatefulSet' | 'DaemonSet' | 'ReplicaSet' | 'Job' | 'CronJob' | 'Node' | 'Service' | 'Ingress' | 'PVC' | 'PV' | 'StorageClass' | 'HPA' | 'ResourceQuota' | 'LimitRange' | 'ConfigMap' | 'Secret' | 'NetworkPolicy' | 'PDB' | 'ServiceAccount'
 
 const involvedObjectKinds: Record<EventResourceKind, string> = {
   Pod: 'Pod',
@@ -14,12 +14,16 @@ const involvedObjectKinds: Record<EventResourceKind, string> = {
   Service: 'Service',
   Ingress: 'Ingress',
   PVC: 'PersistentVolumeClaim',
+  PV: 'PersistentVolume',
   StorageClass: 'StorageClass',
   HPA: 'HorizontalPodAutoscaler',
   ResourceQuota: 'ResourceQuota',
   LimitRange: 'LimitRange',
   ConfigMap: 'ConfigMap',
   Secret: 'Secret',
+  NetworkPolicy: 'NetworkPolicy',
+  PDB: 'PodDisruptionBudget',
+  ServiceAccount: 'ServiceAccount',
 }
 
 export function eventTimestamp(event: KubernetesEvent): string {

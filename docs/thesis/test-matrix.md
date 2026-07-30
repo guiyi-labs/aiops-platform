@@ -1,5 +1,23 @@
 # Test Matrix
 
+## 2026-07-30 Baseline Addendum
+
+This addendum is authoritative for the M21-M25 baseline; older rows below are
+retained as historical evidence for their original revisions.
+
+| Gate | Evidence | Accepted result |
+|---|---|---|
+| Fast repository gate | `scripts/verify-fast.ps1` | 271 Go `Test*` entries remain discoverable; all Go packages passed vet/test, 17 Vitest files/73 tests passed, and Compose/Kustomize contracts passed in 23.73 seconds after documentation alignment |
+| Full repository gate | `.artifacts/verification/verify-20260730-080851.json` | Passed in 121.79 seconds; frontend production build succeeded and PostgreSQL/backend/frontend were healthy with direct and proxied readiness |
+| M21 real kind | `.artifacts/m21-history-kind/m21-history-kind-20260730-080558.json` | Exact-series isolation, units, sparse outage gap, recovery, all three evaluation states and backend-restart durability passed; cleanup complete |
+| M23 real kind | `.artifacts/m23-release-lifecycle-kind/m23-release-lifecycle-kind-20260729-234238.json` | Image update, exact ReplicaSet revision rollback, idempotent replay and fixture restoration passed |
+| M24 real kind | `.artifacts/m24-cross-cluster-promotion-kind/m24-cross-cluster-promotion-kind-20260730-074812.json` | Two-cluster Deployment/Service promotion passed with one deduplicated ConfigMap dependency, mapped reference rewrite and complete cleanup |
+| M25 real kind | `.artifacts/m25-workload-protection-kind/m25-workload-protection-kind-20260730-075311.json` | Installed/unavailable Velero capability, two bounded Backup projections, single read, 424 fallback and read-only RBAC passed |
+
+M22 is covered by the current backend, frontend and production-build gates;
+its read-only resource/log/manifest scope is archived in
+`docs/changes/2026-07-30-m22-daily-troubleshooting-and-governance-workbench.md`.
+
 更新时间：2026-07-27
 
 测试结论以本轮命令输出和 `.artifacts/` 中的脱敏证据为准。未实际执行的环境测试不得标记为通过。

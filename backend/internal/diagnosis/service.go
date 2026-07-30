@@ -6,6 +6,7 @@ import (
 	"time"
 
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/metricshistory"
 )
 
 var ErrNoRuleMatch = errors.New("no diagnosis rule matched the resource")
@@ -24,14 +25,24 @@ type Source interface {
 	ResourceEvents(context.Context, int64, string, string) ([]k8sgateway.Event, error)
 }
 
+type MetricEvaluator interface {
+	Evaluate(context.Context, metricshistory.EvaluationQuery) (metricshistory.EvaluationResponse, error)
+}
+
 type Service struct {
-	source     Source
-	repository Repository
-	now        func() time.Time
+	source          Source
+	repository      Repository
+	metricEvaluator MetricEvaluator
+	now             func() time.Time
 }
 
 func NewService(source Source, repository Repository) *Service {
 	return &Service{source: source, repository: repository, now: time.Now}
+}
+
+func (s *Service) WithMetricEvaluator(evaluator MetricEvaluator) *Service {
+	s.metricEvaluator = evaluator
+	return s
 }
 
 func (s *Service) DiagnosePod(ctx context.Context, clusterID int64, namespace, name string) (Record, error) {
@@ -98,6 +109,33 @@ func (s *Service) DiagnoseNode(ctx context.Context, clusterID int64, name string
 	if !matched {
 		record, matched = EvaluateNodePressure(clusterID, node, s.now())
 	}
+	if !matched {
+		return Record{}, ErrNoRuleMatch
+	}
+	record.SLADueAt = SLADeadline(record.Severity, record.ObservedAt)
+	if err := s.repository.Save(ctx, &record); err != nil {
+		return Record{}, err
+	}
+	return record, nil
+}
+
+func (s *Service) DiagnoseNodeMetrics(ctx context.Context, clusterID int64, name string, metric string, rule metricshistory.EvaluationRule) (Record, error) {
+	if s.metricEvaluator == nil {
+		return Record{}, ErrNoRuleMatch
+	}
+	from := s.now().Add(-6 * time.Hour)
+	to := s.now()
+	eval, err := s.metricEvaluator.Evaluate(ctx, metricshistory.EvaluationQuery{
+		SeriesQuery: metricshistory.SeriesQuery{
+			ClusterID: clusterID, ResourceKind: metricshistory.ResourceNode,
+			ResourceName: name, MetricName: metric, From: from, To: to,
+		},
+		EvaluationRule: rule,
+	})
+	if err != nil {
+		return Record{}, err
+	}
+	record, matched := EvaluateSustainedMetricBreach(clusterID, eval, s.now())
 	if !matched {
 		return Record{}, ErrNoRuleMatch
 	}

@@ -30,13 +30,20 @@ type KubernetesSource interface {
 	PatchDeployment(context.Context, int64, string, string, []byte, bool) (k8sgateway.Deployment, error)
 	CronJob(context.Context, int64, string, string) (k8sgateway.CronJob, error)
 	PatchCronJob(context.Context, int64, string, string, []byte, bool) (k8sgateway.CronJob, error)
+	ReplicaSet(context.Context, int64, string, string) (k8sgateway.ReplicaSet, error)
+	ReplicaSetsByOwner(context.Context, int64, string, string) ([]k8sgateway.ReplicaSet, error)
+	RolloutHistory(context.Context, int64, string, string) (k8sgateway.RolloutHistory, error)
+	RolloutStatus(context.Context, int64, string, string) (k8sgateway.RolloutStatus, error)
 }
 
 type OperationRequest struct {
-	Action          string
-	Namespace       string
-	TargetName      string
-	DesiredReplicas *int32
+	Action           string
+	Namespace        string
+	TargetName       string
+	DesiredReplicas  *int32
+	ContainerName    string
+	DesiredImage     string
+	RollbackRevision *int32
 }
 
 type Service struct {
@@ -113,6 +120,8 @@ func (s *Service) PreviewOperation(ctx context.Context, clusterID int64, request
 	request.Action = strings.TrimSpace(request.Action)
 	request.Namespace = strings.TrimSpace(request.Namespace)
 	request.TargetName = strings.TrimSpace(request.TargetName)
+	request.ContainerName = strings.TrimSpace(request.ContainerName)
+	request.DesiredImage = strings.TrimSpace(request.DesiredImage)
 	if clusterID < 1 || !validResourceName(request.Namespace, 63) || !validResourceName(request.TargetName, 253) {
 		return Plan{}, ErrInvalidOperation
 	}
@@ -121,7 +130,7 @@ func (s *Service) PreviewOperation(ctx context.Context, clusterID int64, request
 	if err != nil {
 		return Plan{}, err
 	}
-	patch, err := patchFor(plan)
+	patch, err := s.patchForOperation(ctx, plan)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -148,6 +157,25 @@ func (s *Service) PreviewOperation(ctx context.Context, clusterID int64, request
 		if preview.Spec.Suspend == nil || plan.DesiredSuspended == nil || *preview.Spec.Suspend != *plan.DesiredSuspended {
 			return Plan{}, ErrTargetChanged
 		}
+	case ActionDeploymentImageUpdate:
+		preview, patchErr := s.kubernetes.PatchDeployment(ctx, clusterID, plan.TargetNamespace, plan.TargetName, patch, true)
+		if patchErr != nil {
+			return Plan{}, patchErr
+		}
+		if preview.Metadata.UID != "" && preview.Metadata.UID != plan.TargetUID {
+			return Plan{}, ErrTargetChanged
+		}
+		if !previewHasContainerImage(preview, plan.ContainerName, plan.DesiredImage) {
+			return Plan{}, ErrTargetChanged
+		}
+	case ActionDeploymentRollback:
+		preview, patchErr := s.kubernetes.PatchDeployment(ctx, clusterID, plan.TargetNamespace, plan.TargetName, patch, true)
+		if patchErr != nil {
+			return Plan{}, patchErr
+		}
+		if preview.Metadata.UID != "" && preview.Metadata.UID != plan.TargetUID {
+			return Plan{}, ErrTargetChanged
+		}
 	default:
 		return Plan{}, ErrUnsupportedAction
 	}
@@ -172,6 +200,9 @@ func (s *Service) newOperationPlan(ctx context.Context, clusterID int64, request
 
 	switch request.Action {
 	case ActionDeploymentScale:
+		if request.DesiredImage != "" || request.RollbackRevision != nil || request.ContainerName != "" {
+			return Plan{}, ErrInvalidOperation
+		}
 		if request.DesiredReplicas == nil || *request.DesiredReplicas < 0 || *request.DesiredReplicas > 1000 {
 			return Plan{}, ErrInvalidOperation
 		}
@@ -192,7 +223,7 @@ func (s *Service) newOperationPlan(ctx context.Context, clusterID int64, request
 		plan.TargetKind, plan.TargetUID, plan.TargetResourceVersion = "Deployment", deployment.Metadata.UID, deployment.Metadata.ResourceVersion
 		plan.BeforeReplicas, plan.DesiredReplicas = &before, request.DesiredReplicas
 	case ActionCronJobSuspend, ActionCronJobResume:
-		if request.DesiredReplicas != nil {
+		if request.DesiredReplicas != nil || request.DesiredImage != "" || request.RollbackRevision != nil {
 			return Plan{}, ErrInvalidOperation
 		}
 		cronJob, err := s.kubernetes.CronJob(ctx, clusterID, request.Namespace, request.TargetName)
@@ -209,6 +240,71 @@ func (s *Service) newOperationPlan(ctx context.Context, clusterID int64, request
 		}
 		plan.TargetKind, plan.TargetUID, plan.TargetResourceVersion = "CronJob", cronJob.Metadata.UID, cronJob.Metadata.ResourceVersion
 		plan.BeforeSuspended, plan.DesiredSuspended = &before, &desired
+	case ActionDeploymentImageUpdate:
+		if request.DesiredReplicas != nil || request.RollbackRevision != nil {
+			return Plan{}, ErrInvalidOperation
+		}
+		if !validResourceName(request.ContainerName, 253) || !validContainerImage(request.DesiredImage) {
+			return Plan{}, ErrInvalidOperation
+		}
+		deployment, err := s.kubernetes.Deployment(ctx, clusterID, request.Namespace, request.TargetName)
+		if err != nil {
+			return Plan{}, err
+		}
+		if deployment.Metadata.UID == "" || deployment.Metadata.ResourceVersion == "" {
+			return Plan{}, ErrTargetChanged
+		}
+		beforeImage := ""
+		found := false
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			if container.Name == request.ContainerName {
+				beforeImage, found = container.Image, true
+				break
+			}
+		}
+		if !found {
+			return Plan{}, ErrInvalidOperation
+		}
+		if beforeImage == request.DesiredImage {
+			return Plan{}, ErrOperationNoChange
+		}
+		plan.TargetKind, plan.TargetUID, plan.TargetResourceVersion = "Deployment", deployment.Metadata.UID, deployment.Metadata.ResourceVersion
+		plan.ContainerName, plan.BeforeImage, plan.DesiredImage = request.ContainerName, beforeImage, request.DesiredImage
+	case ActionDeploymentRollback:
+		if request.DesiredReplicas != nil || request.DesiredImage != "" || request.ContainerName != "" {
+			return Plan{}, ErrInvalidOperation
+		}
+		if request.RollbackRevision == nil || *request.RollbackRevision < 1 {
+			return Plan{}, ErrInvalidOperation
+		}
+		deployment, err := s.kubernetes.Deployment(ctx, clusterID, request.Namespace, request.TargetName)
+		if err != nil {
+			return Plan{}, err
+		}
+		if deployment.Metadata.UID == "" || deployment.Metadata.ResourceVersion == "" {
+			return Plan{}, ErrTargetChanged
+		}
+		history, err := s.kubernetes.RolloutHistory(ctx, clusterID, request.Namespace, request.TargetName)
+		if err != nil {
+			return Plan{}, err
+		}
+		var targetRevision *k8sgateway.RolloutRevision
+		for index, revision := range history.Revisions {
+			if revision.Revision == *request.RollbackRevision {
+				targetRevision = &history.Revisions[index]
+				break
+			}
+		}
+		if targetRevision == nil {
+			return Plan{}, ErrRevisionNotFound
+		}
+		if targetRevision.Current {
+			return Plan{}, ErrOperationNoChange
+		}
+		plan.TargetKind, plan.TargetUID, plan.TargetResourceVersion = "Deployment", deployment.Metadata.UID, deployment.Metadata.ResourceVersion
+		plan.RollbackRevision = request.RollbackRevision
+		plan.RollbackReplicaSetName = targetRevision.ReplicaSetName
+		plan.RollbackReplicaSetUID, plan.RollbackReplicaSetResourceVersion = targetRevision.UID, targetRevision.ResourceVersion
 	default:
 		return Plan{}, ErrUnsupportedAction
 	}
@@ -231,6 +327,13 @@ func (s *Service) ListOperations(ctx context.Context, clusterID int64, namespace
 	return s.repository.ListOperations(ctx, clusterID, namespace, kind, name)
 }
 
+func (s *Service) patchForOperation(ctx context.Context, plan Plan) ([]byte, error) {
+	if plan.Action == ActionDeploymentRollback {
+		return s.buildRollbackPatch(ctx, plan)
+	}
+	return patchFor(plan)
+}
+
 func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotencyKey string) (Plan, error) {
 	id, confirmationToken, idempotencyKey = strings.TrimSpace(id), strings.TrimSpace(confirmationToken), strings.TrimSpace(idempotencyKey)
 	if id == "" || confirmationToken == "" {
@@ -245,10 +348,10 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 	if err != nil || !shouldExecute {
 		return plan, err
 	}
-	patch, err := patchFor(plan)
+	patch, err := s.patchForOperation(ctx, plan)
 	if err == nil {
 		switch plan.Action {
-		case ActionDeploymentRolloutRestart, ActionDeploymentScale:
+		case ActionDeploymentRolloutRestart, ActionDeploymentScale, ActionDeploymentImageUpdate, ActionDeploymentRollback:
 			_, err = s.kubernetes.PatchDeployment(ctx, plan.ClusterID, plan.TargetNamespace, plan.TargetName, patch, false)
 		case ActionCronJobSuspend, ActionCronJobResume:
 			_, err = s.kubernetes.PatchCronJob(ctx, plan.ClusterID, plan.TargetNamespace, plan.TargetName, patch, false)
@@ -266,6 +369,20 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 	return s.repository.Complete(ctx, plan.ID, idempotencyKey, s.now().UTC())
 }
 
+func (s *Service) RolloutHistory(ctx context.Context, clusterID int64, namespace, name string) (k8sgateway.RolloutHistory, error) {
+	if clusterID < 1 || !validResourceName(namespace, 63) || !validResourceName(name, 253) {
+		return k8sgateway.RolloutHistory{}, ErrInvalidOperation
+	}
+	return s.kubernetes.RolloutHistory(ctx, clusterID, namespace, name)
+}
+
+func (s *Service) RolloutStatus(ctx context.Context, clusterID int64, namespace, name string) (k8sgateway.RolloutStatus, error) {
+	if clusterID < 1 || !validResourceName(namespace, 63) || !validResourceName(name, 253) {
+		return k8sgateway.RolloutStatus{}, ErrInvalidOperation
+	}
+	return s.kubernetes.RolloutStatus(ctx, clusterID, namespace, name)
+}
+
 func selectorMatches(selector, labels map[string]string) bool {
 	if len(selector) == 0 {
 		return false
@@ -280,6 +397,27 @@ func selectorMatches(selector, labels map[string]string) bool {
 
 func validResourceName(value string, maximum int) bool {
 	return value != "" && len(value) <= maximum && kubernetesNamePattern.MatchString(value)
+}
+
+func validContainerImage(image string) bool {
+	if image == "" || len(image) > 512 {
+		return false
+	}
+	for _, ch := range image {
+		if ch < 0x20 || ch == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+func previewHasContainerImage(deployment k8sgateway.Deployment, containerName, desiredImage string) bool {
+	for _, container := range deployment.Spec.Template.Spec.Containers {
+		if container.Name == containerName && container.Image == desiredImage {
+			return true
+		}
+	}
+	return false
 }
 
 func patchFor(plan Plan) ([]byte, error) {
@@ -306,9 +444,66 @@ func patchFor(plan Plan) ([]byte, error) {
 			return nil, ErrInvalidOperation
 		}
 		return json.Marshal(map[string]any{"metadata": metadata, "spec": map[string]any{"suspend": *plan.DesiredSuspended}})
+	case ActionDeploymentImageUpdate:
+		if plan.ContainerName == "" || plan.DesiredImage == "" {
+			return nil, ErrInvalidOperation
+		}
+		return json.Marshal(map[string]any{
+			"metadata": metadata,
+			"spec": map[string]any{"template": map[string]any{"spec": map[string]any{
+				"containers": []map[string]string{{"name": plan.ContainerName, "image": plan.DesiredImage}},
+			}}},
+		})
 	default:
 		return nil, ErrUnsupportedAction
 	}
+}
+
+func (s *Service) buildRollbackPatch(ctx context.Context, plan Plan) ([]byte, error) {
+	if plan.RollbackRevision == nil || plan.RollbackReplicaSetName == "" || plan.RollbackReplicaSetUID == "" {
+		return nil, ErrInvalidOperation
+	}
+	replicaSet, err := s.kubernetes.ReplicaSet(ctx, plan.ClusterID, plan.TargetNamespace, plan.RollbackReplicaSetName)
+	if err != nil {
+		return nil, err
+	}
+	if replicaSet.Metadata.UID != plan.RollbackReplicaSetUID {
+		return nil, ErrTargetChanged
+	}
+	if plan.RollbackReplicaSetResourceVersion != "" && replicaSet.Metadata.ResourceVersion != plan.RollbackReplicaSetResourceVersion {
+		return nil, ErrTargetChanged
+	}
+	if len(replicaSet.Spec.Template.Raw) == 0 {
+		return nil, ErrInvalidOperation
+	}
+	var template map[string]any
+	if err := json.Unmarshal(replicaSet.Spec.Template.Raw, &template); err != nil {
+		return nil, ErrInvalidOperation
+	}
+	template["$patch"] = "replace"
+	metadata, _ := template["metadata"].(map[string]any)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	for _, field := range []string{"name", "namespace", "uid", "resourceVersion", "creationTimestamp", "generation", "managedFields", "ownerReferences", "finalizers"} {
+		delete(metadata, field)
+	}
+	labels, _ := metadata["labels"].(map[string]any)
+	if labels != nil {
+		delete(labels, "pod-template-hash")
+		metadata["labels"] = labels
+	}
+	annotations, _ := metadata["annotations"].(map[string]any)
+	if annotations == nil {
+		annotations = map[string]any{}
+	}
+	annotations["k8s-aiops.local/rollback-revision"] = fmt.Sprintf("%d", *plan.RollbackRevision)
+	metadata["annotations"] = annotations
+	template["metadata"] = metadata
+	return json.Marshal(map[string]any{
+		"metadata": map[string]any{"uid": plan.TargetUID, "resourceVersion": plan.TargetResourceVersion},
+		"spec":     map[string]any{"template": template},
+	})
 }
 
 func newIdentity() (string, string, []byte, error) {
@@ -336,6 +531,9 @@ func safeExecutionError(err error) string {
 	}
 	if errors.Is(err, k8sgateway.ErrResourceNotFound) {
 		return "Kubernetes remediation target was not found"
+	}
+	if errors.Is(err, ErrTargetChanged) {
+		return "Kubernetes remediation target changed after diagnosis"
 	}
 	return "Kubernetes remediation request failed"
 }

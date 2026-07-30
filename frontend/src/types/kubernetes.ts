@@ -93,6 +93,48 @@ export interface ConfigMapResource {
   dataKeys: string[]
   binaryDataKeys: string[]
 }
+export interface PodContainerInfo {
+  name: string
+  ready: boolean
+  restart_count: number
+  state: 'running' | 'waiting' | 'terminated'
+  is_init: boolean
+  image: string
+}
+export interface PodLogLine {
+  timestamp: string
+  message: string
+}
+export interface PodContainerLog {
+  container: string
+  lines: PodLogLine[]
+  truncated: boolean
+  truncation_reason?: 'body_limit' | 'fetch_error'
+}
+export interface PodLogsResponse {
+  containers: PodContainerLog[]
+  previous: boolean
+}
+export interface PersistentVolume {
+  metadata: ObjectMeta
+  spec: { capacity?: Record<string, string>; accessModes?: string[]; persistentVolumeReclaimPolicy?: string; storageClassName?: string; volumeMode?: string; persistentVolumeSource?: Record<string, unknown>; claimRef?: { namespace: string; name: string } }
+  status: { phase: string; message?: string }
+}
+export interface PodDisruptionBudgetResource {
+  metadata: ObjectMeta
+  spec: { minAvailable?: number | string; maxUnavailable?: number | string; selector?: Record<string, unknown> }
+  status: { currentHealthy: number; desiredHealthy: number; disruptionsAllowed: number; expectedPods: number }
+}
+export interface NetworkPolicyResource {
+  metadata: ObjectMeta
+  spec: { podSelector?: Record<string, unknown>; policyTypes?: string[]; ingress?: Array<Record<string, unknown>>; egress?: Array<Record<string, unknown>> }
+}
+export interface ServiceAccountResource {
+  metadata: ObjectMeta
+  automountServiceAccountToken?: boolean
+  imagePullSecrets?: Array<{ name: string }>
+  secretRefs?: Array<{ name: string }>
+}
 export interface ContainerStateDetail { reason?: string; message?: string; exitCode?: number; signal?: number; startedAt?: string; finishedAt?: string }
 export interface ContainerStatus { name: string; ready: boolean; restartCount: number; state: { waiting?: ContainerStateDetail; terminated?: ContainerStateDetail }; lastState: { waiting?: ContainerStateDetail; terminated?: ContainerStateDetail } }
 export interface Pod {
@@ -116,3 +158,21 @@ export interface KubernetesEvent {
   involvedObject: { kind: string; namespace?: string; name: string; uid?: string }
 }
 export interface ListResponse<T> { items: T[]; total: number; remaining: number }
+
+export interface VeleroCapability { installed: boolean; version?: string }
+
+export interface VeleroBackup {
+  name: string
+  namespace: string
+  phase: string
+  included_namespaces?: string[]
+  storage_location?: string
+  ttl?: string
+  expiration?: string
+  started_at?: string
+  completed_at?: string
+  failure_reason?: string
+  errors: number
+  warnings: number
+  created_at: string
+}

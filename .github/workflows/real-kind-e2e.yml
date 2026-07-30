@@ -15,6 +15,7 @@ on:
           - diagnosis
           - fleet
           - search
+          - history
 
 permissions:
   contents: read
@@ -56,7 +57,7 @@ jobs:
             fleet = '.\scripts\e2e-fleet-kind.ps1'
             search = '.\scripts\e2e-global-search-kind.ps1'
           }
-          if ($env:E2E_SUITE -ne 'all' -and -not $suites.Contains($env:E2E_SUITE)) {
+          if ($env:E2E_SUITE -ne 'all' -and $env:E2E_SUITE -ne 'history' -and -not $suites.Contains($env:E2E_SUITE)) {
             throw "Unsupported E2E suite: $env:E2E_SUITE"
           }
           foreach ($entry in $suites.GetEnumerator()) {
@@ -68,6 +69,40 @@ jobs:
               throw "$($entry.Key) suite failed with exit code $LASTEXITCODE"
             }
           }
+      - name: Prepare isolated M21 Compose runtime
+        if: ${{ env.E2E_SUITE == 'all' || env.E2E_SUITE == 'history' }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:COMPOSE_PROJECT_NAME = "aiops-m21-$env:GITHUB_RUN_ID"
+          "COMPOSE_PROJECT_NAME=$env:COMPOSE_PROJECT_NAME" | Add-Content -LiteralPath $env:GITHUB_ENV
+          $adminPassword = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLowerInvariant()
+          $runtimeEnvironment = @(
+            'APP_ENV=production'
+            'POSTGRES_DB=aiops_m21'
+            'POSTGRES_USER=aiops_m21'
+            "POSTGRES_PASSWORD=$([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(24)).ToLowerInvariant())"
+            "JWT_SIGNING_KEY=$([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLowerInvariant())"
+            "BOOTSTRAP_ADMIN_PASSWORD=$adminPassword"
+            "CREDENTIAL_ENCRYPTION_KEY=$([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)))"
+            'CREDENTIAL_KEY_VERSION=v1'
+            'CREDENTIAL_DECRYPTION_KEYS={}'
+            'AI_ENABLED=false'
+            'NOTIFICATION_ENABLED=false'
+          )
+          [IO.File]::WriteAllLines((Join-Path $PWD '.env'), $runtimeEnvironment, [Text.UTF8Encoding]::new($false))
+          docker compose up -d --build
+          if ($LASTEXITCODE -ne 0) { throw 'M21 Compose runtime failed to start' }
+      - name: Run M21 history and sustained-window suite
+        if: ${{ env.E2E_SUITE == 'all' || env.E2E_SUITE == 'history' }}
+        shell: powershell
+        run: .\scripts\e2e-m21-history-kind.ps1
+      - name: Remove isolated M21 Compose runtime
+        if: ${{ always() && (env.E2E_SUITE == 'all' || env.E2E_SUITE == 'history') }}
+        shell: powershell
+        run: |
+          docker compose down --volumes --remove-orphans
+          Remove-Item -LiteralPath .env -Force -ErrorAction SilentlyContinue
       - name: Upload sanitized E2E evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -77,5 +112,6 @@ jobs:
             .artifacts/diagnosis-e2e/*.json
             .artifacts/fleet-e2e/*.json
             .artifacts/search-e2e/*.json
+            .artifacts/m21-history-kind/*.json
           if-no-files-found: warn
           retention-days: 14

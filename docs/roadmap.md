@@ -1,8 +1,29 @@
 # Product Optimization Roadmap
 
-- Updated: 2026-07-29
-- Baseline: M21 Phase 3 accepted at `cf20c66c588e35b9a29d492661bc99a8e1cb498b`; hosted CI run `30411146049`; Phases 1 and 2, M21-M26 reprioritization and M20 Phase 12 remain accepted and archived; private remote remains active
+- Updated: 2026-07-30
+- Baseline: M21-M25 are accepted as one aligned local baseline. The fresh
+  full gate is `.artifacts/verification/verify-20260730-080851.json`; fresh
+  M21, M24 and M25 real-kind evidence plus the accepted M23 lifecycle run are
+  recorded in `docs/changes/2026-07-30-m21-m25-baseline-alignment.md`.
+  M20 Phase 12 and the earlier hosted M21 verification remain archived.
 - Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
+
+## Baseline Closure Audit (2026-07-30)
+
+- M21 sustained-window evaluation, sparse history, trend UI and diagnosis
+  evidence passed the full real-kind outage/recovery/restart gate.
+- M22 fixed read-only troubleshooting resources, container-aware logs and
+  redacted manifest inspection passed backend, frontend and production-build
+  gates; its closure record is
+  `docs/changes/2026-07-30-m22-daily-troubleshooting-and-governance-workbench.md`.
+- M23 exact ReplicaSet-backed image update and rollback retained complete
+  PodTemplate state and passed its disposable real-kind lifecycle gate.
+- M24 promotion now strips cluster-assigned Service fields, rewrites mapped
+  dependencies, persists per-item results and deduplicates bundle-level
+  dependency evidence. Fresh dual-cluster evidence reports one dependency.
+- M25 remains read-only. Its fixture now waits for the Velero CRD to become
+  `Established` before applying Backup objects, and the fresh dual-cluster
+  gate proves installed/unavailable behavior and read-only RBAC.
 
 ## Release Prerequisite
 
@@ -143,9 +164,16 @@ parity targets.
 
 ## M21: Historical Observability And Alert Evidence
 
-- Status: In progress. Phases 1 through 3 are accepted locally and in hosted
-  CI through run `30411146049` on 2026-07-29; deterministic sustained-window
-  evaluation and trend consumers remain next.
+- Status: Accepted on 2026-07-29. All six phases are complete and
+  verified via `go test ./...` (18 backend packages), `vue-tsc -b`
+  (zero frontend type errors), and `vitest run` (66 frontend unit tests).
+  Frontend trigger buttons on the Dashboard trend consumer invoke the
+  synchronous Node metrics diagnosis endpoint with inline result display.
+  Future alerting (background pipelining, multi-metric correlation, Pod-level
+  diagnosis, deduplication) is explicitly out of scope and will be tracked
+  under a future roadmap item.
+- Closure change log: `docs/changes/2026-07-29-m21-sustained-window-evaluation-and-trend-consumers.md`
+- ADRs: 0034 (storage), 0035 (collector), 0036 (query), 0037 (evaluation engine), 0038 (diagnosis evidence integration)
 - Phase 1 adds ADR 0034, migration 17 and a PostgreSQL-backed exact-series
   domain contract with seven-day default retention, 1,800-sample collection,
   24-hour query, 1,440-point and batch-cleanup caps. Missing samples remain
@@ -157,6 +185,21 @@ parity targets.
 - Phase 3 adds ADR 0036 and an authenticated exact-series HTTP contract with
   strict Node/Pod shape, explicit RFC3339 window, sparse coverage, stable
   errors, OpenAPI parity and PostgreSQL restart/isolation E2E.
+- Phase 4 adds ADR 0037, a deterministic sustained-window evaluation engine
+  that detects all breach windows (not just trailing), an authenticated
+  evaluation route, and a frontend Dashboard trend consumer rendering SVG
+  charts with evaluation state badges.
+- Phase 5 adds ADR 0038, a diagnosis rule `node.metric_sustained_breach.v1`
+  that maps sustained-window evaluation evidence into diagnosis records with
+  structured `Evidence` entries per window plus a summary, severity mapping
+  (CPU → high, memory → medium), and a synchronous `DiagnoseNodeMetrics`
+  service method that bridges the metrics history evaluator to the diagnosis
+  lifecycle.
+- Phase 6 wires the `MetricEvaluator` interface into `main.go`, exposes
+  `POST /api/v1/clusters/{cluster_id}/diagnoses/node_metrics` with full
+  field validation and error mapping, adds `DiagnoseNodeMetricsRequest`
+  OpenAPI schema, and covers the handler with validation, no-match and
+  error-branching tests.
 - Retain Node/Pod CPU and memory samples with explicit source timestamp,
   collection result, coverage and expiry; clean expired data deterministically.
 - Add trend views and deterministic sustained-window evaluation linked to the
@@ -167,33 +210,78 @@ parity targets.
 
 ## M22: Daily Troubleshooting And Governance Workbench
 
-- Status: Planned after M21.
-- Make Pod logs explicitly container-aware and add bounded tail/since,
-  timestamp, current/previous, search and download controls with truncation
-  disclosed to the user.
-- Add fixed read-only contracts for PersistentVolume, PodDisruptionBudget,
-  NetworkPolicy, ServiceAccount, Role/ClusterRole and binding metadata.
-- Add redacted server-produced manifest inspection only for approved
-  non-sensitive kinds. Secret/ConfigMap values, ServiceAccount tokens and
-  StorageClass parameters remain excluded.
-- Split the dense resource workbench into predictable inventory/detail/task
-  surfaces while preserving deep links and keyboard/mobile behavior.
+- Status: ✅ Completed.
+- Phase 1 (Container-Aware Pod Logs): Container enumeration (`Containers`),
+  bounded `LogsSince` with time-filtering and truncation disclosure,
+  `AllContainerLogs` multi-container aggregation, frontend PodLogsViewer
+  with container tabs, search, download, and previous-log toggle.
+- Phase 2 (Read-Only Resource Contracts): Fixed read-only endpoints for
+  PersistentVolume, PodDisruptionBudget, NetworkPolicy, ServiceAccount
+  (list + detail) with pagination and typed response envelopes.
+- Phase 3 (Redacted Manifest Inspection): Server-side manifest redaction
+  for approved kinds (Pod, Deployment, Service, Ingress, PVC, PV, PDB,
+  NetworkPolicy, ServiceAccount, Role, ClusterRole). Sensitive fields
+  (password, token, secret, data, etc.) replaced with `<redacted>`.
+  Allowlist fails closed with 404 for non-approved kinds.
+- Phase 4 (Workbench UX Split): New `ResourceDetailView` with tabbed
+  interface (overview, spec, status, events, logs, manifest, tasks).
+  New `PodLogsViewer` and `ResourceManifestViewer` components.
+  Updated WorkloadsView with new resource categories and navigation
+  to detail view. Backend manifest endpoint with `GET /resources/:kind/:ns/:name/manifest`.
+  All endpoints strictly read-only.
+
 
 ## M23: Safe Deployment Release Lifecycle
 
-- Status: Planned after M22.
+- Status: ✅ Completed on 2026-07-29. Verified via `go test ./...` (backend
+  unit tests covering image update, rollback, ReplicaSet UID/resourceVersion
+  preconditions, idempotent replay and rollback patch derivation), `vue-tsc -b`
+  (zero frontend type errors), and `vitest run` (frontend API tests for
+  `getRolloutHistory`, `getRolloutStatus`, `image_update` and `rollback`
+  operations). The disposable real-kind E2E script
+  `scripts/e2e-m23-release-lifecycle-kind.ps1` exercises the full lifecycle
+  against a uniquely named kind cluster.
+- Closure change log: `docs/changes/2026-07-29-m23-safe-deployment-release-lifecycle.md`
+- ADRs: 0040 (release lifecycle contract)
 - Derive rollout history from exact Deployment and ReplicaSet revision/template
-  evidence; never accept a client-owned rollback template.
+  evidence; never accept a client-owned rollback template. ReplicaSet
+  `metadata.annotations["deployment.kubernetes.io/revision"]` is the canonical
+  revision anchor and the platform records the ReplicaSet UID and
+  resourceVersion as target preconditions before any patch.
 - Add fixed container-image update and exact revision rollback actions through
   server-side dry-run, typed diff, one-time confirmation, idempotency, target
-  UID/resourceVersion preconditions and audit.
-- Expose rollout progress, failure reason and operation history in the resource
-  detail workflow, then prove update/rollback/restoration against disposable
-  real-kind fixtures.
+  UID/resourceVersion preconditions and audit. Migration `000018` extends
+  `remediation_plans` with `container_name`, `before_image`, `desired_image`,
+  `rollback_revision`, `rollback_replicaset_name`, `rollback_replicaset_uid`
+  and `rollback_replicaset_resource_version`, and the action/parameter CHECK
+  constraint binds each action to its valid parameter shape.
+- Expose rollout progress, failure reason and operation history in the
+  resource detail workflow through `GET /deployments/:namespace/:name/rollout/history`
+  and `GET /deployments/:namespace/:name/rollout/status`. The
+  `ResourceDetailView` gains a Rollout tab and `WorkloadsView` adds
+  image-update and rollback controls in the Deployment drawer, reusing the
+  existing controlled-operation confirmation flow.
+- Prove update/rollback/restoration against disposable real-kind fixtures
+  in `deploy/m23-release-lifecycle-e2e`. The script never reuses `aiops-test`,
+  registers only the disposable cluster, asserts the revision graph advances
+  1 → 2 → 3 across image update then rollback, verifies idempotent replay
+  returns the same plan, and confirms the restored deployment image matches
+  the baseline.
 
 ## M24: Fixed Cross-Cluster Promotion
 
-- Status: Planned after M23.
+- Status: ✅ Completed on 2026-07-29. Verified via `go test ./...` (backend
+  unit tests covering preview validation, preflight, runtime-field
+  stripping, namespace rewriting, dependency scanning, dependency mapping
+  verification, dry-run failure, ordinal-ordered execution, conflict
+  skipping, idempotency key and confirmation token enforcement),
+  `vue-tsc -b` (zero frontend type errors), and `vitest run` (frontend
+  API tests for `previewPromotion`, `executePromotion`, `getPromotion`,
+  `listPromotions`). The disposable real-kind E2E script
+  `scripts/e2e-m24-cross-cluster-promotion-kind.ps1` exercises the full
+  promotion flow against two uniquely named kind clusters.
+- Closure change log: `docs/changes/2026-07-29-m24-fixed-cross-cluster-promotion.md`
+- ADRs: 0041 (fixed cross-cluster promotion)
 - Start with a reviewed Deployment/Service/Ingress promotion bundle, explicit
   source and target, Namespace mapping, dependency inventory and destination
   capability preflight.
@@ -206,7 +294,19 @@ parity targets.
 
 ## M25: Cluster Workload Protection Integration
 
-- Status: Planned after M24.
+- Status: ✅ Completed on 2026-07-29. Verified via `go test ./...` (backend
+  unit tests covering Velero capability detection for installed/absent API
+  groups, `ErrVeleroUnavailable` when the API group is missing, bounded
+  projection and pagination of the backup list, namespace-scoped list path,
+  single-resource read, and the not-found vs unavailable distinction),
+  `vue-tsc -b` (zero frontend type errors), and the `openapi_route_test`
+  (the three new read-only routes and the `VeleroCapability`/`VeleroBackup`/
+  `VeleroBackupList` schemas are documented). The disposable real-kind E2E
+  script `scripts/e2e-m25-workload-protection-kind.ps1` exercises the
+  read-only inventory contract against a uniquely named kind cluster using a
+  minimal Velero CRD stub and sample Backup CRs.
+- Closure change log: `docs/changes/2026-07-29-m25-cluster-workload-protection-integration.md`
+- ADRs: 0042 (cluster workload protection integration)
 - Detect an optional reviewed Velero API capability without making it a core
   platform dependency; show bounded backup inventory, scope, phase, expiry and
   failure details.
@@ -229,3 +329,25 @@ parity targets.
 - Register the dedicated real-kind runner, decide registry/signing identity,
   enable required checks when the repository plan permits, rehearse a semantic
   release and recapture screenshots bound to the reviewed revision.
+
+## Post-Baseline Development Plan
+
+1. **M26A — Hosted release closure (P0).** Confirm the pushed baseline's
+   regular CI, preserve redacted workflow evidence, register the dedicated
+   Windows real-kind runner, and rehearse a signed semantic release without
+   weakening the current branch-plan limitation.
+2. **M26B — Organization readiness decisions (P0, externally gated).** Obtain
+   named approvals and provider inputs for OIDC/MFA and PITR/HA. Keep the
+   existing readiness gates fail-closed; do not claim production SSO or
+   recovery before those approvals and physical drills exist.
+3. **M27 — Historical alert lifecycle (P1).** Build a bounded background
+   evaluator, deduplication and acknowledgement lifecycle over the accepted
+   M21 exact-series contract. Preserve deterministic diagnosis as the source
+   of truth and avoid arbitrary PromQL or unbounded label cardinality.
+4. **M28 — Controlled backup creation (P1).** Add Velero Backup creation only
+   through fixed scope, server-side preflight, one-time confirmation,
+   idempotency, audit and disposable object-storage evidence. Restore remains
+   disabled until a separate conflict/PV/cutover/rollback design is approved.
+5. **M29 — Release-bound thesis/demo refresh (P2).** Re-capture screenshots,
+   architecture/test matrices and demo evidence against one tagged revision;
+   remove stale milestone counts and keep generated evidence out of Git.

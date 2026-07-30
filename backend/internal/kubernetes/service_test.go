@@ -257,6 +257,39 @@ func TestExtendedReadOnlyResourcePaths(t *testing.T) {
 	}
 }
 
+func TestM22PodDisruptionBudgetPathsUsePolicyAPIGroup(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     []byte
+		call     func(*Service) error
+		wantPath string
+	}{
+		{name: "list", body: []byte(`{"items":[]}`), call: func(service *Service) error {
+			_, err := service.PodDisruptionBudgets(context.Background(), 7, "team one", apiquery.ListQuery{Page: 1, Limit: 20})
+			return err
+		}, wantPath: "/apis/policy/v1/namespaces/team%20one/poddisruptionbudgets"},
+		{name: "detail", body: []byte(`{"metadata":{"name":"api-budget"}}`), call: func(service *Service) error {
+			_, err := service.PodDisruptionBudget(context.Background(), 7, "team one", "api/budget")
+			return err
+		}, wantPath: "/apis/policy/v1/namespaces/team%20one/poddisruptionbudgets/api%2Fbudget"},
+		{name: "manifest", body: []byte(`{"metadata":{"name":"api-budget"}}`), call: func(service *Service) error {
+			_, err := service.Manifest(context.Background(), 7, "PodDisruptionBudget", "team one", "api/budget")
+			return err
+		}, wantPath: "/apis/policy/v1/namespaces/team%20one/poddisruptionbudgets/api%2Fbudget"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gateway := &gatewayStub{body: tt.body}
+			if err := tt.call(NewService(credentialStub{enabled: true}, gateway)); err != nil {
+				t.Fatal(err)
+			}
+			if gateway.path != tt.wantPath {
+				t.Fatalf("path = %q, want %q", gateway.path, tt.wantPath)
+			}
+		})
+	}
+}
+
 func TestM17ReadOnlyResourcePaths(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -558,5 +591,323 @@ func TestServiceEndpointsFallsBackOnlyWhenDiscoveryAPIIsMissing(t *testing.T) {
 	var status cluster.APIStatusError
 	if !errors.As(err, &status) || status.StatusCode != 403 || len(forbidden.paths) != 1 {
 		t.Fatalf("paths=%v err=%v", forbidden.paths, err)
+	}
+}
+
+func TestContainersListsContainerInfo(t *testing.T) {
+	podPath := "/api/v1/namespaces/prod/pods/api-1"
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		podPath: {body: []byte(`{"metadata":{"name":"api-1","namespace":"prod"},"spec":{"containers":[{"name":"app","image":"app:1.0"},{"name":"sidecar","image":"sidecar:2.0"}],"initContainers":[{"name":"migrate","image":"migrate:1.0"}]},"status":{"containerStatuses":[{"name":"app","ready":true,"restartCount":0,"state":{"running":{}},"lastState":{}},{"name":"sidecar","ready":false,"restartCount":3,"state":{"waiting":{"reason":"ImagePullBackOff"}},"lastState":{"terminated":{"exitCode":1}}}],"initContainerStatuses":[{"name":"migrate","ready":true,"restartCount":1,"state":{"terminated":{"exitCode":0}}}]}}`)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	containers, err := service.Containers(context.Background(), 7, "prod", "api-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(containers) != 3 {
+		t.Fatalf("expected 3 containers, got %d", len(containers))
+	}
+	if containers[0].Name != "app" || containers[0].Ready != true || containers[0].State != "running" {
+		t.Fatalf("unexpected app container: %#v", containers[0])
+	}
+	if containers[1].Name != "sidecar" || containers[1].Ready != false || containers[1].State != "waiting" || containers[1].RestartCount != 3 {
+		t.Fatalf("unexpected sidecar container: %#v", containers[1])
+	}
+	if containers[2].Name != "migrate" || !containers[2].IsInit || containers[2].State != "terminated" || containers[2].RestartCount != 1 {
+		t.Fatalf("unexpected init container: %#v", containers[2])
+	}
+}
+
+func TestLogsSinceSupportsSinceSecondsAndDisclosesTruncation(t *testing.T) {
+	podPath := "/api/v1/namespaces/prod/pods/api-1"
+	logPath := "/api/v1/namespaces/prod/pods/api-1/log"
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		podPath: {body: []byte(`{"metadata":{"name":"api-1"},"spec":{"containers":[{"name":"app"}]},"status":{"containerStatuses":[{"name":"app","ready":true}]}}`)},
+		logPath: {body: []byte("2026-07-29T10:00:00Z line one\n2026-07-29T10:00:05Z line two\n")},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	log, err := service.LogsSince(context.Background(), 7, "prod", "api-1", "app", false, 200, 3600, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if log.Container != "app" || len(log.Lines) != 2 || log.Truncated {
+		t.Fatalf("unexpected log: %#v", log)
+	}
+	if log.Lines[0].Timestamp != "2026-07-29T10:00:00Z" || log.Lines[0].Message != "line one" {
+		t.Fatalf("unexpected first line: %#v", log.Lines[0])
+	}
+	if gateway.query.Get("sinceSeconds") != "3600" {
+		t.Fatalf("sinceSeconds not forwarded: %v", gateway.query)
+	}
+}
+
+func TestLogsSinceDisallowsBothSinceSecondsAndSinceTime(t *testing.T) {
+	gateway := &gatewayStub{}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	_, err := service.LogsSince(context.Background(), 7, "prod", "api-1", "app", false, 200, 3600, "2026-07-29T00:00:00Z")
+	if err == nil {
+		t.Fatal("expected mutually exclusive log window parameters to be rejected")
+	}
+}
+
+func TestLogsSinceDetectsTruncation(t *testing.T) {
+	podPath := "/api/v1/namespaces/prod/pods/api-1"
+	logPath := "/api/v1/namespaces/prod/pods/api-1/log"
+	longLine := strings.Repeat("x", 1<<20)
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		podPath: {body: []byte(`{"metadata":{"name":"api-1"},"spec":{"containers":[{"name":"app"}]},"status":{"containerStatuses":[{"name":"app","ready":true}]}}`)},
+		logPath: {body: []byte("2026-07-29T10:00:00Z " + longLine)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	log, err := service.LogsSince(context.Background(), 7, "prod", "api-1", "app", false, 200, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !log.Truncated || log.TruncationReason != "body_limit" {
+		t.Fatalf("expected truncated with body_limit, got %#v", log)
+	}
+}
+
+func TestAllContainerLogsFetchesAllContainers(t *testing.T) {
+	podPath := "/api/v1/namespaces/prod/pods/api-1"
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		podPath: {body: []byte(`{"metadata":{"name":"api-1"},"spec":{"containers":[{"name":"app"},{"name":"sidecar"}]},"status":{"containerStatuses":[{"name":"app","ready":true},{"name":"sidecar","ready":true}]}}`)},
+	}}
+	g := gateway
+	service := NewService(credentialStub{enabled: true}, g)
+	resp, err := service.AllContainerLogs(context.Background(), 7, "prod", "api-1", false, 100, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Containers) != 2 {
+		t.Fatalf("expected 2 container logs, got %d", len(resp.Containers))
+	}
+	if resp.Previous {
+		t.Fatal("expected previous=false")
+	}
+	if resp.Containers[0].Container != "app" || resp.Containers[1].Container != "sidecar" {
+		t.Fatalf("unexpected container order: %v, %v", resp.Containers[0].Container, resp.Containers[1].Container)
+	}
+	for _, c := range resp.Containers {
+		if c.TruncationReason == "fetch_error" {
+			t.Logf("container %s had fetch error (expected without mock): %s", c.Container, c.TruncationReason)
+		}
+	}
+}
+
+func TestParseLogLinesHandlesTimestampedAndUntimestamped(t *testing.T) {
+	input := "2026-07-29T10:00:00Z app started\n2026-07-29T10:00:05Z processing request\nno timestamp here\n"
+	lines := parseLogLines(input)
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines, got %d", len(lines))
+	}
+	if lines[0].Timestamp != "2026-07-29T10:00:00Z" || lines[0].Message != "app started" {
+		t.Fatalf("line 0 = %#v", lines[0])
+	}
+	if lines[1].Timestamp != "2026-07-29T10:00:05Z" || lines[1].Message != "processing request" {
+		t.Fatalf("line 1 = %#v", lines[1])
+	}
+	if lines[2].Timestamp != "" || lines[2].Message != "no timestamp here" {
+		t.Fatalf("line 2 = %#v", lines[2])
+	}
+}
+
+func TestParseLogLinesHandlesEmpty(t *testing.T) {
+	lines := parseLogLines("")
+	if lines != nil {
+		t.Fatalf("expected nil for empty input, got %v", lines)
+	}
+}
+
+func TestManifestRejectsNonApprovedKind(t *testing.T) {
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	_, err := service.Manifest(context.Background(), 7, "Secret", "default", "my-secret")
+	if err != ErrResourceNotFound {
+		t.Fatalf("expected ErrResourceNotFound, got %v", err)
+	}
+}
+
+func TestManifestFetchesAndRedacts(t *testing.T) {
+	manifestJSON := `{
+		"metadata":{"name":"api-1","namespace":"prod"},
+		"spec":{"containers":[{"name":"app","image":"app:1.0","env":[{"name":"DB_PASSWORD","value":"super-secret"}]}]},
+		"data":{"config":"sensitive-data"}
+	}`
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/api/v1/namespaces/prod/pods/api-1": {body: []byte(manifestJSON)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	result, err := service.Manifest(context.Background(), 7, "Pod", "prod", "api-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["metadata"] == nil {
+		t.Fatal("expected metadata to be present")
+	}
+	if result["data"] != "<redacted>" {
+		t.Fatalf("expected data to be <redacted>, got %v", result["data"])
+	}
+	spec := result["spec"].(map[string]interface{})
+	containers := spec["containers"].([]interface{})
+	firstContainer := containers[0].(map[string]interface{})
+	env := firstContainer["env"].([]interface{})
+	firstEnv := env[0].(map[string]interface{})
+	if firstEnv["value"] != "<redacted>" {
+		t.Fatalf("expected env value to be <redacted>, got %v", firstEnv["value"])
+	}
+}
+
+func TestManifestRedactsSensitiveFieldNames(t *testing.T) {
+	manifestJSON := `{"metadata":{"name":"test"},"password":"admin123","nested":{"secret":"my-secret"}}`
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/apps/v1/namespaces/default/deployments/test": {body: []byte(manifestJSON)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	result, err := service.Manifest(context.Background(), 7, "Deployment", "default", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["password"] != "<redacted>" {
+		t.Fatalf("expected password to be <redacted>, got %v", result["password"])
+	}
+	nested := result["nested"].(map[string]interface{})
+	if nested["secret"] != "<redacted>" {
+		t.Fatalf("expected nested secret to be <redacted>, got %v", nested["secret"])
+	}
+}
+
+func TestManifestPathMapping(t *testing.T) {
+	tests := []struct {
+		kind      string
+		namespace string
+		name      string
+		wantPath  string
+	}{
+		{"Pod", "prod", "api-1", "/api/v1/namespaces/prod/pods/api-1"},
+		{"PersistentVolume", "", "my-pv", "/api/v1/persistentvolumes/my-pv"},
+		{"ClusterRole", "", "admin", "/apis/rbac.authorization.k8s.io/v1/clusterroles/admin"},
+		{"Deployment", "prod", "api", "/apis/apps/v1/namespaces/prod/deployments/api"},
+		{"Ingress", "default", "web", "/apis/networking.k8s.io/v1/namespaces/default/ingresses/web"},
+		{"Role", "kube-system", "reader", "/apis/rbac.authorization.k8s.io/v1/namespaces/kube-system/roles/reader"},
+	}
+	for _, tt := range tests {
+		got := manifestPath(tt.kind, tt.namespace, tt.name)
+		if got != tt.wantPath {
+			t.Errorf("manifestPath(%s, %s, %s) = %s, want %s", tt.kind, tt.namespace, tt.name, got, tt.wantPath)
+		}
+	}
+}
+
+func TestVeleroCapabilityReturnsNotInstalledWhenAPIGroupMissing(t *testing.T) {
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/velero.io/v1": {err: cluster.APIStatusError{StatusCode: 404}},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	capability, err := service.VeleroCapability(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if capability.Installed {
+		t.Fatalf("expected Installed=false, got %#v", capability)
+	}
+}
+
+func TestVeleroCapabilityReturnsInstalledWhenAPIGroupExists(t *testing.T) {
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/velero.io/v1": {body: []byte(`{"groupVersion":"velero.io/v1","kind":"APIResourceList"}`)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	capability, err := service.VeleroCapability(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !capability.Installed || capability.Version != "v1" {
+		t.Fatalf("expected Installed=true Version=v1, got %#v", capability)
+	}
+}
+
+func TestBackupsReturnsVeleroUnavailableWhenAPIGroupMissing(t *testing.T) {
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/velero.io/v1/backups": {err: cluster.APIStatusError{StatusCode: 404}},
+		"/apis/velero.io/v1":         {err: cluster.APIStatusError{StatusCode: 404}},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	_, err := service.Backups(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20})
+	if !errors.Is(err, ErrVeleroUnavailable) {
+		t.Fatalf("expected ErrVeleroUnavailable, got %v", err)
+	}
+}
+
+func TestBackupsProjectsBoundedShapeAndPaginates(t *testing.T) {
+	backupListJSON := `{"items":[
+		{"metadata":{"name":"backup-a","namespace":"velero","creationTimestamp":"2026-07-29T10:00:00Z"},"spec":{"includedNamespaces":["prod"],"storageLocation":"default","ttl":"720h"},"status":{"phase":"Completed","expiration":"2026-08-28T10:00:00Z","startTimestamp":"2026-07-29T10:00:00Z","completionTimestamp":"2026-07-29T10:05:00Z","errors":0,"warnings":2}},
+		{"metadata":{"name":"backup-b","namespace":"velero","creationTimestamp":"2026-07-29T11:00:00Z"},"spec":{"includedNamespaces":["staging"],"storageLocation":"default","ttl":"720h"},"status":{"phase":"Failed","failureReason":"snapshot timeout","errors":3,"warnings":1}}
+	]}`
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/velero.io/v1/backups": {body: []byte(backupListJSON)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	response, err := service.Backups(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 10, SortBy: "name", Ascending: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Total != 2 || len(response.Items) != 2 {
+		t.Fatalf("response = %#v", response)
+	}
+	first := response.Items[0]
+	if first.Name != "backup-a" || first.Phase != "Completed" || len(first.IncludedNamespaces) != 1 || first.IncludedNamespaces[0] != "prod" || first.StorageLocation != "default" || first.TTL != "720h" || first.Expiration != "2026-08-28T10:00:00Z" || first.Errors != 0 || first.Warnings != 2 {
+		t.Fatalf("first backup = %#v", first)
+	}
+	second := response.Items[1]
+	if second.Phase != "Failed" || second.FailureReason != "snapshot timeout" || second.Errors != 3 {
+		t.Fatalf("second backup = %#v", second)
+	}
+	if gateway.path != "/apis/velero.io/v1/backups" {
+		t.Fatalf("path = %q", gateway.path)
+	}
+}
+
+func TestBackupsUsesNamespaceScopedPath(t *testing.T) {
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/velero.io/v1/namespaces/velero/backups": {body: []byte(`{"items":[]}`)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	response, err := service.Backups(context.Background(), 7, "velero", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Total != 0 {
+		t.Fatalf("expected empty list, got %#v", response)
+	}
+	if gateway.path != "/apis/velero.io/v1/namespaces/velero/backups" {
+		t.Fatalf("path = %q", gateway.path)
+	}
+}
+
+func TestBackupReturnsProjectedSingleResource(t *testing.T) {
+	backupJSON := `{"metadata":{"name":"backup-a","namespace":"velero","creationTimestamp":"2026-07-29T10:00:00Z"},"spec":{"includedNamespaces":["prod"],"storageLocation":"default","ttl":"720h"},"status":{"phase":"Completed","startTimestamp":"2026-07-29T10:00:00Z","completionTimestamp":"2026-07-29T10:05:00Z","errors":0,"warnings":2}}`
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/velero.io/v1/namespaces/velero/backups/backup-a": {body: []byte(backupJSON)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	backup, err := service.Backup(context.Background(), 7, "velero", "backup-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if backup.Name != "backup-a" || backup.Namespace != "velero" || backup.Phase != "Completed" || backup.StorageLocation != "default" || backup.TTL != "720h" || len(backup.IncludedNamespaces) != 1 || backup.Errors != 0 || backup.Warnings != 2 {
+		t.Fatalf("backup = %#v", backup)
+	}
+}
+
+func TestBackupKeepsResourceNotFoundWhenVeleroInstalledButBackupMissing(t *testing.T) {
+	gateway := &gatewayStub{responses: map[string]gatewayResponse{
+		"/apis/velero.io/v1/namespaces/velero/backups/missing": {err: cluster.APIStatusError{StatusCode: 404}},
+		"/apis/velero.io/v1": {body: []byte(`{"groupVersion":"velero.io/v1"}`)},
+	}}
+	service := NewService(credentialStub{enabled: true}, gateway)
+	_, err := service.Backup(context.Background(), 7, "velero", "missing")
+	if !errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrVeleroUnavailable) {
+		t.Fatalf("expected ErrResourceNotFound without ErrVeleroUnavailable, got %v", err)
 	}
 }

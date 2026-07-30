@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Boxes, Check, ChevronRight, Clock3, Database, FileText, Gauge, Globe2, HardDrive, KeyRound, Layers, ListChecks, Network, Pause, Play, RefreshCw, Search, Server, Settings, ShieldCheck, SlidersHorizontal, Sparkles, X } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
-import { diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService, executeRemediation, listControlledOperations, previewControlledOperation } from '../api/diagnosis'
+import { diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService, executeRemediation, getRolloutHistory, listControlledOperations, previewControlledOperation } from '../api/diagnosis'
 import {
   getConfigMap,
   getCronJob,
@@ -45,9 +45,10 @@ import {
   listStorageClasses,
 } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import MetricsHistoryPanel from '../components/MetricsHistoryPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { ControlledOperationRequest, DiagnosisRecord, RemediationPlan } from '../types/diagnosis'
+import type { ControlledOperationRequest, DiagnosisRecord, RemediationPlan, RolloutHistory } from '../types/diagnosis'
 import type {
   ConfigMapResource,
   CronJobResource,
@@ -85,12 +86,12 @@ interface DetailValue { label: string; value: string }
 
 const resourceCategories: Array<{ id: ResourceCategory; label: string; kinds: ResourceKind[] }> = [
   { id: 'workloads', label: '工作负载', kinds: ['Pod', 'Deployment', 'StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob', 'Node'] },
-  { id: 'network', label: '网络', kinds: ['Service', 'Ingress'] },
-  { id: 'storage', label: '存储', kinds: ['PVC', 'StorageClass'] },
-  { id: 'configuration', label: '弹性与配置', kinds: ['HPA', 'ResourceQuota', 'LimitRange', 'ConfigMap', 'Secret'] },
+  { id: 'network', label: '网络', kinds: ['Service', 'Ingress', 'NetworkPolicy'] },
+  { id: 'storage', label: '存储', kinds: ['PVC', 'PV', 'StorageClass'] },
+  { id: 'configuration', label: '弹性与配置', kinds: ['HPA', 'ResourceQuota', 'LimitRange', 'ConfigMap', 'Secret', 'PDB', 'ServiceAccount'] },
 ]
 const resourceKinds = resourceCategories.flatMap((category) => category.kinds)
-const clusterScopedKinds = new Set<ResourceKind>(['Node', 'StorageClass'])
+const clusterScopedKinds = new Set<ResourceKind>(['Node', 'StorageClass', 'PV'])
 const kindIcons = {
   Pod: Boxes,
   Deployment: Server,
@@ -103,12 +104,16 @@ const kindIcons = {
   Service: Network,
   Ingress: Globe2,
   PVC: Database,
+  PV: HardDrive,
   StorageClass: Layers,
   HPA: Gauge,
   ResourceQuota: ShieldCheck,
   LimitRange: Settings,
   ConfigMap: FileText,
   Secret: KeyRound,
+  NetworkPolicy: ShieldCheck,
+  PDB: Pause,
+  ServiceAccount: KeyRound,
 }
 const categoryIcons = { workloads: Boxes, network: Network, storage: Database, configuration: Settings }
 const diagnosticPodReasons = ['ImagePullBackOff', 'ErrImagePull', 'CrashLoopBackOff', 'Pending', 'OOMKilled']
@@ -161,6 +166,11 @@ const operationConfirmed = ref(false)
 const operationBusy = ref(false)
 const operationError = ref('')
 const scaleReplicas = ref(1)
+const imageUpdateContainer = ref('')
+const imageUpdateImage = ref('')
+const rollbackRevision = ref<number | null>(null)
+const rolloutHistory = ref<RolloutHistory | null>(null)
+const rolloutHistoryLoading = ref(false)
 let initialized = false
 let resourceSequence = 0
 let detailSequence = 0
@@ -617,6 +627,10 @@ async function loadDetailFromRoute() {
   relatedEvents.value = []
   eventsError.value = ''
   operationHistory.value = []
+  rolloutHistory.value = null
+  imageUpdateContainer.value = ''
+  imageUpdateImage.value = ''
+  rollbackRevision.value = null
   clearOperationPreview()
   if (!selection || !clusterID) return
   detailLoading.value = true
@@ -625,15 +639,23 @@ async function loadDetailFromRoute() {
   const operationRequest = targetKind
     ? listControlledOperations(auth.accessToken, clusterID, selection.namespace, targetKind, selection.name)
     : Promise.resolve({ items: [] as RemediationPlan[], total: 0, remaining: 0 })
-  const [detailResult, eventResult, operationResult] = await Promise.allSettled([
+  const rolloutRequest = selection.kind === 'Deployment'
+    ? getRolloutHistory(auth.accessToken, clusterID, selection.namespace, selection.name)
+    : Promise.resolve(null)
+  const [detailResult, eventResult, operationResult, rolloutResult] = await Promise.allSettled([
     getSelectedDetail(selection, clusterID),
     listEvents(auth.accessToken, clusterID, selection.namespace, selection.name),
     operationRequest,
+    rolloutRequest,
   ])
   if (sequence !== detailSequence) return
   if (detailResult.status === 'fulfilled') {
     detail.value = detailResult.value
-    if (selection.kind === 'Deployment') scaleReplicas.value = (detailResult.value as Deployment).spec.replicas ?? 1
+    if (selection.kind === 'Deployment') {
+      scaleReplicas.value = (detailResult.value as Deployment).spec.replicas ?? 1
+      const containers = (detailResult.value as Deployment).spec.template.spec.containers
+      imageUpdateContainer.value = containers[0]?.name ?? ''
+    }
   }
   else detailError.value = '资源详情读取失败。资源可能已被删除，或观察账号缺少读取权限。'
   if (eventResult.status === 'fulfilled') {
@@ -647,6 +669,12 @@ async function loadDetailFromRoute() {
     eventsError.value = '关联事件暂时不可用'
   }
   if (operationResult.status === 'fulfilled') operationHistory.value = operationResult.value.items
+  if (rolloutResult.status === 'fulfilled' && rolloutResult.value) {
+    rolloutHistory.value = rolloutResult.value
+    const previous = rolloutResult.value.revisions.find((rev) => !rev.current)
+    rollbackRevision.value = previous?.revision ?? null
+  }
+  rolloutHistoryLoading.value = false
   detailLoading.value = false
   eventsLoading.value = false
 }
@@ -699,9 +727,10 @@ async function selectKind(kind: ResourceKind) {
 
 async function openResource(kind: ResourceKind, resourceNamespace: string | undefined, name: string) {
   selectedKind.value = kind
-  const query: Record<string, string> = { cluster: String(selectedClusterID.value), kind, name }
-  if (!isClusterScoped(kind) && resourceNamespace) query.namespace = resourceNamespace
-  await router.push({ path: '/workloads', query })
+  const ns = isClusterScoped(kind) ? '_' : (resourceNamespace || '_')
+  await router.push({
+    path: `/clusters/${selectedClusterID.value}/resources/${kind}/${ns}/${name}`,
+  })
 }
 
 async function closeDetail() {
@@ -798,6 +827,35 @@ function previewDeploymentScale() {
   void createOperationPreview({ action: 'deployment.scale', namespace: target.metadata.namespace, target_name: target.metadata.name, desired_replicas: scaleReplicas.value })
 }
 
+function previewDeploymentImageUpdate() {
+  const target = deploymentDetail.value
+  const containerName = imageUpdateContainer.value.trim()
+  const desiredImage = imageUpdateImage.value.trim()
+  if (!target?.metadata.namespace || !containerName || !desiredImage) {
+    operationError.value = '请选择容器并填写目标镜像'
+    return
+  }
+  if (desiredImage.length > 512) {
+    operationError.value = '镜像引用长度不能超过 512 个字符'
+    return
+  }
+  const current = target.spec.template.spec.containers.find((c) => c.name === containerName)
+  if (current && current.image === desiredImage) {
+    operationError.value = '目标镜像与当前镜像一致'
+    return
+  }
+  void createOperationPreview({ action: 'deployment.image_update', namespace: target.metadata.namespace, target_name: target.metadata.name, container_name: containerName, desired_image: desiredImage })
+}
+
+function previewDeploymentRollback() {
+  const target = deploymentDetail.value
+  if (!target?.metadata.namespace || rollbackRevision.value == null) {
+    operationError.value = '请选择要回滚的历史版本'
+    return
+  }
+  void createOperationPreview({ action: 'deployment.rollback', namespace: target.metadata.namespace, target_name: target.metadata.name, rollback_revision: rollbackRevision.value })
+}
+
 function previewCronJobOperation(action: 'cronjob.suspend' | 'cronjob.resume') {
   const target = cronJobDetail.value
   if (!target?.metadata.namespace) return
@@ -824,6 +882,8 @@ async function confirmOperation() {
 
 function operationActionLabel(action: RemediationPlan['action']): string {
   if (action === 'deployment.scale') return '调整副本数'
+  if (action === 'deployment.image_update') return '更新镜像'
+  if (action === 'deployment.rollback') return '回滚版本'
   if (action === 'cronjob.suspend') return '暂停调度'
   if (action === 'cronjob.resume') return '恢复调度'
   return '滚动重启'
@@ -833,9 +893,10 @@ function operationStatusLabel(status: RemediationPlan['status']): string {
   return { awaiting_confirmation: '待确认', executing: '执行中', succeeded: '已完成', failed: '失败', expired: '已过期' }[status]
 }
 
-function operationValue(value: number | boolean | undefined): string {
+function operationValue(value: string | number | boolean | undefined): string {
+  if (value === undefined) return '--'
   if (typeof value === 'boolean') return value ? '暂停' : '运行'
-  return value === undefined ? '--' : String(value)
+  return String(value)
 }
 
 function onEscape(event: KeyboardEvent) {
@@ -996,6 +1057,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
           <template v-if="podDetail">
             <div class="drawer-action-bar"><button class="secondary-button" type="button" @click="showLogs(podDetail)"><FileText :size="15" />当前日志</button><button v-if="restartCount(podDetail) > 0" class="secondary-button" type="button" @click="showLogs(podDetail, true)"><FileText :size="15" />Previous</button><button class="diagnose-button" type="button" :disabled="diagnosisLoading" @click="runDiagnosis('Pod', podDetail)"><Sparkles :size="15" />运行诊断</button></div>
             <dl class="resource-detail-stats"><div><dt>Phase</dt><dd><span class="resource-status" :class="statusClass(podReason(podDetail))">{{ podReason(podDetail) }}</span></dd></div><div><dt>Ready</dt><dd>{{ readyContainerCount(podDetail) }}/{{ podDetail.spec.containers.length }}</dd></div><div><dt>Restarts</dt><dd>{{ restartCount(podDetail) }}</dd></div><div><dt>Created</dt><dd>{{ formatTime(podDetail.metadata.creationTimestamp) }}</dd></div></dl>
+            <MetricsHistoryPanel :access-token="auth.accessToken" :cluster-id="selectedClusterID!" resource-kind="Pod" :namespace="podDetail.metadata.namespace" :name="podDetail.metadata.name" :containers="podDetail.spec.containers.map((container) => container.name)" />
             <section class="detail-section"><h3>运行位置</h3><dl class="detail-definition-list"><div><dt>Node</dt><dd>{{ podDetail.spec.nodeName || '--' }}</dd></div><div><dt>Pod IP</dt><dd>{{ podDetail.status.podIP || '--' }}</dd></div><div><dt>Host IP</dt><dd>{{ podDetail.status.hostIP || '--' }}</dd></div><div><dt>UID</dt><dd>{{ podDetail.metadata.uid || '--' }}</dd></div></dl></section>
             <section class="detail-section"><h3>容器</h3><div class="detail-list"><article v-for="container in podDetail.spec.containers" :key="container.name" class="container-row"><span><strong>{{ container.name }}</strong><small>{{ container.image }}</small></span><em :class="podDetail.status.containerStatuses?.find((item) => item.name === container.name)?.ready ? 'ready' : ''">{{ podDetail.status.containerStatuses?.find((item) => item.name === container.name)?.ready ? 'Ready' : 'Not Ready' }}</em></article></div></section>
             <section class="detail-section"><h3>Conditions</h3><div class="condition-list"><article v-for="condition in podDetail.status.conditions ?? []" :key="condition.type"><span :class="['condition-indicator', condition.status === 'True' ? 'true' : 'false']" /><div><strong>{{ condition.type }} · {{ condition.status }}</strong><small>{{ condition.reason || 'No reason' }} · {{ formatTime(condition.lastTransitionTime) }}</small><p v-if="condition.message">{{ condition.message }}</p></div></article><div v-if="!podDetail.status.conditions?.length" class="detail-empty">没有 Condition 数据</div></div></section>
@@ -1006,6 +1068,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
             <div class="drawer-action-bar"><div v-if="canOperate" class="scale-control"><label for="deployment-replicas">副本</label><input id="deployment-replicas" v-model.number="scaleReplicas" type="number" min="0" max="1000" step="1" inputmode="numeric" /><button class="secondary-button" type="button" :disabled="operationBusy || !Number.isInteger(scaleReplicas) || scaleReplicas === (deploymentDetail.spec.replicas ?? 1)" @click="previewDeploymentScale"><SlidersHorizontal :size="15" />预览调整</button></div><button class="diagnose-button" type="button" :disabled="diagnosisLoading" @click="runDiagnosis('Deployment', deploymentDetail)"><Sparkles :size="15" />运行诊断</button></div>
             <dl class="resource-detail-stats six"><div><dt>Desired</dt><dd>{{ deploymentDetail.spec.replicas ?? 1 }}</dd></div><div><dt>Current</dt><dd>{{ deploymentDetail.status.replicas }}</dd></div><div><dt>Updated</dt><dd>{{ deploymentDetail.status.updatedReplicas }}</dd></div><div><dt>Ready</dt><dd>{{ deploymentDetail.status.readyReplicas }}</dd></div><div><dt>Available</dt><dd>{{ deploymentDetail.status.availableReplicas }}</dd></div><div><dt>Unavailable</dt><dd :class="{ danger: deploymentDetail.status.unavailableReplicas > 0 }">{{ deploymentDetail.status.unavailableReplicas }}</dd></div></dl>
             <section class="detail-section"><h3>容器镜像</h3><div class="detail-list"><article v-for="container in deploymentDetail.spec.template.spec.containers" :key="container.name" class="container-row"><span><strong>{{ container.name }}</strong><small>{{ container.image }}</small></span></article></div></section>
+            <section v-if="canOperate" class="detail-section release-control-section">
+              <h3>发布管理</h3>
+              <div class="release-control-group">
+                <label class="release-control-label">更新镜像</label>
+                <div class="release-control-row">
+                  <select v-model="imageUpdateContainer" aria-label="选择容器"><option v-for="container in deploymentDetail.spec.template.spec.containers" :key="container.name" :value="container.name">{{ container.name }}</option></select>
+                  <input v-model.trim="imageUpdateImage" type="text" placeholder="例如 nginx:1.27.1" maxlength="512" />
+                  <button class="secondary-button" type="button" :disabled="operationBusy || !imageUpdateContainer || !imageUpdateImage" @click="previewDeploymentImageUpdate"><SlidersHorizontal :size="15" />预览更新</button>
+                </div>
+              </div>
+              <div class="release-control-group">
+                <label class="release-control-label">回滚版本</label>
+                <div class="release-control-row">
+                  <select v-model.number="rollbackRevision" aria-label="选择历史版本" :disabled="!rolloutHistory || rolloutHistory.revisions.filter((r) => !r.current).length === 0">
+                    <option :value="null" disabled>选择历史版本</option>
+                    <option v-for="rev in (rolloutHistory?.revisions ?? []).filter((r) => !r.current)" :key="rev.revision" :value="rev.revision">Revision {{ rev.revision }} · {{ (rev.images.join(', ') || '--').slice(0, 40) }}</option>
+                  </select>
+                  <button class="secondary-button" type="button" :disabled="operationBusy || rollbackRevision == null" @click="previewDeploymentRollback"><RefreshCw :size="15" />预览回滚</button>
+                </div>
+                <small v-if="rolloutHistory && rolloutHistory.revisions.filter((r) => !r.current).length === 0" class="release-control-hint">没有可回滚的历史版本</small>
+              </div>
+            </section>
             <section class="detail-section"><h3>Selector</h3><div class="detail-chip-list"><span v-for="([key, value]) in sortedEntries(deploymentDetail.spec.selector.matchLabels)" :key="key"><b>{{ key }}</b>= {{ value }}</span><div v-if="!sortedEntries(deploymentDetail.spec.selector.matchLabels).length" class="detail-empty">没有 Selector</div></div></section>
             <section class="detail-section"><h3>Labels</h3><div class="detail-chip-list"><span v-for="([key, value]) in sortedEntries(deploymentDetail.metadata.labels)" :key="key"><b>{{ key }}</b>= {{ value }}</span><div v-if="!sortedEntries(deploymentDetail.metadata.labels).length" class="detail-empty">没有 Labels</div></div></section>
           </template>
@@ -1013,6 +1097,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
           <template v-else-if="nodeDetail">
             <div v-if="nodeDiagnosable(nodeDetail)" class="drawer-action-bar"><button class="diagnose-button" type="button" :disabled="diagnosisLoading" @click="runDiagnosis('Node', nodeDetail)"><Sparkles :size="15" />检查节点</button></div>
             <dl class="resource-detail-stats"><div><dt>Status</dt><dd><span class="resource-status" :class="nodeReady(nodeDetail) === 'True' ? 'running' : 'failed'">{{ nodeReady(nodeDetail) === 'True' ? 'Ready' : nodeReady(nodeDetail) }}</span></dd></div><div><dt>Scheduling</dt><dd>{{ nodeDetail.spec.unschedulable ? 'Disabled' : 'Enabled' }}</dd></div><div><dt>Internal IP</dt><dd>{{ nodeAddress(nodeDetail) }}</dd></div><div><dt>Kubelet</dt><dd>{{ nodeDetail.status.nodeInfo.kubeletVersion || '--' }}</dd></div></dl>
+            <MetricsHistoryPanel :access-token="auth.accessToken" :cluster-id="selectedClusterID!" resource-kind="Node" :name="nodeDetail.metadata.name" />
             <section class="detail-section"><h3>系统</h3><dl class="detail-definition-list"><div><dt>OS image</dt><dd>{{ nodeDetail.status.nodeInfo.osImage || '--' }}</dd></div><div><dt>Container runtime</dt><dd>{{ nodeDetail.status.nodeInfo.containerRuntimeVersion || '--' }}</dd></div><div><dt>Hostname</dt><dd>{{ nodeAddress(nodeDetail, 'Hostname') }}</dd></div><div><dt>UID</dt><dd>{{ nodeDetail.metadata.uid || '--' }}</dd></div></dl></section>
             <section class="detail-section"><h3>资源容量</h3><div class="capacity-grid"><article v-for="([key, value]) in sortedEntries(nodeDetail.status.capacity)" :key="key"><span>{{ key }}</span><strong>{{ value }}</strong><small>allocatable {{ nodeDetail.status.allocatable?.[key] || '--' }}</small></article><div v-if="!sortedEntries(nodeDetail.status.capacity).length" class="detail-empty">没有容量数据</div></div></section>
             <section class="detail-section"><h3>Conditions</h3><div class="condition-list"><article v-for="condition in nodeDetail.status.conditions" :key="condition.type"><span :class="['condition-indicator', condition.type === 'Ready' ? (condition.status === 'True' ? 'true' : 'false') : (condition.status === 'True' ? 'warning' : 'true')]" /><div><strong>{{ condition.type }} · {{ condition.status }}</strong><small>{{ condition.reason || 'No reason' }} · {{ formatTime(condition.lastTransitionTime) }}</small><p v-if="condition.message">{{ condition.message }}</p></div></article></div></section>

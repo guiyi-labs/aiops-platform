@@ -25,6 +25,7 @@ import (
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/notification"
+	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/store"
 	"k8s-aiops.local/backend/migrations"
@@ -92,8 +93,9 @@ func main() {
 	fleetService := fleet.NewService(fleet.Config{MaxClusters: 20, MaxConcurrentClusters: 4, PerClusterTimeout: 4 * time.Second, ResourceSampleLimit: 100}, clusterService, kubernetesService)
 	globalSearchService := globalsearch.NewService(globalsearch.Config{MaxClusters: 20, MaxConcurrentClusters: 4, PerClusterTimeout: 4 * time.Second, MaxResults: 100, PerKindLimit: 100}, clusterService, kubernetesService)
 	savedFilterService := globalsearch.NewSavedFilterService(globalsearch.NewSavedFilterGormRepository(database.GORM()))
-	diagnosisService := diagnosis.NewService(kubernetesService, diagnosis.NewGormRepository(database.GORM()))
+	diagnosisService := diagnosis.NewService(kubernetesService, diagnosis.NewGormRepository(database.GORM())).WithMetricEvaluator(metricsHistoryService)
 	remediationService := remediation.NewService(diagnosisService, kubernetesService, remediation.NewGormRepository(database.GORM()))
+	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
 	var aiProvider aiexplain.Provider
 	if cfg.AIEnabled {
 		aiProvider = aiexplain.NewResponsesProvider(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel, cfg.AIRequestTimeout, cfg.AIMaxOutputTokens)
@@ -139,6 +141,7 @@ func main() {
 			Audit:          auditService,
 			Notifications:  notificationService,
 			Remediation:    remediationService,
+			Promotion:      promotionService,
 			SecureCookies:  cfg.SecureCookies,
 			RefreshTTL:     cfg.RefreshTokenTTL,
 			Version:        buildinfo.Version,

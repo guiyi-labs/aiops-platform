@@ -23,6 +23,7 @@ import (
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/notification"
+	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 )
 
@@ -54,6 +55,7 @@ func TestRegisteredRoutesMatchOpenAPI(t *testing.T) {
 		AIExplanation:  &aiexplain.Service{},
 		Notifications:  notification.NewService(notification.ServiceConfig{}, nil, nil),
 		Remediation:    remediation.NewService(nil, nil, nil),
+		Promotion:      promotion.NewService(nil, nil),
 		Fleet:          fleet.NewService(fleet.Config{}, nil, nil),
 		GlobalSearch:   globalsearch.NewService(globalsearch.Config{}, nil, nil),
 		SavedFilters:   globalsearch.NewSavedFilterService(nil),

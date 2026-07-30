@@ -1,5 +1,34 @@
 # Development Handoff
 
+## Current Baseline (2026-07-30)
+
+This section supersedes the older phase-by-phase status narrative below.
+Local `main` contains the reviewed M21-M25 implementation and tracks
+`https://github.com/guiyi-labs/aiops-platform.git`. The release candidate has
+passed the fresh full repository gate at
+`.artifacts/verification/verify-20260730-080851.json` (121.79 seconds), with
+all Go packages, 17 Vitest files/73 tests, the production frontend build,
+current backend/frontend images, three healthy Compose services, Kustomize
+contracts and direct/proxied readiness.
+
+Fresh real-kind evidence is:
+
+- M21 history/window/outage/recovery/restart:
+  `.artifacts/m21-history-kind/m21-history-kind-20260730-080558.json`.
+- M23 image update/exact rollback lifecycle:
+  `.artifacts/m23-release-lifecycle-kind/m23-release-lifecycle-kind-20260729-234238.json`.
+- M24 two-cluster fixed promotion, including `dependencies=1`:
+  `.artifacts/m24-cross-cluster-promotion-kind/m24-cross-cluster-promotion-kind-20260730-074812.json`.
+- M25 installed/unavailable Velero inventory and read-only RBAC:
+  `.artifacts/m25-workload-protection-kind/m25-workload-protection-kind-20260730-075311.json`.
+
+Migrations 18 and 19 are applied in the development PostgreSQL instance. The
+current public surface, OpenAPI, typed frontend clients, least-privilege RBAC
+and acceptance scripts are aligned. Generated `.artifacts` and
+`frontend/dist` remain ignored and must not be committed. See
+`docs/changes/2026-07-30-m21-m25-baseline-alignment.md` for the review fixes
+and evidence ledger.
+
 - Last updated: 2026-07-29
 - Repository: `E:\k8s\毕设\aiops-platform`
 - Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 3 is accepted at `cf20c66c588e35b9a29d492661bc99a8e1cb498b` with hosted CI run `30411146049`; Phases 1 and 2 plus M20 Phase 12 remain accepted and archived
@@ -888,10 +917,10 @@ mutation path was added. Full verification and scope are archived in
 - At least one active `system_admin` must always remain.
 - Password reset must invalidate both refresh sessions and already-issued access tokens.
 - Audit and diagnosis histories are append-only through business APIs.
-- Kubernetes mutation is limited to the fixed catalog: diagnosis-bound Deployment rollout restart plus resource-originated Deployment scale and CronJob suspend/resume; no arbitrary write proxy exists.
+- Kubernetes mutation is limited to the fixed catalog: diagnosis-bound Deployment rollout restart; resource-originated Deployment scale, image update and exact ReplicaSet-backed rollback; CronJob suspend/resume; and fixed Deployment/Service/Ingress promotion. No arbitrary write proxy exists.
 - Every operation preview must pass server-side dry-run, capture target UID/resourceVersion and a typed before/after value, and expire without execution.
 - Operation execution requires a one-time token, an idempotency key and a matching target precondition; repeated same-key calls do not repeat the Kubernetes patch.
-- Deployment rollback remains unavailable until an immutable ReplicaSet revision/template snapshot can be selected and bound to preview and execution.
+- Deployment rollback accepts only a server-selected immutable ReplicaSet revision and complete PodTemplate snapshot bound to preview and execution; client-owned templates and arbitrary patches remain forbidden.
 - Fleet queries must remain bounded by reviewed cluster concurrency, per-cluster timeout and per-kind sample limits; partial or truncated data cannot be labeled healthy.
 - Global search must remain limited to the reviewed name/Namespace/four-kind query shape; omitted clusters, truncated results and fixed-kind failures cannot be labeled complete.
 
@@ -916,19 +945,20 @@ applied version in the current development database.
 
 ## Next Priorities After Current Work
 
-1. Implement M21 Phase 4 deterministic sustained-window evaluation over the
-   accepted exact-series route before adding alert consumers.
-2. Add trend and
-   incident-evidence views and validate sampling gaps,
-   retention and restart recovery against a disposable real-kind fixture.
-3. Continue through M22 multi-container logs/governance coverage, M23 safe
-   Deployment update/rollback, M24 fixed cross-cluster promotion and M25
-   optional backup inventory in the order recorded in `docs/roadmap.md`.
-4. In parallel, obtain identity/security/application-owner approval for the
-   Phase 11 policy and infrastructure-owner approval for the Phase 12 policy;
-   do not block M21-M25 on unavailable provider decisions.
-5. Revisit branch protection, register the dedicated `aiops-kind` runner and
-   decide registry/signing identity during M26 formal release preparation.
+1. Confirm hosted CI for the pushed M21-M25 baseline and retain only redacted
+   workflow evidence; then register the dedicated `aiops-kind` runner and
+   rehearse the semantic release workflow.
+2. Obtain the identity/security/application-owner decisions required by the
+   OIDC/MFA readiness policy and the infrastructure-owner decisions required
+   by the PITR/HA policy. Do not turn readiness into a production claim.
+3. Implement a bounded M27 background alert lifecycle over the accepted M21
+   evaluator: scheduling, deduplication, acknowledgement and audit, without
+   arbitrary PromQL or unbounded labels.
+4. Design M28 controlled Velero Backup creation using fixed scope, preflight,
+   confirmation, idempotency and audit. Keep restore disabled pending a
+   separate conflict/PV/cutover/rollback decision and disposable drill.
+5. Re-capture thesis screenshots and demo evidence against one tagged revision
+   after hosted CI is green. Keep generated evidence out of Git.
 
 ## Real kind Final Verification
 

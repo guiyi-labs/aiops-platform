@@ -17,6 +17,7 @@ import (
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/notification"
+	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
@@ -39,6 +40,7 @@ type Options struct {
 	GlobalSearch   *globalsearch.Service
 	SavedFilters   *globalsearch.SavedFilterService
 	MetricsHistory *metricshistory.Service
+	Promotion      *promotion.Service
 }
 
 func New(logger *zap.Logger, options Options) http.Handler {
@@ -71,6 +73,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 			if options.MetricsHistory != nil {
 				historyAPI := metricsHistoryHandler{service: options.MetricsHistory}
 				v1.GET("/clusters/:cluster_id/metrics/history", withAuthentication(options.Auth), withClusterContext(), historyAPI.series)
+				v1.GET("/clusters/:cluster_id/metrics/history/evaluate", withAuthentication(options.Auth), withClusterContext(), historyAPI.evaluate)
 			}
 			if options.Fleet != nil {
 				fleetAPI := fleetHandler{service: options.Fleet}
@@ -135,6 +138,9 @@ func New(logger *zap.Logger, options Options) http.Handler {
 				resourceRoutes.GET("/pods", resourcesAPI.pods)
 				resourceRoutes.GET("/pods/:namespace/:name", resourcesAPI.pod)
 				resourceRoutes.GET("/pods/:namespace/:name/logs", resourcesAPI.logs)
+				resourceRoutes.GET("/pods/:namespace/:name/logs_since", resourcesAPI.logsSince)
+				resourceRoutes.GET("/pods/:namespace/:name/all_logs", resourcesAPI.allContainerLogs)
+				resourceRoutes.GET("/pods/:namespace/:name/containers", resourcesAPI.containers)
 				resourceRoutes.GET("/events", resourcesAPI.events)
 				resourceRoutes.GET("/deployments", resourcesAPI.deployments)
 				resourceRoutes.GET("/deployments/:namespace/:name", resourcesAPI.deployment)
@@ -167,9 +173,22 @@ func New(logger *zap.Logger, options Options) http.Handler {
 				resourceRoutes.GET("/storageclasses/:name", resourcesAPI.storageClass)
 				resourceRoutes.GET("/configmaps", resourcesAPI.configMaps)
 				resourceRoutes.GET("/configmaps/:namespace/:name", resourcesAPI.configMap)
+				resourceRoutes.GET("/persistentvolumes", resourcesAPI.persistentVolumes)
+				resourceRoutes.GET("/persistentvolumes/:name", resourcesAPI.persistentVolume)
+				resourceRoutes.GET("/poddisruptionbudgets", resourcesAPI.podDisruptionBudgets)
+				resourceRoutes.GET("/poddisruptionbudgets/:namespace/:name", resourcesAPI.podDisruptionBudget)
+				resourceRoutes.GET("/networkpolicies", resourcesAPI.networkPolicies)
+				resourceRoutes.GET("/networkpolicies/:namespace/:name", resourcesAPI.networkPolicy)
+				resourceRoutes.GET("/serviceaccounts", resourcesAPI.serviceAccounts)
+				resourceRoutes.GET("/serviceaccounts/:namespace/:name", resourcesAPI.serviceAccount)
+				resourceRoutes.GET("/resources/:kind/:namespace/:name/manifest", resourcesAPI.manifest)
+				resourceRoutes.GET("/velero/capability", resourcesAPI.veleroCapability)
+				resourceRoutes.GET("/backups", resourcesAPI.backups)
+				resourceRoutes.GET("/backups/:namespace/:name", resourcesAPI.backup)
 				if options.Diagnosis != nil {
 					diagnosisAPI := diagnosisHandler{service: options.Diagnosis, users: options.Auth}
 					resourceRoutes.POST("/diagnoses", diagnosisAPI.create)
+					resourceRoutes.POST("/diagnoses/node_metrics", diagnosisAPI.diagnoseNodeMetrics)
 					v1.GET("/diagnoses", withAuthentication(options.Auth), diagnosisAPI.list)
 					v1.GET("/diagnoses/summary", withAuthentication(options.Auth), diagnosisAPI.summary)
 					v1.GET("/diagnoses/:diagnosis_id", withAuthentication(options.Auth), diagnosisAPI.get)
@@ -180,9 +199,18 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						remediationAPI := remediationHandler{service: options.Remediation}
 						resourceRoutes.GET("/operations", remediationAPI.listOperations)
 						resourceRoutes.POST("/operations/preview", requireRoles(auth.SystemAdmin, auth.OperationsAdmin), remediationAPI.previewOperation)
+						resourceRoutes.GET("/deployments/:namespace/:name/rollout/history", remediationAPI.rolloutHistory)
+						resourceRoutes.GET("/deployments/:namespace/:name/rollout/status", remediationAPI.rolloutStatus)
 						v1.GET("/diagnoses/:diagnosis_id/remediations", withAuthentication(options.Auth), remediationAPI.list)
 						v1.POST("/diagnoses/:diagnosis_id/remediations/preview", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), remediationAPI.preview)
 						v1.POST("/remediations/:remediation_id/execute", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), remediationAPI.execute)
+					}
+					if options.Promotion != nil {
+						promotionAPI := promotionHandler{service: options.Promotion}
+						v1.GET("/promotions", withAuthentication(options.Auth), promotionAPI.list)
+						v1.POST("/promotions/preview", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), promotionAPI.preview)
+						v1.GET("/promotions/:promotion_id", withAuthentication(options.Auth), promotionAPI.get)
+						v1.POST("/promotions/:promotion_id/execute", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), promotionAPI.execute)
 					}
 					if options.AIExplanation != nil {
 						aiAPI := aiExplanationHandler{service: options.AIExplanation}

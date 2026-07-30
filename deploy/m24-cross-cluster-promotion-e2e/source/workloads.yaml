@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: aiops-m24-source
+  labels:
+    app.kubernetes.io/name: promote-target
+    app.kubernetes.io/part-of: aiops-m24-cross-cluster-promotion-e2e
+data:
+  feature.flags: "enabled"
+  log.level: "info"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: promote-target
+  namespace: aiops-m24-source
+  labels:
+    app.kubernetes.io/name: promote-target
+    app.kubernetes.io/part-of: aiops-m24-cross-cluster-promotion-e2e
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: promote-target
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: promote-target
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: app-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: promote-target
+  namespace: aiops-m24-source
+  labels:
+    app.kubernetes.io/name: promote-target
+    app.kubernetes.io/part-of: aiops-m24-cross-cluster-promotion-e2e
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: promote-target
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

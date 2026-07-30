@@ -172,6 +172,32 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/metrics/history/evaluate:
+    get:
+      tags: [metrics-history]
+      summary: Evaluate one deterministic sustained metric window
+      description: Evaluates sustained threshold breaches across the entire exact sparse series. Detects all continuous breach windows (not just trailing). Missing, unavailable, timed-out, failed, truncated or insufficient samples produce insufficient_data instead of firing.
+      operationId: evaluateMetricHistoryWindow
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClusterID' }
+        - { name: resource_kind, in: query, required: true, schema: { type: string, enum: [Node, Pod] } }
+        - { name: namespace, in: query, description: Required for Pod and forbidden for Node, schema: { type: string, maxLength: 63 } }
+        - { name: name, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 253 } }
+        - { name: container, in: query, description: Required for Pod and forbidden for Node, schema: { type: string, maxLength: 253 } }
+        - { name: metric, in: query, required: true, schema: { type: string, enum: [cpu, memory] } }
+        - { name: from, in: query, required: true, description: Inclusive RFC3339 collection timestamp, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, description: Exclusive RFC3339 collection timestamp; at most 24 hours after from, schema: { type: string, format: date-time } }
+        - { name: operator, in: query, required: true, schema: { type: string, enum: [gte, lte] } }
+        - { name: threshold, in: query, required: true, description: Non-negative threshold in the series canonical unit, schema: { type: integer, format: int64, minimum: 0 } }
+        - { name: for_seconds, in: query, required: true, schema: { type: integer, minimum: 60, maximum: 86400 } }
+        - { name: minimum_points, in: query, schema: { type: integer, minimum: 2, maximum: 1440, default: 2 } }
+      responses:
+        '200': { description: Deterministic sustained-window evaluation evidence, content: { application/json: { schema: { $ref: '#/components/schemas/MetricHistoryEvaluationResponse' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/clusters/{cluster_id}/nodes/{name}:
     get: { tags: [kubernetes], summary: Node detail, operationId: getNode, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/clusters/{cluster_id}/pods:
@@ -240,12 +266,99 @@ paths:
     get: { tags: [kubernetes], summary: List ConfigMap metadata and key names, operationId: listConfigMaps, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/clusters/{cluster_id}/configmaps/{namespace}/{name}:
     get: { tags: [kubernetes], summary: ConfigMap metadata and key names, operationId: getConfigMap, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/persistentvolumes:
+    get: { tags: [kubernetes], summary: List PersistentVolumes, operationId: listPersistentVolumes, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/persistentvolumes/{name}:
+    get: { tags: [kubernetes], summary: PersistentVolume detail, operationId: getPersistentVolume, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/poddisruptionbudgets:
+    get: { tags: [kubernetes], summary: List PodDisruptionBudgets, operationId: listPodDisruptionBudgets, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/poddisruptionbudgets/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: PodDisruptionBudget detail, operationId: getPodDisruptionBudget, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/networkpolicies:
+    get: { tags: [kubernetes], summary: List NetworkPolicies, operationId: listNetworkPolicies, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/networkpolicies/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: NetworkPolicy detail, operationId: getNetworkPolicy, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/serviceaccounts:
+    get: { tags: [kubernetes], summary: List ServiceAccounts, operationId: listServiceAccounts, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/serviceaccounts/{namespace}/{name}:
+    get: { tags: [kubernetes], summary: ServiceAccount detail, operationId: getServiceAccount, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/resources/{kind}/{namespace}/{name}/manifest:
+    get: { tags: [kubernetes], summary: Redacted manifest for an approved resource, operationId: getResourceManifest, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: kind, in: path, required: true, schema: { type: string } }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { description: Redacted manifest JSON, content: { application/json: { schema: { type: object } } } }, '404': { $ref: '#/components/responses/Error' }, '403': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/velero/capability:
+    get:
+      tags: [kubernetes]
+      summary: Probe whether the Velero API group is installed on the cluster
+      description: "Returns {installed: false} without error when Velero is absent. The platform never treats Velero as a core dependency."
+      operationId: getVeleroCapability
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      responses:
+        '200': { description: Velero capability, content: { application/json: { schema: { $ref: '#/components/schemas/VeleroCapability' } } } }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/backups:
+    get:
+      tags: [kubernetes]
+      summary: List bounded Velero Backup CRs (read-only inventory)
+      description: Returns a bounded projection of Velero Backup CRs. When namespace is empty, backups across all namespaces are returned. Returns 424 when Velero is not installed.
+      operationId: listBackups
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClusterID' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: namespace, in: query, schema: { type: string, maxLength: 63 } }
+        - { name: name, in: query, schema: { type: string } }
+        - { name: sort_by, in: query, schema: { type: string, default: name } }
+        - { name: ascending, in: query, schema: { type: boolean, default: true } }
+      responses:
+        '200': { description: Bounded Velero Backup inventory, content: { application/json: { schema: { $ref: '#/components/schemas/VeleroBackupList' } } } }
+        '424': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/backups/{namespace}/{name}:
+    get:
+      tags: [kubernetes]
+      summary: Velero Backup CR detail (read-only)
+      description: Returns the bounded projection of a single Velero Backup CR. Returns 424 when Velero is not installed.
+      operationId: getBackup
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }]
+      responses:
+        '200': { description: Velero Backup detail, content: { application/json: { schema: { $ref: '#/components/schemas/VeleroBackup' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+        '424': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/clusters/{cluster_id}/pods/{namespace}/{name}:
     get: { tags: [kubernetes], summary: Pod detail, operationId: getPod, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/clusters/{cluster_id}/pods/{namespace}/{name}/logs:
     get: { tags: [kubernetes], summary: Bounded pod logs, operationId: getPodLogs, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }, { name: tail_lines, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 200 } }, { name: previous, in: query, schema: { type: boolean, default: false } }], responses: { '200': { description: Log text, content: { text/plain: { schema: { type: string } } } } } }
+  /api/v1/clusters/{cluster_id}/pods/{namespace}/{name}/containers:
+    get: { tags: [kubernetes], summary: List containers with status for a Pod, operationId: listPodContainers, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { description: Container list, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/PodContainerInfo' } }, total: { type: integer }, remaining: { type: integer } } } } } } } }
+  /api/v1/clusters/{cluster_id}/pods/{namespace}/{name}/logs_since:
+    get: { tags: [kubernetes], summary: Pod logs with bounded since filter and truncation disclosure, operationId: getPodLogsSince, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }, { name: container, in: query, schema: { type: string } }, { name: previous, in: query, schema: { type: boolean, default: false } }, { name: tail_lines, in: query, schema: { type: integer, minimum: 1, maximum: 2000, default: 200 } }, { name: since_seconds, in: query, schema: { type: integer, minimum: 1, maximum: 86400 } }, { name: since_time, in: query, schema: { type: string, format: date-time } }], responses: { '200': { description: Container log with lines and truncation, content: { application/json: { schema: { $ref: '#/components/schemas/PodContainerLog' } } } } } }
+  /api/v1/clusters/{cluster_id}/pods/{namespace}/{name}/all_logs:
+    get: { tags: [kubernetes], summary: Fetch logs for all containers in a Pod, operationId: getAllPodLogs, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }, { name: previous, in: query, schema: { type: boolean, default: false } }, { name: tail_lines, in: query, schema: { type: integer, minimum: 1, maximum: 2000, default: 200 } }, { name: since_seconds, in: query, schema: { type: integer, minimum: 1, maximum: 86400 } }], responses: { '200': { description: All container logs, content: { application/json: { schema: { $ref: '#/components/schemas/PodLogsResponse' } } } } } }
   /api/v1/clusters/{cluster_id}/diagnoses:
     post: { tags: [diagnoses], summary: Run deterministic diagnosis, operationId: createDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DiagnosisRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '422': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/diagnoses/node_metrics:
+    post:
+      tags: [diagnoses]
+      summary: Run sustained metric breach diagnosis for a Node
+      description: Queries the last 6 hours of Node CPU or memory history, evaluates the sustained-window rule, and persists a diagnosis record if a breach is detected. Returns 422 with NO_RULE_MATCH when no sustained breach was observed.
+      operationId: diagnoseNodeMetrics
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiagnoseNodeMetricsRequest' }
+      responses:
+        '201': { description: Sustained metric breach diagnosed; record returned, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        '422': { $ref: '#/components/responses/Error' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
   /api/v1/diagnoses:
     get: { tags: [diagnoses], summary: Diagnosis history, operationId: listDiagnoses, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/diagnoses/summary:
@@ -265,8 +378,20 @@ paths:
     get: { tags: [remediation], summary: List resource-originated controlled operation plans, operationId: listControlledOperations, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { name: target_kind, in: query, schema: { type: string, enum: [Deployment, CronJob] } }, { name: target_name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/clusters/{cluster_id}/operations/preview:
     post: { tags: [remediation], summary: Dry-run a fixed resource operation, operationId: previewControlledOperation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ControlledOperationPreviewRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/deployments/{namespace}/{name}/rollout/history:
+    get: { tags: [remediation], summary: Deployment rollout revision history, operationId: getRolloutHistory, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/clusters/{cluster_id}/deployments/{namespace}/{name}/rollout/status:
+    get: { tags: [remediation], summary: Deployment rollout status, operationId: getRolloutStatus, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Namespace' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/remediations/{remediation_id}/execute:
     post: { tags: [remediation], summary: Execute a confirmed remediation plan, operationId: executeRemediation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/RemediationID' }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RemediationExecuteRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' }, '502': { $ref: '#/components/responses/Error' } } }
+  /api/v1/promotions:
+    get: { tags: [promotion], summary: List cross-cluster promotion plans, operationId: listPromotions, security: [{ bearerAuth: [] }], parameters: [{ name: source_cluster_id, in: query, required: true, schema: { type: integer, format: int64 } }, { name: namespace, in: query, schema: { type: string, maxLength: 63 } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/promotions/preview:
+    post: { tags: [promotion], summary: Dry-run a cross-cluster promotion bundle, operationId: previewPromotion, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionPreviewRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/promotions/{promotion_id}:
+    get: { tags: [promotion], summary: Read a promotion plan, operationId: getPromotion, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/PromotionID' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/promotions/{promotion_id}/execute:
+    post: { tags: [promotion], summary: Execute a confirmed promotion plan, operationId: executePromotion, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/PromotionID' }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PromotionExecuteRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' }, '502': { $ref: '#/components/responses/Error' } } }
   /api/v1/diagnoses/{diagnosis_id}/explanations:
     get: { tags: [ai], summary: List cited AI explanations, operationId: listExplanations, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
     post: { tags: [ai], summary: Generate cited AI explanation, operationId: generateExplanation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '201': { $ref: '#/components/responses/Ok' }, '429': { $ref: '#/components/responses/Error' } } }
@@ -296,6 +421,7 @@ components:
     ExplanationID: { name: explanation_id, in: path, required: true, schema: { type: integer, format: int64 } }
     DeliveryID: { name: delivery_id, in: path, required: true, schema: { type: integer, format: int64 } }
     RemediationID: { name: remediation_id, in: path, required: true, schema: { type: string, format: uuid } }
+    PromotionID: { name: promotion_id, in: path, required: true, schema: { type: string, format: uuid } }
     FilterID: { name: filter_id, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
     Namespace: { name: namespace, in: path, required: true, schema: { type: string } }
     Name: { name: name, in: path, required: true, schema: { type: string } }
@@ -360,6 +486,39 @@ components:
       properties:
         max_window_seconds: { type: integer, enum: [86400] }
         max_points: { type: integer, enum: [1440] }
+    MetricHistoryEvaluationResponse:
+      type: object
+      additionalProperties: false
+      required: [series, from, to, coverage, state, operator, threshold, for_seconds, minimum_points, points_evaluated, breaching_points, observed_span_seconds, sustained_windows, latest_firing_window]
+      properties:
+        series: { $ref: '#/components/schemas/MetricHistorySeries' }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        coverage: { $ref: '#/components/schemas/MetricHistoryCoverage' }
+        state: { type: string, enum: [firing, normal, insufficient_data] }
+        operator: { type: string, enum: [gte, lte] }
+        threshold: { type: integer, format: int64, minimum: 0 }
+        for_seconds: { type: integer, minimum: 60, maximum: 86400 }
+        minimum_points: { type: integer, minimum: 2, maximum: 1440 }
+        points_evaluated: { type: integer, minimum: 0, maximum: 1440 }
+        breaching_points: { type: integer, minimum: 0, maximum: 1440 }
+        observed_span_seconds: { type: integer, format: int64, minimum: 0, maximum: 86400 }
+        sustained_windows:
+          type: array
+          description: All detected sustained breach windows across the full series
+          items: { $ref: '#/components/schemas/SustainedWindow' }
+        latest_firing_window:
+          $ref: '#/components/schemas/SustainedWindow'
+          nullable: true
+    SustainedWindow:
+      type: object
+      additionalProperties: false
+      required: [start_collected_at, end_collected_at, breaching_points, span_seconds]
+      properties:
+        start_collected_at: { type: string, format: date-time }
+        end_collected_at: { type: string, format: date-time }
+        breaching_points: { type: integer, minimum: 1 }
+        span_seconds: { type: integer, format: int64, minimum: 0 }
     SavedGlobalSearchFilterCreate:
       type: object
       additionalProperties: false
@@ -454,12 +613,127 @@ components:
     PasswordResetRequest: { type: object, required: [password], properties: { password: { type: string, format: password } } }
     ClusterWrite: { type: object, required: [name, kubeconfig], properties: { name: { type: string }, kubeconfig: { type: string, writeOnly: true } } }
     CredentialRotationRequest: { type: object, required: [kubeconfig], properties: { kubeconfig: { type: string, writeOnly: true } } }
+    PodContainerInfo:
+      type: object
+      required: [name, ready, state, is_init, image]
+      properties:
+        name: { type: string }
+        ready: { type: boolean }
+        restart_count: { type: integer, format: int32 }
+        state: { type: string, enum: [running, waiting, terminated] }
+        is_init: { type: boolean }
+        image: { type: string }
+    PodLogLine:
+      type: object
+      required: [timestamp, message]
+      properties:
+        timestamp: { type: string, format: date-time }
+        message: { type: string }
+    PodContainerLog:
+      type: object
+      required: [container, lines, truncated]
+      properties:
+        container: { type: string }
+        lines: { type: array, items: { $ref: '#/components/schemas/PodLogLine' } }
+        truncated: { type: boolean }
+        truncation_reason: { type: string, enum: [body_limit, fetch_error] }
+    PodLogsResponse:
+      type: object
+      required: [containers, previous]
+      properties:
+        containers: { type: array, items: { $ref: '#/components/schemas/PodContainerLog' } }
+        previous: { type: boolean }
     DiagnosisRequest: { type: object, required: [resource_kind, name], properties: { resource_kind: { type: string, enum: [Pod, Service, Node, Deployment, Ingress, PersistentVolumeClaim, HorizontalPodAutoscaler] }, namespace: { type: string, description: Required for namespaced resources; empty for Node }, name: { type: string } } }
+    DiagnoseNodeMetricsRequest:
+      type: object
+      additionalProperties: false
+      required: [name, metric, operator, threshold, for_seconds]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 253, description: Node name }
+        metric: { type: string, enum: [node_cpu, node_memory] }
+        operator: { type: string, enum: [gte, lte] }
+        threshold: { type: integer, format: int64, minimum: 0, description: 'nanocores for node_cpu, bytes for node_memory' }
+        for_seconds: { type: integer, minimum: 60, maximum: 86400 }
+        minimum_points: { type: integer, minimum: 2, maximum: 1440, default: 2 }
     RemediationPreviewRequest: { type: object, required: [action, target_name], properties: { action: { type: string, enum: [deployment.rollout_restart] }, target_name: { type: string, maxLength: 253 } } }
     ControlledOperationPreviewRequest:
       oneOf:
         - $ref: '#/components/schemas/DeploymentScaleOperation'
         - $ref: '#/components/schemas/CronJobScheduleOperation'
+        - $ref: '#/components/schemas/DeploymentImageUpdateOperation'
+        - $ref: '#/components/schemas/DeploymentRollbackOperation'
     DeploymentScaleOperation: { type: object, additionalProperties: false, required: [action, namespace, target_name, desired_replicas], properties: { action: { type: string, enum: [deployment.scale] }, namespace: { type: string, maxLength: 63 }, target_name: { type: string, maxLength: 253 }, desired_replicas: { type: integer, minimum: 0, maximum: 1000 } } }
     CronJobScheduleOperation: { type: object, additionalProperties: false, required: [action, namespace, target_name], properties: { action: { type: string, enum: [cronjob.suspend, cronjob.resume] }, namespace: { type: string, maxLength: 63 }, target_name: { type: string, maxLength: 253 } } }
+    DeploymentImageUpdateOperation: { type: object, additionalProperties: false, required: [action, namespace, target_name, container_name, desired_image], properties: { action: { type: string, enum: [deployment.image_update] }, namespace: { type: string, maxLength: 63 }, target_name: { type: string, maxLength: 253 }, container_name: { type: string, maxLength: 253 }, desired_image: { type: string, maxLength: 512 } } }
+    DeploymentRollbackOperation: { type: object, additionalProperties: false, required: [action, namespace, target_name, rollback_revision], properties: { action: { type: string, enum: [deployment.rollback] }, namespace: { type: string, maxLength: 63 }, target_name: { type: string, maxLength: 253 }, rollback_revision: { type: integer, minimum: 1 } } }
     RemediationExecuteRequest: { type: object, required: [confirmation_token], properties: { confirmation_token: { type: string, writeOnly: true } } }
+    PromotionPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [source_cluster_id, destination_cluster_id, source_namespace, destination_namespace, bundle]
+      properties:
+        source_cluster_id: { type: integer, format: int64, minimum: 1 }
+        destination_cluster_id: { type: integer, format: int64, minimum: 1 }
+        source_namespace: { type: string, maxLength: 63 }
+        destination_namespace: { type: string, maxLength: 63 }
+        bundle:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items: { $ref: '#/components/schemas/PromotionBundleItem' }
+        dependency_mappings:
+          type: array
+          items: { $ref: '#/components/schemas/PromotionDependencyMapping' }
+    PromotionBundleItem:
+      type: object
+      additionalProperties: false
+      required: [kind, namespace, name]
+      properties:
+        kind: { type: string, enum: [Deployment, Service, Ingress] }
+        namespace: { type: string, maxLength: 63 }
+        name: { type: string, maxLength: 253 }
+    PromotionDependencyMapping:
+      type: object
+      additionalProperties: false
+      required: [kind, source_namespace, source_name, destination_namespace, destination_name]
+      properties:
+        kind: { type: string, enum: [ConfigMap, Secret] }
+        source_namespace: { type: string, maxLength: 63 }
+        source_name: { type: string, maxLength: 253 }
+        destination_namespace: { type: string, maxLength: 63 }
+        destination_name: { type: string, maxLength: 253 }
+    PromotionExecuteRequest: { type: object, required: [confirmation_token], properties: { confirmation_token: { type: string, writeOnly: true } } }
+    VeleroCapability:
+      type: object
+      additionalProperties: false
+      required: [installed]
+      properties:
+        installed: { type: boolean, description: True when the velero.io/v1 API group is present on the cluster }
+        version: { type: string, description: Velero API version string, e.g. v1 }
+    VeleroBackup:
+      type: object
+      additionalProperties: false
+      required: [name, namespace, phase, errors, warnings, created_at]
+      properties:
+        name: { type: string, maxLength: 253 }
+        namespace: { type: string, maxLength: 63 }
+        phase: { type: string, description: Velero backup phase, e.g. Completed, Failed, InProgress, PartiallyFailed }
+        included_namespaces: { type: array, items: { type: string }, description: Bounded scope of the backup }
+        storage_location: { type: string }
+        ttl: { type: string, description: Backup retention duration as a Go duration string, e.g. 720h }
+        expiration: { type: string, format: date-time, nullable: true }
+        started_at: { type: string, format: date-time, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        failure_reason: { type: string, description: Populated only when phase is Failed }
+        errors: { type: integer, minimum: 0 }
+        warnings: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+    VeleroBackupList:
+      type: object
+      additionalProperties: false
+      required: [items, total, page, limit]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/VeleroBackup' } }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        limit: { type: integer, minimum: 1, maximum: 100 }

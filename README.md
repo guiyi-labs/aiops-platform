@@ -5,6 +5,18 @@
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?logo=vuedotjs&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-1.34-326CE5?logo=kubernetes&logoColor=white)
 
+## 当前基线（2026-07-30）
+
+M21–M25 已完成统一收口：持续窗口指标评估与趋势消费、日常排障与治理工作台、
+Deployment 安全镜像更新/精确回滚、固定资源包跨集群发布，以及可选 Velero
+备份库存只读集成均已纳入主线。公共 API、OpenAPI、最小权限 RBAC、数据库迁移
+18/19、前端入口和一次性 kind 验收脚本保持同一合同。
+
+本轮基线通过 271 个 Go `Test*` 入口、17 个 Vitest 文件/73 个用例、前端生产构建、
+Compose 三服务健康检查以及 M21/M23/M24/M25 真实 kind 验收。最新完整门禁证据为
+`.artifacts/verification/verify-20260730-080851.json`；完整收口记录见
+[`docs/changes/2026-07-30-m21-m25-baseline-alignment.md`](docs/changes/2026-07-30-m21-m25-baseline-alignment.md)。
+
 > 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
 ![AIOps Dashboard](docs/thesis/screenshots/01-dashboard.png)
@@ -70,6 +82,15 @@ docker compose down
 ```powershell
 # Backend, frontend, Compose, manifests and HTTP health
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1
+
+# Fast local feedback: backend, frontend and delivery contracts
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-fast.ps1
+
+# M21/M23/M24/M25 disposable real-kind acceptance
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m21-history-kind.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m23-release-lifecycle-kind.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m24-cross-cluster-promotion-kind.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m25-workload-protection-kind.ps1
 
 # Real kind diagnosis and controlled-remediation workflow
 $env:AIOPS_ADMIN_PASSWORD = '<local-development-password>'

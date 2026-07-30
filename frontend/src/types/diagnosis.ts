@@ -73,11 +73,21 @@ export interface DiagnosisRecord {
   updated_at: string
 }
 export interface DiagnosisSummary { total: number; open: number; confirmed: number; resolved: number; dismissed: number; overdue: number; recent: DiagnosisRecord[] }
-export type RemediationAction = 'deployment.rollout_restart' | 'deployment.scale' | 'cronjob.suspend' | 'cronjob.resume'
+export interface DiagnoseNodeMetricsRequest {
+  name: string
+  metric: 'node_cpu' | 'node_memory'
+  operator: 'gte' | 'lte'
+  threshold: number
+  for_seconds: number
+  minimum_points?: number
+}
+export type RemediationAction = 'deployment.rollout_restart' | 'deployment.scale' | 'deployment.image_update' | 'deployment.rollback' | 'cronjob.suspend' | 'cronjob.resume'
 export type RemediationStatus = 'awaiting_confirmation' | 'executing' | 'succeeded' | 'failed' | 'expired'
 export type ControlledOperationRequest =
   | { action: 'deployment.scale'; namespace: string; target_name: string; desired_replicas: number }
   | { action: 'cronjob.suspend' | 'cronjob.resume'; namespace: string; target_name: string }
+  | { action: 'deployment.image_update'; namespace: string; target_name: string; container_name: string; desired_image: string }
+  | { action: 'deployment.rollback'; namespace: string; target_name: string; rollback_revision: number }
 export interface RemediationPlan {
   id: string
   diagnosis_id?: number
@@ -86,8 +96,8 @@ export interface RemediationPlan {
   status: RemediationStatus
   target: { kind: string; namespace: string; name: string; uid: string; resource_version: string }
   restart_at?: string
-  parameters: { desired_replicas?: number; desired_suspended?: boolean }
-  change?: { field: 'spec.replicas' | 'spec.suspend'; before: number | boolean; after: number | boolean }
+  parameters: { desired_replicas?: number; desired_suspended?: boolean; container_name?: string; before_image?: string; desired_image?: string; rollback_revision?: number }
+  change?: { field: string; before: string | number | boolean; after: string | number | boolean }
   expires_at: string
   executed_at?: string
   last_error?: string
@@ -95,4 +105,36 @@ export interface RemediationPlan {
   updated_at: string
   requested_by: DiagnosisActor
   confirmation_token?: string
+}
+export interface RolloutRevision {
+  revision: number
+  replicaset_name: string
+  uid: string
+  resource_version: string
+  created_at: string
+  replicas: number
+  ready_replicas: number
+  available_replicas: number
+  images: string[]
+  current: boolean
+}
+export interface RolloutHistory {
+  deployment: string
+  namespace: string
+  current_revision: number
+  revisions: RolloutRevision[]
+}
+export interface RolloutStatus {
+  deployment: string
+  namespace: string
+  current_revision: number
+  desired_replicas: number
+  updated_replicas: number
+  ready_replicas: number
+  available_replicas: number
+  unavailable_replicas: number
+  phase: string
+  reason?: string
+  message?: string
+  conditions?: { type: string; status: string; reason?: string; message?: string; lastTransitionTime?: string }[]
 }

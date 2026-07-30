@@ -22,13 +22,23 @@ function Invoke-Native {
 
     Push-Location $WorkingDirectory
     try {
-        if ($DiscardOutput) {
-            & $File @Arguments 2>&1 | Out-Null
-        } else {
-            & $File @Arguments
+        $previousErrorAction = $ErrorActionPreference
+        try {
+            # Windows PowerShell 5 surfaces native stderr as ErrorRecord objects.
+            # Native tools such as Docker and BuildKit legitimately write progress
+            # to stderr, so command success must be determined by the exit code.
+            $ErrorActionPreference = 'Continue'
+            if ($DiscardOutput) {
+                & $File @Arguments 2>&1 | Out-Null
+            } else {
+                & $File @Arguments
+            }
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorAction
         }
-        if ($LASTEXITCODE -ne 0) {
-            throw "$File $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+        if ($exitCode -ne 0) {
+            throw "$File $($Arguments -join ' ') failed with exit code $exitCode"
         }
     } finally {
         Pop-Location

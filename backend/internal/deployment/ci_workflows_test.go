@@ -30,6 +30,8 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
 				checkoutAction, setupGoAction, setupNodeAction, setupPnpmAction, uploadArtifactAction,
 				"go test -p=1 -count=1 ./...", "pnpm install --frozen-lockfile",
+				"Change scope", "runtime_required", "credential-drill:", "audit-drill:",
+				"identity-drill:", "recovery-drill:", "CI result", "Detect documentation-only changes",
 				"e2e-postgres-backup-restore.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "docker compose up -d --build",
 				".artifacts/postgres-recovery/", ".artifacts/audit-archive/", ".artifacts/identity-readiness/", ".artifacts/recovery-readiness/", "docker compose down --volumes --remove-orphans",
 			},
@@ -49,7 +51,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			required: []string{
 				"schedule:", "workflow_dispatch:", "self-hosted", "aiops-kind",
 				checkoutAction, uploadArtifactAction,
-				"e2e-diagnosis-kind.ps1", "e2e-fleet-kind.ps1", "e2e-global-search-kind.ps1",
+				"e2e-diagnosis-kind.ps1", "e2e-fleet-kind.ps1", "e2e-global-search-kind.ps1", "e2e-m21-history-kind.ps1",
 				"cancel-in-progress: false", "retention-days: 14",
 			},
 			forbidden: []string{"pull_request_target", "secrets.", "KeepPlatformCluster"},

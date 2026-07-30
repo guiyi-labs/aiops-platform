@@ -86,18 +86,43 @@ function Invoke-HistoryQuery {
     return Invoke-RestMethod -Uri "$ApiBase/api/v1/clusters/$ClusterID/metrics/history?$query" -Headers @{ Authorization = "Bearer $AccessToken" } -TimeoutSec 10
 }
 
+function Invoke-HistoryEvaluation {
+    param([Parameter(Mandatory)] [int64]$ClusterID, [Parameter(Mandatory)] [string]$AccessToken,
+        [Parameter(Mandatory)] [datetime]$From, [Parameter(Mandatory)] [datetime]$To,
+        [Parameter(Mandatory)] [int64]$Threshold, [Parameter(Mandatory)] [int]$ForSeconds)
+
+    $query = @(
+        'resource_kind=Node', 'name=worker-a', 'metric=cpu',
+        "from=$([uri]::EscapeDataString($From.ToUniversalTime().ToString('o')))",
+        "to=$([uri]::EscapeDataString($To.ToUniversalTime().ToString('o')))",
+        'operator=gte', "threshold=$Threshold", "for_seconds=$ForSeconds", 'minimum_points=2'
+    ) -join '&'
+    return Invoke-RestMethod -Uri "$ApiBase/api/v1/clusters/$ClusterID/metrics/history/evaluate?$query" -Headers @{ Authorization = "Bearer $AccessToken" } -TimeoutSec 10
+}
+
+function Assert-HistoryEvaluation {
+    param([Parameter(Mandatory)] $Response, [Parameter(Mandatory)] [string]$State,
+        [Parameter(Mandatory)] [int64]$Threshold, [Parameter(Mandatory)] [int]$ForSeconds)
+
+    if ($Response.state -ne $State -or $Response.operator -ne 'gte' -or [int64]$Response.threshold -ne $Threshold -or
+        [int]$Response.for_seconds -ne $ForSeconds -or [int]$Response.minimum_points -ne 2) {
+        throw "unexpected deterministic history evaluation: state=$($Response.state)"
+    }
+}
+
 function Assert-HistoryResponse {
     param([Parameter(Mandatory)] $Response, [Parameter(Mandatory)] [int64]$ClusterID)
 
     if ([int64]$Response.series.cluster_id -ne $ClusterID -or $Response.series.resource_kind -ne 'Node' -or
         $Response.series.resource_name -ne 'worker-a' -or $Response.series.metric_name -ne 'cpu' -or
         $Response.series.unit -ne 'nanocores') { throw 'exact series identity was not preserved' }
-    if (@($Response.points).Count -ne 2 -or [int64]$Response.points[0].value -ne 100 -or [int64]$Response.points[1].value -ne 300) {
+    if (@($Response.points).Count -ne 3 -or [int64]$Response.points[0].value -ne 100 -or
+        [int64]$Response.points[1].value -ne 300 -or [int64]$Response.points[2].value -ne 400) {
         throw 'query leaked another cluster/series or returned unstable point ordering'
     }
-    if ([int]$Response.coverage.collections -ne 3 -or [int]$Response.coverage.succeeded -ne 1 -or
+    if ([int]$Response.coverage.collections -ne 4 -or [int]$Response.coverage.succeeded -ne 2 -or
         [int]$Response.coverage.partial -ne 1 -or [int]$Response.coverage.unavailable -ne 1 -or
-        [int]$Response.coverage.points -ne 2 -or [int]$Response.coverage.missing -ne 1) {
+        [int]$Response.coverage.points -ne 3 -or [int]$Response.coverage.missing -ne 1) {
         throw 'sparse collection coverage does not match the seeded history'
     }
     if ([bool]$Response.truncated -or [int]$Response.limits.max_window_seconds -ne 86400 -or [int]$Response.limits.max_points -ne 1440) {
@@ -133,7 +158,8 @@ try {
     $run1At = $now.AddMinutes(-30).ToString('o')
     $run2At = $now.AddMinutes(-20).ToString('o')
     $run3At = $now.AddMinutes(-10).ToString('o')
-    $decoyAt = $now.AddMinutes(-5).ToString('o')
+    $run4At = $now.AddMinutes(-5).ToString('o')
+    $decoyAt = $now.AddMinutes(-3).ToString('o')
     $expiresAt = $now.AddDays(7).ToString('o')
 
     $run1 = [int64](Invoke-PsqlScalar "INSERT INTO metric_collection_runs (cluster_id,status,nodes_status,nodes_sampled,nodes_total,nodes_complete,pods_status,pods_sampled,pods_total,pods_complete,failure_code,started_at,completed_at,expires_at) VALUES ($targetClusterID,'succeeded','succeeded',1,1,TRUE,'succeeded',0,0,TRUE,'','$run1At','$run1At','$expiresAt') RETURNING id")
@@ -141,27 +167,39 @@ try {
     Invoke-PsqlScalar "INSERT INTO metric_collection_runs (cluster_id,status,nodes_status,nodes_sampled,nodes_total,nodes_complete,pods_status,pods_sampled,pods_total,pods_complete,failure_code,started_at,completed_at,expires_at) VALUES ($targetClusterID,'unavailable','unavailable',0,0,FALSE,'unavailable',0,0,FALSE,'METRICS_API_UNAVAILABLE','$run2At','$run2At','$expiresAt')" | Out-Null
     $run3 = [int64](Invoke-PsqlScalar "INSERT INTO metric_collection_runs (cluster_id,status,nodes_status,nodes_sampled,nodes_total,nodes_complete,pods_status,pods_sampled,pods_total,pods_complete,failure_code,started_at,completed_at,expires_at) VALUES ($targetClusterID,'partial','succeeded',2,2,TRUE,'unavailable',0,0,FALSE,'METRICS_API_UNAVAILABLE','$run3At','$run3At','$expiresAt') RETURNING id")
     Invoke-PsqlScalar "INSERT INTO metric_samples (collection_run_id,cluster_id,resource_kind,resource_namespace,resource_name,resource_uid,container_name,metric_name,value,unit,source_timestamp,window_milliseconds,collected_at,expires_at) VALUES ($run3,$targetClusterID,'Node','','worker-a','uid-worker-a','','cpu',300,'nanocores','$run3At',15000,'$run3At','$expiresAt'),($run3,$targetClusterID,'Node','','worker-b','uid-worker-b','','cpu',999,'nanocores','$run3At',15000,'$run3At','$expiresAt')" | Out-Null
+    $run4 = [int64](Invoke-PsqlScalar "INSERT INTO metric_collection_runs (cluster_id,status,nodes_status,nodes_sampled,nodes_total,nodes_complete,pods_status,pods_sampled,pods_total,pods_complete,failure_code,started_at,completed_at,expires_at) VALUES ($targetClusterID,'succeeded','succeeded',1,1,TRUE,'succeeded',0,0,TRUE,'','$run4At','$run4At','$expiresAt') RETURNING id")
+    Invoke-PsqlScalar "INSERT INTO metric_samples (collection_run_id,cluster_id,resource_kind,resource_namespace,resource_name,resource_uid,container_name,metric_name,value,unit,source_timestamp,window_milliseconds,collected_at,expires_at) VALUES ($run4,$targetClusterID,'Node','','worker-a','uid-worker-a','','cpu',400,'nanocores','$run4At',15000,'$run4At','$expiresAt')" | Out-Null
     $decoyRun = [int64](Invoke-PsqlScalar "INSERT INTO metric_collection_runs (cluster_id,status,nodes_status,nodes_sampled,nodes_total,nodes_complete,pods_status,pods_sampled,pods_total,pods_complete,failure_code,started_at,completed_at,expires_at) VALUES ($decoyClusterID,'succeeded','succeeded',1,1,TRUE,'succeeded',0,0,TRUE,'','$decoyAt','$decoyAt','$expiresAt') RETURNING id")
     Invoke-PsqlScalar "INSERT INTO metric_samples (collection_run_id,cluster_id,resource_kind,resource_namespace,resource_name,resource_uid,container_name,metric_name,value,unit,source_timestamp,window_milliseconds,collected_at,expires_at) VALUES ($decoyRun,$decoyClusterID,'Node','','worker-a','uid-worker-a','','cpu',777,'nanocores','$decoyAt',15000,'$decoyAt','$expiresAt')" | Out-Null
 
     Write-Host '[3/5] Proving exact-series isolation and sparse missing-sample semantics'
     $beforeRestart = Invoke-HistoryQuery -ClusterID $targetClusterID -AccessToken $accessToken -From $from -To $to
     Assert-HistoryResponse -Response $beforeRestart -ClusterID $targetClusterID
+    $completeFrom = $now.AddMinutes(-11)
+    $firing = Invoke-HistoryEvaluation -ClusterID $targetClusterID -AccessToken $accessToken -From $completeFrom -To $to -Threshold 300 -ForSeconds 300
+    Assert-HistoryEvaluation -Response $firing -State 'firing' -Threshold 300 -ForSeconds 300
+    $normal = Invoke-HistoryEvaluation -ClusterID $targetClusterID -AccessToken $accessToken -From $completeFrom -To $to -Threshold 350 -ForSeconds 300
+    Assert-HistoryEvaluation -Response $normal -State 'normal' -Threshold 350 -ForSeconds 300
+    $insufficient = Invoke-HistoryEvaluation -ClusterID $targetClusterID -AccessToken $accessToken -From $from -To $to -Threshold 100 -ForSeconds 300
+    Assert-HistoryEvaluation -Response $insufficient -State 'insufficient_data' -Threshold 100 -ForSeconds 300
 
     Write-Host '[4/5] Restarting the backend and proving PostgreSQL durability'
     Invoke-ComposeText -Arguments @('restart', 'backend') | Out-Null
     Wait-BackendReady
     $afterRestart = Invoke-HistoryQuery -ClusterID $targetClusterID -AccessToken $accessToken -From $from -To $to
     Assert-HistoryResponse -Response $afterRestart -ClusterID $targetClusterID
+    $afterRestartEvaluation = Invoke-HistoryEvaluation -ClusterID $targetClusterID -AccessToken $accessToken -From $completeFrom -To $to -Threshold 300 -ForSeconds 300
+    Assert-HistoryEvaluation -Response $afterRestartEvaluation -State 'firing' -Threshold 300 -ForSeconds 300
     $summary = [ordered]@{
         verified_at = (Get-Date).ToString('o')
         target_cluster_id = $targetClusterID
-        points = 2
-        collections = 3
+        points = 3
+        collections = 4
         missing = 1
         cross_cluster_isolation = $true
         exact_series_isolation = $true
         stable_ordering = $true
+        evaluation_states = @('firing', 'normal', 'insufficient_data')
         restart_durability = $true
     }
 } catch {

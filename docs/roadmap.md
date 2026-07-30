@@ -317,10 +317,146 @@ parity targets.
   persistent-volume behavior, cutover and rollback policies have separate
   approval and disposable recovery evidence.
 
+## M27: Historical Alert Lifecycle
+
+- Status: ✅ Completed on 2026-07-30. Verified via `go test ./...` (backend
+  unit tests covering rule validation, state machine, deduplication, concurrent
+  claims, expired-claim recovery, scheduler bounds, and error handling),
+  `vue-tsc -b` (zero frontend type errors), `vitest run` (73 frontend tests),
+  and `scripts/verify-fast.ps1 -Scope All` (passed in 29.04s). The real-kind
+  E2E is blocked by local Docker network isolation (kind API on host localhost
+  not reachable from Compose containers); the E2E script
+  `scripts/e2e-m27-alert-lifecycle-kind.ps1` is prepared for environments
+  without this restriction.
+- Closure change log: `docs/changes/2026-07-30-m27-alert-lifecycle.md`
+- ADRs: 0043 (historical alert lifecycle)
+- Build a bounded background evaluator, deduplication and acknowledgement
+  lifecycle over the accepted M21 exact-series contract.
+- Preserve deterministic diagnosis as the source of truth and avoid arbitrary
+  PromQL or unbounded label cardinality.
+
+## M28: Controlled Velero Backup Creation
+
+- Status: ✅ Completed on 2026-07-30. Verified via `go test ./...` (all 23 backend
+  packages pass, including 13 new `backup` tests covering request validation,
+  Velero capability preflight, storage location validation, name conflict
+  detection, dry-run preflight, confirmation token hashing, idempotent claim,
+  execution success/failure paths), `vue-tsc -b` (zero frontend type errors),
+  `vitest run` (73 frontend tests), and `scripts/verify-fast.ps1 -Scope All`
+  (passed in 34.92s). Real-kind E2E deferred to environments with a full Velero
+  controller and configured BSL; the M25 CRD-stub is insufficient for creation
+  testing.
+- Closure change log: `docs/changes/2026-07-30-m28-controlled-backup-creation.md`
+- ADRs: 0044 (controlled Velero backup creation)
+- Add Velero Backup creation through fixed scope, server-side preflight (Velero
+  installed, BSL exists, name available, dry-run), one-time confirmation,
+  idempotency, and audit. Restore remains disabled until M31 conflict/PV/cutover/
+  rollback design is approved.
+
+## M29: Namespace Governance and Capacity Posture
+
+- Status: ✅ Completed on 2026-07-31. Verified via `go test ./...` (all 24 backend
+  packages pass, including 10 new `namespaceposture` tests covering required
+  Namespace metadata read, ErrResourceNotFound propagation, partial-section
+  containment, workload+pod aggregation, list count summary, truncation status,
+  phase sort, copyMap isolation, stringValue numeric coercion, and namespaced
+  API path rendering), `vue-tsc -b` (zero frontend type errors after removing
+  unused `BackupStorageLocation` import and rewriting LimitRange row iteration),
+  `vitest run` (73 frontend tests, 17 files), and `scripts/verify-fast.ps1
+  -Scope All` (passed in 28.56s, backend=True frontend=True manifests=True).
+  Real-kind E2E script deferred to a low-risk follow-up; default kind clusters
+  already have usable Namespace/ResourceQuota/workload fixtures.
+- Closure change log: `docs/changes/2026-07-31-m29-namespace-posture.md`
+- ADRs: 0045 (namespace governance and capacity posture)
+- Joins the existing typed ResourceQuota, LimitRange, Workload (5 kinds), Pod,
+  PDB and Node reads into a deterministic, source-cited Namespace posture view.
+  Every section carries its own EvidenceCitation so RBAC denials, partial
+  failures and list truncation are honest. Strictly read-only; 7 categories of
+  inference (quota ratios, LR conflicts, PDB coverage, node-share, NetPol
+  reachability, ownerRef expansion, scheduler semantics) are explicitly
+  refused and documented in ADR 0045 §6.
+
+## M30: Controlled Node Maintenance
+
+- Status: ✅ Completed on 2026-07-30. Verified via `go test ./...` (all 25 backend
+  packages pass, including 40+ new `maintenance` tests covering request
+  validation, control-plane rejection, cordon/uncordon/drain preconditions,
+  unmanaged/emptyDir/PDB-unavailable blocker classes, dry-run patch, token
+  hashing, idempotent claim, stale target on UID/Pod-set change, cordon/uncordon
+  success, drain success, partial drain with Node-remains-cordoned, unknown
+  action, list delegation, Pod classification for all 6 paths, evidence matching,
+  block-error classification, node-patch and eviction-body builders, identity
+  generation, JSONB round-trips, and isControlPlane label coverage), `vue-tsc -b`
+  (zero frontend type errors after removing unused `MaintenancePodEvidence`
+  import), `vitest run` (73 frontend tests, 17 files), and
+  `scripts/verify-fast.ps1 -Scope All` (passed in 35.01s, backend=True
+  frontend=True manifests=True). Real-kind E2E script deferred to environments
+  with a multi-worker kind cluster; default kind clusters have only one worker
+  Node which is insufficient for drain acceptance.
+- Closure change log: `docs/changes/2026-07-30-m30-controlled-node-maintenance.md`
+- ADRs: 0046 (controlled node maintenance)
+- Adds single-worker cordon, uncordon and bounded PDB-aware eviction through
+  preview, confirmation, preconditions, idempotency and audit. The
+  `KubernetesSource` interface bounds the mutation surface to Node patch and
+  Eviction create; force deletion, PDB bypass, `emptyDir` deletion, arbitrary
+  Pod delete, browser terminals, auto-uncordon after failed drain, and bulk
+  multi-node selection are explicitly prohibited and documented in ADR 0046 §7.
+
+## M31: Isolated Workload Restore Rehearsal
+
+- Status: ✅ Completed on 2026-07-30. Verified via `go test ./...` (all 26 backend
+  packages pass, including 40+ new `restore` tests covering request validation,
+  Velero capability preflight, source backup not-found/incomplete/scope,
+  destination exists/collision, restore name conflict, quarantine and restore
+  dry-run failures, confirmation token hashing, idempotent claim, stale source
+  on phase change, namespace/quarantine-controls/restore creation failures,
+  poll timeout, partial restore, failed phase, success projection, list
+  delegation, namespace/restore name generation, DNS1123 sanitization, UID
+  extraction, identity generation, JSONB round-trips, allowlist/excludelist
+  contracts, and response projection), `vue-tsc -b` (zero frontend type
+  errors), `vitest run` (73 frontend tests, 17 files), and
+  `scripts/verify-fast.ps1 -Scope All` (passed in 28.81s, backend=True
+  frontend=True manifests=True). Real-kind E2E deferred to environments with
+  Velero installed and a completed M28-compatible single-namespace Backup;
+  default kind clusters do not have Velero installed, which is insufficient
+  for restore acceptance.
+- Closure change log: `docs/changes/2026-07-30-m31-isolated-workload-restore-rehearsal.md`
+- ADRs: 0047 (isolated workload restore rehearsal)
+- Rehearsable restore of one M28-compatible Velero Backup into a
+  server-generated quarantine Namespace with default-deny NetworkPolicy and
+  zero-Pod ResourceQuota, fixed resource allowlist, two-phase confirmation,
+  idempotent execution, and bounded restored-item projection. The
+  `KubernetesSource` interface bounds the mutation surface to `CreateResource`
+  only; in-place restore, PV/PVC restore, cross-cluster restore,
+  cutover/rollback, operator-supplied destination names, arbitrary
+  include/exclude lists, and quarantine Namespace auto-cleanup are explicitly
+  prohibited and documented in ADR 0047 §2/§5/§8.
+
+## M32: Formal Closure And Thesis/Demo Refresh
+
+- Status: ✅ Development Complete on 2026-07-30. The committed M27-M32
+  development route is closed. Final audit (migrations, OpenAPI/router parity,
+  RBAC, audit-action mapping, generated files) passed; OpenAPI gap for 11
+  M28-M31 routes found and fixed; contract test coverage extended to all
+  M27-M31 services. Fast gate passed in 28.81s (26 backend packages, 73
+  frontend tests/17 files, Compose/Kustomize contracts). Full local gate
+  passed in 227.76s (`.artifacts/verification/verify-20260730-202934.json`;
+  backend ready, frontend 200, 3 healthy Compose services). Project-end
+  criteria 1-4, 6-7, 9-10 satisfied; criteria 5 (browser screenshot recapture)
+  and 8 (green hosted CI + tag/release) deferred with explicit re-entry
+  conditions. All M26 external gates (OIDC/MFA, PITR, HA, hosted CI, tag/
+  release) marked `deferred` with owner/reason/re-entry gate. No skipped
+  real-kind suite is reported as passed.
+- Closure change log: `docs/changes/2026-07-30-m32-formal-closure.md`
+- ADRs: 0043-0047 (M27-M31 decisions remain accepted)
+- Production ready is a separate claim that additionally requires
+  organization-approved OIDC/MFA, physical/WAL PITR and HA drills. Readiness
+  admission documents alone never satisfy that claim.
+
 ## M26: Organization Integration And Formal Release
 
 - Status: Gated; work that does not require provider decisions may proceed in
-  parallel with M21-M25.
+  parallel with the serial M27-M31 engineering route.
 - Implement isolated-provider OIDC/MFA only after Phase 11 policy approval;
   readiness admission alone is not production SSO.
 - Implement physical/WAL PITR and disposable HA failover/failback only after
@@ -331,6 +467,11 @@ parity targets.
   release and recapture screenshots bound to the reviewed revision.
 
 ## Post-Baseline Development Plan
+
+Detailed execution requirements, phase boundaries, verification commands and
+Agent handoff rules are authoritative in `docs/next-development-plan.md`.
+The cross-project evidence boundary, adopted/rejected gaps and formal project-end
+criteria are authoritative in `docs/references/final-product-gap-analysis.md`.
 
 1. **M26A — Hosted release closure (P0).** Confirm the pushed baseline's
    regular CI, preserve redacted workflow evidence, register the dedicated
@@ -348,6 +489,26 @@ parity targets.
    through fixed scope, server-side preflight, one-time confirmation,
    idempotency, audit and disposable object-storage evidence. Restore remains
    disabled until a separate conflict/PV/cutover/rollback design is approved.
-5. **M29 — Release-bound thesis/demo refresh (P2).** Re-capture screenshots,
-   architecture/test matrices and demo evidence against one tagged revision;
-   remove stale milestone counts and keep generated evidence out of Git.
+5. **M29 — Namespace governance and capacity posture (P1).** Join the existing
+   typed ResourceQuota, LimitRange, workload, Pod, PDB and Node reads into one
+   deterministic, source-cited Namespace posture. Keep it read-only and report
+   partial/truncated evidence explicitly; do not infer complete NetworkPolicy or
+   scheduler semantics.
+6. **M30 — Controlled Node maintenance (P1).** Add single-worker cordon,
+   uncordon and bounded PDB-aware eviction through preview, confirmation,
+   preconditions, idempotency and audit. Force deletion, PDB bypass, `emptyDir`
+   deletion, arbitrary Pod delete and browser terminals remain prohibited.
+7. **M31 — Isolated workload restore rehearsal (P1).** Restore one eligible M28
+   Backup into a server-generated quarantine Namespace with PV, overwrite,
+   cross-cluster and cutover paths disabled. Prove the workflow against a real
+   Velero controller and disposable object store.
+8. **M32 — Formal closure and thesis/demo refresh (P2).** Bind final gates,
+   release metadata, architecture/test matrices and sanitized screenshots to one
+   reviewed revision. Record every M26 organization gate as completed, deferred
+   with a re-entry condition, or not applicable; do not claim production
+   readiness from admission documents alone.
+
+The committed development route ends at M32. Generic Kubernetes CRUD, arbitrary
+resource migration, unrestricted exec/file transfer, force drain, in-place
+restore, production cutover, workspace multi-tenancy, Service Mesh and a generic
+DevOps platform are explicit non-goals rather than hidden post-M32 backlog.

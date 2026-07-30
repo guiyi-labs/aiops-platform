@@ -100,7 +100,7 @@ func auditTrail(logger *zap.Logger, recorder auditRecorder) gin.HandlerFunc {
 		}
 		resourceName := metadata.Name
 		if resourceName == "" {
-			resourceName = firstNonEmpty(c.Param("diagnosis_id"), c.Param("cluster_id"))
+			resourceName = firstNonEmpty(c.Param("diagnosis_id"), c.Param("cluster_id"), c.Param("rule_id"), c.Param("alert_id"))
 		}
 		var clusterID *int64
 		value := metadata.ClusterID
@@ -129,34 +129,43 @@ func auditTrail(logger *zap.Logger, recorder auditRecorder) gin.HandlerFunc {
 
 func auditedOperation(method, path string) (string, string, bool) {
 	operations := map[string][2]string{
-		"POST /api/v1/auth/login":                                   {"auth.login", "Session"},
-		"POST /api/v1/auth/refresh":                                 {"auth.refresh", "Session"},
-		"POST /api/v1/auth/logout":                                  {"auth.logout", "Session"},
-		"POST /api/v1/auth/password-change":                         {"auth.password.change", "UserCredential"},
-		"DELETE /api/v1/auth/sessions/:session_id":                  {"auth.session.revoke", "Session"},
-		"POST /api/v1/auth/sessions/revoke-others":                  {"auth.sessions.revoke_others", "Session"},
-		"POST /api/v1/clusters":                                     {"cluster.create", "Cluster"},
-		"PATCH /api/v1/clusters/:cluster_id":                        {"cluster.enabled.update", "Cluster"},
-		"PUT /api/v1/clusters/:cluster_id/credentials":              {"cluster.credentials.rotate", "ClusterCredential"},
-		"POST /api/v1/clusters/:cluster_id/probe":                   {"cluster.probe", "Cluster"},
-		"DELETE /api/v1/clusters/:cluster_id":                       {"cluster.delete", "Cluster"},
-		"POST /api/v1/clusters/:cluster_id/diagnoses":               {"diagnosis.run", "Diagnosis"},
-		"PATCH /api/v1/diagnoses/:diagnosis_id":                     {"diagnosis.status.update", "Diagnosis"},
-		"POST /api/v1/diagnoses/:diagnosis_id/feedback":             {"diagnosis.feedback.create", "Diagnosis"},
-		"PATCH /api/v1/diagnoses/:diagnosis_id/assignment":          {"diagnosis.assignment.update", "Diagnosis"},
-		"POST /api/v1/diagnoses/:diagnosis_id/explanations":         {"diagnosis.ai_explanation.create", "DiagnosisAIExplanation"},
-		"POST /api/v1/ai/explanations/:explanation_id/feedback":     {"ai_explanation.feedback.create", "AIExplanationFeedback"},
-		"GET /api/v1/audit-logs/export":                             {"audit.export", "AuditExport"},
-		"POST /api/v1/notification-deliveries/:delivery_id/retry":   {"notification.delivery.retry", "NotificationDelivery"},
-		"POST /api/v1/diagnoses/:diagnosis_id/remediations/preview": {"remediation.preview", "RemediationPlan"},
-		"POST /api/v1/clusters/:cluster_id/operations/preview":      {"operation.preview", "ControlledOperation"},
-		"POST /api/v1/remediations/:remediation_id/execute":         {"remediation.execute", "RemediationPlan"},
-		"POST /api/v1/fleet/resources/search/filters":               {"global_search_filter.create", "GlobalSearchFilter"},
-		"PATCH /api/v1/fleet/resources/search/filters/:filter_id":   {"global_search_filter.update", "GlobalSearchFilter"},
-		"DELETE /api/v1/fleet/resources/search/filters/:filter_id":  {"global_search_filter.delete", "GlobalSearchFilter"},
-		"POST /api/v1/users":                                        {"user.create", "User"},
-		"PATCH /api/v1/users/:user_id":                              {"user.update", "User"},
-		"POST /api/v1/users/:user_id/password-reset":                {"user.password.reset", "User"},
+		"POST /api/v1/auth/login":                                     {"auth.login", "Session"},
+		"POST /api/v1/auth/refresh":                                   {"auth.refresh", "Session"},
+		"POST /api/v1/auth/logout":                                    {"auth.logout", "Session"},
+		"POST /api/v1/auth/password-change":                           {"auth.password.change", "UserCredential"},
+		"DELETE /api/v1/auth/sessions/:session_id":                    {"auth.session.revoke", "Session"},
+		"POST /api/v1/auth/sessions/revoke-others":                    {"auth.sessions.revoke_others", "Session"},
+		"POST /api/v1/clusters":                                       {"cluster.create", "Cluster"},
+		"PATCH /api/v1/clusters/:cluster_id":                          {"cluster.enabled.update", "Cluster"},
+		"PUT /api/v1/clusters/:cluster_id/credentials":                {"cluster.credentials.rotate", "ClusterCredential"},
+		"POST /api/v1/clusters/:cluster_id/probe":                     {"cluster.probe", "Cluster"},
+		"DELETE /api/v1/clusters/:cluster_id":                         {"cluster.delete", "Cluster"},
+		"POST /api/v1/clusters/:cluster_id/diagnoses":                 {"diagnosis.run", "Diagnosis"},
+		"PATCH /api/v1/diagnoses/:diagnosis_id":                       {"diagnosis.status.update", "Diagnosis"},
+		"POST /api/v1/diagnoses/:diagnosis_id/feedback":               {"diagnosis.feedback.create", "Diagnosis"},
+		"PATCH /api/v1/diagnoses/:diagnosis_id/assignment":            {"diagnosis.assignment.update", "Diagnosis"},
+		"POST /api/v1/diagnoses/:diagnosis_id/explanations":           {"diagnosis.ai_explanation.create", "DiagnosisAIExplanation"},
+		"POST /api/v1/ai/explanations/:explanation_id/feedback":       {"ai_explanation.feedback.create", "AIExplanationFeedback"},
+		"GET /api/v1/audit-logs/export":                               {"audit.export", "AuditExport"},
+		"POST /api/v1/notification-deliveries/:delivery_id/retry":     {"notification.delivery.retry", "NotificationDelivery"},
+		"POST /api/v1/diagnoses/:diagnosis_id/remediations/preview":   {"remediation.preview", "RemediationPlan"},
+		"POST /api/v1/clusters/:cluster_id/operations/preview":        {"operation.preview", "ControlledOperation"},
+		"POST /api/v1/remediations/:remediation_id/execute":           {"remediation.execute", "RemediationPlan"},
+		"POST /api/v1/fleet/resources/search/filters":                 {"global_search_filter.create", "GlobalSearchFilter"},
+		"PATCH /api/v1/fleet/resources/search/filters/:filter_id":     {"global_search_filter.update", "GlobalSearchFilter"},
+		"DELETE /api/v1/fleet/resources/search/filters/:filter_id":    {"global_search_filter.delete", "GlobalSearchFilter"},
+		"POST /api/v1/users":                                          {"user.create", "User"},
+		"PATCH /api/v1/users/:user_id":                                {"user.update", "User"},
+		"POST /api/v1/users/:user_id/password-reset":                  {"user.password.reset", "User"},
+		"POST /api/v1/clusters/:cluster_id/alert-rules":               {"alert_rule.create", "AlertRule"},
+		"PATCH /api/v1/clusters/:cluster_id/alert-rules/:rule_id":     {"alert_rule.update", "AlertRule"},
+		"DELETE /api/v1/clusters/:cluster_id/alert-rules/:rule_id":    {"alert_rule.delete", "AlertRule"},
+		"POST /api/v1/clusters/:cluster_id/backup-plans/preview":      {"backup.preview", "BackupPlan"},
+		"POST /api/v1/backup-plans/:plan_id/execute":                  {"backup.execute", "BackupPlan"},
+		"POST /api/v1/clusters/:cluster_id/maintenance-plans/preview": {"maintenance.preview", "MaintenancePlan"},
+		"POST /api/v1/maintenance-plans/:plan_id/execute":             {"maintenance.execute", "MaintenancePlan"},
+		"POST /api/v1/clusters/:cluster_id/restore-plans/preview":     {"restore.preview", "RestorePlan"},
+		"POST /api/v1/restore-plans/:plan_id/execute":                 {"restore.execute", "RestorePlan"},
 	}
 	operation, ok := operations[method+" "+path]
 	return operation[0], operation[1], ok

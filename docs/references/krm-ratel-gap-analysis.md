@@ -6,6 +6,11 @@
 - KRM material: `E:/k8s/毕设/krm-main/krm-main`
 - Ratel material: `E:/k8s/毕设/ratel-doc-master/ratel-doc-master`
 
+> Superseded for post-M25 planning: use
+> [`final-product-gap-analysis.md`](final-product-gap-analysis.md) for the current KRM/Ratel/KubeSphere/
+> Kubernetes Guide comparison, M27-M32 route and project-end criteria. This file remains the accepted historical
+> record that drove M21-M25.
+
 ## Evidence Boundary
 
 The local KRM material contains a README, deployment instructions and images,

@@ -599,6 +599,33 @@ func (s *Service) PatchCronJob(ctx context.Context, clusterID int64, namespace, 
 	return item, nil
 }
 
+// PatchNode patches a Node resource (used for cordon/uncordon via
+// spec.unschedulable). It follows the same PatchGateway pattern as
+// PatchDeployment/PatchCronJob.
+func (s *Service) PatchNode(ctx context.Context, clusterID int64, name string, patch []byte, dryRun bool) (Node, error) {
+	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
+	if err != nil {
+		return Node{}, err
+	}
+	gateway, ok := s.gateway.(PatchGateway)
+	if !ok {
+		return Node{}, errors.New("Kubernetes mutation gateway is unavailable")
+	}
+	query := url.Values{}
+	if dryRun {
+		query.Set("dryRun", "All")
+	}
+	body, err := gateway.Patch(ctx, clusterID, kubeconfig, "/api/v1/nodes/"+url.PathEscape(name), query, "application/strategic-merge-patch+json", patch, 10<<20)
+	if err != nil {
+		return Node{}, mapGatewayError(err)
+	}
+	var item Node
+	if err := json.Unmarshal(body, &item); err != nil {
+		return Node{}, fmt.Errorf("decode Kubernetes API response: %w", err)
+	}
+	return item, nil
+}
+
 type ServiceResource struct {
 	Metadata ObjectMeta `json:"metadata"`
 	Spec     struct {
@@ -1969,6 +1996,144 @@ func (s *Service) Backup(ctx context.Context, clusterID int64, namespace, name s
 		return VeleroBackup{}, err
 	}
 	return raw.project(), nil
+}
+
+// BackupStorageLocation is the bounded projection of a Velero BSL CR.
+type BackupStorageLocation struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Phase     string `json:"phase"`
+	Provider  string `json:"provider"`
+}
+
+type rawBackupStorageLocation struct {
+	Metadata ObjectMeta `json:"metadata"`
+	Spec     struct {
+		Provider string `json:"provider"`
+	} `json:"spec"`
+	Status struct {
+		Phase string `json:"phase"`
+	} `json:"status"`
+}
+
+func (raw rawBackupStorageLocation) project() BackupStorageLocation {
+	return BackupStorageLocation{
+		Name:      raw.Metadata.Name,
+		Namespace: raw.Metadata.Namespace,
+		Phase:     raw.Status.Phase,
+		Provider:  raw.Spec.Provider,
+	}
+}
+
+// BackupStorageLocations lists Velero BackupStorageLocation CRs on the target
+// cluster. If the Velero API group is not installed, returns ErrVeleroUnavailable.
+func (s *Service) BackupStorageLocations(ctx context.Context, clusterID int64, namespace string) ([]BackupStorageLocation, error) {
+	path := "/apis/velero.io/v1/backupstoragelocations"
+	if namespace != "" {
+		path = "/apis/velero.io/v1/namespaces/" + url.PathEscape(namespace) + "/backupstoragelocations"
+	}
+	var envelope listEnvelope[rawBackupStorageLocation]
+	if err := s.veleroJSON(ctx, clusterID, path, nil, &envelope); err != nil {
+		return nil, err
+	}
+	locations := make([]BackupStorageLocation, 0, len(envelope.Items))
+	for _, raw := range envelope.Items {
+		locations = append(locations, raw.project())
+	}
+	return locations, nil
+}
+
+// VeleroBackupExists reports whether a Velero Backup CR with the given name
+// exists in the given namespace on the target cluster.
+func (s *Service) VeleroBackupExists(ctx context.Context, clusterID int64, namespace, name string) (bool, error) {
+	path := "/apis/velero.io/v1/namespaces/" + url.PathEscape(namespace) + "/backups/" + url.PathEscape(name)
+	var raw rawVeleroBackup
+	err := s.veleroJSON(ctx, clusterID, path, nil, &raw)
+	if errors.Is(err, ErrResourceNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// VeleroRestore is the bounded projection of a Velero Restore CR. It carries
+// only identity, phase and counts — not the full spec/status.
+type VeleroRestore struct {
+	Name                string `json:"name"`
+	Namespace           string `json:"namespace"`
+	UID                 string `json:"uid"`
+	ResourceVersion     string `json:"resourceVersion"`
+	Phase               string `json:"phase"`
+	BackupName          string `json:"backup_name"`
+	Errors              int    `json:"errors"`
+	Warnings            int    `json:"warnings"`
+	FailureReason       string `json:"failure_reason,omitempty"`
+	StartTimestamp      string `json:"start_timestamp,omitempty"`
+	CompletionTimestamp string `json:"completion_timestamp,omitempty"`
+}
+
+type rawVeleroRestore struct {
+	Metadata ObjectMeta `json:"metadata"`
+	Spec     struct {
+		BackupName         string      `json:"backupName"`
+		IncludedNamespaces []string    `json:"includedNamespaces,omitempty"`
+		NamespaceMapping   interface{} `json:"namespaceMapping,omitempty"`
+		RestorePVs         *bool       `json:"restorePVs,omitempty"`
+		IncludedResources  []string    `json:"includedResources,omitempty"`
+		ExcludedResources  []string    `json:"excludedResources,omitempty"`
+	} `json:"spec"`
+	Status struct {
+		Phase               string `json:"phase,omitempty"`
+		FailureReason       string `json:"failureReason,omitempty"`
+		Errors              int    `json:"errors,omitempty"`
+		Warnings            int    `json:"warnings,omitempty"`
+		StartTimestamp      string `json:"startTimestamp,omitempty"`
+		CompletionTimestamp string `json:"completionTimestamp,omitempty"`
+	} `json:"status"`
+}
+
+func (raw rawVeleroRestore) project() VeleroRestore {
+	return VeleroRestore{
+		Name:                raw.Metadata.Name,
+		Namespace:           raw.Metadata.Namespace,
+		UID:                 raw.Metadata.UID,
+		ResourceVersion:     raw.Metadata.ResourceVersion,
+		Phase:               raw.Status.Phase,
+		BackupName:          raw.Spec.BackupName,
+		Errors:              raw.Status.Errors,
+		Warnings:            raw.Status.Warnings,
+		FailureReason:       raw.Status.FailureReason,
+		StartTimestamp:      raw.Status.StartTimestamp,
+		CompletionTimestamp: raw.Status.CompletionTimestamp,
+	}
+}
+
+// VeleroRestore reads a single Velero Restore CR by namespace and name. If the
+// Velero API group is not installed, returns ErrVeleroUnavailable.
+func (s *Service) VeleroRestore(ctx context.Context, clusterID int64, namespace, name string) (VeleroRestore, error) {
+	var raw rawVeleroRestore
+	path := "/apis/velero.io/v1/namespaces/" + url.PathEscape(namespace) + "/restores/" + url.PathEscape(name)
+	if err := s.veleroJSON(ctx, clusterID, path, nil, &raw); err != nil {
+		return VeleroRestore{}, err
+	}
+	return raw.project(), nil
+}
+
+// VeleroRestoreExists reports whether a Velero Restore CR with the given name
+// exists in the given namespace on the target cluster.
+func (s *Service) VeleroRestoreExists(ctx context.Context, clusterID int64, namespace, name string) (bool, error) {
+	path := "/apis/velero.io/v1/namespaces/" + url.PathEscape(namespace) + "/restores/" + url.PathEscape(name)
+	var raw rawVeleroRestore
+	err := s.veleroJSON(ctx, clusterID, path, nil, &raw)
+	if errors.Is(err, ErrResourceNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func validPromotionKind(kind string) bool {

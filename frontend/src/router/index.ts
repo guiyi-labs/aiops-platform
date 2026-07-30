@@ -64,6 +64,28 @@ const router = createRouter({
       component: () => import('../views/WorkloadProtectionView.vue'),
     },
     {
+      path: '/alerts',
+      name: 'alerts',
+      component: () => import('../views/AlertsView.vue'),
+    },
+    {
+      path: '/namespace-posture',
+      name: 'namespace-posture',
+      component: () => import('../views/NamespacePostureView.vue'),
+    },
+    {
+      path: '/node-maintenance',
+      name: 'node-maintenance',
+      component: () => import('../views/NodeMaintenanceView.vue'),
+      meta: { roles: ['system_admin', 'operations_admin'] },
+    },
+    {
+      path: '/restore-rehearsal',
+      name: 'restore-rehearsal',
+      component: () => import('../views/RestoreRehearsalView.vue'),
+      meta: { roles: ['system_admin', 'operations_admin'] },
+    },
+    {
       path: '/audit-logs',
       name: 'audit-logs',
       component: () => import('../views/AuditLogsView.vue'),

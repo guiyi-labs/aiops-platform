@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { RefreshCw, ShieldCheck, ShieldAlert, Server, X, AlertTriangle, CheckCircle2, Clock, Archive } from 'lucide-vue-next'
+import { RefreshCw, ShieldCheck, ShieldAlert, Server, X, AlertTriangle, CheckCircle2, Clock, Archive, Plus } from 'lucide-vue-next'
 
 import * as k8sAPI from '../api/kubernetes'
 import * as clusterAPI from '../api/clusters'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { VeleroBackup, VeleroCapability } from '../types/kubernetes'
+import type { VeleroBackup, VeleroCapability, BackupPlan } from '../types/kubernetes'
 
 const auth = useAuthStore()
 const clusters = ref<Cluster[]>([])
@@ -20,6 +20,24 @@ const loading = ref(true)
 const errorMessage = ref('')
 const selectedBackup = ref<VeleroBackup | null>(null)
 let loadSequence = 0
+
+const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
+
+// Create backup dialog state
+const showCreateDialog = ref(false)
+const createForm = ref({
+  backup_name: '',
+  backup_namespace: 'velero',
+  included_namespaces: 'default',
+  storage_location: 'default',
+  ttl: '720h',
+  include_cluster_resources: false,
+  snapshot_volumes: false,
+})
+const previewPlan = ref<BackupPlan | null>(null)
+const createError = ref('')
+const createLoading = ref(false)
+const executeLoading = ref(false)
 
 const phaseLabels: Record<string, string> = {
   Completed: '已完成',
@@ -108,6 +126,65 @@ function openDetail(backup: VeleroBackup) {
   selectedBackup.value = backup
 }
 
+function openCreateDialog() {
+  showCreateDialog.value = true
+  previewPlan.value = null
+  createError.value = ''
+  createForm.value = {
+    backup_name: '',
+    backup_namespace: 'velero',
+    included_namespaces: 'default',
+    storage_location: 'default',
+    ttl: '720h',
+    include_cluster_resources: false,
+    snapshot_volumes: false,
+  }
+}
+
+async function submitPreview() {
+  if (!selectedClusterID.value) return
+  createLoading.value = true
+  createError.value = ''
+  previewPlan.value = null
+  try {
+    const included = createForm.value.included_namespaces
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+    const plan = await k8sAPI.previewBackupPlan(auth.accessToken, selectedClusterID.value, {
+      backup_name: createForm.value.backup_name.trim(),
+      backup_namespace: createForm.value.backup_namespace.trim(),
+      included_namespaces: included,
+      storage_location: createForm.value.storage_location.trim(),
+      ttl: createForm.value.ttl.trim() || '720h',
+      include_cluster_resources: createForm.value.include_cluster_resources,
+      snapshot_volumes: createForm.value.snapshot_volumes,
+    })
+    previewPlan.value = plan
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : '预检失败'
+  } finally {
+    createLoading.value = false
+  }
+}
+
+async function submitExecute() {
+  if (!previewPlan.value?.confirmation_token) return
+  executeLoading.value = true
+  createError.value = ''
+  try {
+    const idempotencyKey = crypto.randomUUID()
+    await k8sAPI.executeBackupPlan(auth.accessToken, previewPlan.value.id, previewPlan.value.confirmation_token, idempotencyKey)
+    showCreateDialog.value = false
+    previewPlan.value = null
+    await refresh()
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : '执行失败'
+  } finally {
+    executeLoading.value = false
+  }
+}
+
 watch(selectedClusterID, () => {
   namespace.value = ''
   name.value = ''
@@ -126,6 +203,7 @@ onMounted(initialize)
     <section class="page-toolbar">
       <div><strong>{{ backups.length }}</strong><span> 个备份记录</span></div>
       <div class="toolbar-actions">
+        <button v-if="canManage && capability?.installed" class="primary-button" type="button" @click="openCreateDialog"><Plus :size="16" />创建备份</button>
         <button class="secondary-button" type="button" :disabled="loading || !selectedClusterID" @click="refresh"><RefreshCw :size="16" />刷新</button>
       </div>
     </section>
@@ -287,7 +365,104 @@ onMounted(initialize)
 
           <div class="detail-notice">
             <ShieldCheck :size="16" />
-            <span>此页面为只读视图。受控备份创建需在只读清单和 real-kind 兼容性验证通过后另行启用。恢复操作目前保持禁用。</span>
+            <span>此页面为只读清单视图。受控备份创建可通过上方"创建备份"按钮操作。恢复操作目前保持禁用，待 M31 设计审批。</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Create backup dialog -->
+    <div v-if="showCreateDialog" class="log-overlay" @click.self="showCreateDialog = false">
+      <section class="resource-detail-drawer backup-detail-drawer">
+        <header class="detail-header">
+          <div>
+            <p class="context-label">受控备份创建</p>
+            <h2>{{ previewPlan ? '确认备份计划' : '创建 Velero Backup' }}</h2>
+          </div>
+          <button class="icon-button" type="button" aria-label="关闭" @click="showCreateDialog = false"><X :size="18" /></button>
+        </header>
+
+        <div class="detail-body">
+          <p v-if="createError" class="error-message">{{ createError }}</p>
+
+          <form v-if="!previewPlan" @submit.prevent="submitPreview">
+            <div class="detail-grid">
+              <div class="detail-field">
+                <label>备份名称 *</label>
+                <input v-model="createForm.backup_name" placeholder="my-backup" required />
+              </div>
+              <div class="detail-field">
+                <label>备份命名空间 *</label>
+                <input v-model="createForm.backup_namespace" placeholder="velero" required />
+              </div>
+              <div class="detail-field">
+                <label>包含命名空间 (逗号分隔) *</label>
+                <input v-model="createForm.included_namespaces" placeholder="default,production" required />
+              </div>
+              <div class="detail-field">
+                <label>存储位置 *</label>
+                <input v-model="createForm.storage_location" placeholder="default" required />
+              </div>
+              <div class="detail-field">
+                <label>TTL</label>
+                <input v-model="createForm.ttl" placeholder="720h" />
+              </div>
+              <div class="detail-field">
+                <label>包含集群资源</label>
+                <label class="checkbox-label"><input type="checkbox" v-model="createForm.include_cluster_resources" /> 包含集群范围资源</label>
+              </div>
+              <div class="detail-field">
+                <label>卷快照</label>
+                <label class="checkbox-label"><input type="checkbox" v-model="createForm.snapshot_volumes" /> 对 PV 创建快照</label>
+              </div>
+            </div>
+            <button class="primary-button" type="submit" :disabled="createLoading">
+              <RefreshCw v-if="createLoading" class="spinning" :size="16" />
+              预检并创建计划
+            </button>
+          </form>
+
+          <div v-else class="detail-grid">
+            <div class="detail-field">
+              <label>备份名称</label>
+              <span>{{ previewPlan.backup_name }}</span>
+            </div>
+            <div class="detail-field">
+              <label>命名空间</label>
+              <span>{{ previewPlan.backup_namespace }}</span>
+            </div>
+            <div class="detail-field">
+              <label>包含命名空间</label>
+              <span>{{ previewPlan.included_namespaces.join(', ') }}</span>
+            </div>
+            <div class="detail-field">
+              <label>存储位置</label>
+              <span>{{ previewPlan.storage_location }}</span>
+            </div>
+            <div class="detail-field">
+              <label>TTL</label>
+              <span>{{ previewPlan.ttl }}</span>
+            </div>
+            <div class="detail-field">
+              <label>集群资源</label>
+              <span>{{ previewPlan.include_cluster_resources ? '是' : '否' }}</span>
+            </div>
+            <div class="detail-field">
+              <label>卷快照</label>
+              <span>{{ previewPlan.snapshot_volumes ? '是' : '否' }}</span>
+            </div>
+            <div class="detail-field">
+              <label>过期时间</label>
+              <span>{{ formatTimestamp(previewPlan.expires_at) }}</span>
+            </div>
+            <div class="detail-notice">
+              <ShieldCheck :size="16" />
+              <span>预检已通过（Velero 已安装、存储位置存在、名称未冲突、服务端 dry-run 成功）。确认后将创建实际 Backup CR。此操作不可撤销。</span>
+            </div>
+            <button class="primary-button" type="button" :disabled="executeLoading" @click="submitExecute">
+              <RefreshCw v-if="executeLoading" class="spinning" :size="16" />
+              确认创建备份
+            </button>
           </div>
         </div>
       </section>

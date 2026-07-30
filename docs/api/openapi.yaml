@@ -21,6 +21,8 @@ tags:
   - name: audit
   - name: fleet
   - name: metrics-history
+  - name: alert-rules
+  - name: alerts
 paths:
   /api/v1/fleet/health:
     get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
@@ -409,6 +411,239 @@ paths:
     get: { tags: [audit], summary: Query audit logs, operationId: listAuditLogs, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/audit-logs/export:
     get: { tags: [audit], summary: Export safe UTF-8 CSV, operationId: exportAuditLogs, security: [{ bearerAuth: [] }], responses: { '200': { description: CSV export, content: { text/csv: { schema: { type: string } } } } } }
+  /api/v1/clusters/{cluster_id}/alert-rules:
+    get:
+      tags: [alert-rules]
+      summary: List alert rules for a cluster
+      operationId: listAlertRules
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      responses:
+        '200': { description: List of alert rules, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AlertRule' } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [alert-rules]
+      summary: Create an alert rule
+      description: Creates a fixed alert rule for one exact Node CPU or memory series. Maximum 20 non-deleted rules per cluster. Evaluation fields are immutable after creation.
+      operationId: createAlertRule
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRuleCreate' } } } }
+      responses:
+        '201': { description: Created alert rule, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRule' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/alert-rules/{rule_id}:
+    get:
+      tags: [alert-rules]
+      summary: Get an alert rule
+      operationId: getAlertRule
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/RuleID' }]
+      responses:
+        '200': { description: Alert rule, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRule' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [alert-rules]
+      summary: Update alert rule display name or enabled state
+      description: Only display_name and enabled may be patched. Evaluation fields are immutable.
+      operationId: patchAlertRule
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/RuleID' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRulePatch' } } } }
+      responses:
+        '200': { description: Updated alert rule, content: { application/json: { schema: { $ref: '#/components/schemas/AlertRule' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [alert-rules]
+      summary: Soft-delete an alert rule
+      description: Soft deletes the rule. Fails with UNRESOLVED_ALERT if an active firing instance exists.
+      operationId: deleteAlertRule
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/RuleID' }]
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/alerts:
+    get:
+      tags: [alerts]
+      summary: List alert instances for a cluster
+      operationId: listAlertInstances
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClusterID' }
+        - { name: state, in: query, schema: { type: string, enum: [firing, resolved] } }
+        - { name: rule_id, in: query, schema: { type: integer, format: int64 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200': { description: List of alert instances, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AlertInstance' } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/alerts/{alert_id}:
+    get:
+      tags: [alerts]
+      summary: Get an alert instance
+      operationId: getAlertInstance
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/AlertID' }]
+      responses:
+        '200': { description: Alert instance, content: { application/json: { schema: { $ref: '#/components/schemas/AlertInstance' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/namespace-postures:
+    get:
+      tags: [namespace-posture]
+      summary: List namespace posture summaries for a cluster
+      operationId: listNamespacePostures
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      responses:
+        '200': { description: List of namespace posture summaries, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/namespace-postures/{namespace}:
+    get:
+      tags: [namespace-posture]
+      summary: Get a namespace posture summary
+      operationId: getNamespacePosture
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Namespace posture summary, content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/backup-plans:
+    get:
+      tags: [backup]
+      summary: List backup plans for a cluster
+      operationId: listBackupPlans
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      responses:
+        '200': { description: List of backup plans, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/backup-plans/preview:
+    post:
+      tags: [backup]
+      summary: Preview a Velero backup plan
+      description: Runs preflight checks (Velero installed, BSL exists, name available, server-side dry-run) and persists an awaiting-confirmation plan with a one-time confirmation token.
+      operationId: previewBackupPlan
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: Backup plan awaiting confirmation, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/backup-plans/{plan_id}/execute:
+    post:
+      tags: [backup]
+      summary: Execute a backup plan
+      description: Claims the plan with a one-time confirmation token and an Idempotency-Key header, then creates the Velero Backup CR. Same-key replay returns the same plan without re-mutating.
+      operationId: executeBackupPlan
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: plan_id, in: path, required: true, schema: { type: string } }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirmation_token], properties: { confirmation_token: { type: string } } } } } }
+      responses:
+        '200': { description: Executed backup plan, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/maintenance-plans:
+    get:
+      tags: [maintenance]
+      summary: List maintenance plans for a cluster
+      operationId: listMaintenancePlans
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      responses:
+        '200': { description: List of maintenance plans, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/maintenance-plans/preview:
+    post:
+      tags: [maintenance]
+      summary: Preview a Node maintenance plan
+      description: Runs preconditions (worker Node, cordon/uncordon/drain state checks), classifies resident Pods into retained/evictable/blocking, performs a server-side dry-run Node patch (cordon/uncordon), and persists an awaiting-confirmation plan with a one-time confirmation token.
+      operationId: previewMaintenancePlan
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: Maintenance plan awaiting confirmation, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/maintenance-plans/{plan_id}/execute:
+    post:
+      tags: [maintenance]
+      summary: Execute a maintenance plan
+      description: Claims the plan with a one-time confirmation token and an Idempotency-Key header, then performs cordon/uncordon patch or bounded PDB-aware eviction. Force deletion, PDB bypass, emptyDir deletion, arbitrary Pod delete, and auto-uncordon after failed drain are prohibited.
+      operationId: executeMaintenancePlan
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: plan_id, in: path, required: true, schema: { type: string } }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirmation_token], properties: { confirmation_token: { type: string } } } } } }
+      responses:
+        '200': { description: Executed maintenance plan, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/restore-plans:
+    get:
+      tags: [restore]
+      summary: List restore rehearsal plans for a cluster
+      operationId: listRestorePlans
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      responses:
+        '200': { description: List of restore rehearsal plans, content: { application/json: { schema: { type: array, items: { type: object } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/restore-plans/preview:
+    post:
+      tags: [restore]
+      summary: Preview an isolated workload restore rehearsal plan
+      description: Runs preflight checks (Velero installed, source Backup Completed and M28-compatible single-namespace scope, destination Namespace absent, no active plan for the same source, Restore name available) and server-side dry-runs of the quarantine controls (default-deny NetworkPolicy + zero-Pod ResourceQuota) and Restore CR. Persists an awaiting-confirmation plan with a one-time confirmation token.
+      operationId: previewRestorePlan
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/ClusterID' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [source_backup_name, source_backup_namespace], properties: { source_backup_name: { type: string }, source_backup_namespace: { type: string } } } } } }
+      responses:
+        '201': { description: Restore rehearsal plan awaiting confirmation, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/restore-plans/{plan_id}/execute:
+    post:
+      tags: [restore]
+      summary: Execute an isolated workload restore rehearsal plan
+      description: Claims the plan with a one-time confirmation token and an Idempotency-Key header, then creates the quarantine Namespace, NetworkPolicy, ResourceQuota, and Velero Restore CR; polls until terminal; projects restored items by allowlisted kinds. In-place restore, PV restore, cross-cluster restore, cutover/rollback, operator-supplied destination names, and arbitrary include/exclude lists are prohibited.
+      operationId: executeRestorePlan
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: plan_id, in: path, required: true, schema: { type: string } }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirmation_token], properties: { confirmation_token: { type: string } } } } } }
+      responses:
+        '200': { description: Executed restore rehearsal plan, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -423,6 +658,8 @@ components:
     RemediationID: { name: remediation_id, in: path, required: true, schema: { type: string, format: uuid } }
     PromotionID: { name: promotion_id, in: path, required: true, schema: { type: string, format: uuid } }
     FilterID: { name: filter_id, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+    RuleID: { name: rule_id, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+    AlertID: { name: alert_id, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
     Namespace: { name: namespace, in: path, required: true, schema: { type: string } }
     Name: { name: name, in: path, required: true, schema: { type: string } }
     Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
@@ -737,3 +974,66 @@ components:
         total: { type: integer, minimum: 0 }
         page: { type: integer, minimum: 1 }
         limit: { type: integer, minimum: 1, maximum: 100 }
+    AlertRuleCreate:
+      type: object
+      additionalProperties: false
+      required: [display_name, resource_kind, resource_name, metric_name, operator, threshold, for_seconds, minimum_points]
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 128 }
+        resource_kind: { type: string, enum: [Node] }
+        resource_name: { type: string, minLength: 1, maxLength: 253, description: Node name }
+        metric_name: { type: string, enum: [cpu, memory] }
+        operator: { type: string, enum: [gte, lte] }
+        threshold: { type: integer, format: int64, minimum: 0, description: 'nanocores for cpu, bytes for memory' }
+        for_seconds: { type: integer, minimum: 60, maximum: 21600 }
+        minimum_points: { type: integer, minimum: 2, maximum: 360 }
+    AlertRulePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        display_name: { type: string, minLength: 1, maxLength: 128 }
+        enabled: { type: boolean }
+    AlertRule:
+      type: object
+      required: [id, cluster_id, display_name, resource_kind, resource_name, metric_name, operator, threshold, for_seconds, minimum_points, enabled, deleted, last_evaluation_state, last_error_code, next_due_at, creator, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        cluster_id: { type: integer, format: int64 }
+        display_name: { type: string }
+        resource_kind: { type: string, enum: [Node] }
+        resource_name: { type: string }
+        metric_name: { type: string, enum: [cpu, memory] }
+        operator: { type: string, enum: [gte, lte] }
+        threshold: { type: integer, format: int64 }
+        for_seconds: { type: integer }
+        minimum_points: { type: integer }
+        enabled: { type: boolean }
+        deleted: { type: boolean }
+        last_evaluation_state: { type: string, enum: ['', firing, normal, insufficient_data, error] }
+        last_evaluation_at: { type: string, format: date-time, nullable: true }
+        last_error_code: { type: string }
+        next_due_at: { type: string, format: date-time }
+        creator: { $ref: '#/components/schemas/ActorRef' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AlertInstance:
+      type: object
+      required: [id, rule_id, diagnosis_id, state, first_fired_at, last_fired_at, latest_evidence_anchor, created_at, updated_at]
+      properties:
+        id: { type: integer, format: int64 }
+        rule_id: { type: integer, format: int64 }
+        diagnosis_id: { type: integer, format: int64 }
+        state: { type: string, enum: [firing, resolved] }
+        first_fired_at: { type: string, format: date-time }
+        last_fired_at: { type: string, format: date-time }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        latest_evidence_anchor: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ActorRef:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }

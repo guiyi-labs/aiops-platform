@@ -4,6 +4,9 @@
 
 | 目录或文件 | 内容 |
 |---|---|
+| `agent-start-here.md` | 新设备/新 Agent 首读入口、当前基线、阅读顺序和不可破坏约束 |
+| `new-environment-bootstrap.md` | 稳定设备从零安装、密钥、Compose、kind、验收和故障恢复手册 |
+| `project-vision-and-delivery-standards.md` | 项目展望、M26+ 路线、优先级、准入、完成和证据标准 |
 | `development.md` | 本地开发、测试和运行方法 |
 | `development-handoff.md` | 当前里程碑、稳定基线、进行中工作和下次启动入口 |
 | `roadmap.md` | M19-M26 产品优化顺序、阶段状态、范围边界和发布前置条件 |
@@ -21,6 +24,9 @@
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-07-30-new-environment-continuation-package.md`：新设备 Agent 接管、从零部署、项目展望和交付标准资料包。
+- `docs/changes/2026-07-30-m21-m25-baseline-alignment.md`：M21-M25 统一审查、真实 kind、完整门禁、提交和基线边界。
+- [hosted CI run 30502322757](https://github.com/guiyi-labs/aiops-platform/actions/runs/30502322757)：commit `62320fc` 的 Backend、Frontend、Manifests、Compose 和四类安全/恢复演练全部通过。
 - `docs/changes/2026-07-29-m21-authenticated-exact-series-history-api.md`：M21 第三阶段鉴权精确序列历史 API、稀疏覆盖、查询隔离和重启持久性验证。
 - `docs/changes/2026-07-28-m21-bounded-background-metrics-collector.md`：M21 第二阶段已启用集群后台采集、Quantity 标准化、并发/超时隔离、稳定失败码与定时清理。
 - `docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md`：M21 第一阶段 PostgreSQL 历史指标合同、采集覆盖、稀疏缺样本语义、容量上限和有界清理。

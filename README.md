@@ -17,6 +17,12 @@ Compose 三服务健康检查以及 M21/M23/M24/M25 真实 kind 验收。最新�
 `.artifacts/verification/verify-20260730-080851.json`；完整收口记录见
 [`docs/changes/2026-07-30-m21-m25-baseline-alignment.md`](docs/changes/2026-07-30-m21-m25-baseline-alignment.md)。
 
+在新设备或新 Agent 上继续开发时，从
+[`docs/agent-start-here.md`](docs/agent-start-here.md) 开始，并按
+[`docs/new-environment-bootstrap.md`](docs/new-environment-bootstrap.md) 完成全新环境验收；
+项目展望、推进路线与交付标准见
+[`docs/project-vision-and-delivery-standards.md`](docs/project-vision-and-delivery-standards.md)。
+
 > 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
 ![AIOps Dashboard](docs/thesis/screenshots/01-dashboard.png)

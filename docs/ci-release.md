@@ -14,12 +14,16 @@ for explicit review. Review the upstream tag and diff before replacing a SHA.
 `pull_request_target` is prohibited.
 
 Activation status: private remote `guiyi-labs/aiops-platform` is configured.
-Hosted CI run `30348664880` passed all four jobs at revision
-`0baf8583956e1e987ef5043b5fd70ce33aba90e4`, including offline identity and
-recovery readiness, signed audit archival, credential re-encryption,
-PostgreSQL recovery and independent Compose runtime.
+Hosted CI run `30502322757` passed the complete layered workflow at the
+M21-M25 baseline revision `62320fcac3bbb50b33b7cd6945495264b04b026c`,
+including Backend, Frontend, Manifests, offline identity/recovery readiness,
+signed audit archival, credential re-encryption, PostgreSQL recovery,
+independent Compose runtime and the unified result job.
 The pnpm setup action runs on Node 24 without the prior deprecation warning.
 Required branch checks and the dedicated `aiops-kind` runner are not enabled.
+New-device runner and developer bootstrap must follow
+`docs/new-environment-bootstrap.md`; the runner must not reuse a developer's
+retained Docker volumes, kubeconfig or `.env`.
 
 ## Required Branch Protection
 

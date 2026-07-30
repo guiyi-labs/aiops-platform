@@ -7,6 +7,9 @@
   recorded in `docs/changes/2026-07-30-m21-m25-baseline-alignment.md`.
   M20 Phase 12 and the earlier hosted M21 verification remain archived.
 - Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
+- Governance: new milestones must satisfy the prioritization, Definition of
+  Ready, risk-based verification, Definition of Done and evidence rules in
+  `docs/project-vision-and-delivery-standards.md`.
 
 ## Baseline Closure Audit (2026-07-30)
 

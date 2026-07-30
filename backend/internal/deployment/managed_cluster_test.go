@@ -20,11 +20,48 @@ func TestManagedClusterRBACKeepsMutationNamespacedAndBounded(t *testing.T) {
 	}
 	resources := loadResources(t, directory, configuration.Resources)
 	observer := requireResource(t, resources, "ClusterRole/aiops-platform-observer")
+	allowedMutations := map[string]map[string]bool{
+		"/nodes":                            {"patch": true},
+		"/pods/eviction":                    {"create": true},
+		"/namespaces":                       {"create": true},
+		"/resourcequotas":                   {"create": true},
+		"networking.k8s.io/networkpolicies": {"create": true},
+		"velero.io/backups":                 {"create": true},
+		"velero.io/restores":                {"create": true},
+	}
 	for _, rule := range rules(t, observer) {
+		apiGroups := stringSlice(t, rule["apiGroups"])
+		if len(apiGroups) != 1 {
+			t.Fatalf("observer rule must contain exactly one API group: %#v", rule)
+		}
+		resources := stringSlice(t, rule["resources"])
 		for _, verb := range stringSlice(t, rule["verbs"]) {
-			if verb != "get" && verb != "list" {
-				t.Fatalf("observer contains mutating verb %q", verb)
+			if verb == "get" || verb == "list" {
+				continue
 			}
+			for _, resource := range resources {
+				key := apiGroups[0] + "/" + resource
+				if !allowedMutations[key][verb] {
+					t.Fatalf("observer contains unreviewed mutation %s %s", verb, key)
+				}
+			}
+		}
+	}
+	for _, permission := range []struct {
+		apiGroup string
+		resource string
+		verb     string
+	}{
+		{apiGroup: "", resource: "nodes", verb: "patch"},
+		{apiGroup: "", resource: "pods/eviction", verb: "create"},
+		{apiGroup: "", resource: "namespaces", verb: "create"},
+		{apiGroup: "", resource: "resourcequotas", verb: "create"},
+		{apiGroup: "networking.k8s.io", resource: "networkpolicies", verb: "create"},
+		{apiGroup: "velero.io", resource: "backups", verb: "create"},
+		{apiGroup: "velero.io", resource: "restores", verb: "create"},
+	} {
+		if !roleAllows(observer, permission.apiGroup, permission.resource, []string{permission.verb}) {
+			t.Fatalf("observer is missing reviewed mutation %s %s/%s", permission.verb, permission.apiGroup, permission.resource)
 		}
 	}
 	for _, permission := range []struct {
@@ -73,12 +110,16 @@ func roleAllows(role map[string]any, apiGroup, resource string, verbs []string) 
 		values := rule.(map[string]any)
 		groups, resources, ruleVerbs := values["apiGroups"].([]any), values["resources"].([]any), values["verbs"].([]any)
 		if containsString(groups, apiGroup) && containsString(resources, resource) {
+			allowed := true
 			for _, verb := range verbs {
 				if !containsString(ruleVerbs, verb) {
-					return false
+					allowed = false
+					break
 				}
 			}
-			return true
+			if allowed {
+				return true
+			}
 		}
 	}
 	return false

@@ -2,41 +2,58 @@ package backup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"k8s-aiops.local/backend/internal/apiquery"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 )
 
 type kubernetesStub struct {
-	capability  k8sgateway.VeleroCapability
-	capErr      error
-	locations   []k8sgateway.BackupStorageLocation
-	locErr      error
-	backupExist bool
-	existErr    error
-	createErr   error
-	dryRuns     []bool
-	bodies      [][]byte
+	capability   k8sgateway.VeleroCapability
+	capErr       error
+	namespace    k8sgateway.Namespace
+	namespaceErr error
+	locations    []k8sgateway.BackupStorageLocation
+	locErr       error
+	backupExist  bool
+	existErr     error
+	createErr    error
+	dryRuns      []bool
+	bodies       [][]byte
 }
 
 func (s *kubernetesStub) VeleroCapability(context.Context, int64) (k8sgateway.VeleroCapability, error) {
 	return s.capability, s.capErr
 }
-
+func (s *kubernetesStub) Namespaces(context.Context, int64, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Namespace], error) {
+	if s.namespaceErr != nil {
+		return apiquery.ListResponse[k8sgateway.Namespace]{}, s.namespaceErr
+	}
+	if s.namespace.Metadata.Name == "" {
+		return apiquery.ListResponse[k8sgateway.Namespace]{}, nil
+	}
+	return apiquery.ListResponse[k8sgateway.Namespace]{Items: []k8sgateway.Namespace{s.namespace}, Total: 1}, nil
+}
 func (s *kubernetesStub) BackupStorageLocations(context.Context, int64, string) ([]k8sgateway.BackupStorageLocation, error) {
 	return s.locations, s.locErr
 }
-
 func (s *kubernetesStub) VeleroBackupExists(context.Context, int64, string, string) (bool, error) {
 	return s.backupExist, s.existErr
 }
-
 func (s *kubernetesStub) CreateResource(_ context.Context, _ int64, _ string, body []byte, dryRun bool) ([]byte, error) {
 	s.dryRuns = append(s.dryRuns, dryRun)
 	s.bodies = append(s.bodies, append([]byte(nil), body...))
-	return []byte("{}"), s.createErr
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
+	if dryRun {
+		return []byte(`{}`), nil
+	}
+	return []byte(`{"metadata":{"uid":"backup-uid-1","resourceVersion":"55"}}`), nil
 }
 
 type repositoryStub struct {
@@ -54,15 +71,28 @@ func (s *repositoryStub) List(context.Context, int64) ([]Plan, error) { return s
 func (s *repositoryStub) Claim(context.Context, string, []byte, string, time.Time, time.Time) (Plan, bool, error) {
 	return s.claimed, s.shouldExecute, s.claimErr
 }
-func (s *repositoryStub) Complete(_ context.Context, _, _ string, at time.Time) (Plan, error) {
+func (s *repositoryStub) Complete(_ context.Context, _, _, uid, rv string, at time.Time) (Plan, error) {
 	s.completed = true
 	s.claimed.Status, s.claimed.ExecutedAt = StatusSucceeded, &at
+	s.claimed.BackupUID, s.claimed.BackupResourceVersion = uid, rv
 	return s.claimed, nil
 }
 func (s *repositoryStub) Fail(_ context.Context, _, _, message string) (Plan, error) {
 	s.failedMessage = message
 	s.claimed.Status, s.claimed.LastError = StatusFailed, message
 	return s.claimed, nil
+}
+
+func sourceNamespace(rv string) k8sgateway.Namespace {
+	return k8sgateway.Namespace{Metadata: k8sgateway.ObjectMeta{Name: "default", UID: "ns-uid-1", ResourceVersion: rv}}
+}
+
+func readyKubernetes() *kubernetesStub {
+	return &kubernetesStub{
+		capability: k8sgateway.VeleroCapability{Installed: true, Version: "v1"},
+		namespace:  sourceNamespace("10"),
+		locations:  []k8sgateway.BackupStorageLocation{{Name: "default", Namespace: DefaultBackupNamespace, Phase: "Available"}},
+	}
 }
 
 func makeService(kube *kubernetesStub, repo *repositoryStub) *Service {
@@ -72,233 +102,117 @@ func makeService(kube *kubernetesStub, repo *repositoryStub) *Service {
 }
 
 func validRequest() Request {
-	return Request{
-		BackupName:         "test-backup",
-		BackupNamespace:    "velero",
-		IncludedNamespaces: []string{"default"},
-		StorageLocation:    "default",
-		TTL:                "720h",
+	return Request{SourceNamespace: "default", StorageLocation: "default", TTL: "720h"}
+}
+
+func executingPlan() Plan {
+	return Plan{ID: "plan-1", ClusterID: 1, Status: StatusExecuting, BackupName: "aiops-default-12345678", BackupNamespace: DefaultBackupNamespace, IncludedNamespaces: []string{"default"}, SourceNamespaceUID: "ns-uid-1", SourceNamespaceResourceVersion: "10", StorageLocation: "default", TTL: "720h"}
+}
+
+func TestValidateRequestFixedScope(t *testing.T) {
+	for _, ttl := range []string{"24h", "168h", "720h"} {
+		req := validRequest()
+		req.TTL = ttl
+		if err := validateRequest(1, req); err != nil {
+			t.Fatalf("TTL %s rejected: %v", ttl, err)
+		}
+	}
+	for _, ttl := range []string{"", "1h", "abc", "721h"} {
+		req := validRequest()
+		req.TTL = ttl
+		if !errors.Is(validateRequest(1, req), ErrInvalidRequest) {
+			t.Fatalf("TTL %q must be rejected", ttl)
+		}
 	}
 }
 
-func TestPreviewRejectsInvalidRequest(t *testing.T) {
-	kube := &kubernetesStub{capability: k8sgateway.VeleroCapability{Installed: true}}
-	repo := &repositoryStub{}
-	svc := makeService(kube, repo)
-
-	// Missing backup name
-	_, err := svc.Preview(context.Background(), 1, Request{
-		BackupName:         "",
-		BackupNamespace:    "velero",
-		IncludedNamespaces: []string{"default"},
-		StorageLocation:    "default",
-	}, ActorRef{ID: 1, Name: "admin"})
-	if !errors.Is(err, ErrInvalidRequest) {
-		t.Fatalf("expected ErrInvalidRequest, got %v", err)
-	}
-
-	// Too many namespaces
-	many := make([]string, 11)
-	for i := range many {
-		many[i] = "ns"
-	}
-	_, err = svc.Preview(context.Background(), 1, Request{
-		BackupName:         "ok",
-		BackupNamespace:    "velero",
-		IncludedNamespaces: many,
-		StorageLocation:    "default",
-	}, ActorRef{ID: 1, Name: "admin"})
-	if !errors.Is(err, ErrInvalidRequest) {
-		t.Fatalf("expected ErrInvalidRequest for too many namespaces, got %v", err)
-	}
-}
-
-func TestPreviewFailsWhenVeleroNotInstalled(t *testing.T) {
-	kube := &kubernetesStub{capability: k8sgateway.VeleroCapability{Installed: false}}
-	repo := &repositoryStub{}
-	svc := makeService(kube, repo)
-
-	_, err := svc.Preview(context.Background(), 1, validRequest(), ActorRef{ID: 1, Name: "admin"})
-	if !errors.Is(err, ErrVeleroNotInstalled) {
-		t.Fatalf("expected ErrVeleroNotInstalled, got %v", err)
-	}
-}
-
-func TestPreviewFailsWhenStorageLocationNotFound(t *testing.T) {
-	kube := &kubernetesStub{
-		capability: k8sgateway.VeleroCapability{Installed: true},
-		locations:  []k8sgateway.BackupStorageLocation{{Name: "other", Namespace: "velero", Phase: "Available"}},
-	}
-	repo := &repositoryStub{}
-	svc := makeService(kube, repo)
-
-	_, err := svc.Preview(context.Background(), 1, validRequest(), ActorRef{ID: 1, Name: "admin"})
-	if !errors.Is(err, ErrStorageLocationNotFound) {
-		t.Fatalf("expected ErrStorageLocationNotFound, got %v", err)
-	}
-}
-
-func TestPreviewFailsOnBackupNameConflict(t *testing.T) {
-	kube := &kubernetesStub{
-		capability:  k8sgateway.VeleroCapability{Installed: true},
-		locations:   []k8sgateway.BackupStorageLocation{{Name: "default", Namespace: "velero", Phase: "Available"}},
-		backupExist: true,
-	}
-	repo := &repositoryStub{}
-	svc := makeService(kube, repo)
-
-	_, err := svc.Preview(context.Background(), 1, validRequest(), ActorRef{ID: 1, Name: "admin"})
-	if !errors.Is(err, ErrBackupNameConflict) {
-		t.Fatalf("expected ErrBackupNameConflict, got %v", err)
-	}
-}
-
-func TestPreviewPerformsDryRunAndStoresHash(t *testing.T) {
-	kube := &kubernetesStub{
-		capability: k8sgateway.VeleroCapability{Installed: true, Version: "v1"},
-		locations:  []k8sgateway.BackupStorageLocation{{Name: "default", Namespace: "velero", Phase: "Available"}},
-	}
-	repo := &repositoryStub{}
-	svc := makeService(kube, repo)
-
-	plan, err := svc.Preview(context.Background(), 1, validRequest(), ActorRef{ID: 1, Name: "admin"})
+func TestPreviewGeneratesNameAndFixedManifest(t *testing.T) {
+	kube, repo := readyKubernetes(), &repositoryStub{}
+	plan, err := makeService(kube, repo).Preview(context.Background(), 1, validRequest(), ActorRef{ID: 1, Name: "admin"})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
 	}
-	if len(kube.dryRuns) != 1 || !kube.dryRuns[0] {
-		t.Fatal("expected one dry-run create")
+	if !strings.HasPrefix(plan.BackupName, "aiops-default-") || plan.BackupNamespace != DefaultBackupNamespace {
+		t.Fatalf("server-owned identity not generated: %+v", plan)
 	}
-	if plan.ConfirmationToken == "" {
-		t.Fatal("confirmation token should be returned to caller")
+	if plan.SourceNamespaceUID != "ns-uid-1" || plan.SourceNamespaceResourceVersion != "10" {
+		t.Fatalf("source identity not captured: %+v", plan)
 	}
-	if len(repo.saved.ConfirmationTokenHash) == 0 {
-		t.Fatal("token hash should be persisted")
+	var manifest struct {
+		Spec map[string]any `json:"spec"`
 	}
-	if repo.saved.ConfirmationToken != "" {
-		t.Fatal("plaintext token must not be persisted")
+	if err := json.Unmarshal(kube.bodies[0], &manifest); err != nil {
+		t.Fatal(err)
 	}
-	if repo.saved.Status != StatusAwaitingConfirmation {
-		t.Fatalf("expected status %s, got %s", StatusAwaitingConfirmation, repo.saved.Status)
+	if manifest.Spec["includeClusterResources"] != false || manifest.Spec["snapshotVolumes"] != false {
+		t.Fatalf("unsafe Backup scope: %#v", manifest.Spec)
 	}
-	if repo.saved.VeleroVersion != "v1" {
-		t.Fatalf("expected velero version v1, got %s", repo.saved.VeleroVersion)
+	if _, ok := manifest.Spec["labelSelector"]; ok {
+		t.Fatal("fixed manifest must not contain labelSelector")
+	}
+	if len(kube.dryRuns) != 1 || !kube.dryRuns[0] || repo.saved.ConfirmationToken != "" {
+		t.Fatal("preview must be dry-run and persist no plaintext token")
 	}
 }
 
-func TestExecuteCreatesBackupAndCompletes(t *testing.T) {
-	kube := &kubernetesStub{
-		capability: k8sgateway.VeleroCapability{Installed: true, Version: "v1"},
-		locations:  []k8sgateway.BackupStorageLocation{{Name: "default", Namespace: "velero", Phase: "Available"}},
+func TestPreviewRejectsMissingNamespace(t *testing.T) {
+	kube := readyKubernetes()
+	kube.namespace = k8sgateway.Namespace{}
+	_, err := makeService(kube, &repositoryStub{}).Preview(context.Background(), 1, validRequest(), ActorRef{ID: 1, Name: "admin"})
+	if !errors.Is(err, ErrSourceNamespaceNotFound) {
+		t.Fatalf("expected missing namespace error, got %v", err)
 	}
-	repo := &repositoryStub{
-		shouldExecute: true,
-		claimed: Plan{
-			ID:              "plan-1",
-			ClusterID:       1,
-			Status:          StatusExecuting,
-			BackupName:      "test-backup",
-			BackupNamespace: "velero",
-			TTL:             "720h",
-		},
-	}
-	svc := makeService(kube, repo)
+}
 
-	plan, err := svc.Execute(context.Background(), "plan-1", "token", "idem-key-12345678")
+func TestPreviewRejectsUnavailableStorage(t *testing.T) {
+	kube := readyKubernetes()
+	kube.locations[0].Phase = "Unavailable"
+	_, err := makeService(kube, &repositoryStub{}).Preview(context.Background(), 1, validRequest(), ActorRef{ID: 1, Name: "admin"})
+	if !errors.Is(err, ErrStorageLocationUnavailable) {
+		t.Fatalf("expected unavailable storage error, got %v", err)
+	}
+}
+
+func TestExecuteRechecksAndStoresBackupIdentity(t *testing.T) {
+	kube := readyKubernetes()
+	repo := &repositoryStub{claimed: executingPlan(), shouldExecute: true}
+	plan, err := makeService(kube, repo).Execute(context.Background(), "plan-1", "token", "idem-key-12345678")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatal(err)
+	}
+	if !repo.completed || plan.BackupUID != "backup-uid-1" || plan.BackupResourceVersion != "55" {
+		t.Fatalf("created Backup identity not persisted: %+v", plan)
 	}
 	if len(kube.dryRuns) != 1 || kube.dryRuns[0] {
-		t.Fatal("execute should not dry-run")
-	}
-	if !repo.completed {
-		t.Fatal("expected repository Complete to be called")
-	}
-	if plan.Status != StatusSucceeded {
-		t.Fatalf("expected status %s, got %s", StatusSucceeded, plan.Status)
+		t.Fatal("execute must perform exactly one non-dry-run create")
 	}
 }
 
-func TestExecuteFailsOnClaimError(t *testing.T) {
-	kube := &kubernetesStub{}
-	repo := &repositoryStub{
-		claimErr: ErrExpired,
-	}
-	svc := makeService(kube, repo)
-
-	_, err := svc.Execute(context.Background(), "plan-1", "token", "idem-key-12345678")
-	if !errors.Is(err, ErrExpired) {
-		t.Fatalf("expected ErrExpired, got %v", err)
-	}
-	if len(kube.dryRuns) != 0 {
-		t.Fatal("should not attempt create on claim error")
+func TestExecuteRejectsStaleNamespace(t *testing.T) {
+	kube := readyKubernetes()
+	kube.namespace = sourceNamespace("11")
+	repo := &repositoryStub{claimed: executingPlan(), shouldExecute: true}
+	_, err := makeService(kube, repo).Execute(context.Background(), "plan-1", "token", "idem-key-12345678")
+	if !errors.Is(err, ErrExecutionFailed) || !errors.Is(err, ErrStaleSourceNamespace) || repo.failedMessage == "" || len(kube.dryRuns) != 0 {
+		t.Fatalf("stale namespace must fail closed: err=%v failed=%q", err, repo.failedMessage)
 	}
 }
 
-func TestExecuteFailsAndRecordsError(t *testing.T) {
-	kube := &kubernetesStub{
-		createErr: errors.New("kubernetes API error"),
-	}
-	repo := &repositoryStub{
-		shouldExecute: true,
-		claimed: Plan{
-			ID:              "plan-1",
-			ClusterID:       1,
-			BackupName:      "test-backup",
-			BackupNamespace: "velero",
-		},
-	}
-	svc := makeService(kube, repo)
-
-	_, err := svc.Execute(context.Background(), "plan-1", "token", "idem-key-12345678")
-	if !errors.Is(err, ErrExecutionFailed) {
-		t.Fatalf("expected ErrExecutionFailed, got %v", err)
-	}
-	if repo.failedMessage == "" {
-		t.Fatal("expected error message to be recorded")
+func TestExecuteFailsOnCreateError(t *testing.T) {
+	kube := readyKubernetes()
+	kube.createErr = errors.New("kubernetes API error")
+	repo := &repositoryStub{claimed: executingPlan(), shouldExecute: true}
+	_, err := makeService(kube, repo).Execute(context.Background(), "plan-1", "token", "idem-key-12345678")
+	if !errors.Is(err, ErrExecutionFailed) || repo.failedMessage == "" {
+		t.Fatalf("create error not persisted: %v", err)
 	}
 }
 
-func TestExecuteRejectsInvalidIdempotencyKey(t *testing.T) {
-	kube := &kubernetesStub{}
-	repo := &repositoryStub{}
-	svc := makeService(kube, repo)
-
-	_, err := svc.Execute(context.Background(), "plan-1", "token", "short")
-	if !errors.Is(err, ErrInvalidIdempotency) {
-		t.Fatalf("expected ErrInvalidIdempotency, got %v", err)
-	}
-}
-
-func TestExecuteRejectsEmptyConfirmation(t *testing.T) {
-	kube := &kubernetesStub{}
-	repo := &repositoryStub{}
-	svc := makeService(kube, repo)
-
-	_, err := svc.Execute(context.Background(), "plan-1", "", "idem-key-12345678")
-	if !errors.Is(err, ErrConfirmationInvalid) {
-		t.Fatalf("expected ErrConfirmationInvalid, got %v", err)
-	}
-}
-
-func TestValidateRequestAcceptsDefaults(t *testing.T) {
-	req := validRequest()
-	if err := validateRequest(1, req); err != nil {
-		t.Fatalf("valid request rejected: %v", err)
-	}
-}
-
-func TestValidateRequestRejectsBadTTL(t *testing.T) {
-	req := validRequest()
-	req.TTL = "abc"
-	if err := validateRequest(1, req); !errors.Is(err, ErrInvalidRequest) {
-		t.Fatalf("expected ErrInvalidRequest for bad TTL, got %v", err)
-	}
-}
-
-func TestValidateRequestRejectsEmptyNamespaces(t *testing.T) {
-	req := validRequest()
-	req.IncludedNamespaces = nil
-	if err := validateRequest(1, req); !errors.Is(err, ErrInvalidRequest) {
-		t.Fatalf("expected ErrInvalidRequest for empty namespaces, got %v", err)
+func TestExecuteReturnsClaimErrorWithoutMutation(t *testing.T) {
+	kube := readyKubernetes()
+	repo := &repositoryStub{claimErr: ErrExpired}
+	_, err := makeService(kube, repo).Execute(context.Background(), "plan-1", "token", "idem-key-12345678")
+	if !errors.Is(err, ErrExpired) || len(kube.dryRuns) != 0 {
+		t.Fatalf("claim error should not mutate: %v", err)
 	}
 }

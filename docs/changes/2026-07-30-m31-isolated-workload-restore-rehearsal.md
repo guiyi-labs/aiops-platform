@@ -1,7 +1,7 @@
 # M31: Isolated Workload Restore Rehearsal
 
 - Date: 2026-07-30
-- Status: Accepted (fast gate passed in 28.81s; real-kind E2E deferred to environments with Velero and a completed M28-compatible Backup)
+- Status: Accepted (unit/contract gates and disposable Velero + MinIO real-kind E2E passed)
 - ADR: [0047-isolated-workload-restore-rehearsal.md](../adr/0047-isolated-workload-restore-rehearsal.md)
 
 ## Summary
@@ -24,7 +24,8 @@ An operations administrator can:
 3. Preview triggers precondition checks (Velero installed, source Backup
    Completed and M28-compatible single-namespace scope, destination Namespace
    absent, no active plan for the same source, Restore name available) and
-   server-side dry-runs of the quarantine controls and Restore CR
+   feasible server-side dry-runs: final-name Namespace, quarantine-control
+   schemas/RBAC in existing `velero`, and the final Restore CR/mapping
 4. Review the quarantine control summary (NetworkPolicy + ResourceQuota), the
    allowed/excluded resource kind tags, the server-generated destination
    Namespace name, and the plan expiration
@@ -157,10 +158,13 @@ An operations administrator can:
 
 ### L2/L3 - Real-kind E2E
 
-- Deferred: requires a kind cluster with Velero installed and a completed
-  M28-compatible single-namespace Backup
-- Default kind clusters do not have Velero installed, which is insufficient for
-  restore acceptance
+- `scripts/e2e-m31-isolated-restore-kind.ps1` — **PASSED**
+- Evidence: `.artifacts/m31-isolated-restore-kind/summary.json`
+- Environment: disposable Kubernetes v1.34.0 kind, Velero v1.15.2,
+  `velero/velero-plugin-for-aws:v1.11.1` and disposable MinIO
+- Proved completed source Backup preservation, stale-source rejection,
+  exact Namespace mapping, default-deny + zero-Pod quarantine, Completed
+  Restore, same-key replay, bounded RBAC and full fixture/platform cleanup
 
 ### Unit Test Coverage
 

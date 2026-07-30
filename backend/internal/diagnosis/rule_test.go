@@ -13,10 +13,7 @@ func TestEvaluateImagePullBackOff(t *testing.T) {
 	pod.Metadata.Name = "broken-api"
 	pod.Metadata.Namespace = "demo"
 	pod.Metadata.UID = "pod-1"
-	pod.Spec.Containers = append(pod.Spec.Containers, struct {
-		Name  string `json:"name"`
-		Image string `json:"image"`
-	}{Name: "app", Image: "registry.example/missing:v9"})
+	pod.Spec.Containers = append(pod.Spec.Containers, k8sgateway.PodContainer{Name: "app", Image: "registry.example/missing:v9"})
 	pod.Status.ContainerStatuses = []k8sgateway.ContainerStatus{{Name: "app", RestartCount: 2, State: k8sgateway.ContainerState{Waiting: &k8sgateway.ContainerStateDetail{Reason: "ImagePullBackOff", Message: "Back-off pulling image"}}}}
 	event := k8sgateway.Event{Type: "Warning", Reason: "Failed", Message: "Failed to pull image", Count: 3}
 	event.Metadata.Name = "pull-failed"

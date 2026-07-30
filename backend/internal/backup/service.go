@@ -14,18 +14,19 @@ import (
 	"strings"
 	"time"
 
+	"k8s-aiops.local/backend/internal/apiquery"
 	"k8s-aiops.local/backend/internal/cluster"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 )
 
 var (
 	kubernetesNamePattern = regexp.MustCompile(`^[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?$`)
-	ttlPattern            = regexp.MustCompile(`^[0-9]+(h|m|s)$`)
 )
 
 // KubernetesSource is the subset of kubernetes.Service used by the backup service.
 type KubernetesSource interface {
 	VeleroCapability(context.Context, int64) (k8sgateway.VeleroCapability, error)
+	Namespaces(context.Context, int64, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Namespace], error)
 	BackupStorageLocations(context.Context, int64, string) ([]k8sgateway.BackupStorageLocation, error)
 	VeleroBackupExists(context.Context, int64, string, string) (bool, error)
 	CreateResource(context.Context, int64, string, []byte, bool) ([]byte, error)
@@ -47,7 +48,20 @@ func NewService(kubernetes KubernetesSource, repository Repository) *Service {
 // exists, backup name not taken), performs a server-side dry-run create, and
 // persists an awaiting-confirmation plan with a one-time confirmation token.
 func (s *Service) Preview(ctx context.Context, clusterID int64, request Request, actor ActorRef) (Plan, error) {
+	request = normalizeRequest(request)
 	if err := validateRequest(clusterID, request); err != nil {
+		return Plan{}, err
+	}
+	id, token, tokenHash, err := newIdentity()
+	if err != nil {
+		return Plan{}, err
+	}
+	backupName := generateBackupName(request.SourceNamespace, id)
+	internalRequest := fixedRequest(request, backupName)
+
+	// The source Namespace identity is part of the confirmation contract.
+	ns, err := s.sourceNamespace(ctx, clusterID, request.SourceNamespace)
+	if err != nil {
 		return Plan{}, err
 	}
 
@@ -61,16 +75,19 @@ func (s *Service) Preview(ctx context.Context, clusterID int64, request Request,
 	}
 
 	// Preflight 2: storage location must exist.
-	locations, err := s.kubernetes.BackupStorageLocations(ctx, clusterID, request.BackupNamespace)
+	locations, err := s.kubernetes.BackupStorageLocations(ctx, clusterID, DefaultBackupNamespace)
 	if err != nil {
 		return Plan{}, err
 	}
 	if !bslExists(locations, request.StorageLocation) {
 		return Plan{}, ErrStorageLocationNotFound
 	}
+	if !bslAvailable(locations, request.StorageLocation) {
+		return Plan{}, ErrStorageLocationUnavailable
+	}
 
 	// Preflight 3: backup name must not already exist.
-	exists, err := s.kubernetes.VeleroBackupExists(ctx, clusterID, request.BackupNamespace, request.BackupName)
+	exists, err := s.kubernetes.VeleroBackupExists(ctx, clusterID, DefaultBackupNamespace, backupName)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -79,36 +96,34 @@ func (s *Service) Preview(ctx context.Context, clusterID int64, request Request,
 	}
 
 	// Preflight 4: server-side dry-run create.
-	manifest := buildBackupManifest(request)
+	manifest := buildBackupManifest(internalRequest)
 	if _, err := s.kubernetes.CreateResource(ctx, clusterID,
-		"/apis/velero.io/v1/namespaces/"+url.PathEscape(request.BackupNamespace)+"/backups",
+		"/apis/velero.io/v1/namespaces/"+url.PathEscape(DefaultBackupNamespace)+"/backups",
 		manifest, true); err != nil {
 		return Plan{}, mapCreateError(err)
 	}
 
-	id, token, tokenHash, err := newIdentity()
-	if err != nil {
-		return Plan{}, err
-	}
 	now := s.now().UTC().Truncate(time.Second)
 	plan := Plan{
-		ID:                      id,
-		ClusterID:               clusterID,
-		Status:                  StatusAwaitingConfirmation,
-		BackupName:              request.BackupName,
-		BackupNamespace:         request.BackupNamespace,
-		IncludedNamespaces:      request.IncludedNamespaces,
-		StorageLocation:         request.StorageLocation,
-		TTL:                     request.TTL,
-		IncludeClusterResources: request.IncludeClusterResources,
-		SnapshotVolumes:         request.SnapshotVolumes,
-		LabelSelector:           LabelSelectorMap(request.LabelSelector),
-		VeleroVersion:           cap.Version,
-		ConfirmationTokenHash:   tokenHash,
-		RequestedByUserID:       &actor.ID,
-		RequestedByName:         actor.Name,
-		ExpiresAt:               now.Add(s.planTTL),
-		ConfirmationToken:       token,
+		ID:                             id,
+		ClusterID:                      clusterID,
+		Status:                         StatusAwaitingConfirmation,
+		BackupName:                     backupName,
+		BackupNamespace:                DefaultBackupNamespace,
+		IncludedNamespaces:             []string{request.SourceNamespace},
+		SourceNamespaceUID:             ns.Metadata.UID,
+		SourceNamespaceResourceVersion: ns.Metadata.ResourceVersion,
+		StorageLocation:                request.StorageLocation,
+		TTL:                            request.TTL,
+		IncludeClusterResources:        false,
+		SnapshotVolumes:                false,
+		LabelSelector:                  LabelSelectorMap{},
+		VeleroVersion:                  cap.Version,
+		ConfirmationTokenHash:          tokenHash,
+		RequestedByUserID:              &actor.ID,
+		RequestedByName:                actor.Name,
+		ExpiresAt:                      now.Add(s.planTTL),
+		ConfirmationToken:              token,
 	}
 
 	plan.ConfirmationToken = ""
@@ -138,18 +153,41 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 		return plan, err
 	}
 
-	manifest := buildBackupManifest(Request{
-		BackupName:              plan.BackupName,
-		BackupNamespace:         plan.BackupNamespace,
-		IncludedNamespaces:      plan.IncludedNamespaces,
-		StorageLocation:         plan.StorageLocation,
-		TTL:                     plan.TTL,
-		IncludeClusterResources: plan.IncludeClusterResources,
-		SnapshotVolumes:         plan.SnapshotVolumes,
-		LabelSelector:           plan.LabelSelector,
+	cap, err := s.kubernetes.VeleroCapability(ctx, plan.ClusterID)
+	if err != nil || !cap.Installed {
+		return s.failExecution(ctx, plan, idempotencyKey, ErrVeleroNotInstalled)
+	}
+	locations, err := s.kubernetes.BackupStorageLocations(ctx, plan.ClusterID, plan.BackupNamespace)
+	if err != nil {
+		return s.failExecution(ctx, plan, idempotencyKey, err)
+	}
+	if !bslAvailable(locations, plan.StorageLocation) {
+		return s.failExecution(ctx, plan, idempotencyKey, ErrStorageLocationUnavailable)
+	}
+	if len(plan.IncludedNamespaces) != 1 {
+		return s.failExecution(ctx, plan, idempotencyKey, ErrStaleSourceNamespace)
+	}
+	ns, err := s.sourceNamespace(ctx, plan.ClusterID, plan.IncludedNamespaces[0])
+	if err != nil || ns.Metadata.UID != plan.SourceNamespaceUID || ns.Metadata.ResourceVersion != plan.SourceNamespaceResourceVersion {
+		return s.failExecution(ctx, plan, idempotencyKey, ErrStaleSourceNamespace)
+	}
+	exists, err := s.kubernetes.VeleroBackupExists(ctx, plan.ClusterID, plan.BackupNamespace, plan.BackupName)
+	if err != nil || exists {
+		if err == nil {
+			err = ErrBackupNameConflict
+		}
+		return s.failExecution(ctx, plan, idempotencyKey, err)
+	}
+
+	manifest := buildBackupManifest(fixedManifestRequest{
+		BackupName:         plan.BackupName,
+		BackupNamespace:    plan.BackupNamespace,
+		IncludedNamespaces: plan.IncludedNamespaces,
+		StorageLocation:    plan.StorageLocation,
+		TTL:                plan.TTL,
 	})
 
-	_, err = s.kubernetes.CreateResource(ctx, plan.ClusterID,
+	created, err := s.kubernetes.CreateResource(ctx, plan.ClusterID,
 		"/apis/velero.io/v1/namespaces/"+url.PathEscape(plan.BackupNamespace)+"/backups",
 		manifest, false)
 	if err != nil {
@@ -159,7 +197,11 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 		}
 		return failed, fmt.Errorf("%w: %v", ErrExecutionFailed, err)
 	}
-	return s.repository.Complete(ctx, plan.ID, idempotencyKey, s.now().UTC())
+	uid, resourceVersion := extractObjectIdentity(created)
+	if uid == "" || resourceVersion == "" {
+		return s.failExecution(ctx, plan, idempotencyKey, errors.New("created Backup response omitted identity"))
+	}
+	return s.repository.Complete(ctx, plan.ID, idempotencyKey, uid, resourceVersion, s.now().UTC())
 }
 
 func (s *Service) List(ctx context.Context, clusterID int64) ([]Plan, error) {
@@ -173,43 +215,18 @@ func validateRequest(clusterID int64, request Request) error {
 	if clusterID < 1 {
 		return ErrInvalidRequest
 	}
-	request.BackupName = strings.TrimSpace(request.BackupName)
-	request.BackupNamespace = strings.TrimSpace(request.BackupNamespace)
+	request.SourceNamespace = strings.TrimSpace(request.SourceNamespace)
 	request.StorageLocation = strings.TrimSpace(request.StorageLocation)
 	request.TTL = strings.TrimSpace(request.TTL)
 
-	if !validName(request.BackupName, 253) {
-		return ErrInvalidRequest
-	}
-	if !validName(request.BackupNamespace, 63) {
+	if !validName(request.SourceNamespace, 63) {
 		return ErrInvalidRequest
 	}
 	if !validName(request.StorageLocation, 253) {
 		return ErrInvalidRequest
 	}
-	if request.TTL == "" {
-		request.TTL = DefaultTTL
-	}
-	if !ttlPattern.MatchString(request.TTL) {
+	if request.TTL != "24h" && request.TTL != "168h" && request.TTL != "720h" {
 		return ErrInvalidRequest
-	}
-	// IncludedNamespaces: 1-10 explicit names, no wildcard.
-	if len(request.IncludedNamespaces) == 0 || len(request.IncludedNamespaces) > 10 {
-		return ErrInvalidRequest
-	}
-	for _, ns := range request.IncludedNamespaces {
-		if !validName(ns, 63) {
-			return ErrInvalidRequest
-		}
-	}
-	// LabelSelector: keys and values must be non-empty, max 10 entries.
-	if len(request.LabelSelector) > 10 {
-		return ErrInvalidRequest
-	}
-	for k, v := range request.LabelSelector {
-		if k == "" || v == "" || len(k) > 63 || len(v) > 63 {
-			return ErrInvalidRequest
-		}
 	}
 	return nil
 }
@@ -228,20 +245,32 @@ func bslExists(locations []k8sgateway.BackupStorageLocation, name string) bool {
 	return false
 }
 
+func bslAvailable(locations []k8sgateway.BackupStorageLocation, name string) bool {
+	for _, loc := range locations {
+		if loc.Name == name && loc.Phase == "Available" {
+			return true
+		}
+	}
+	return false
+}
+
 // buildBackupManifest constructs the Velero Backup CR JSON manifest from the
 // fixed-scope request. No hooks, no schedules, no arbitrary fields.
-func buildBackupManifest(request Request) []byte {
+type fixedManifestRequest struct {
+	BackupName         string
+	BackupNamespace    string
+	IncludedNamespaces []string
+	StorageLocation    string
+	TTL                string
+}
+
+func buildBackupManifest(request fixedManifestRequest) []byte {
 	spec := map[string]any{
 		"storageLocation":         request.StorageLocation,
 		"ttl":                     request.TTL,
 		"includedNamespaces":      request.IncludedNamespaces,
-		"includeClusterResources": request.IncludeClusterResources,
-		"snapshotVolumes":         request.SnapshotVolumes,
-	}
-	if len(request.LabelSelector) > 0 {
-		spec["labelSelector"] = map[string]any{
-			"matchLabels": request.LabelSelector,
-		}
+		"includeClusterResources": false,
+		"snapshotVolumes":         false,
 	}
 	manifest := map[string]any{
 		"apiVersion": "velero.io/v1",
@@ -254,6 +283,63 @@ func buildBackupManifest(request Request) []byte {
 	}
 	body, _ := json.Marshal(manifest)
 	return body
+}
+
+func normalizeRequest(request Request) Request {
+	request.SourceNamespace = strings.TrimSpace(request.SourceNamespace)
+	request.StorageLocation = strings.TrimSpace(request.StorageLocation)
+	request.TTL = strings.TrimSpace(request.TTL)
+	if request.TTL == "" {
+		request.TTL = DefaultTTL
+	}
+	return request
+}
+
+func fixedRequest(request Request, backupName string) fixedManifestRequest {
+	return fixedManifestRequest{BackupName: backupName, BackupNamespace: DefaultBackupNamespace, IncludedNamespaces: []string{request.SourceNamespace}, StorageLocation: request.StorageLocation, TTL: request.TTL}
+}
+
+func generateBackupName(sourceNamespace, id string) string {
+	prefix := strings.Trim(strings.ToLower(sourceNamespace), ".-")
+	if len(prefix) > 40 {
+		prefix = prefix[:40]
+	}
+	return "aiops-" + prefix + "-" + id[:8]
+}
+
+func (s *Service) sourceNamespace(ctx context.Context, clusterID int64, name string) (k8sgateway.Namespace, error) {
+	resp, err := s.kubernetes.Namespaces(ctx, clusterID, apiquery.ListQuery{Name: name, Limit: 1})
+	if err != nil {
+		return k8sgateway.Namespace{}, err
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Metadata.Name != name {
+		return k8sgateway.Namespace{}, ErrSourceNamespaceNotFound
+	}
+	if resp.Items[0].Metadata.UID == "" || resp.Items[0].Metadata.ResourceVersion == "" {
+		return k8sgateway.Namespace{}, ErrStaleSourceNamespace
+	}
+	return resp.Items[0], nil
+}
+
+func (s *Service) failExecution(ctx context.Context, plan Plan, key string, err error) (Plan, error) {
+	failed, saveErr := s.repository.Fail(ctx, plan.ID, key, safeExecutionError(err))
+	if saveErr != nil {
+		return Plan{}, saveErr
+	}
+	return failed, errors.Join(ErrExecutionFailed, err)
+}
+
+func extractObjectIdentity(body []byte) (string, string) {
+	var object struct {
+		Metadata struct {
+			UID             string `json:"uid"`
+			ResourceVersion string `json:"resourceVersion"`
+		} `json:"metadata"`
+	}
+	if json.Unmarshal(body, &object) != nil {
+		return "", ""
+	}
+	return object.Metadata.UID, object.Metadata.ResourceVersion
 }
 
 func newIdentity() (string, string, []byte, error) {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s-aiops.local/backend/internal/apiquery"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 )
@@ -97,6 +99,9 @@ func (r *repositoryStub) List(context.Context, int64) ([]Plan, error) {
 }
 
 func (r *repositoryStub) Claim(context.Context, string, []byte, string, time.Time, time.Time) (Plan, bool, error) {
+	if r.claimed.PreviewEvidence.NodeResourceVersion == "" {
+		r.claimed.PreviewEvidence.NodeResourceVersion = "100"
+	}
 	return r.claimed, r.shouldExecute, r.claimErr
 }
 
@@ -163,6 +168,7 @@ func makePDB(namespace, name string, disruptions int32) k8sgateway.PodDisruption
 	var pdb k8sgateway.PodDisruptionBudget
 	pdb.Metadata.Name = name
 	pdb.Metadata.Namespace = namespace
+	pdb.Spec.Selector = &metav1.LabelSelector{}
 	pdb.Status.DisruptionsAllowed = disruptions
 	return pdb
 }
@@ -258,7 +264,8 @@ func TestPreview_DrainBlockingUnmanagedPod(t *testing.T) {
 
 func TestPreview_DrainBlockingEmptyDirPod(t *testing.T) {
 	pod := makePod("ed-pod", "default", "worker-1", "ReplicaSet")
-	pod.Metadata.Annotations = map[string]string{"k8s-aiops.local/has-emptydir": "true"}
+	emptyDir := json.RawMessage(`{}`)
+	pod.Spec.Volumes = []k8sgateway.PodVolume{{Name: "cache", EmptyDir: &emptyDir}}
 	kube := &kubernetesStub{
 		node: workerNode(true),
 		pods: []k8sgateway.Pod{pod},
@@ -553,6 +560,35 @@ func TestExecute_CordonPatchFailure(t *testing.T) {
 	}
 }
 
+func TestExecute_RejectsChangedNodeResourceVersion(t *testing.T) {
+	node := workerNode(false)
+	node.Metadata.ResourceVersion = "101"
+	kube := &kubernetesStub{node: node}
+	plan := Plan{ID: "plan-1", ClusterID: 1, Action: ActionCordon, NodeName: "worker-1", PreviewEvidence: PreviewEvidenceJSON(PreviewEvidence{NodeUID: "node-uid-1", NodeResourceVersion: "100"})}
+	repo := &repositoryStub{claimed: plan, shouldExecute: true}
+	_, err := makeService(kube, repo).Execute(context.Background(), "plan-1", "token", "key-12345")
+	if !errors.Is(err, ErrStaleTarget) || kube.patchNodeCalled != 0 {
+		t.Fatalf("changed Node resourceVersion must fail before mutation: err=%v patches=%d", err, kube.patchNodeCalled)
+	}
+}
+
+func TestExecute_DrainCordonFailureStopsEviction(t *testing.T) {
+	pod := makePod("app", "default", "worker-1", "ReplicaSet")
+	kube := &kubernetesStub{node: workerNode(false), pods: []k8sgateway.Pod{pod}, pdbs: []k8sgateway.PodDisruptionBudget{makePDB("default", "api", 1)}, patchNodeErr: errors.New("patch denied")}
+	svc := makeService(kube, &repositoryStub{})
+	evidence, err := svc.collectEvidence(context.Background(), 1, "worker-1", kube.node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := Plan{ID: "plan-1", ClusterID: 1, Action: ActionDrain, NodeName: "worker-1", PreviewEvidence: PreviewEvidenceJSON(evidence)}
+	repo := &repositoryStub{claimed: plan, shouldExecute: true}
+	svc.repository = repo
+	_, err = svc.Execute(context.Background(), "plan-1", "token", "key-12345")
+	if !errors.Is(err, ErrExecutionFailed) || kube.createCalled != 0 {
+		t.Fatalf("cordon failure must prevent eviction: err=%v evictions=%d", err, kube.createCalled)
+	}
+}
+
 func TestExecute_DrainStalePodEvidence(t *testing.T) {
 	kube := &kubernetesStub{
 		node: workerNode(true),
@@ -778,7 +814,8 @@ func TestClassifyPod_UnmanagedBlocking(t *testing.T) {
 
 func TestClassifyPod_EmptyDirBlocking(t *testing.T) {
 	pod := makePod("ed", "default", "worker-1", "ReplicaSet")
-	pod.Metadata.Annotations = map[string]string{"k8s-aiops.local/has-emptydir": "true"}
+	emptyDir := json.RawMessage(`{}`)
+	pod.Spec.Volumes = []k8sgateway.PodVolume{{Name: "cache", EmptyDir: &emptyDir}}
 	pe := classifyPod(pod, nil)
 	if pe.Classification != PodBlocking {
 		t.Errorf("classification = %q, want blocking", pe.Classification)
@@ -809,6 +846,26 @@ func TestClassifyPod_ManagedWithPDBEvictable(t *testing.T) {
 	}
 	if pe.PDBDisruptionsOK != 1 {
 		t.Errorf("PDBDisruptionsOK = %d", pe.PDBDisruptionsOK)
+	}
+}
+
+func TestClassifyPod_UnmatchedPDBBlocking(t *testing.T) {
+	pod := makePod("managed", "default", "worker-1", "ReplicaSet")
+	pod.Metadata.Labels = map[string]string{"app": "api"}
+	pdb := makePDB("default", "other", 1)
+	pdb.Spec.Selector = &metav1.LabelSelector{MatchLabels: map[string]string{"app": "worker"}}
+	pe := classifyPod(pod, map[string]k8sgateway.PodDisruptionBudget{"default/other": pdb})
+	if pe.Classification != PodBlocking || pe.PDBName != "" {
+		t.Fatalf("unmatched PDB must not protect Pod: %+v", pe)
+	}
+}
+
+func TestClassifyPod_ZeroDisruptionsBlocking(t *testing.T) {
+	pod := makePod("managed", "default", "worker-1", "ReplicaSet")
+	pdb := makePDB("default", "blocked", 0)
+	pe := classifyPod(pod, map[string]k8sgateway.PodDisruptionBudget{"default/blocked": pdb})
+	if pe.Classification != PodBlocking || pe.PDBName != "blocked" {
+		t.Fatalf("zero disruptions must block Pod: %+v", pe)
 	}
 }
 
@@ -1038,7 +1095,9 @@ func TestIsControlPlane(t *testing.T) {
 	}{
 		{"empty labels", nil, false},
 		{"control-plane label", map[string]string{"node-role.kubernetes.io/control-plane": "true"}, true},
+		{"empty control-plane label", map[string]string{"node-role.kubernetes.io/control-plane": ""}, true},
 		{"master label", map[string]string{"node-role.kubernetes.io/master": "true"}, true},
+		{"empty master label", map[string]string{"node-role.kubernetes.io/master": ""}, true},
 		{"worker label", map[string]string{"node-role.kubernetes.io/worker": "true"}, false},
 	}
 	for _, tc := range cases {

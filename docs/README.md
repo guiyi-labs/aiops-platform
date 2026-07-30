@@ -26,6 +26,10 @@ Kubernetes 教学主题，并明确哪些差距纳入 M27-M32、哪些能力不�
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
+  M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。
+- `docs/changes/2026-07-30-m32-formal-closure.md`：M32 审计结论、缺陷修复和
+  2026-07-31 最终复验结果。
 - `docs/changes/2026-07-29-m21-authenticated-exact-series-history-api.md`：M21 第三阶段鉴权精确序列历史 API、稀疏覆盖、查询隔离和重启持久性验证。
 - `docs/changes/2026-07-28-m21-bounded-background-metrics-collector.md`：M21 第二阶段已启用集群后台采集、Quantity 标准化、并发/超时隔离、稳定失败码与定时清理。
 - `docs/changes/2026-07-28-m21-bounded-metrics-history-foundation.md`：M21 第一阶段 PostgreSQL 历史指标合同、采集覆盖、稀疏缺样本语义、容量上限和有界清理。

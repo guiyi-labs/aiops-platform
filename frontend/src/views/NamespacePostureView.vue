@@ -284,6 +284,28 @@ onMounted(() => void initialize().then(() => void loadList()))
 
           <section class="posture-section">
             <div class="section-head">
+              <AlertTriangle :size="16" /><h3>治理风险</h3>
+              <span :class="['phase-badge', selectedNamespace.overall_state === 'healthy' ? 'running' : selectedNamespace.overall_state === 'critical' || selectedNamespace.overall_state === 'incomplete' ? 'failed' : 'pending']">
+                {{ selectedNamespace.overall_state }}
+              </span>
+            </div>
+            <div v-if="selectedNamespace.findings.length === 0" class="panel-empty muted small">未发现固定规则风险</div>
+            <table v-else class="compact-table">
+              <thead><tr><th>级别</th><th>风险码</th><th>对象</th><th>结论</th><th>观测时间</th></tr></thead>
+              <tbody>
+                <tr v-for="finding in selectedNamespace.findings" :key="`${finding.code}-${finding.resource.kind}-${finding.resource.name}`">
+                  <td><span :class="['phase-badge', finding.severity === 'critical' ? 'failed' : finding.severity === 'warning' ? 'pending' : 'running']">{{ finding.severity }}</span></td>
+                  <td class="mono small">{{ finding.code }}</td>
+                  <td class="mono small">{{ finding.resource.kind }}/{{ finding.resource.name }}</td>
+                  <td>{{ finding.summary }}</td>
+                  <td class="small">{{ formatTimestamp(finding.observed_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="posture-section">
+            <div class="section-head">
               <Database :size="16" /><h3>资源配额 (ResourceQuota)</h3>
               <EvidenceBadge :evidence="selectedNamespace.resource_quotas.evidence" />
             </div>

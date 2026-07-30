@@ -239,14 +239,9 @@ export function getBackup(token: string, clusterID: number, namespace: string, n
 }
 
 export function previewBackupPlan(token: string, clusterID: number, body: {
-  backup_name: string
-  backup_namespace: string
-  included_namespaces: string[]
-  storage_location: string
-  ttl?: string
-  include_cluster_resources?: boolean
-  snapshot_volumes?: boolean
-  label_selector?: Record<string, string>
+	source_namespace: string
+	storage_location: string
+	ttl?: string
 }): Promise<BackupPlan> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/backup-plans/preview`, token, {
     method: 'POST',

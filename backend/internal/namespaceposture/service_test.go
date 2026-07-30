@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s-aiops.local/backend/internal/apiquery"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 )
@@ -68,6 +70,14 @@ func newFixedClock(t time.Time) func() time.Time { return func() time.Time { ret
 
 func ptrInt32(v int32) *int32 { return &v }
 
+func findingCodes(findings []Finding) map[string]bool {
+	codes := make(map[string]bool, len(findings))
+	for _, finding := range findings {
+		codes[finding.Code] = true
+	}
+	return codes
+}
+
 // --- test helpers build minimal valid k8s resources ---
 
 func makeNamespace(name, phase string) k8sgateway.Namespace {
@@ -106,6 +116,35 @@ func makeRQ(name string, hard, used map[string]string) k8sgateway.ResourceQuota 
 	rq.Status.Hard = hard
 	rq.Status.Used = used
 	return rq
+}
+
+func TestDeriveFindingsCoversFixedRiskContract(t *testing.T) {
+	posture := NamespacePosture{
+		Name:           "demo",
+		ResourceQuotas: ResourceQuotaPosture{Evidence: EvidenceCitation{Status: SourceComplete}, Quotas: []ResourceQuotaEntry{{Name: "quota", Hard: map[string]string{"requests.cpu": "1"}, Used: map[string]string{"requests.cpu": "1"}}}},
+		LimitRanges:    LimitRangePosture{Evidence: EvidenceCitation{Status: SourceComplete}},
+		Pods:           PodSummary{Evidence: EvidenceCitation{Status: SourceComplete}, Items: []PodPolicyEntry{{Name: "api", Labels: map[string]string{"app": "api"}, OwnerKind: "ReplicaSet", Containers: []k8sgateway.PodContainer{{Name: "api"}}}}},
+		PDBs:           PDBPosture{Evidence: EvidenceCitation{Status: SourceComplete}, PDBs: []PDBEntry{{Name: "api", Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}}, DisruptionsAllowed: 0}}},
+		NodeCapacity:   NodeCapacityPosture{Evidence: EvidenceCitation{Status: SourceComplete}, Nodes: []NodeCapacityEntry{{Name: "worker", Schedulable: false, Pressure: []string{"MemoryPressure"}}}},
+	}
+	deriveFindings(&posture, time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC))
+	codes := findingCodes(posture.Findings)
+	for _, code := range []string{CodeExhaustedQuota, CodeMissingLimitDefaults, CodeMissingContainerRequests, CodeMissingContainerLimits, CodeBestEffortWorkload, CodeBlockedPDB, CodeNodeUnschedulable, CodeNodePressure} {
+		if !codes[code] {
+			t.Errorf("missing risk code %s", code)
+		}
+	}
+	if posture.OverallState != StateCritical {
+		t.Fatalf("state=%q", posture.OverallState)
+	}
+}
+
+func TestDeriveFindingsIncompleteNeverHealthy(t *testing.T) {
+	posture := NamespacePosture{Name: "demo", PartialSections: []string{sectionPods}}
+	deriveFindings(&posture, time.Now())
+	if posture.OverallState != StateIncomplete || !findingCodes(posture.Findings)[CodeIncompleteEvidence] {
+		t.Fatalf("incomplete evidence must be explicit: %+v", posture)
+	}
 }
 
 // --- tests ---

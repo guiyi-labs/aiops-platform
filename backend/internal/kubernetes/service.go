@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s-aiops.local/backend/internal/apiquery"
 	"k8s-aiops.local/backend/internal/cluster"
 )
@@ -125,15 +127,7 @@ type Deployment struct {
 		Selector struct {
 			MatchLabels map[string]string `json:"matchLabels,omitempty"`
 		} `json:"selector"`
-		Template struct {
-			Metadata ObjectMeta `json:"metadata"`
-			Spec     struct {
-				Containers []struct {
-					Name  string `json:"name"`
-					Image string `json:"image"`
-				} `json:"containers"`
-			} `json:"spec"`
-		} `json:"template"`
+		Template WorkloadTemplate `json:"template"`
 	} `json:"spec"`
 	Status struct {
 		Replicas            int32               `json:"replicas"`
@@ -146,8 +140,14 @@ type Deployment struct {
 }
 
 type WorkloadContainer struct {
-	Name  string `json:"name"`
-	Image string `json:"image"`
+	Name      string               `json:"name"`
+	Image     string               `json:"image"`
+	Resources ResourceRequirements `json:"resources,omitempty"`
+}
+
+type ResourceRequirements struct {
+	Requests map[string]string `json:"requests,omitempty"`
+	Limits   map[string]string `json:"limits,omitempty"`
 }
 
 type WorkloadCondition struct {
@@ -733,9 +733,9 @@ type PersistentVolume struct {
 type PodDisruptionBudget struct {
 	Metadata ObjectMeta `json:"metadata"`
 	Spec     struct {
-		MinAvailable   interface{} `json:"minAvailable,omitempty"`
-		MaxUnavailable interface{} `json:"maxUnavailable,omitempty"`
-		Selector       interface{} `json:"selector,omitempty"`
+		MinAvailable   interface{}           `json:"minAvailable,omitempty"`
+		MaxUnavailable interface{}           `json:"maxUnavailable,omitempty"`
+		Selector       *metav1.LabelSelector `json:"selector,omitempty"`
 	} `json:"spec"`
 	Status struct {
 		CurrentHealthy     int32 `json:"currentHealthy"`
@@ -789,19 +789,24 @@ type VeleroCapability struct {
 // It carries scope (included namespaces), phase, expiry, failure details and
 // timestamps — not the full Velero spec/status.
 type VeleroBackup struct {
-	Name               string   `json:"name"`
-	Namespace          string   `json:"namespace"`
-	Phase              string   `json:"phase"`
-	IncludedNamespaces []string `json:"included_namespaces,omitempty"`
-	StorageLocation    string   `json:"storage_location,omitempty"`
-	TTL                string   `json:"ttl,omitempty"`
-	Expiration         string   `json:"expiration,omitempty"`
-	StartedAt          string   `json:"started_at,omitempty"`
-	CompletedAt        string   `json:"completed_at,omitempty"`
-	FailureReason      string   `json:"failure_reason,omitempty"`
-	Errors             int      `json:"errors"`
-	Warnings           int      `json:"warnings"`
-	CreatedAt          string   `json:"created_at"`
+	Name                    string   `json:"name"`
+	Namespace               string   `json:"namespace"`
+	UID                     string   `json:"uid"`
+	ResourceVersion         string   `json:"resource_version"`
+	Phase                   string   `json:"phase"`
+	IncludedNamespaces      []string `json:"included_namespaces,omitempty"`
+	StorageLocation         string   `json:"storage_location,omitempty"`
+	TTL                     string   `json:"ttl,omitempty"`
+	IncludeClusterResources *bool    `json:"include_cluster_resources,omitempty"`
+	SnapshotVolumes         *bool    `json:"snapshot_volumes,omitempty"`
+	HasLabelSelector        bool     `json:"has_label_selector"`
+	Expiration              string   `json:"expiration,omitempty"`
+	StartedAt               string   `json:"started_at,omitempty"`
+	CompletedAt             string   `json:"completed_at,omitempty"`
+	FailureReason           string   `json:"failure_reason,omitempty"`
+	Errors                  int      `json:"errors"`
+	Warnings                int      `json:"warnings"`
+	CreatedAt               string   `json:"created_at"`
 }
 
 // rawVeleroBackup is the raw Velero Backup CR shape used for decoding. It is
@@ -809,11 +814,12 @@ type VeleroBackup struct {
 type rawVeleroBackup struct {
 	Metadata ObjectMeta `json:"metadata"`
 	Spec     struct {
-		IncludedNamespaces []string    `json:"includedNamespaces,omitempty"`
-		StorageLocation    string      `json:"storageLocation,omitempty"`
-		SnapshotVolumes    *bool       `json:"snapshotVolumes,omitempty"`
-		TTL                string      `json:"ttl,omitempty"`
-		LabelSelector      interface{} `json:"labelSelector,omitempty"`
+		IncludedNamespaces      []string    `json:"includedNamespaces,omitempty"`
+		StorageLocation         string      `json:"storageLocation,omitempty"`
+		IncludeClusterResources *bool       `json:"includeClusterResources,omitempty"`
+		SnapshotVolumes         *bool       `json:"snapshotVolumes,omitempty"`
+		TTL                     string      `json:"ttl,omitempty"`
+		LabelSelector           interface{} `json:"labelSelector,omitempty"`
 	} `json:"spec"`
 	Status struct {
 		Phase               string `json:"phase,omitempty"`
@@ -828,19 +834,24 @@ type rawVeleroBackup struct {
 
 func (raw rawVeleroBackup) project() VeleroBackup {
 	return VeleroBackup{
-		Name:               raw.Metadata.Name,
-		Namespace:          raw.Metadata.Namespace,
-		Phase:              raw.Status.Phase,
-		IncludedNamespaces: raw.Spec.IncludedNamespaces,
-		StorageLocation:    raw.Spec.StorageLocation,
-		TTL:                raw.Spec.TTL,
-		Expiration:         raw.Status.Expiration,
-		StartedAt:          raw.Status.StartTimestamp,
-		CompletedAt:        raw.Status.CompletionTimestamp,
-		FailureReason:      raw.Status.FailureReason,
-		Errors:             raw.Status.Errors,
-		Warnings:           raw.Status.Warnings,
-		CreatedAt:          raw.Metadata.CreationTimestamp,
+		Name:                    raw.Metadata.Name,
+		Namespace:               raw.Metadata.Namespace,
+		UID:                     raw.Metadata.UID,
+		ResourceVersion:         raw.Metadata.ResourceVersion,
+		Phase:                   raw.Status.Phase,
+		IncludedNamespaces:      raw.Spec.IncludedNamespaces,
+		StorageLocation:         raw.Spec.StorageLocation,
+		TTL:                     raw.Spec.TTL,
+		IncludeClusterResources: raw.Spec.IncludeClusterResources,
+		SnapshotVolumes:         raw.Spec.SnapshotVolumes,
+		HasLabelSelector:        raw.Spec.LabelSelector != nil,
+		Expiration:              raw.Status.Expiration,
+		StartedAt:               raw.Status.StartTimestamp,
+		CompletedAt:             raw.Status.CompletionTimestamp,
+		FailureReason:           raw.Status.FailureReason,
+		Errors:                  raw.Status.Errors,
+		Warnings:                raw.Status.Warnings,
+		CreatedAt:               raw.Metadata.CreationTimestamp,
 	}
 }
 
@@ -918,18 +929,22 @@ type PodCondition struct {
 	Message            string `json:"message,omitempty"`
 	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
 }
+type PodVolume struct {
+	Name     string           `json:"name"`
+	EmptyDir *json.RawMessage `json:"emptyDir,omitempty"`
+}
+type PodContainer struct {
+	Name      string               `json:"name"`
+	Image     string               `json:"image"`
+	Resources ResourceRequirements `json:"resources,omitempty"`
+}
 type Pod struct {
 	Metadata ObjectMeta `json:"metadata"`
 	Spec     struct {
-		NodeName   string `json:"nodeName,omitempty"`
-		Containers []struct {
-			Name  string `json:"name"`
-			Image string `json:"image"`
-		} `json:"containers"`
-		InitContainers []struct {
-			Name  string `json:"name"`
-			Image string `json:"image"`
-		} `json:"initContainers,omitempty"`
+		NodeName       string         `json:"nodeName,omitempty"`
+		Containers     []PodContainer `json:"containers"`
+		InitContainers []PodContainer `json:"initContainers,omitempty"`
+		Volumes        []PodVolume    `json:"volumes,omitempty"`
 	} `json:"spec"`
 	Status struct {
 		Phase                 string            `json:"phase"`

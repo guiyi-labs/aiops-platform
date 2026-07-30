@@ -6,6 +6,14 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   letter-spacing: 0;
+  --surface-2: #f7faf9;
+  --surface-3: #eef5f2;
+  --surface-accent: #edf7f4;
+  --border-soft: #dfe5e8;
+  --border: #c8d4d2;
+  --accent: #4f9987;
+  --text-muted: #71808a;
+  --font-mono: Consolas, "SFMono-Regular", monospace;
 }
 
 * {
@@ -50,6 +58,7 @@ button:disabled {
   color: #eef3f5;
   background: #182229;
   border-right: 1px solid #25343d;
+  overflow-y: auto;
 }
 
 .brand {
@@ -313,6 +322,90 @@ button:disabled {
   border: 1px solid #dfe5e8;
   border-radius: 6px;
 }
+
+/* Shared two-pane operation surface used by governance and controlled actions. */
+.two-column {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.82fr) minmax(0, 1.38fr);
+  align-items: start;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  color: #43515a;
+  background: #ffffff;
+  border: 1px solid #dfe5e8;
+  border-radius: 6px;
+}
+
+.panel-header {
+  display: flex;
+  min-height: 58px;
+  padding: 11px 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fbfcfc;
+  border-bottom: 1px solid #e4e9eb;
+}
+
+.panel-header.sticky {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.panel-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: #344149;
+  font-size: 13px;
+}
+
+.panel-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-panel { max-height: calc(100vh - 150px); overflow-y: auto; }
+.panel-empty { display: grid; min-height: 180px; padding: 24px; place-items: center; color: #71808a; font-size: 12px; text-align: center; }
+.panel-empty.small { min-height: 72px; padding: 14px; }
+.panel-empty.error { color: #9c3c2f; background: #fff9f8; }
+.muted { color: #71808a; }
+
+.compact-input {
+  width: min(210px, 48%);
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  color: #43515a;
+  background: #ffffff;
+  border: 1px solid #cfd8dc;
+  border-radius: 5px;
+}
+
+.compact-table { width: 100%; border-collapse: collapse; }
+.compact-table th { padding: 8px 10px; color: #71808a; font-size: 10px; font-weight: 700; text-align: left; background: #f7f9fa; border-bottom: 1px solid #dfe5e8; }
+.compact-table td { padding: 9px 10px; color: #4f5e66; font-size: 11px; vertical-align: top; border-bottom: 1px solid #e8ecee; overflow-wrap: anywhere; }
+.compact-table tbody tr:last-child td { border-bottom: 0; }
+
+.phase-badge {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 8px;
+  align-items: center;
+  color: #59666d;
+  font-size: 10px;
+  font-weight: 700;
+  background: #edf1f3;
+  border-radius: 12px;
+}
+
+.phase-badge.running { color: #27694d; background: #e5f4ed; }
+.phase-badge.failed { color: #9c3c2f; background: #fbeae6; }
+.phase-badge.pending { color: #8a651a; background: #fff5d9; }
+.phase-badge.unknown { color: #69578a; background: #f0ecfa; }
 
 .resource-summary-grid {
   display: grid;
@@ -1041,6 +1134,8 @@ button:disabled {
   .resource-category-tabs button { padding: 0 10px; }
   .resource-summary-grid { grid-template-columns: 1fr 1fr; }
   .resource-two-column { grid-template-columns: 1fr; }
+  .two-column { grid-template-columns: minmax(0, 1fr); }
+  .detail-panel { max-height: none; }
   .resource-detail-stats.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .resource-detail-stats.six > div:nth-child(3) { border-right: 0; }
   .resource-detail-stats.six > div:nth-child(-n + 3) { border-bottom: 1px solid #e3e8ea; }
@@ -2994,6 +3089,35 @@ h2 {
 .backup-warning-count { color: #8a651a; font-weight: 650; }
 
 .backup-detail-drawer { display: flex; flex-direction: column; }
+
+@media (max-width: 720px) {
+  .main-content { min-width: 0; padding: 0 10px 28px; }
+  .topbar {
+    min-width: 0;
+    min-height: 0;
+    padding: 14px 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .topbar-title { width: 100%; }
+  .topbar-title h1 { font-size: 20px; overflow-wrap: anywhere; }
+  .topbar-actions {
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .topbar-actions > select { min-width: 0; max-width: 100%; flex: 1 1 150px; }
+  .two-column { margin-top: 12px; }
+  .panel-header { align-items: flex-start; flex-wrap: wrap; }
+  .panel-title { flex: 1 1 130px; }
+  .panel-title strong { white-space: normal; }
+  .compact-input { width: 100%; flex: 1 1 100%; }
+  .compact-table { min-width: 620px; }
+  .posture-section { overflow-x: auto; }
+}
 
 .detail-header {
   position: sticky;

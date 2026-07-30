@@ -1,14 +1,16 @@
 # Product Optimization Roadmap
 
-- Updated: 2026-07-30
-- Baseline: M21-M25 are accepted as one aligned local baseline. The fresh
-  full gate is `.artifacts/verification/verify-20260730-080851.json`; fresh
-  M21, M24 and M25 real-kind evidence plus the accepted M23 lifecycle run are
-  recorded in `docs/changes/2026-07-30-m21-m25-baseline-alignment.md`.
-  M20 Phase 12 and the earlier hosted M21 verification remain archived.
+- Updated: 2026-07-31
+- Baseline: M1-M32 local development is archived by
+  `baseline-m32-20260731`. M27-M31 have disposable real-environment evidence;
+  the fresh full gate is
+  `.artifacts/verification/verify-20260731-015255.json`.
 - Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
 
 ## Baseline Closure Audit (2026-07-30)
+
+This section is historical for the M21-M25 checkpoint. The authoritative final
+closure is `docs/changes/2026-07-31-final-baseline-archive.md`.
 
 - M21 sustained-window evaluation, sparse history, trend UI and diagnosis
   evidence passed the full real-kind outage/recovery/restart gate.
@@ -323,11 +325,10 @@ parity targets.
   unit tests covering rule validation, state machine, deduplication, concurrent
   claims, expired-claim recovery, scheduler bounds, and error handling),
   `vue-tsc -b` (zero frontend type errors), `vitest run` (73 frontend tests),
-  and `scripts/verify-fast.ps1 -Scope All` (passed in 29.04s). The real-kind
-  E2E is blocked by local Docker network isolation (kind API on host localhost
-  not reachable from Compose containers); the E2E script
-  `scripts/e2e-m27-alert-lifecycle-kind.ps1` is prepared for environments
-  without this restriction.
+  and final repository gates. Disposable Metrics Server E2E passed firing,
+  deduplication, outage containment, complete normal-window resolution,
+  restart durability and cleanup; evidence is under
+  `.artifacts/m27-alert-lifecycle-kind/`.
 - Closure change log: `docs/changes/2026-07-30-m27-alert-lifecycle.md`
 - ADRs: 0043 (historical alert lifecycle)
 - Build a bounded background evaluator, deduplication and acknowledgement
@@ -343,15 +344,14 @@ parity targets.
   detection, dry-run preflight, confirmation token hashing, idempotent claim,
   execution success/failure paths), `vue-tsc -b` (zero frontend type errors),
   `vitest run` (73 frontend tests), and `scripts/verify-fast.ps1 -Scope All`
-  (passed in 34.92s). Real-kind E2E deferred to environments with a full Velero
-  controller and configured BSL; the M25 CRD-stub is insufficient for creation
-  testing.
+  plus the final repository gates. Pinned Velero v1.15.2 + disposable MinIO
+  E2E passed; evidence is `.artifacts/m28-backup-creation-kind/summary.json`.
 - Closure change log: `docs/changes/2026-07-30-m28-controlled-backup-creation.md`
 - ADRs: 0044 (controlled Velero backup creation)
 - Add Velero Backup creation through fixed scope, server-side preflight (Velero
-  installed, BSL exists, name available, dry-run), one-time confirmation,
-  idempotency, and audit. Restore remains disabled until M31 conflict/PV/cutover/
-  rollback design is approved.
+  installed, exact source identity, Available BSL, generated name and dry-run),
+  one-time confirmation, idempotency, and audit. M31 adds only the isolated
+  quarantine rehearsal; in-place/PV restore and cutover remain prohibited.
 
 ## M29: Namespace Governance and Capacity Posture
 
@@ -364,8 +364,8 @@ parity targets.
   unused `BackupStorageLocation` import and rewriting LimitRange row iteration),
   `vitest run` (73 frontend tests, 17 files), and `scripts/verify-fast.ps1
   -Scope All` (passed in 28.56s, backend=True frontend=True manifests=True).
-  Real-kind E2E script deferred to a low-risk follow-up; default kind clusters
-  already have usable Namespace/ResourceQuota/workload fixtures.
+  Disposable real-kind governance E2E passed with deterministic critical
+  findings; evidence is `.artifacts/m29-governance-posture-kind/summary.json`.
 - Closure change log: `docs/changes/2026-07-31-m29-namespace-posture.md`
 - ADRs: 0045 (namespace governance and capacity posture)
 - Joins the existing typed ResourceQuota, LimitRange, Workload (5 kinds), Pod,
@@ -390,9 +390,9 @@ parity targets.
   (zero frontend type errors after removing unused `MaintenancePodEvidence`
   import), `vitest run` (73 frontend tests, 17 files), and
   `scripts/verify-fast.ps1 -Scope All` (passed in 35.01s, backend=True
-  frontend=True manifests=True). Real-kind E2E script deferred to environments
-  with a multi-worker kind cluster; default kind clusters have only one worker
-  Node which is insufficient for drain acceptance.
+  frontend=True manifests=True). Disposable two-worker real-kind E2E passed
+  safe cordon/drain/uncordon, replay and blocker behavior; evidence is
+  `.artifacts/m30-node-maintenance-kind/summary.json`.
 - Closure change log: `docs/changes/2026-07-30-m30-controlled-node-maintenance.md`
 - ADRs: 0046 (controlled node maintenance)
 - Adds single-worker cordon, uncordon and bounded PDB-aware eviction through
@@ -415,11 +415,9 @@ parity targets.
   extraction, identity generation, JSONB round-trips, allowlist/excludelist
   contracts, and response projection), `vue-tsc -b` (zero frontend type
   errors), `vitest run` (73 frontend tests, 17 files), and
-  `scripts/verify-fast.ps1 -Scope All` (passed in 28.81s, backend=True
-  frontend=True manifests=True). Real-kind E2E deferred to environments with
-  Velero installed and a completed M28-compatible single-namespace Backup;
-  default kind clusters do not have Velero installed, which is insufficient
-  for restore acceptance.
+  `scripts/verify-fast.ps1 -Scope All` and final gates. Pinned Velero v1.15.2 +
+  disposable MinIO E2E passed quarantine, mapping, replay and cleanup; evidence
+  is `.artifacts/m31-isolated-restore-kind/summary.json`.
 - Closure change log: `docs/changes/2026-07-30-m31-isolated-workload-restore-rehearsal.md`
 - ADRs: 0047 (isolated workload restore rehearsal)
 - Rehearsable restore of one M28-compatible Velero Backup into a
@@ -434,19 +432,13 @@ parity targets.
 
 ## M32: Formal Closure And Thesis/Demo Refresh
 
-- Status: ✅ Development Complete on 2026-07-30. The committed M27-M32
-  development route is closed. Final audit (migrations, OpenAPI/router parity,
-  RBAC, audit-action mapping, generated files) passed; OpenAPI gap for 11
-  M28-M31 routes found and fixed; contract test coverage extended to all
-  M27-M31 services. Fast gate passed in 28.81s (26 backend packages, 73
-  frontend tests/17 files, Compose/Kustomize contracts). Full local gate
-  passed in 227.76s (`.artifacts/verification/verify-20260730-202934.json`;
-  backend ready, frontend 200, 3 healthy Compose services). Project-end
-  criteria 1-4, 6-7, 9-10 satisfied; criteria 5 (browser screenshot recapture)
-  and 8 (green hosted CI + tag/release) deferred with explicit re-entry
-  conditions. All M26 external gates (OIDC/MFA, PITR, HA, hosted CI, tag/
-  release) marked `deferred` with owner/reason/re-entry gate. No skipped
-  real-kind suite is reported as passed.
+- Status: ✅ Final local archive on 2026-07-31. Fast gate passed in 26.17s;
+  full gate passed in 97.68s with evidence at
+  `.artifacts/verification/verify-20260731-015255.json`. M27-M31 disposable
+  suites and responsive browser checks passed; 24 migration pairs, route/
+  OpenAPI parity, reviewed RBAC, script AST and cleanup checks passed. Race is
+  environment-blocked because `gcc` is unavailable. Hosted CI/release,
+  OIDC/MFA, PITR and HA remain external gates.
 - Closure change log: `docs/changes/2026-07-30-m32-formal-closure.md`
 - ADRs: 0043-0047 (M27-M31 decisions remain accepted)
 - Production ready is a separate claim that additionally requires

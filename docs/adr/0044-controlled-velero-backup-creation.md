@@ -12,8 +12,9 @@ create new ones through the platform.
 
 The roadmap (M28) calls for controlled Velero Backup creation with fixed scope,
 server-side preflight, one-time confirmation, idempotency, audit and disposable
-object-storage evidence. Restore remains explicitly disabled until M31 designs
-conflict/PV/cutover/rollback policies.
+object-storage evidence. M31 subsequently added only the isolated rehearsal
+path defined by ADR 0047; in-place restore, PV restore, cutover and rollback
+remain prohibited.
 
 ## Decision
 
@@ -21,32 +22,30 @@ conflict/PV/cutover/rollback policies.
 
 Create a dedicated `backup_plans` table (migration 000021) and `internal/backup`
 package rather than reusing `remediation_plans`. The backup domain has different
-parameters (namespaces, storage location, TTL, snapshots) that do not fit the
+parameters (source Namespace identity, storage location and TTL) that do not fit the
 remediation action CHECK constraints. The controlled-operations *pattern* (Preview
 → Execute, confirmation token, idempotency, Claim/Complete/Fail) is reused but
 the persistence surface is separate.
 
 ### 2. Fixed scope — no arbitrary YAML
 
-The Backup CR spec is constructed server-side from a fixed set of fields:
-- `backup_name`, `backup_namespace` (required, validated DNS-1123 names)
-- `included_namespaces` (1–10 explicit names, no wildcard `*`)
-- `storage_location` (required, must exist as a BSL CR)
-- `ttl` (duration pattern `^[0-9]+(h|m|s)$`, default `720h`)
-- `include_cluster_resources` (boolean, default false)
-- `snapshot_volumes` (boolean, default false)
-- `label_selector` (optional, matchLabels only, max 10 entries)
+The caller supplies only one `source_namespace`, one `storage_location` and a
+TTL from `24h`, `168h` or `720h`. The service generates the Backup name and
+uses the fixed Velero control Namespace `velero`. Preview captures the source
+Namespace UID/resourceVersion. `includeClusterResources=false` and
+`snapshotVolumes=false` are unconditional; label selectors are not accepted.
 
 No hooks, no schedules, no ordered_resources, no included_resources, no
 arbitrary JSON/YAML. The manifest is built by `buildBackupManifest()`.
 
-### 3. Four-gate preflight
+### 3. Five-gate preflight
 
-Preview runs four checks before persisting a plan:
+Preview runs five checks before persisting a plan:
 1. **Velero installed** — `VeleroCapability` probe; `ErrVeleroNotInstalled` if absent
-2. **Storage location exists** — `BackupStorageLocations` list; `ErrStorageLocationNotFound`
-3. **Name not taken** — `VeleroBackupExists` check; `ErrBackupNameConflict`
-4. **Server-side dry-run** — `CreateResource(..., dryRun=true)`; admission validation without persistence
+2. **Source identity** — the exact Namespace exists and exposes UID/resourceVersion
+3. **Storage location Available** — exact-name BSL exists with `status.phase=Available`
+4. **Generated name not taken** — `VeleroBackupExists` check
+5. **Server-side dry-run** — fixed manifest admission without persistence
 
 ### 4. Two-phase confirmation with idempotency
 
@@ -56,11 +55,16 @@ Identical to M19/ADR 0023 pattern:
 - `Claim` transaction uses `SELECT FOR UPDATE` + `constant-time` comparison
 - Stale lock recovery (claim TTL = 1 min), plan TTL = 10 min
 - `Complete`/`Fail` condition on `status=executing AND idempotency_key=?`
+- Execute rechecks Namespace UID/resourceVersion, Velero capability, BSL phase
+  and name absence before mutation, then persists returned Backup UID/resourceVersion
 
-### 5. Restore disabled
+### 5. Restore boundary
 
-No restore endpoints, no restore UI. The detail drawer explicitly states restore
-is disabled pending M31. This is a hard boundary, not a feature flag.
+M28 itself adds no restore mutation. The later M31 surface accepts only an
+M28-compatible completed Backup and restores its manifest allowlist into a
+server-generated, default-deny, zero-Pod quarantine Namespace. In-place
+restore, PV/PVC restore, Service/Ingress recreation, traffic cutover and
+rollback remain outside the platform contract.
 
 ### 6. Authorization
 
@@ -76,10 +80,12 @@ Two new audit actions:
 
 ## Consequences
 
-- New migration 000021 (`backup_plans` table) required
+- Migrations 000021 and 000024 persist the plan and exact source/result identities
 - `kubernetes.Service` gains `BackupStorageLocations` and `VeleroBackupExists` methods
 - Frontend `WorkloadProtectionView` gains a create-backup dialog with two-phase UX
-- Real-kind E2E requires a Velero controller with a configured BSL; the CRD-stub
-  approach from M25 is insufficient for creation testing
+- Real-kind E2E is implemented by
+  `scripts/e2e-m28-backup-creation-kind.ps1` using pinned Velero, a configured
+  BSL and disposable MinIO; it proves Completed phase, fixed scope, stale
+  Namespace rejection, idempotent replay, least-privilege RBAC and cleanup
 - The `backup_plans` table is the first persistent state for backup operations;
   M25 was stateless by design

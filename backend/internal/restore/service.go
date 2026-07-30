@@ -98,9 +98,10 @@ func (s *Service) Preview(ctx context.Context, clusterID int64, request Request,
 	// and no cluster-scoped resources. (M28 enforce include_cluster_resources=false
 	// by default and snapshot_volumes=false; we only check included namespace count
 	// here because that is the observable signal on a Completed Backup.)
-	if len(backup.IncludedNamespaces) != 1 {
+	if !m28CompatibleBackup(backup) {
 		return Plan{}, ErrSourceBackupScope
 	}
+	sourceNamespace := backup.IncludedNamespaces[0]
 
 	// Preflight 3: destination Namespace must not already exist.
 	destination := generateDestinationNamespace(request.SourceBackupName, actor.ID)
@@ -129,8 +130,14 @@ func (s *Service) Preview(ctx context.Context, clusterID int64, request Request,
 		return Plan{}, ErrRestoreNameConflict
 	}
 
-	// Preflight 6: server-side dry-run of quarantine resources.
-	quarantineManifests := buildQuarantineManifests(destination)
+	// Preflight 6: server-side dry-run of the destination Namespace and both
+	// namespaced quarantine resource schemas. Kubernetes dry-run does not
+	// persist the Namespace, so NetworkPolicy and ResourceQuota validation must
+	// target the existing Velero control Namespace during preview.
+	if _, err := s.kubernetes.CreateResource(ctx, clusterID, "/api/v1/namespaces", buildNamespaceManifest(destination), true); err != nil {
+		return Plan{}, fmt.Errorf("%w: %v", ErrQuarantineDryRunFailed, err)
+	}
+	quarantineManifests := buildQuarantineManifests(request.SourceBackupNamespace)
 	for _, manifest := range quarantineManifests {
 		if _, err := s.kubernetes.CreateResource(ctx, clusterID, manifest.path, manifest.body, true); err != nil {
 			return Plan{}, fmt.Errorf("%w: %v", ErrQuarantineDryRunFailed, err)
@@ -138,7 +145,7 @@ func (s *Service) Preview(ctx context.Context, clusterID int64, request Request,
 	}
 
 	// Preflight 7: server-side dry-run of the Velero Restore CR.
-	restoreManifest := buildRestoreManifest(restoreName, request.SourceBackupNamespace, request.SourceBackupName, destination)
+	restoreManifest := buildRestoreManifest(restoreName, request.SourceBackupNamespace, request.SourceBackupName, sourceNamespace, destination)
 	if _, err := s.kubernetes.CreateResource(ctx, clusterID,
 		"/apis/velero.io/v1/namespaces/"+url.PathEscape(request.SourceBackupNamespace)+"/restores",
 		restoreManifest, true); err != nil {
@@ -156,8 +163,8 @@ func (s *Service) Preview(ctx context.Context, clusterID int64, request Request,
 		Status:                      StatusAwaitingConfirmation,
 		SourceBackupName:            request.SourceBackupName,
 		SourceBackupNamespace:       request.SourceBackupNamespace,
-		SourceBackupUID:             "", // VeleroBackup projection does not expose UID; tracked via name+namespace+phase
-		SourceBackupResourceVersion: "",
+		SourceBackupUID:             backup.UID,
+		SourceBackupResourceVersion: backup.ResourceVersion,
 		SourceBackupPhase:           backup.Phase,
 		DestinationNamespace:        destination,
 		VeleroRestoreName:           restoreName,
@@ -201,13 +208,13 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 		return plan, err
 	}
 
-	// Re-verify source Backup identity (name + namespace + phase).
+	// Re-verify the exact source Backup identity and fixed M28 scope.
 	backup, err := s.kubernetes.Backup(ctx, plan.ClusterID, plan.SourceBackupNamespace, plan.SourceBackupName)
 	if err != nil {
 		failed, _ := s.repository.Fail(ctx, plan.ID, idempotencyKey, safeError(err), nil)
 		return failed, fmt.Errorf("%w: %v", ErrExecutionFailed, err)
 	}
-	if backup.Phase != PhaseCompleted {
+	if backup.Phase != PhaseCompleted || backup.UID != plan.SourceBackupUID || backup.ResourceVersion != plan.SourceBackupResourceVersion || !m28CompatibleBackup(backup) {
 		failed, _ := s.repository.Fail(ctx, plan.ID, idempotencyKey, "source backup is no longer Completed", nil)
 		return failed, ErrStaleSource
 	}
@@ -282,7 +289,7 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 	}
 
 	// Step 3: create exactly one Velero Restore CR.
-	restoreManifest := buildRestoreManifest(plan.VeleroRestoreName, plan.VeleroRestoreNamespace, plan.SourceBackupName, plan.DestinationNamespace)
+	restoreManifest := buildRestoreManifest(plan.VeleroRestoreName, plan.VeleroRestoreNamespace, plan.SourceBackupName, backup.IncludedNamespaces[0], plan.DestinationNamespace)
 	restoreResp, err := s.kubernetes.CreateResource(ctx, plan.ClusterID,
 		"/apis/velero.io/v1/namespaces/"+url.PathEscape(plan.VeleroRestoreNamespace)+"/restores",
 		restoreManifest, false)
@@ -507,7 +514,7 @@ func buildNamespaceManifest(namespace string) []byte {
 	return body
 }
 
-func buildRestoreManifest(restoreName, restoreNamespace, backupName, destinationNamespace string) []byte {
+func buildRestoreManifest(restoreName, restoreNamespace, backupName, sourceNamespace, destinationNamespace string) []byte {
 	// Fixed V1 scope: namespaceMapping to destination, includedResources
 	// allowlist, restorePVs=false, includeClusterResources=false.
 	allowedLower := make([]string, 0, len(AllowedKinds))
@@ -527,12 +534,21 @@ func buildRestoreManifest(restoreName, restoreNamespace, backupName, destination
 			"restorePVs":              false,
 			"includedResources":       allowedLower,
 			"namespaceMapping": map[string]any{
-				backupName: destinationNamespace,
+				sourceNamespace: destinationNamespace,
 			},
 		},
 	}
 	body, _ := json.Marshal(restore)
 	return body
+}
+
+func m28CompatibleBackup(backup k8sgateway.VeleroBackup) bool {
+	return backup.Phase == PhaseCompleted &&
+		backup.UID != "" && backup.ResourceVersion != "" &&
+		len(backup.IncludedNamespaces) == 1 &&
+		backup.IncludeClusterResources != nil && !*backup.IncludeClusterResources &&
+		backup.SnapshotVolumes != nil && !*backup.SnapshotVolumes &&
+		!backup.HasLabelSelector
 }
 
 // generateDestinationNamespace creates a server-owned, previously-nonexistent

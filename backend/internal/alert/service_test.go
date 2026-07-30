@@ -2,6 +2,7 @@ package alert
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ type mockRepo struct {
 	instances  map[int64]*Instance
 	nextRuleID int64
 	nextInstID int64
+	nextDiagID int64
 }
 
 func newMockRepo() *mockRepo {
@@ -25,6 +27,7 @@ func newMockRepo() *mockRepo {
 		instances:  make(map[int64]*Instance),
 		nextRuleID: 1,
 		nextInstID: 1,
+		nextDiagID: 1,
 	}
 }
 
@@ -134,6 +137,13 @@ func (m *mockRepo) CreateInstance(_ context.Context, instance *Instance) error {
 	return nil
 }
 
+func (m *mockRepo) CreateFiring(ctx context.Context, record *diagnosis.Record, instance *Instance) error {
+	record.ID = m.nextDiagID
+	m.nextDiagID++
+	instance.DiagnosisID = record.ID
+	return m.CreateInstance(ctx, instance)
+}
+
 func (m *mockRepo) TouchInstance(_ context.Context, ruleID int64, lastFiredAt time.Time, evidenceAnchor string) error {
 	for _, inst := range m.instances {
 		if inst.RuleID == ruleID && inst.State == StateFiring {
@@ -228,9 +238,11 @@ func (m *mockRepo) UpdateRuleHealth(_ context.Context, ruleID int64, evalState s
 type mockEvaluator struct {
 	response metricshistory.EvaluationResponse
 	err      error
+	query    metricshistory.EvaluationQuery
 }
 
-func (m *mockEvaluator) Evaluate(_ context.Context, _ metricshistory.EvaluationQuery) (metricshistory.EvaluationResponse, error) {
+func (m *mockEvaluator) Evaluate(_ context.Context, query metricshistory.EvaluationQuery) (metricshistory.EvaluationResponse, error) {
+	m.query = query
 	return m.response, m.err
 }
 
@@ -422,6 +434,29 @@ func TestCreateRule(t *testing.T) {
 	})
 }
 
+func TestClusterScopedSingleObjectAccess(t *testing.T) {
+	repo := newMockRepo()
+	rule := makeTestRule()
+	repo.rules[rule.ID] = &rule
+	instance := &Instance{ID: 9, RuleID: rule.ID, State: StateFiring}
+	repo.instances[instance.ID] = instance
+	svc := makeTestService(repo, &mockEvaluator{})
+
+	if _, err := svc.GetRule(context.Background(), 2, rule.ID); !errors.Is(err, ErrRuleNotFound) {
+		t.Fatalf("cross-cluster rule read must be hidden, got %v", err)
+	}
+	name := "changed"
+	if _, err := svc.PatchRule(context.Background(), 2, rule.ID, PatchRuleInput{DisplayName: &name}, ActorRef{}); !errors.Is(err, ErrRuleNotFound) {
+		t.Fatalf("cross-cluster rule patch must be hidden, got %v", err)
+	}
+	if err := svc.DeleteRule(context.Background(), 2, rule.ID); !errors.Is(err, ErrRuleNotFound) {
+		t.Fatalf("cross-cluster rule delete must be hidden, got %v", err)
+	}
+	if _, err := svc.GetInstance(context.Background(), 2, instance.ID); !errors.Is(err, ErrAlertNotFound) {
+		t.Fatalf("cross-cluster alert read must be hidden, got %v", err)
+	}
+}
+
 func TestEvaluateRule_FiringCreatesInstance(t *testing.T) {
 	repo := newMockRepo()
 	rule := makeTestRule()
@@ -535,6 +570,39 @@ func TestEvaluateRule_NormalResolvesFiring(t *testing.T) {
 	}
 	if resolved.ResolvedAt == nil {
 		t.Error("expected resolved_at to be set")
+	}
+}
+
+func TestEvaluateRule_UsesBoundedRecentLookback(t *testing.T) {
+	repo := newMockRepo()
+	rule := makeTestRule()
+	rule.ForSeconds = 60
+	rule.MinimumPoints = 2
+	repo.rules[rule.ID] = &rule
+	evaluator := &mockEvaluator{response: makeNormalEval()}
+	svc := NewService(repo, newMockDiagnosisRepo(), evaluator, time.Minute)
+	now := time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)
+	svc.now = func() time.Time { return now }
+
+	if err := svc.EvaluateRule(context.Background(), rule); err != nil {
+		t.Fatalf("evaluate rule: %v", err)
+	}
+	if !evaluator.query.To.Equal(now) || !evaluator.query.From.Equal(now.Add(-3*time.Minute)) {
+		t.Fatalf("query window = %s..%s, want %s..%s", evaluator.query.From, evaluator.query.To, now.Add(-3*time.Minute), now)
+	}
+}
+
+func TestEvaluationLookback_UsesPointRequirementAndClampsAt24Hours(t *testing.T) {
+	rule := makeTestRule()
+	rule.ForSeconds = 60
+	rule.MinimumPoints = 5
+	if got := evaluationLookback(rule, time.Minute); got != 6*time.Minute {
+		t.Fatalf("point-based lookback = %s, want 6m", got)
+	}
+	rule.ForSeconds = 86400
+	rule.MinimumPoints = 1440
+	if got := evaluationLookback(rule, time.Minute); got != 24*time.Hour {
+		t.Fatalf("clamped lookback = %s, want 24h", got)
 	}
 }
 

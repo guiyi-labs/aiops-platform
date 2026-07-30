@@ -118,6 +118,16 @@ function Invoke-ComposeText {
     }
 }
 
+function Convert-CpuQuantityToNanocores {
+    param([Parameter(Mandatory)] [string]$Quantity)
+    $value = $Quantity.Trim()
+    if ($value -match '^(\d+)n$') { return [int64]$Matches[1] }
+    if ($value -match '^(\d+)u$') { return [int64]$Matches[1] * 1000L }
+    if ($value -match '^(\d+)m$') { return [int64]$Matches[1] * 1000000L }
+    $cores = [decimal]::Parse($value, [Globalization.CultureInfo]::InvariantCulture)
+    return [int64]($cores * 1000000000L)
+}
+
 function Wait-BackendReady {
     $deadline = (Get-Date).AddSeconds($ReadyTimeoutSeconds)
     do {
@@ -228,9 +238,48 @@ try {
         if ($available -eq '1') { break }
         Start-Sleep -Seconds 5
     } while ((Get-Date) -lt $deadline)
+    if ($available -ne '1') { throw 'Metrics Server did not become available' }
 
-    # Get kubeconfig
-    $kubeconfig = Invoke-KubectlText -Arguments @('config', 'view', '--minify', '--raw')
+    $deadline = (Get-Date).AddSeconds(120)
+    $nodeMetricsRaw = ''
+    do {
+        $nodeMetricsRaw = Invoke-KubectlText -Arguments @('get', '--raw', "/apis/metrics.k8s.io/v1beta1/nodes/$nodeName") -AllowFailure
+        if ($nodeMetricsRaw.TrimStart().StartsWith('{')) { break }
+        Start-Sleep -Seconds 5
+    } while ((Get-Date) -lt $deadline)
+    if (-not $nodeMetricsRaw.TrimStart().StartsWith('{')) { throw 'Metrics API did not return a Node sample' }
+    $nodeMetrics = $nodeMetricsRaw | ConvertFrom-Json
+    $baselineCpuNanocores = Convert-CpuQuantityToNanocores ([string]$nodeMetrics.usage.cpu)
+    $allocatableCpu = Invoke-KubectlText -Arguments @('get', 'node', $nodeName, '-o', 'jsonpath={.status.allocatable.cpu}')
+    $capacityCpuNanocores = Convert-CpuQuantityToNanocores $allocatableCpu
+    if ($capacityCpuNanocores - $baselineCpuNanocores -lt 200000000L) {
+        throw 'Node has insufficient CPU headroom for deterministic alert recovery acceptance'
+    }
+    $firingThreshold = $baselineCpuNanocores + [int64](($capacityCpuNanocores - $baselineCpuNanocores) / 2)
+    $burnerLimitMillicores = [Math]::Max(500, [int][Math]::Floor(($capacityCpuNanocores / 1000000.0) * 0.75))
+
+    # Apply the reviewed managed-cluster role and build the same short-lived,
+    # container-reachable ServiceAccount kubeconfig used by the newer suites.
+    Invoke-KubectlText -Arguments @('apply', '-f', (Join-Path $Root 'deploy\managed-cluster\observer.yaml')) | Out-Null
+    $observerToken = Invoke-KubectlText -Arguments @('-n', 'kube-system', 'create', 'token', 'aiops-platform', '--duration=1h')
+    $rawKubeconfig = Invoke-KubectlText -Arguments @('config', 'view', '--minify', '--raw', '-o', 'json') | ConvertFrom-Json
+    $serverUri = [Uri][string]$rawKubeconfig.clusters[0].cluster.server
+    $server = $serverUri.AbsoluteUri.TrimEnd('/')
+    $targetCluster = [ordered]@{server = $server; 'certificate-authority-data' = [string]$rawKubeconfig.clusters[0].cluster.'certificate-authority-data'}
+    if ($serverUri.IsLoopback) {
+        $builder = [UriBuilder]$serverUri
+        $builder.Host = 'host.docker.internal'
+        $targetCluster.server = $builder.Uri.AbsoluteUri.TrimEnd('/')
+        $targetCluster['tls-server-name'] = $serverUri.Host
+    }
+    $kubeconfig = [ordered]@{
+        apiVersion = 'v1'
+        kind = 'Config'
+        clusters = @([ordered]@{name = 'target'; cluster = $targetCluster})
+        contexts = @([ordered]@{name = 'target'; context = [ordered]@{cluster = 'target'; user = 'aiops-platform'}})
+        'current-context' = 'target'
+        users = @([ordered]@{name = 'aiops-platform'; user = [ordered]@{token = $observerToken}})
+    } | ConvertTo-Json -Depth 8 -Compress
 
     # Ensure backend running
     Write-Host "Checking backend status..."
@@ -256,6 +305,11 @@ try {
     Write-Host "Enabling cluster..."
     Invoke-ApiRequest -Token $token -Method PATCH -Path "/api/v1/clusters/$clusterID" -Body @{enabled = $true} | Out-Null
 
+    $probe = Invoke-ApiRequest -Token $token -Method POST -Path "/api/v1/clusters/$clusterID/probe"
+    if ($probe.status -ne 'ready') {
+        throw "Registered cluster probe failed; status=$($probe.status) error=$($probe.last_error)"
+    }
+
     # Wait for cluster ready
     Write-Host "Waiting for cluster to become ready..."
     $deadline = (Get-Date).AddSeconds(60)
@@ -265,6 +319,9 @@ try {
         Write-Host "  Cluster status: $($cluster.status)"
         Start-Sleep -Seconds 3
     } while ((Get-Date) -lt $deadline)
+    if ($cluster.status -ne 'ready') {
+        throw "Cluster did not become ready; final status: $($cluster.status)"
+    }
 
     # Create alert rule
     Write-Host "Creating alert rule for node: $nodeName"
@@ -273,8 +330,10 @@ try {
         resource_kind = 'Node'
         resource_name = $nodeName
         metric_name = 'cpu'
-        operator = 'gte'
-        threshold = 100000000  # 0.1 cores - very low threshold for testing
+        # Idle CPU is deterministically at or below a run-local threshold;
+        # the recovery phase adds a one-core burner to cross above it.
+        operator = 'lte'
+        threshold = $firingThreshold
         for_seconds = 60
         minimum_points = 2
     }
@@ -353,8 +412,8 @@ try {
         Start-Sleep -Seconds 5
     } while ((Get-Date) -lt $deadline)
 
-    # Delete alert rule to trigger resolution
-    Write-Host "Deleting alert rule to verify soft delete..."
+    # A firing rule cannot be deleted.
+    Write-Host "Deleting alert rule to verify soft-delete conflict..."
     try {
         Invoke-ApiRequest -Token $token -Method DELETE -Path "/api/v1/clusters/$clusterID/alert-rules/$ruleID"
         throw "Alert rule deletion should have been rejected (unresolved alert exists)"
@@ -365,9 +424,30 @@ try {
         Write-Host "Rule deletion correctly rejected with 409 Conflict"
     }
 
-    # Disable rule instead
-    Write-Host "Disabling alert rule..."
-    Invoke-ApiRequest -Token $token -Method PATCH -Path "/api/v1/clusters/$clusterID/alert-rules/$ruleID" -Body @{enabled = $false} | Out-Null
+    # Force a complete recent normal window. The rule uses LTE against the
+    # measured idle/capacity midpoint; a multi-thread burner crosses above the immutable
+    # threshold without patching the rule contract.
+    Write-Host "Starting controlled CPU load for normal-window recovery..."
+    $burner = @"
+apiVersion: v1
+kind: Pod
+metadata:
+  name: m27-cpu-burner
+  namespace: default
+  labels: {k8s-aiops.local/run-id: '$RunID'}
+spec:
+  nodeName: $nodeName
+  tolerations:
+  - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+  - {key: node-role.kubernetes.io/master, operator: Exists, effect: NoSchedule}
+  containers:
+  - name: burner
+    image: busybox:1.36
+    command: [sh, -c, 'yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & yes >/dev/null & wait']
+    resources: {requests: {cpu: 100m}, limits: {cpu: '$($burnerLimitMillicores)m'}}
+"@
+    Invoke-KubectlInput -Body $burner -Arguments @('apply', '-f', '-') | Out-Null
+    Invoke-KubectlText -Arguments @('wait', '-n', 'default', '--for=condition=Ready', 'pod/m27-cpu-burner', '--timeout=120s') | Out-Null
 
     # Wait for resolution
     Write-Host "Waiting for alert resolution (timeout: $RecoveryTimeoutSeconds seconds)..."
@@ -387,6 +467,12 @@ try {
         throw "Alert did not resolve within $RecoveryTimeoutSeconds seconds"
     }
     Write-Host "Alert resolved successfully"
+
+    # Disable after a complete normal evaluation so the rule is preserved for
+    # the backend-restart persistence assertion without manufacturing a
+    # resolution from an administrative state change.
+    Write-Host "Disabling resolved alert rule..."
+    Invoke-ApiRequest -Token $token -Method PATCH -Path "/api/v1/clusters/$clusterID/alert-rules/$ruleID" -Body @{enabled = $false} | Out-Null
 
     # Backend restart test
     if (-not $SkipBackendRestart) {
@@ -429,10 +515,10 @@ try {
         timestamp = (Get-Date -Format 'o')
         checks = @(
             'Alert rule created',
-            'Alert fired with low CPU threshold',
+            'Alert fired against measured idle CPU threshold',
             'Deduplication verified (same instance and diagnosis)',
             'Alert remained firing during Metrics Server outage',
-            'Alert resolved after rule disable',
+            'Alert resolved after a complete recent normal CPU window',
             'Backend restart persistence verified'
         )
     }

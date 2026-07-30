@@ -11,13 +11,16 @@
 ## Summary
 
 Built a deterministic, source-cited Namespace governance posture view that joins
-ResourceQuota, LimitRange, Workload (5 kinds), Pod, PodDisruptionBudget and
-cluster-wide Node capacity reads into a compact, double-pane frontend view.
+ResourceQuota, LimitRange, reviewed workload controllers, Pod,
+PodDisruptionBudget and cluster-wide Node capacity reads into a compact,
+double-pane frontend view and derives fixed, explainable governance findings.
 Every section carries its own `EvidenceCitation` so partial failures, RBAC
 denials and list truncation are reported honestly rather than silently masked.
 
-The posture is strictly read-only and explicitly refuses 7 categories of
-scheduler / NetworkPolicy / saturation inference (recorded in ADR 0045 §6).
+The posture is strictly read-only. Kubernetes Quantity parsing, official PDB
+selector matching and a frozen 80% requested-capacity indicator are used only
+where evidence is exact; scheduler placement and NetworkPolicy reachability
+remain explicit non-inferences.
 
 ---
 
@@ -165,6 +168,15 @@ Breakdown:
 10 tests in `internal/namespaceposture/service_test.go`, 0 flakes after 5
 consecutive runs with `-count=5`.
 
+### Real-kind acceptance
+
+- `scripts/e2e-m29-governance-posture-kind.ps1` — **PASSED**
+- Evidence: `.artifacts/m29-governance-posture-kind/summary.json`
+- A disposable Kubernetes v1.34.0 kind fixture produced deterministic
+  `critical` posture with quota exhaustion, missing requests/limits/defaults,
+  best-effort workload, blocked PDB disruption and unschedulable-Node findings
+- Cluster registration and all disposable resources were removed in `finally`
+
 ### Frontend typecheck
 
 `vue-tsc --noEmit` returns exit 0. Fixed during M29:
@@ -179,14 +191,10 @@ consecutive runs with `-count=5`.
 
 ## Non-goals (closed, reopen as separate milestones)
 
-- ❌ ResourceQuota usage-ratio / saturation warning → belongs to M21/M27
-  diagnosis with sustained-window evidence, not posture
 - ❌ LimitRange conflict detection across multiple LRs — creation-time
   ordering is unobservable from list data
-- ❌ PDB selector-match coverage against Pods — requires exact label-set
-  evaluation; schedule as diagnosis-rule input in a later milestone
-- ❌ Namespace share-of-cluster attribution — requires QoS/preemption/
-  overcommit scheduler inference we REFUSE
+- ❌ Exact Namespace share-of-cluster or scheduling claim — requires
+  QoS/preemption/affinity/taint/storage semantics beyond the posture contract
 - ❌ NetworkPolicy reachability report — requires full set-based selector
   evaluation; separate design needed
 - ❌ Workload ownerReference chain expansion (CronJob → Job → Pod)
@@ -197,16 +205,13 @@ consecutive runs with `-count=5`.
 
 ---
 
-## Known follow-ups (deferred, not blockers)
+## Optional follow-ups (outside the accepted contract)
 
-1. **Real-kind E2E script** — analogous to `scripts/e2e-m27-alert-lifecycle-kind.ps1`;
-   can be added in a follow-up as the default kind cluster already has
-   usable Namespace/ResourceQuota/workload fixtures.
-2. **Top-N expansion in list** — `List()` currently applies the same
+1. **Top-N expansion in list** — `List()` currently applies the same
    section caps as `Get()`; a future revision can use `limit=0` count-only
    queries if the gateway exposes that mode.
-3. **Pod QoS class breakdown** — can be added alongside phase/spread without
+2. **Pod QoS class breakdown** — can be added alongside phase/spread without
    violating the no-inference boundary (QoS class is observable on each
    Pod status directly).
-4. **Topology-spread hint** — can be rendered as a raw observation without
+3. **Topology-spread hint** — can be rendered as a raw observation without
    claiming scheduler causation, if the need arises.

@@ -2,9 +2,16 @@ package namespaceposture
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"sort"
+	"strings"
 	"sync"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s-aiops.local/backend/internal/apiquery"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
@@ -182,6 +189,9 @@ func (s *Service) Get(ctx context.Context, clusterID int64, namespace string) (N
 		for _, item := range resp.Items {
 			entries = append(entries, PDBEntry{
 				Name:               item.Metadata.Name,
+				UID:                item.Metadata.UID,
+				ResourceVersion:    item.Metadata.ResourceVersion,
+				Selector:           item.Spec.Selector,
 				MinAvailable:       stringValue(item.Spec.MinAvailable),
 				MaxUnavailable:     stringValue(item.Spec.MaxUnavailable),
 				CurrentHealthy:     item.Status.CurrentHealthy,
@@ -211,6 +221,7 @@ func (s *Service) Get(ctx context.Context, clusterID int64, namespace string) (N
 
 	wg.Wait()
 	sort.Strings(posture.PartialSections)
+	deriveFindings(&posture, collectedAt)
 	return posture, nil
 }
 
@@ -444,7 +455,14 @@ func (s *Service) collectPods(ctx context.Context, clusterID int64, namespace st
 			nodeCount[item.Spec.NodeName]++
 			scheduled++
 		}
+		ownerKind, ownerName := podOwner(item)
+		summary.Items = append(summary.Items, PodPolicyEntry{
+			Name: item.Metadata.Name, UID: item.Metadata.UID, ResourceVersion: item.Metadata.ResourceVersion,
+			Labels: copyMap(item.Metadata.Labels), OwnerKind: ownerKind, OwnerName: ownerName,
+			Containers: append([]k8sgateway.PodContainer(nil), item.Spec.Containers...),
+		})
 	}
+	sort.SliceStable(summary.Items, func(i, j int) bool { return summary.Items[i].Name < summary.Items[j].Name })
 	summary.Total = int32(len(resp.Items))
 	summary.Scheduled = scheduled
 	summary.ByPhase = sortedPhaseCounts(phaseCount)
@@ -463,11 +481,21 @@ func (s *Service) collectNodeCapacity(ctx context.Context, clusterID int64, q ap
 	markTruncated(&posture.Evidence, resp.Total, len(resp.Items), resp.Remaining)
 	entries := make([]NodeCapacityEntry, 0, len(resp.Items))
 	for _, item := range resp.Items {
+		pressure := make([]string, 0)
+		for _, condition := range item.Status.Conditions {
+			if condition.Status == "True" && (condition.Type == "MemoryPressure" || condition.Type == "DiskPressure" || condition.Type == "PIDPressure") {
+				pressure = append(pressure, condition.Type)
+			}
+		}
+		sort.Strings(pressure)
 		entries = append(entries, NodeCapacityEntry{
-			Name:        item.Metadata.Name,
-			Capacity:    copyMap(item.Status.Capacity),
-			Allocatable: copyMap(item.Status.Allocatable),
-			Schedulable: !item.Spec.Unschedulable,
+			Name:            item.Metadata.Name,
+			UID:             item.Metadata.UID,
+			ResourceVersion: item.Metadata.ResourceVersion,
+			Capacity:        copyMap(item.Status.Capacity),
+			Allocatable:     copyMap(item.Status.Allocatable),
+			Schedulable:     !item.Spec.Unschedulable,
+			Pressure:        pressure,
 		})
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
@@ -579,4 +607,229 @@ func copyMap(src map[string]string) map[string]string {
 		dst[k] = v
 	}
 	return dst
+}
+
+func deriveFindings(posture *NamespacePosture, observedAt time.Time) {
+	findings := make([]Finding, 0)
+	add := func(code, severity, summary string, resource ResourceCitation, details map[string]string) {
+		findings = append(findings, Finding{Code: code, Severity: severity, Summary: summary, Resource: resource, Details: details, ObservedAt: observedAt.UTC().Format(time.RFC3339)})
+	}
+	namespaceRef := ResourceCitation{Kind: "Namespace", Name: posture.Name}
+
+	if len(posture.PartialSections) > 0 {
+		add(CodeIncompleteEvidence, SeverityCritical, "One or more required evidence sources are incomplete", namespaceRef, map[string]string{"sections": strings.Join(posture.PartialSections, ",")})
+	}
+
+	if posture.ResourceQuotas.Evidence.Status == SourceComplete {
+		if len(posture.ResourceQuotas.Quotas) == 0 {
+			add(CodeMissingQuota, SeverityWarning, "Namespace has no ResourceQuota", namespaceRef, nil)
+		}
+		for _, quota := range posture.ResourceQuotas.Quotas {
+			ref := ResourceCitation{Kind: "ResourceQuota", Namespace: posture.Name, Name: quota.Name}
+			keys := sortedMapKeys(quota.Hard)
+			for _, key := range keys {
+				ratio, ok := quantityRatio(quota.Used[key], quota.Hard[key])
+				if !ok {
+					continue
+				}
+				details := map[string]string{"resource": key, "hard": quota.Hard[key], "used": quota.Used[key], "ratio": fmt.Sprintf("%.2f", ratio)}
+				if ratio >= 1 {
+					add(CodeExhaustedQuota, SeverityCritical, "ResourceQuota is exhausted", ref, details)
+				} else if ratio >= 0.8 {
+					add(CodeQuotaPressure, SeverityWarning, "ResourceQuota usage is at or above 80%", ref, details)
+				}
+			}
+		}
+	}
+
+	if posture.LimitRanges.Evidence.Status == SourceComplete && !hasContainerDefaults(posture.LimitRanges.Ranges) {
+		add(CodeMissingLimitDefaults, SeverityWarning, "Namespace lacks CPU and memory container defaults", namespaceRef, nil)
+	}
+
+	for _, pod := range posture.Pods.Items {
+		ref := ResourceCitation{Kind: "Pod", Namespace: posture.Name, Name: pod.Name, UID: pod.UID, ResourceVersion: pod.ResourceVersion}
+		missingRequests, missingLimits, bestEffort := containerPolicy(pod.Containers)
+		if missingRequests {
+			add(CodeMissingContainerRequests, SeverityWarning, "One or more containers omit CPU or memory requests", ref, nil)
+		}
+		if missingLimits {
+			add(CodeMissingContainerLimits, SeverityWarning, "One or more containers omit CPU or memory limits", ref, nil)
+		}
+		if bestEffort {
+			add(CodeBestEffortWorkload, SeverityCritical, "Pod is BestEffort because all requests and limits are absent", ref, nil)
+		}
+		if !reviewedPodOwner(pod.OwnerKind) || pod.OwnerKind == "DaemonSet" {
+			continue
+		}
+		matched := make([]PDBEntry, 0)
+		for _, pdb := range posture.PDBs.PDBs {
+			if pdb.Selector != nil && selectorMatches(pdb.Selector, pod.Labels) {
+				matched = append(matched, pdb)
+			}
+		}
+		if len(matched) == 0 && posture.PDBs.Evidence.Status == SourceComplete {
+			add(CodeNoMatchingPDB, SeverityWarning, "Managed Pod has no matching PodDisruptionBudget", ref, nil)
+		}
+		for _, pdb := range matched {
+			if pdb.DisruptionsAllowed == 0 {
+				add(CodeBlockedPDB, SeverityCritical, "Matching PodDisruptionBudget currently allows no disruptions", ResourceCitation{Kind: "PodDisruptionBudget", Namespace: posture.Name, Name: pdb.Name, UID: pdb.UID, ResourceVersion: pdb.ResourceVersion}, map[string]string{"pod": pod.Name})
+			}
+		}
+	}
+
+	for _, node := range posture.NodeCapacity.Nodes {
+		ref := ResourceCitation{Kind: "Node", Name: node.Name, UID: node.UID, ResourceVersion: node.ResourceVersion}
+		if !node.Schedulable {
+			add(CodeNodeUnschedulable, SeverityWarning, "Node is unschedulable", ref, nil)
+		}
+		if len(node.Pressure) > 0 {
+			add(CodeNodePressure, SeverityCritical, "Node reports resource pressure", ref, map[string]string{"conditions": strings.Join(node.Pressure, ",")})
+		}
+	}
+
+	requested := aggregateRequests(posture.Pods.Items)
+	allocatable := aggregateAllocatable(posture.NodeCapacity.Nodes)
+	for _, key := range []string{"cpu", "memory"} {
+		if ratio, ok := quantityRatio(requested[key], allocatable[key]); ok && ratio >= 0.8 {
+			add(CodeRequestedCapacity, SeverityWarning, "Namespace Pod requests are at or above 80% of schedulable cluster allocatable capacity", namespaceRef, map[string]string{"resource": key, "requested": requested[key], "allocatable": allocatable[key], "ratio": fmt.Sprintf("%.2f", ratio)})
+		}
+	}
+
+	severityOrder := map[string]int{SeverityCritical: 0, SeverityWarning: 1, SeverityInfo: 2}
+	sort.SliceStable(findings, func(i, j int) bool {
+		if severityOrder[findings[i].Severity] != severityOrder[findings[j].Severity] {
+			return severityOrder[findings[i].Severity] < severityOrder[findings[j].Severity]
+		}
+		if findings[i].Code != findings[j].Code {
+			return findings[i].Code < findings[j].Code
+		}
+		return findings[i].Resource.Name < findings[j].Resource.Name
+	})
+	posture.Findings = findings
+	posture.OverallState = StateHealthy
+	if len(posture.PartialSections) > 0 {
+		posture.OverallState = StateIncomplete
+		return
+	}
+	for _, finding := range findings {
+		if finding.Severity == SeverityCritical {
+			posture.OverallState = StateCritical
+			return
+		}
+		if finding.Severity == SeverityWarning {
+			posture.OverallState = StateWarning
+		}
+	}
+}
+
+func podOwner(pod k8sgateway.Pod) (string, string) {
+	for _, owner := range pod.Metadata.OwnerReferences {
+		if owner.Controller != nil && *owner.Controller {
+			return owner.Kind, owner.Name
+		}
+	}
+	return "", ""
+}
+
+func reviewedPodOwner(kind string) bool {
+	return kind == "ReplicaSet" || kind == "StatefulSet" || kind == "DaemonSet"
+}
+
+func selectorMatches(selector *metav1.LabelSelector, podLabels map[string]string) bool {
+	parsed, err := metav1.LabelSelectorAsSelector(selector)
+	return err == nil && parsed.Matches(labels.Set(podLabels))
+}
+
+func containerPolicy(containers []k8sgateway.PodContainer) (missingRequests, missingLimits, bestEffort bool) {
+	if len(containers) == 0 {
+		return false, false, false
+	}
+	bestEffort = true
+	for _, container := range containers {
+		if container.Resources.Requests["cpu"] == "" || container.Resources.Requests["memory"] == "" {
+			missingRequests = true
+		}
+		if container.Resources.Limits["cpu"] == "" || container.Resources.Limits["memory"] == "" {
+			missingLimits = true
+		}
+		if len(container.Resources.Requests) > 0 || len(container.Resources.Limits) > 0 {
+			bestEffort = false
+		}
+	}
+	return
+}
+
+func hasContainerDefaults(ranges []k8sgateway.LimitRange) bool {
+	hasRequestCPU, hasRequestMemory, hasLimitCPU, hasLimitMemory := false, false, false, false
+	for _, limitRange := range ranges {
+		for _, item := range limitRange.Spec.Limits {
+			if item.Type != "Container" {
+				continue
+			}
+			hasRequestCPU = hasRequestCPU || item.DefaultRequest["cpu"] != ""
+			hasRequestMemory = hasRequestMemory || item.DefaultRequest["memory"] != ""
+			hasLimitCPU = hasLimitCPU || item.Default["cpu"] != ""
+			hasLimitMemory = hasLimitMemory || item.Default["memory"] != ""
+		}
+	}
+	return hasRequestCPU && hasRequestMemory && hasLimitCPU && hasLimitMemory
+}
+
+func quantityRatio(used, hard string) (float64, bool) {
+	u, err := resource.ParseQuantity(used)
+	if err != nil {
+		return 0, false
+	}
+	h, err := resource.ParseQuantity(hard)
+	if err != nil || h.Sign() <= 0 {
+		return 0, false
+	}
+	ratio := u.AsApproximateFloat64() / h.AsApproximateFloat64()
+	return ratio, !math.IsNaN(ratio) && !math.IsInf(ratio, 0)
+}
+
+func aggregateRequests(pods []PodPolicyEntry) map[string]string {
+	totals := map[string]resource.Quantity{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}
+	for _, pod := range pods {
+		for _, container := range pod.Containers {
+			for _, key := range []string{"cpu", "memory"} {
+				if value := container.Resources.Requests[key]; value != "" {
+					if parsed, err := resource.ParseQuantity(value); err == nil {
+						total := totals[key]
+						total.Add(parsed)
+						totals[key] = total
+					}
+				}
+			}
+		}
+	}
+	cpu, memory := totals["cpu"], totals["memory"]
+	return map[string]string{"cpu": cpu.String(), "memory": memory.String()}
+}
+
+func aggregateAllocatable(nodes []NodeCapacityEntry) map[string]string {
+	totals := map[string]resource.Quantity{"cpu": resource.MustParse("0"), "memory": resource.MustParse("0")}
+	for _, node := range nodes {
+		if !node.Schedulable || len(node.Pressure) > 0 {
+			continue
+		}
+		for _, key := range []string{"cpu", "memory"} {
+			if parsed, err := resource.ParseQuantity(node.Allocatable[key]); err == nil {
+				total := totals[key]
+				total.Add(parsed)
+				totals[key] = total
+			}
+		}
+	}
+	cpu, memory := totals["cpu"], totals["memory"]
+	return map[string]string{"cpu": cpu.String(), "memory": memory.String()}
+}
+
+func sortedMapKeys(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

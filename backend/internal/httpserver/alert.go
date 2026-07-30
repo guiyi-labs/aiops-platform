@@ -83,12 +83,16 @@ func (h *alertHandler) listRules(c *gin.Context) {
 }
 
 func (h *alertHandler) getRule(c *gin.Context) {
+	cid, ok := clusterID(c)
+	if !ok {
+		return
+	}
 	ruleID, err := strconv.ParseInt(c.Param("rule_id"), 10, 64)
 	if err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_RULE_ID", "rule_id must be a positive integer")
 		return
 	}
-	rule, err := h.service.GetRule(c.Request.Context(), ruleID)
+	rule, err := h.service.GetRule(c.Request.Context(), cid, ruleID)
 	if err != nil {
 		if err == alert.ErrRuleNotFound {
 			writeError(c, http.StatusNotFound, "NOT_FOUND", err.Error())
@@ -101,6 +105,10 @@ func (h *alertHandler) getRule(c *gin.Context) {
 }
 
 func (h *alertHandler) patchRule(c *gin.Context) {
+	cid, ok := clusterID(c)
+	if !ok {
+		return
+	}
 	ruleID, err := strconv.ParseInt(c.Param("rule_id"), 10, 64)
 	if err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_RULE_ID", "rule_id must be a positive integer")
@@ -112,7 +120,7 @@ func (h *alertHandler) patchRule(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
-	rule, err := h.service.PatchRule(c.Request.Context(), ruleID, input, alert.ActorRef{ID: metadata.ActorID, Name: metadata.ActorDisplayName})
+	rule, err := h.service.PatchRule(c.Request.Context(), cid, ruleID, input, alert.ActorRef{ID: metadata.ActorID, Name: metadata.ActorDisplayName})
 	if err != nil {
 		switch err {
 		case alert.ErrRuleNotFound, alert.ErrRuleDeleted:
@@ -130,12 +138,16 @@ func (h *alertHandler) patchRule(c *gin.Context) {
 }
 
 func (h *alertHandler) deleteRule(c *gin.Context) {
+	cid, ok := clusterID(c)
+	if !ok {
+		return
+	}
 	ruleID, err := strconv.ParseInt(c.Param("rule_id"), 10, 64)
 	if err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_RULE_ID", "rule_id must be a positive integer")
 		return
 	}
-	if err := h.service.DeleteRule(c.Request.Context(), ruleID); err != nil {
+	if err := h.service.DeleteRule(c.Request.Context(), cid, ruleID); err != nil {
 		switch err {
 		case alert.ErrRuleNotFound, alert.ErrRuleDeleted:
 			writeError(c, http.StatusNotFound, "NOT_FOUND", err.Error())
@@ -177,12 +189,16 @@ func (h *alertHandler) listInstances(c *gin.Context) {
 }
 
 func (h *alertHandler) getInstance(c *gin.Context) {
+	cid, ok := clusterID(c)
+	if !ok {
+		return
+	}
 	alertID, err := strconv.ParseInt(c.Param("alert_id"), 10, 64)
 	if err != nil {
 		writeError(c, http.StatusBadRequest, "INVALID_ALERT_ID", "alert_id must be a positive integer")
 		return
 	}
-	instance, err := h.service.GetInstance(c.Request.Context(), alertID)
+	instance, err := h.service.GetInstance(c.Request.Context(), cid, alertID)
 	if err != nil {
 		if err == alert.ErrAlertNotFound {
 			writeError(c, http.StatusNotFound, "NOT_FOUND", err.Error())

@@ -13,7 +13,7 @@ type Repository interface {
 	Save(context.Context, *Plan) error
 	List(context.Context, int64) ([]Plan, error)
 	Claim(context.Context, string, []byte, string, time.Time, time.Time) (Plan, bool, error)
-	Complete(context.Context, string, string, time.Time) (Plan, error)
+	Complete(context.Context, string, string, string, string, time.Time) (Plan, error)
 	Fail(context.Context, string, string, string) (Plan, error)
 }
 
@@ -99,9 +99,9 @@ func (r *GormRepository) Claim(ctx context.Context, id string, tokenHash []byte,
 	return plan, shouldExecute, claimErr
 }
 
-func (r *GormRepository) Complete(ctx context.Context, id, idempotencyKey string, executedAt time.Time) (Plan, error) {
+func (r *GormRepository) Complete(ctx context.Context, id, idempotencyKey, backupUID, backupResourceVersion string, executedAt time.Time) (Plan, error) {
 	result := r.db.WithContext(ctx).Model(&Plan{}).Where("id = ? AND status = ? AND idempotency_key = ?", id, StatusExecuting, idempotencyKey).
-		Updates(map[string]any{"status": StatusSucceeded, "executed_at": executedAt, "locked_at": nil, "last_error": "", "updated_at": executedAt})
+		Updates(map[string]any{"status": StatusSucceeded, "backup_uid": backupUID, "backup_resource_version": backupResourceVersion, "executed_at": executedAt, "locked_at": nil, "last_error": "", "updated_at": executedAt})
 	if result.Error != nil {
 		return Plan{}, result.Error
 	}

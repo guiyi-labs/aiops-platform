@@ -321,10 +321,7 @@ func TestExecuteCronJobOperationDispatchesOnce(t *testing.T) {
 
 func TestPreviewImageUpdateStoresTypedDiffAndUsesDryRun(t *testing.T) {
 	_, kube := eligibleFixtures()
-	kube.deployment.Spec.Template.Spec.Containers = []struct {
-		Name  string `json:"name"`
-		Image string `json:"image"`
-	}{{Name: "app", Image: "nginx:1.27.0"}}
+	kube.deployment.Spec.Template.Spec.Containers = []k8sgateway.WorkloadContainer{{Name: "app", Image: "nginx:1.27.0"}}
 	repository := &repositoryStub{}
 	service := NewService(diagnosisStub{}, kube, repository)
 	service.now = func() time.Time { return time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC) }
@@ -353,10 +350,7 @@ func TestPreviewImageUpdateStoresTypedDiffAndUsesDryRun(t *testing.T) {
 
 func TestPreviewImageUpdateRejectsMissingContainerAndNoChange(t *testing.T) {
 	_, kube := eligibleFixtures()
-	kube.deployment.Spec.Template.Spec.Containers = []struct {
-		Name  string `json:"name"`
-		Image string `json:"image"`
-	}{{Name: "app", Image: "nginx:1.27.0"}}
+	kube.deployment.Spec.Template.Spec.Containers = []k8sgateway.WorkloadContainer{{Name: "app", Image: "nginx:1.27.0"}}
 	service := NewService(diagnosisStub{}, kube, &repositoryStub{})
 	if _, err := service.PreviewOperation(context.Background(), 7, OperationRequest{
 		Action: ActionDeploymentImageUpdate, Namespace: "demo", TargetName: "api",

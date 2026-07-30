@@ -2,10 +2,6 @@
 
 ## Current Baseline (2026-07-30)
 
-New-device continuation starts at `docs/agent-start-here.md`, then follows
-`docs/new-environment-bootstrap.md`. Future milestone selection and acceptance
-must follow `docs/project-vision-and-delivery-standards.md`.
-
 This section supersedes the older phase-by-phase status narrative below.
 Local `main` contains the reviewed M21-M25 implementation and tracks
 `https://github.com/guiyi-labs/aiops-platform.git`. The release candidate has

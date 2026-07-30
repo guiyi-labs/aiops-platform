@@ -5,14 +5,11 @@
 - Docker Desktop 29+
 - Go 1.25+
 - Node.js 22+
-- pnpm 11.7.0 (match `frontend/package.json` and the lockfile)
+- pnpm 10+
 - kubectl
 - kind（进入多集群开发阶段前安装）
 
 只运行整套系统时可仅依赖 Docker Desktop。直接运行前后端时需要本机 Go 和 Node.js。
-
-新设备或新 Agent 首次接管不要只执行本页的日常开发步骤；先完成
-`docs/agent-start-here.md` 和 `docs/new-environment-bootstrap.md` 的环境与基线验收。
 
 ## Configuration
 

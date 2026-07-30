@@ -13,8 +13,10 @@ import (
 	"go.uber.org/zap"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
+	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/audit"
 	"k8s-aiops.local/backend/internal/auth"
+	"k8s-aiops.local/backend/internal/backup"
 	"k8s-aiops.local/backend/internal/buildinfo"
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/config"
@@ -23,10 +25,13 @@ import (
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/httpserver"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/metricshistory"
+	"k8s-aiops.local/backend/internal/namespaceposture"
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
+	"k8s-aiops.local/backend/internal/restore"
 	"k8s-aiops.local/backend/internal/store"
 	"k8s-aiops.local/backend/migrations"
 )
@@ -96,6 +101,20 @@ func main() {
 	diagnosisService := diagnosis.NewService(kubernetesService, diagnosis.NewGormRepository(database.GORM())).WithMetricEvaluator(metricsHistoryService)
 	remediationService := remediation.NewService(diagnosisService, kubernetesService, remediation.NewGormRepository(database.GORM()))
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
+	alertService := alert.NewService(alert.NewGormRepository(database.GORM()), diagnosis.NewGormRepository(database.GORM()), metricsHistoryService, cfg.AlertMinEvaluationInterval)
+	backupService := backup.NewService(kubernetesService, backup.NewGormRepository(database.GORM()))
+	maintenanceService := maintenance.NewService(kubernetesService, maintenance.NewGormRepository(database.GORM()))
+	namespacePostureService := namespaceposture.NewService(kubernetesService)
+	restoreService := restore.NewService(kubernetesService, restore.NewGormRepository(database.GORM()))
+	alertScheduler := alert.NewScheduler(alert.SchedulerConfig{
+		Enabled:           cfg.AlertEnabled,
+		PollInterval:      cfg.AlertPollInterval,
+		ClaimBatch:        cfg.AlertClaimBatch,
+		WorkerConcurrency: cfg.AlertWorkerConcurrency,
+		EvaluationTimeout: cfg.AlertEvaluationTimeout,
+		ClaimLease:        cfg.AlertClaimLease,
+		MinEvalInterval:   cfg.AlertMinEvaluationInterval,
+	}, alertService, alert.NewGormRepository(database.GORM()), logger)
 	var aiProvider aiexplain.Provider
 	if cfg.AIEnabled {
 		aiProvider = aiexplain.NewResponsesProvider(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel, cfg.AIRequestTimeout, cfg.AIMaxOutputTokens)
@@ -115,7 +134,7 @@ func main() {
 	backgroundContext, stopBackground := context.WithCancel(context.Background())
 	defer stopBackground()
 	var backgroundWait sync.WaitGroup
-	backgroundWait.Add(2)
+	backgroundWait.Add(3)
 	go func() {
 		defer backgroundWait.Done()
 		notificationService.Run(backgroundContext)
@@ -124,27 +143,36 @@ func main() {
 		defer backgroundWait.Done()
 		metricsCollector.Run(backgroundContext)
 	}()
+	go func() {
+		defer backgroundWait.Done()
+		alertScheduler.Run(backgroundContext)
+	}()
 
 	server := &http.Server{
 		Addr: cfg.HTTPAddress,
 		Handler: httpserver.New(logger, httpserver.Options{
-			Probe:          database,
-			Auth:           authService,
-			Clusters:       clusterService,
-			Kubernetes:     kubernetesService,
-			Fleet:          fleetService,
-			GlobalSearch:   globalSearchService,
-			SavedFilters:   savedFilterService,
-			MetricsHistory: metricsHistoryService,
-			Diagnosis:      diagnosisService,
-			AIExplanation:  aiExplanationService,
-			Audit:          auditService,
-			Notifications:  notificationService,
-			Remediation:    remediationService,
-			Promotion:      promotionService,
-			SecureCookies:  cfg.SecureCookies,
-			RefreshTTL:     cfg.RefreshTokenTTL,
-			Version:        buildinfo.Version,
+			Probe:            database,
+			Auth:             authService,
+			Clusters:         clusterService,
+			Kubernetes:       kubernetesService,
+			Fleet:            fleetService,
+			GlobalSearch:     globalSearchService,
+			SavedFilters:     savedFilterService,
+			MetricsHistory:   metricsHistoryService,
+			Diagnosis:        diagnosisService,
+			AIExplanation:    aiExplanationService,
+			Audit:            auditService,
+			Notifications:    notificationService,
+			Remediation:      remediationService,
+			Promotion:        promotionService,
+			Alert:            alertService,
+			Backup:           backupService,
+			Maintenance:      maintenanceService,
+			NamespacePosture: namespacePostureService,
+			Restore:          restoreService,
+			SecureCookies:    cfg.SecureCookies,
+			RefreshTTL:       cfg.RefreshTokenTTL,
+			Version:          buildinfo.Version,
 		}),
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,

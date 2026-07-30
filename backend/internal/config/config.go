@@ -56,6 +56,14 @@ type Config struct {
 	NotificationRetryBase      time.Duration
 	NotificationMaxAttempts    int
 	NotificationBatchSize      int
+	AlertEnabled               bool
+	AlertPollInterval          time.Duration
+	AlertClaimBatch            int
+	AlertWorkerConcurrency     int
+	AlertEvaluationTimeout     time.Duration
+	AlertClaimLease            time.Duration
+	AlertMinEvaluationInterval time.Duration
+	AlertMaxRulesPerCluster    int
 }
 
 func Load() (Config, error) {
@@ -214,6 +222,48 @@ func Load() (Config, error) {
 		}
 	}
 
+	alertEnabled, err := boolFromEnv("ALERT_ENABLED", true)
+	if err != nil {
+		return Config{}, err
+	}
+	alertPollInterval, err := durationFromEnv("ALERT_POLL_INTERVAL", 15*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	alertClaimBatch, err := intFromEnv("ALERT_CLAIM_BATCH", 20, 1, 20)
+	if err != nil {
+		return Config{}, err
+	}
+	alertWorkerConcurrency, err := intFromEnv("ALERT_WORKER_CONCURRENCY", 4, 1, 4)
+	if err != nil {
+		return Config{}, err
+	}
+	alertEvaluationTimeout, err := durationFromEnv("ALERT_EVALUATION_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	alertClaimLease, err := durationFromEnv("ALERT_CLAIM_LEASE", 30*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	alertMinEvalInterval, err := durationFromEnv("ALERT_MIN_EVALUATION_INTERVAL", 60*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	alertMaxRulesPerCluster, err := intFromEnv("ALERT_MAX_RULES_PER_CLUSTER", 20, 1, 100)
+	if err != nil {
+		return Config{}, err
+	}
+	if alertPollInterval < time.Second {
+		return Config{}, fmt.Errorf("ALERT_POLL_INTERVAL must be at least 1s")
+	}
+	if alertClaimLease < time.Second {
+		return Config{}, fmt.Errorf("ALERT_CLAIM_LEASE must be at least 1s")
+	}
+	if alertMinEvalInterval < time.Second {
+		return Config{}, fmt.Errorf("ALERT_MIN_EVALUATION_INTERVAL must be at least 1s")
+	}
+
 	return Config{
 		Environment:                environment,
 		HTTPAddress:                stringFromEnv("HTTP_ADDR", defaultHTTPAddress),
@@ -256,6 +306,14 @@ func Load() (Config, error) {
 		NotificationRetryBase:      notificationRetryBase,
 		NotificationMaxAttempts:    notificationMaxAttempts,
 		NotificationBatchSize:      notificationBatchSize,
+		AlertEnabled:               alertEnabled,
+		AlertPollInterval:          alertPollInterval,
+		AlertClaimBatch:            alertClaimBatch,
+		AlertWorkerConcurrency:     alertWorkerConcurrency,
+		AlertEvaluationTimeout:     alertEvaluationTimeout,
+		AlertClaimLease:            alertClaimLease,
+		AlertMinEvaluationInterval: alertMinEvalInterval,
+		AlertMaxRulesPerCluster:    alertMaxRulesPerCluster,
 	}, nil
 }
 

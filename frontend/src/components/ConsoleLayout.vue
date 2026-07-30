@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import {
   Bell,
+  BellRing,
   Boxes,
   BoxIcon,
   FileClock,
   Gauge,
+  Hammer,
   KeyRound,
+  LayoutGrid,
+  LifeBuoy,
   LogOut,
   Network,
   Search,
@@ -46,8 +50,12 @@ const navigationGroups = computed(() => [
     label: '分析与治理',
     items: [
       { label: '智能诊断', icon: Stethoscope, route: '/diagnoses' },
+      { label: '告警规则', icon: BellRing, route: '/alerts' },
+      { label: '命名空间治理', icon: LayoutGrid, route: '/namespace-posture' },
       { label: '跨集群 Promotion', icon: Shuffle, route: '/promotions', adminOnly: true },
       { label: '工作负载保护', icon: ShieldCheck, route: '/workload-protection' },
+      { label: '节点维护', icon: Hammer, route: '/node-maintenance' },
+      { label: '恢复演练', icon: LifeBuoy, route: '/restore-rehearsal' },
       { label: '通知投递', icon: Send, route: '/notifications', auditOnly: true },
       { label: '审计日志', icon: FileClock, route: '/audit-logs', auditOnly: true },
       { label: '用户管理', icon: Users, route: '/users', adminOnly: true },

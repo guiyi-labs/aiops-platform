@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { ConfigMapResource, CronJobResource, DaemonSetResource, Deployment, EndpointSliceResource, HorizontalPodAutoscalerResource, IngressResource, JobResource, KubernetesEvent, LimitRangeResource, ListResponse, Namespace, NodeMetric, NodeResource, PersistentVolume, PersistentVolumeClaim, Pod, PodContainerInfo, PodContainerLog, PodDisruptionBudgetResource, PodLogsResponse, PodMetric, NetworkPolicyResource, ReplicaSetResource, ResourceQuotaResource, SecretResource, ServiceAccountResource, ServiceResource, StatefulSetResource, StorageClassResource, VeleroBackup, VeleroCapability } from '../types/kubernetes'
+import type { BackupPlan, ConfigMapResource, CronJobResource, DaemonSetResource, Deployment, EndpointSliceResource, HorizontalPodAutoscalerResource, IngressResource, JobResource, KubernetesEvent, LimitRangeResource, ListResponse, MaintenanceAction, MaintenancePlan, Namespace, NamespacePosture, NodeMetric, NodeResource, PersistentVolume, PersistentVolumeClaim, Pod, PodContainerInfo, PodContainerLog, PodDisruptionBudgetResource, PodLogsResponse, PodMetric, NetworkPolicyResource, PostureListEntry, ReplicaSetResource, ResourceQuotaResource, RestorePlan, SecretResource, ServiceAccountResource, ServiceResource, StatefulSetResource, StorageClassResource, VeleroBackup, VeleroCapability } from '../types/kubernetes'
 
 function queryString(values: Record<string, string | number | boolean | undefined>): string {
   const query = new URLSearchParams()
@@ -236,4 +236,88 @@ export function listBackups(token: string, clusterID: number, namespace = '', na
 
 export function getBackup(token: string, clusterID: number, namespace: string, name: string): Promise<VeleroBackup> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/backups/${encodeURIComponent(namespace)}/${encodeURIComponent(name)}`, token)
+}
+
+export function previewBackupPlan(token: string, clusterID: number, body: {
+  backup_name: string
+  backup_namespace: string
+  included_namespaces: string[]
+  storage_location: string
+  ttl?: string
+  include_cluster_resources?: boolean
+  snapshot_volumes?: boolean
+  label_selector?: Record<string, string>
+}): Promise<BackupPlan> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/backup-plans/preview`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function executeBackupPlan(token: string, planID: string, confirmationToken: string, idempotencyKey: string): Promise<BackupPlan> {
+  return authorizedRequest(`/api/v1/backup-plans/${encodeURIComponent(planID)}/execute`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ confirmation_token: confirmationToken }),
+  })
+}
+
+export function listBackupPlans(token: string, clusterID: number): Promise<{ items: BackupPlan[]; total: number }> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/backup-plans`, token)
+}
+
+export function listNamespacePostures(token: string, clusterID: number, name = ''): Promise<ListResponse<PostureListEntry>> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/namespace-postures${queryString({ name, limit: 100, sort_by: 'name', ascending: true })}`, token)
+}
+
+export function getNamespacePosture(token: string, clusterID: number, namespace: string): Promise<NamespacePosture> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/namespace-postures/${encodeURIComponent(namespace)}`, token)
+}
+
+// --- Node Maintenance (M30) ---
+
+export function listMaintenancePlans(token: string, clusterID: number): Promise<{ items: MaintenancePlan[]; total: number }> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/maintenance-plans`, token)
+}
+
+export function previewMaintenancePlan(token: string, clusterID: number, action: MaintenanceAction, nodeName: string): Promise<MaintenancePlan> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/maintenance-plans/preview`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, node_name: nodeName }),
+  })
+}
+
+export function executeMaintenancePlan(token: string, planID: string, confirmationToken: string, idempotencyKey: string): Promise<MaintenancePlan> {
+  return authorizedRequest(`/api/v1/maintenance-plans/${encodeURIComponent(planID)}/execute`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ confirmation_token: confirmationToken }),
+  })
+}
+
+// --- Restore Rehearsal (M31) ---
+
+export function listRestorePlans(token: string, clusterID: number): Promise<{ items: RestorePlan[]; total: number }> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/restore-plans`, token)
+}
+
+export function previewRestorePlan(token: string, clusterID: number, body: {
+  source_backup_name: string
+  source_backup_namespace: string
+}): Promise<RestorePlan> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/restore-plans/preview`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function executeRestorePlan(token: string, planID: string, confirmationToken: string, idempotencyKey: string): Promise<RestorePlan> {
+  return authorizedRequest(`/api/v1/restore-plans/${encodeURIComponent(planID)}/execute`, token, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ confirmation_token: confirmationToken }),
+  })
 }

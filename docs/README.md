@@ -4,9 +4,10 @@
 
 | 目录或文件 | 内容 |
 |---|---|
+| `next-development-plan.md` | M26 并行闸门、M27-M31 串行开发、M32 正式收口的开发要求、验收标准和 Agent 交接提示 |
 | `development.md` | 本地开发、测试和运行方法 |
 | `development-handoff.md` | 当前里程碑、稳定基线、进行中工作和下次启动入口 |
-| `roadmap.md` | M19-M26 产品优化顺序、阶段状态、范围边界和发布前置条件 |
+| `roadmap.md` | M19-M32 产品优化顺序、阶段状态、范围边界和发布前置条件 |
 | `ci-release.md` | CI 分层、分支保护、tag 发布、产物校验和自托管 kind runner 运维合同 |
 | `conventions/` | 目录、命名、接口和提交规范 |
 | `architecture/` | 系统架构、模块和数据流设计 |
@@ -18,6 +19,10 @@
 | `security/` | 身份源就绪合同、安全策略模板和接入运行手册 |
 | `testing/` | 测试策略、报告和演示场景 |
 | `thesis/` | 论文图表、实验数据和答辩材料 |
+
+M25 之后的权威对标与项目结束判定见
+`references/final-product-gap-analysis.md`。该文档区分源码/运行时证据、参考项目文档声称和
+Kubernetes 教学主题，并明确哪些差距纳入 M27-M32、哪些能力不属于本项目。
 
 当前发布冻结候选归档：
 

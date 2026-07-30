@@ -1,0 +1,137 @@
+package httpserver
+
+import (
+	"errors"
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"k8s-aiops.local/backend/internal/backup"
+	"k8s-aiops.local/backend/internal/requestctx"
+)
+
+type backupHandler struct {
+	service *backup.Service
+}
+
+type previewBackupRequest struct {
+	BackupName              string            `json:"backup_name" binding:"required"`
+	BackupNamespace         string            `json:"backup_namespace" binding:"required"`
+	IncludedNamespaces      []string          `json:"included_namespaces" binding:"required"`
+	StorageLocation         string            `json:"storage_location" binding:"required"`
+	TTL                     string            `json:"ttl,omitempty"`
+	IncludeClusterResources bool              `json:"include_cluster_resources,omitempty"`
+	SnapshotVolumes         bool              `json:"snapshot_volumes,omitempty"`
+	LabelSelector           map[string]string `json:"label_selector,omitempty"`
+}
+
+type executeBackupRequest struct {
+	ConfirmationToken string `json:"confirmation_token" binding:"required"`
+}
+
+func (h backupHandler) preview(c *gin.Context) {
+	clusterID, ok := clusterID(c)
+	if !ok {
+		return
+	}
+	var request previewBackupRequest
+	if err := decodeStrictJSON(c, &request); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
+		return
+	}
+	setAuditTarget(c, "BackupPlan", request.BackupNamespace, request.BackupName)
+	metadata, _ := requestctx.MetadataFrom(c.Request.Context())
+	plan, err := h.service.Preview(c.Request.Context(), clusterID, backup.Request{
+		BackupName:              strings.TrimSpace(request.BackupName),
+		BackupNamespace:         strings.TrimSpace(request.BackupNamespace),
+		IncludedNamespaces:      request.IncludedNamespaces,
+		StorageLocation:         strings.TrimSpace(request.StorageLocation),
+		TTL:                     strings.TrimSpace(request.TTL),
+		IncludeClusterResources: request.IncludeClusterResources,
+		SnapshotVolumes:         request.SnapshotVolumes,
+		LabelSelector:           request.LabelSelector,
+	}, backup.ActorRef{ID: metadata.ActorID, Name: metadata.ActorDisplayName})
+	if err == nil {
+		setAuditClusterID(c, clusterID)
+		setAuditTarget(c, "BackupPlan", plan.BackupNamespace, plan.ID)
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusCreated, backup.Response(plan))
+		return
+	}
+	setAuditClusterID(c, clusterID)
+	h.writeError(c, err, "unable to preview backup")
+}
+
+func (h backupHandler) execute(c *gin.Context) {
+	planID := strings.TrimSpace(c.Param("plan_id"))
+	var request executeBackupRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "confirmation_token is required")
+		return
+	}
+	idempotencyKey := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if idempotencyKey == "" {
+		writeError(c, http.StatusBadRequest, "INVALID_IDEMPOTENCY_KEY", "Idempotency-Key header is required")
+		return
+	}
+	setAuditTarget(c, "BackupPlan", "", planID)
+	plan, err := h.service.Execute(c.Request.Context(), planID, request.ConfirmationToken, idempotencyKey)
+	if err == nil {
+		setAuditClusterID(c, plan.ClusterID)
+		setAuditTarget(c, "BackupPlan", plan.BackupNamespace, plan.ID)
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusOK, backup.Response(plan))
+		return
+	}
+	if plan.ClusterID > 0 {
+		setAuditClusterID(c, plan.ClusterID)
+	}
+	h.writeError(c, err, "unable to execute backup")
+}
+
+func (h backupHandler) list(c *gin.Context) {
+	clusterID, ok := clusterID(c)
+	if !ok {
+		return
+	}
+	plans, err := h.service.List(c.Request.Context(), clusterID)
+	if err != nil {
+		h.writeError(c, err, "unable to list backup plans")
+		return
+	}
+	items := make([]backup.PlanResponse, 0, len(plans))
+	for _, plan := range plans {
+		items = append(items, backup.Response(plan))
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
+}
+
+func (h backupHandler) writeError(c *gin.Context, err error, fallback string) {
+	switch {
+	case errors.Is(err, backup.ErrInvalidRequest):
+		writeError(c, http.StatusBadRequest, "INVALID_BACKUP_REQUEST", "backup request parameters are invalid")
+	case errors.Is(err, backup.ErrVeleroNotInstalled):
+		writeError(c, http.StatusUnprocessableEntity, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
+	case errors.Is(err, backup.ErrStorageLocationNotFound):
+		writeError(c, http.StatusBadRequest, "STORAGE_LOCATION_NOT_FOUND", "backup storage location not found")
+	case errors.Is(err, backup.ErrBackupNameConflict):
+		writeError(c, http.StatusConflict, "BACKUP_NAME_CONFLICT", "backup name already exists on the target cluster")
+	case errors.Is(err, backup.ErrConfirmationInvalid):
+		writeError(c, http.StatusForbidden, "BACKUP_CONFIRMATION_INVALID", "backup confirmation is invalid")
+	case errors.Is(err, backup.ErrInvalidIdempotency):
+		writeError(c, http.StatusBadRequest, "INVALID_IDEMPOTENCY_KEY", "idempotency key is invalid")
+	case errors.Is(err, backup.ErrExpired):
+		writeError(c, http.StatusGone, "BACKUP_EXPIRED", "backup plan has expired")
+	case errors.Is(err, backup.ErrInProgress):
+		writeError(c, http.StatusConflict, "BACKUP_IN_PROGRESS", "backup execution is in progress")
+	case errors.Is(err, backup.ErrAlreadyExecuted):
+		writeError(c, http.StatusConflict, "BACKUP_ALREADY_USED", "backup plan already used with another idempotency key")
+	case errors.Is(err, backup.ErrExecutionFailed):
+		writeError(c, http.StatusBadGateway, "BACKUP_FAILED", "backup execution failed")
+	case errors.Is(err, backup.ErrNotFound):
+		writeError(c, http.StatusNotFound, "BACKUP_PLAN_NOT_FOUND", "backup plan not found")
+	default:
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", fallback)
+	}
+}

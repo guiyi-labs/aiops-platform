@@ -8,23 +8,29 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap/zaptest"
 	"gopkg.in/yaml.v3"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
+	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/audit"
 	"k8s-aiops.local/backend/internal/auth"
+	"k8s-aiops.local/backend/internal/backup"
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/fleet"
 	"k8s-aiops.local/backend/internal/globalsearch"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/metricshistory"
+	"k8s-aiops.local/backend/internal/namespaceposture"
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
+	"k8s-aiops.local/backend/internal/restore"
 )
 
 type openAPIDocument struct {
@@ -46,21 +52,26 @@ func TestRegisteredRoutesMatchOpenAPI(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	engine, ok := New(zaptest.NewLogger(t), Options{
-		Probe:          probeStub{},
-		Auth:           &auth.Service{},
-		Clusters:       &cluster.Service{},
-		Kubernetes:     &k8sgateway.Service{},
-		Diagnosis:      &diagnosis.Service{},
-		Audit:          &audit.Service{},
-		AIExplanation:  &aiexplain.Service{},
-		Notifications:  notification.NewService(notification.ServiceConfig{}, nil, nil),
-		Remediation:    remediation.NewService(nil, nil, nil),
-		Promotion:      promotion.NewService(nil, nil),
-		Fleet:          fleet.NewService(fleet.Config{}, nil, nil),
-		GlobalSearch:   globalsearch.NewService(globalsearch.Config{}, nil, nil),
-		SavedFilters:   globalsearch.NewSavedFilterService(nil),
-		MetricsHistory: mustMetricsHistoryService(t),
-		Version:        "route-contract-test",
+		Probe:            probeStub{},
+		Auth:             &auth.Service{},
+		Clusters:         &cluster.Service{},
+		Kubernetes:       &k8sgateway.Service{},
+		Diagnosis:        &diagnosis.Service{},
+		Audit:            &audit.Service{},
+		AIExplanation:    &aiexplain.Service{},
+		Notifications:    notification.NewService(notification.ServiceConfig{}, nil, nil),
+		Remediation:      remediation.NewService(nil, nil, nil),
+		Promotion:        promotion.NewService(nil, nil),
+		Fleet:            fleet.NewService(fleet.Config{}, nil, nil),
+		GlobalSearch:     globalsearch.NewService(globalsearch.Config{}, nil, nil),
+		SavedFilters:     globalsearch.NewSavedFilterService(nil),
+		MetricsHistory:   mustMetricsHistoryService(t),
+		Alert:            mustAlertService(t),
+		Backup:           backup.NewService(nil, nil),
+		Maintenance:      maintenance.NewService(nil, nil),
+		NamespacePosture: namespaceposture.NewService(nil),
+		Restore:          restore.NewService(nil, nil),
+		Version:          "route-contract-test",
 	}).(*gin.Engine)
 	if !ok {
 		t.Fatal("http server is not a gin engine")
@@ -95,6 +106,11 @@ func mustMetricsHistoryService(t *testing.T) *metricshistory.Service {
 		t.Fatalf("create metrics history service: %v", err)
 	}
 	return service
+}
+
+func mustAlertService(t *testing.T) *alert.Service {
+	t.Helper()
+	return alert.NewService(nil, nil, nil, 60*time.Second)
 }
 
 func repositoryRoot(t *testing.T) string {

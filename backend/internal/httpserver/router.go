@@ -8,39 +8,49 @@ import (
 	"go.uber.org/zap"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
+	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/audit"
 	"k8s-aiops.local/backend/internal/auth"
+	"k8s-aiops.local/backend/internal/backup"
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/fleet"
 	"k8s-aiops.local/backend/internal/globalsearch"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/metricshistory"
+	"k8s-aiops.local/backend/internal/namespaceposture"
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/requestctx"
+	"k8s-aiops.local/backend/internal/restore"
 )
 
 type Options struct {
-	Probe          readinessProbe
-	Auth           *auth.Service
-	Clusters       *cluster.Service
-	Kubernetes     *k8sgateway.Service
-	Diagnosis      *diagnosis.Service
-	Audit          *audit.Service
-	AIExplanation  *aiexplain.Service
-	SecureCookies  bool
-	RefreshTTL     time.Duration
-	Version        string
-	Metrics        *Metrics
-	Notifications  *notification.Service
-	Remediation    *remediation.Service
-	Fleet          *fleet.Service
-	GlobalSearch   *globalsearch.Service
-	SavedFilters   *globalsearch.SavedFilterService
-	MetricsHistory *metricshistory.Service
-	Promotion      *promotion.Service
+	Probe            readinessProbe
+	Auth             *auth.Service
+	Clusters         *cluster.Service
+	Kubernetes       *k8sgateway.Service
+	Diagnosis        *diagnosis.Service
+	Audit            *audit.Service
+	AIExplanation    *aiexplain.Service
+	SecureCookies    bool
+	RefreshTTL       time.Duration
+	Version          string
+	Metrics          *Metrics
+	Notifications    *notification.Service
+	Remediation      *remediation.Service
+	Fleet            *fleet.Service
+	GlobalSearch     *globalsearch.Service
+	SavedFilters     *globalsearch.SavedFilterService
+	MetricsHistory   *metricshistory.Service
+	Promotion        *promotion.Service
+	Alert            *alert.Service
+	Backup           *backup.Service
+	Maintenance      *maintenance.Service
+	NamespacePosture *namespaceposture.Service
+	Restore          *restore.Service
 }
 
 func New(logger *zap.Logger, options Options) http.Handler {
@@ -185,6 +195,11 @@ func New(logger *zap.Logger, options Options) http.Handler {
 				resourceRoutes.GET("/velero/capability", resourcesAPI.veleroCapability)
 				resourceRoutes.GET("/backups", resourcesAPI.backups)
 				resourceRoutes.GET("/backups/:namespace/:name", resourcesAPI.backup)
+				if options.NamespacePosture != nil {
+					postureAPI := namespacePostureHandler{service: options.NamespacePosture}
+					resourceRoutes.GET("/namespace-postures", postureAPI.list)
+					resourceRoutes.GET("/namespace-postures/:namespace", postureAPI.get)
+				}
 				if options.Diagnosis != nil {
 					diagnosisAPI := diagnosisHandler{service: options.Diagnosis, users: options.Auth}
 					resourceRoutes.POST("/diagnoses", diagnosisAPI.create)
@@ -211,6 +226,39 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						v1.POST("/promotions/preview", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), promotionAPI.preview)
 						v1.GET("/promotions/:promotion_id", withAuthentication(options.Auth), promotionAPI.get)
 						v1.POST("/promotions/:promotion_id/execute", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), promotionAPI.execute)
+					}
+					if options.Alert != nil {
+						alertAPI := alertHandler{service: options.Alert, users: options.Auth}
+						alertRuleRoutes := v1.Group("/clusters/:cluster_id/alert-rules", withAuthentication(options.Auth), withClusterContext())
+						alertRuleRoutes.GET("", alertAPI.listRules)
+						alertRuleRoutes.POST("", requireRoles(auth.SystemAdmin, auth.OperationsAdmin), alertAPI.createRule)
+						alertRuleRoutes.GET("/:rule_id", alertAPI.getRule)
+						alertRuleRoutes.PATCH("/:rule_id", requireRoles(auth.SystemAdmin, auth.OperationsAdmin), alertAPI.patchRule)
+						alertRuleRoutes.DELETE("/:rule_id", requireRoles(auth.SystemAdmin, auth.OperationsAdmin), alertAPI.deleteRule)
+						alertRoutes := v1.Group("/clusters/:cluster_id/alerts", withAuthentication(options.Auth), withClusterContext())
+						alertRoutes.GET("", alertAPI.listInstances)
+						alertRoutes.GET("/:alert_id", alertAPI.getInstance)
+					}
+					if options.Backup != nil {
+						backupAPI := backupHandler{service: options.Backup}
+						backupPlanRoutes := v1.Group("/clusters/:cluster_id/backup-plans", withAuthentication(options.Auth), withClusterContext())
+						backupPlanRoutes.GET("", backupAPI.list)
+						backupPlanRoutes.POST("/preview", requireRoles(auth.SystemAdmin, auth.OperationsAdmin), backupAPI.preview)
+						v1.POST("/backup-plans/:plan_id/execute", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), backupAPI.execute)
+					}
+					if options.Maintenance != nil {
+						maintAPI := maintenanceHandler{service: options.Maintenance}
+						maintRoutes := v1.Group("/clusters/:cluster_id/maintenance-plans", withAuthentication(options.Auth), withClusterContext())
+						maintRoutes.GET("", maintAPI.list)
+						maintRoutes.POST("/preview", requireRoles(auth.SystemAdmin, auth.OperationsAdmin), maintAPI.preview)
+						v1.POST("/maintenance-plans/:plan_id/execute", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), maintAPI.execute)
+					}
+					if options.Restore != nil {
+						restoreAPI := restoreHandler{service: options.Restore}
+						restoreRoutes := v1.Group("/clusters/:cluster_id/restore-plans", withAuthentication(options.Auth), withClusterContext())
+						restoreRoutes.GET("", restoreAPI.list)
+						restoreRoutes.POST("/preview", requireRoles(auth.SystemAdmin, auth.OperationsAdmin), restoreAPI.preview)
+						v1.POST("/restore-plans/:plan_id/execute", withAuthentication(options.Auth), requireRoles(auth.SystemAdmin, auth.OperationsAdmin), restoreAPI.execute)
 					}
 					if options.AIExplanation != nil {
 						aiAPI := aiExplanationHandler{service: options.AIExplanation}

@@ -18,6 +18,40 @@ M22 is covered by the current backend, frontend and production-build gates;
 its read-only resource/log/manifest scope is archived in
 `docs/changes/2026-07-30-m22-daily-troubleshooting-and-governance-workbench.md`.
 
+## 2026-07-30 M27-M32 Closure Addendum
+
+This addendum is authoritative for the M27-M32 development route; it closes
+the committed development work as "development complete". Real-kind E2E and
+external organization gates are deferred with documented re-entry conditions
+(see `docs/changes/2026-07-30-m32-formal-closure.md`).
+
+| Gate | Evidence | Accepted result |
+|---|---|---|
+| Fast repository gate | `scripts/verify-fast.ps1 -Scope All` | Passed in 29.85s (re-verified after test-matrix fix); 26 backend packages (alert 15, backup 13, namespaceposture 10, maintenance 40+, restore 40+ unit tests), 73 frontend tests/17 files, Compose/Kustomize contracts |
+| Full repository gate | `.artifacts/verification/verify-20260730-202934.json` | Passed in 227.76s; backend ready, frontend 200, 3 healthy Compose services (postgres/backend/frontend) |
+| OpenAPI ↔ Router parity | `docs/api/openapi.yaml`; `backend/internal/httpserver/openapi_route_test.go` | Audit found 11 missing M28-M31 routes; fixed in this revision; contract test stubs added for Backup/Maintenance/NamespacePosture/Restore |
+| Migrations parity | `backend/migrations/000020`-`000023` | 23 up/down pairs; latest applied is 000023 (M31 isolated restore rehearsal); no orphans |
+| RBAC parity | M27-M31 HTTP handlers | All mutate endpoints require SystemAdmin/OperationsAdmin; list/read endpoints intentionally relaxed; M29 read-only by design |
+| Audit-action parity | `backend/internal/httpserver/audit.go` | M27 (alert_rule.*), M28 (backup.*), M30 (maintenance.*), M31 (restore.*) registered; M29 read-only by design |
+| M27 real kind | `scripts/e2e-m27-alert-lifecycle-kind.ps1` | Deferred — Docker network isolation (Compose containers cannot reach host kind API) |
+| M28 real kind | — | Deferred — Velero controller not installed in default kind |
+| M29 real kind | — | Deferred for time; feasible with fresh kind (Namespace/ResourceQuota/workloads available by default) |
+| M30 real kind | — | Deferred — default kind has only one worker Node; needs ≥2 |
+| M31 real kind | — | Deferred — Velero not installed; no completed M28 Backup prerequisite |
+| Browser screenshot recapture | `docs/thesis/screenshots/` | Deferred to M32.5 step (criterion 5 of project-end checklist) |
+| Remote CI + tag/release | — | Deferred — requires user-authorized push to private remote |
+
+No skipped suite is reported as passed. Each milestone's fast gate (unit
+tests + contract tests) is green. The M27-M32 ADRs (0043-0047) and per-milestone
+closure records are the authoritative scope boundaries:
+
+- `docs/changes/2026-07-30-m27-alert-lifecycle.md`
+- `docs/changes/2026-07-30-m28-controlled-backup-creation.md`
+- `docs/changes/2026-07-31-m29-namespace-posture.md`
+- `docs/changes/2026-07-30-m30-controlled-node-maintenance.md`
+- `docs/changes/2026-07-30-m31-isolated-workload-restore-rehearsal.md`
+- `docs/changes/2026-07-30-m32-formal-closure.md`
+
 更新时间：2026-07-27
 
 测试结论以本轮命令输出和 `.artifacts/` 中的脱敏证据为准。未实际执行的环境测试不得标记为通过。

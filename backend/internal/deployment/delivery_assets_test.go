@@ -68,6 +68,15 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"frontend/src/components/MetricsHistoryPanel.vue": {
 			"资源趋势", "缺失采集不会补零", "coverage.missing", "response.truncated",
 		},
+		"docs/agent-start-here.md": {
+			"Current Baseline", "Read Order", "First 30 Minutes", "Non-Negotiable Invariants",
+		},
+		"docs/new-environment-bootstrap.md": {
+			"Supported Target", "Fresh Clone", "Acceptance Ladder", "Known Recovery Procedures",
+		},
+		"docs/project-vision-and-delivery-standards.md": {
+			"North Star", "Roadmap", "Definition of Ready", "Definition of Done", "Evidence Standard",
+		},
 		".env.example": {"CREDENTIAL_DECRYPTION_KEYS={}"},
 		"docs/adr/0030-controlled-application-credential-key-reencryption.md": {
 			"defaults to dry-run", "FOR UPDATE SKIP LOCKED", "at most eight", "does not introduce envelope encryption",

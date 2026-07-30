@@ -514,7 +514,7 @@ paths:
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: path, required: true, schema: { type: string } }]
       responses:
-        '200': { description: Namespace posture summary, content: { application/json: { schema: { type: object } } } }
+        '200': { description: Namespace posture with fixed risk findings and source citations, content: { application/json: { schema: { $ref: '#/components/schemas/NamespacePosture' } } } }
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
@@ -533,11 +533,22 @@ paths:
     post:
       tags: [backup]
       summary: Preview a Velero backup plan
-      description: Runs preflight checks (Velero installed, BSL exists, name available, server-side dry-run) and persists an awaiting-confirmation plan with a one-time confirmation token.
+      description: Generates the Backup name and Velero control namespace server-side, verifies the exact source Namespace identity and an Available BSL, and dry-runs a fixed single-Namespace Backup with cluster resources, selectors and volume snapshots disabled.
       operationId: previewBackupPlan
       security: [{ bearerAuth: [] }]
       parameters: [{ $ref: '#/components/parameters/ClusterID' }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [source_namespace, storage_location]
+              properties:
+                source_namespace: { type: string, minLength: 1, maxLength: 63 }
+                storage_location: { type: string, minLength: 1, maxLength: 253 }
+                ttl: { type: string, enum: [24h, 168h, 720h], default: 720h }
       responses:
         '201': { description: Backup plan awaiting confirmation, content: { application/json: { schema: { type: object } } } }
         '400': { $ref: '#/components/responses/Error' }
@@ -548,7 +559,7 @@ paths:
     post:
       tags: [backup]
       summary: Execute a backup plan
-      description: Claims the plan with a one-time confirmation token and an Idempotency-Key header, then creates the Velero Backup CR. Same-key replay returns the same plan without re-mutating.
+      description: Claims the plan, rechecks the source Namespace UID/resourceVersion and Available BSL, creates exactly one fixed-scope Backup, and persists the returned Backup UID/resourceVersion. Same-key replay is mutation-free.
       operationId: executeBackupPlan
       security: [{ bearerAuth: [] }]
       parameters: [{ name: plan_id, in: path, required: true, schema: { type: string } }, { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 8, maxLength: 128 } }]
@@ -950,14 +961,19 @@ components:
     VeleroBackup:
       type: object
       additionalProperties: false
-      required: [name, namespace, phase, errors, warnings, created_at]
+      required: [name, namespace, uid, resource_version, phase, has_label_selector, errors, warnings, created_at]
       properties:
         name: { type: string, maxLength: 253 }
         namespace: { type: string, maxLength: 63 }
+        uid: { type: string }
+        resource_version: { type: string }
         phase: { type: string, description: Velero backup phase, e.g. Completed, Failed, InProgress, PartiallyFailed }
         included_namespaces: { type: array, items: { type: string }, description: Bounded scope of the backup }
         storage_location: { type: string }
         ttl: { type: string, description: Backup retention duration as a Go duration string, e.g. 720h }
+        include_cluster_resources: { type: boolean }
+        snapshot_volumes: { type: boolean }
+        has_label_selector: { type: boolean }
         expiration: { type: string, format: date-time, nullable: true }
         started_at: { type: string, format: date-time, nullable: true }
         completed_at: { type: string, format: date-time, nullable: true }
@@ -974,6 +990,40 @@ components:
         total: { type: integer, minimum: 0 }
         page: { type: integer, minimum: 1 }
         limit: { type: integer, minimum: 1, maximum: 100 }
+    NamespacePosture:
+      type: object
+      required: [name, phase, resource_quotas, limit_ranges, workloads, pods, pdbs, node_capacity, partial_sections, overall_state, findings]
+      properties:
+        name: { type: string }
+        phase: { type: string }
+        resource_quotas: { type: object }
+        limit_ranges: { type: object }
+        workloads: { type: object }
+        pods: { type: object }
+        pdbs: { type: object }
+        node_capacity: { type: object }
+        partial_sections: { type: array, items: { type: string } }
+        overall_state: { type: string, enum: [healthy, warning, critical, incomplete] }
+        findings:
+          type: array
+          items:
+            type: object
+            required: [code, severity, summary, resource, observed_at]
+            properties:
+              code: { type: string, enum: [MISSING_QUOTA, EXHAUSTED_QUOTA, QUOTA_PRESSURE, MISSING_LIMIT_RANGE_DEFAULTS, MISSING_CONTAINER_REQUESTS, MISSING_CONTAINER_LIMITS, BEST_EFFORT_WORKLOAD, NO_MATCHING_PDB, BLOCKED_PDB_DISRUPTIONS, NODE_UNSCHEDULABLE, NODE_PRESSURE, REQUESTED_CAPACITY_THRESHOLD, INCOMPLETE_EVIDENCE] }
+              severity: { type: string, enum: [info, warning, critical] }
+              summary: { type: string }
+              resource:
+                type: object
+                required: [kind, name]
+                properties:
+                  kind: { type: string }
+                  namespace: { type: string }
+                  name: { type: string }
+                  uid: { type: string }
+                  resource_version: { type: string }
+              details: { type: object, additionalProperties: { type: string } }
+              observed_at: { type: string, format: date-time }
     AlertRuleCreate:
       type: object
       additionalProperties: false

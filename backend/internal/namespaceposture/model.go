@@ -4,6 +4,7 @@ import (
 	"time"
 
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // SourceStatus describes the completeness of evidence for one posture section.
@@ -83,6 +84,17 @@ type PodSummary struct {
 	ByPhase         []PodPhaseCount  `json:"by_phase"`
 	ByNode          []PodNodeSpread  `json:"by_node"`
 	UniqueNodeCount int32            `json:"unique_node_count"`
+	Items           []PodPolicyEntry `json:"items"`
+}
+
+type PodPolicyEntry struct {
+	Name            string                    `json:"name"`
+	UID             string                    `json:"uid"`
+	ResourceVersion string                    `json:"resource_version"`
+	Labels          map[string]string         `json:"labels,omitempty"`
+	OwnerKind       string                    `json:"owner_kind,omitempty"`
+	OwnerName       string                    `json:"owner_name,omitempty"`
+	Containers      []k8sgateway.PodContainer `json:"containers"`
 }
 
 // ResourceQuotaEntry flattens one ResourceQuota's hard/used map into a
@@ -118,13 +130,16 @@ type LimitRangePosture struct {
 // that requires exact label-set matching and is the responsibility of
 // diagnosis rules.
 type PDBEntry struct {
-	Name               string `json:"name"`
-	MinAvailable       string `json:"min_available,omitempty"`
-	MaxUnavailable     string `json:"max_unavailable,omitempty"`
-	CurrentHealthy     int32  `json:"current_healthy"`
-	DesiredHealthy     int32  `json:"desired_healthy"`
-	DisruptionsAllowed int32  `json:"disruptions_allowed"`
-	ExpectedPods       int32  `json:"expected_pods"`
+	Name               string                `json:"name"`
+	UID                string                `json:"uid"`
+	ResourceVersion    string                `json:"resource_version"`
+	Selector           *metav1.LabelSelector `json:"selector,omitempty"`
+	MinAvailable       string                `json:"min_available,omitempty"`
+	MaxUnavailable     string                `json:"max_unavailable,omitempty"`
+	CurrentHealthy     int32                 `json:"current_healthy"`
+	DesiredHealthy     int32                 `json:"desired_healthy"`
+	DisruptionsAllowed int32                 `json:"disruptions_allowed"`
+	ExpectedPods       int32                 `json:"expected_pods"`
 }
 
 type PDBPosture struct {
@@ -139,10 +154,13 @@ type PDBPosture struct {
 // Namespace share of cluster capacity because that would require scheduler-
 // semantic inference (QoS class, preemption, overcommit) that we refuse.
 type NodeCapacityEntry struct {
-	Name        string            `json:"name"`
-	Capacity    map[string]string `json:"capacity,omitempty"`
-	Allocatable map[string]string `json:"allocatable,omitempty"`
-	Schedulable bool              `json:"schedulable"`
+	Name            string            `json:"name"`
+	Capacity        map[string]string `json:"capacity,omitempty"`
+	Allocatable     map[string]string `json:"allocatable,omitempty"`
+	Schedulable     bool              `json:"schedulable"`
+	Pressure        []string          `json:"pressure,omitempty"`
+	UID             string            `json:"uid"`
+	ResourceVersion string            `json:"resource_version"`
 }
 
 type NodeCapacityPosture struct {
@@ -176,7 +194,51 @@ type NamespacePosture struct {
 	// PartialSections lists the section names where evidence is NOT
 	// complete. Operators and UIs can key on this to show warnings
 	// without having to inspect each EvidenceCitation.Status field.
-	PartialSections []string `json:"partial_sections"`
+	PartialSections []string  `json:"partial_sections"`
+	OverallState    string    `json:"overall_state"`
+	Findings        []Finding `json:"findings"`
+}
+
+const (
+	StateHealthy    = "healthy"
+	StateWarning    = "warning"
+	StateCritical   = "critical"
+	StateIncomplete = "incomplete"
+
+	SeverityInfo     = "info"
+	SeverityWarning  = "warning"
+	SeverityCritical = "critical"
+
+	CodeMissingQuota             = "MISSING_QUOTA"
+	CodeExhaustedQuota           = "EXHAUSTED_QUOTA"
+	CodeQuotaPressure            = "QUOTA_PRESSURE"
+	CodeMissingLimitDefaults     = "MISSING_LIMIT_RANGE_DEFAULTS"
+	CodeMissingContainerRequests = "MISSING_CONTAINER_REQUESTS"
+	CodeMissingContainerLimits   = "MISSING_CONTAINER_LIMITS"
+	CodeBestEffortWorkload       = "BEST_EFFORT_WORKLOAD"
+	CodeNoMatchingPDB            = "NO_MATCHING_PDB"
+	CodeBlockedPDB               = "BLOCKED_PDB_DISRUPTIONS"
+	CodeNodeUnschedulable        = "NODE_UNSCHEDULABLE"
+	CodeNodePressure             = "NODE_PRESSURE"
+	CodeRequestedCapacity        = "REQUESTED_CAPACITY_THRESHOLD"
+	CodeIncompleteEvidence       = "INCOMPLETE_EVIDENCE"
+)
+
+type ResourceCitation struct {
+	Kind            string `json:"kind"`
+	Namespace       string `json:"namespace,omitempty"`
+	Name            string `json:"name"`
+	UID             string `json:"uid,omitempty"`
+	ResourceVersion string `json:"resource_version,omitempty"`
+}
+
+type Finding struct {
+	Code       string            `json:"code"`
+	Severity   string            `json:"severity"`
+	Summary    string            `json:"summary"`
+	Resource   ResourceCitation  `json:"resource"`
+	Details    map[string]string `json:"details,omitempty"`
+	ObservedAt string            `json:"observed_at"`
 }
 
 type PostureListEntry struct {

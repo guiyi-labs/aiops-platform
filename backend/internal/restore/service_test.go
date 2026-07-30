@@ -3,6 +3,7 @@ package restore
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -161,6 +162,12 @@ func (r *repositoryStub) List(context.Context, int64) ([]Plan, error) {
 }
 
 func (r *repositoryStub) Claim(context.Context, string, []byte, string, time.Time, time.Time) (Plan, bool, error) {
+	if r.claimed.SourceBackupUID == "" {
+		r.claimed.SourceBackupUID = "backup-uid-1"
+	}
+	if r.claimed.SourceBackupResourceVersion == "" {
+		r.claimed.SourceBackupResourceVersion = "42"
+	}
 	return r.claimed, r.shouldExecute, r.claimErr
 }
 
@@ -201,11 +208,16 @@ func makeService(kube *kubernetesStub, repo *repositoryStub) *Service {
 }
 
 func completedBackup() k8sgateway.VeleroBackup {
+	disabled := false
 	return k8sgateway.VeleroBackup{
-		Name:               "weekly-backup",
-		Namespace:          "velero",
-		Phase:              PhaseCompleted,
-		IncludedNamespaces: []string{"app"},
+		Name:                    "weekly-backup",
+		Namespace:               "velero",
+		UID:                     "backup-uid-1",
+		ResourceVersion:         "42",
+		Phase:                   PhaseCompleted,
+		IncludedNamespaces:      []string{"app"},
+		IncludeClusterResources: &disabled,
+		SnapshotVolumes:         &disabled,
 	}
 }
 
@@ -370,8 +382,8 @@ func TestPreview_RestoreDryRunFailed(t *testing.T) {
 	kube := &kubernetesStub{
 		capInstalled: true,
 		backup:       completedBackup(),
-		// First two creates (quarantine NP + RQ) succeed; third (restore) fails.
-		createErrOnCall: map[int]error{3: errors.New("restore forbidden")},
+		// Namespace, quarantine NP and RQ dry-runs succeed; Restore fails.
+		createErrOnCall: map[int]error{4: errors.New("restore forbidden")},
 	}
 	svc := makeService(kube, &repositoryStub{})
 	_, err := svc.Preview(context.Background(), 1, Request{SourceBackupName: "weekly-backup", SourceBackupNamespace: "velero"}, ActorRef{ID: 1, Name: "alice"})
@@ -398,6 +410,9 @@ func TestPreview_Success(t *testing.T) {
 	if plan.SourceBackupName != "weekly-backup" {
 		t.Errorf("SourceBackupName = %q", plan.SourceBackupName)
 	}
+	if plan.SourceBackupUID != "backup-uid-1" || plan.SourceBackupResourceVersion != "42" {
+		t.Errorf("source identity = %q/%q", plan.SourceBackupUID, plan.SourceBackupResourceVersion)
+	}
 	if plan.DestinationNamespace == "" {
 		t.Error("DestinationNamespace should be generated")
 	}
@@ -410,14 +425,34 @@ func TestPreview_Success(t *testing.T) {
 	if !plan.QuarantineStatus.DryRunValidated {
 		t.Error("DryRunValidated should be true")
 	}
-	// Three dry-runs: NP, RQ, Restore.
-	if len(kube.createDryRuns) != 3 {
-		t.Fatalf("expected 3 dry-run creates, got %d", len(kube.createDryRuns))
+	// Four dry-runs: destination Namespace, NP and RQ schemas in the existing
+	// Velero Namespace, then the Restore.
+	if len(kube.createDryRuns) != 4 {
+		t.Fatalf("expected 4 dry-run creates, got %d", len(kube.createDryRuns))
 	}
 	for i, dry := range kube.createDryRuns {
 		if !dry {
 			t.Errorf("create %d should be dry-run", i)
 		}
+	}
+	if kube.createPaths[0] != "/api/v1/namespaces" ||
+		!strings.Contains(kube.createPaths[1], "/namespaces/velero/networkpolicies") ||
+		!strings.Contains(kube.createPaths[2], "/namespaces/velero/resourcequotas") {
+		t.Fatalf("quarantine dry-run paths = %#v", kube.createPaths[:3])
+	}
+	var restoreManifest struct {
+		Spec struct {
+			NamespaceMapping map[string]string `json:"namespaceMapping"`
+		} `json:"spec"`
+	}
+	if err := json.Unmarshal(kube.createBodies[3], &restoreManifest); err != nil {
+		t.Fatalf("decode restore dry-run manifest: %v", err)
+	}
+	if got := restoreManifest.Spec.NamespaceMapping["app"]; got != plan.DestinationNamespace {
+		t.Fatalf("namespaceMapping source must be backup namespace, got %#v", restoreManifest.Spec.NamespaceMapping)
+	}
+	if _, wrong := restoreManifest.Spec.NamespaceMapping["weekly-backup"]; wrong {
+		t.Fatal("namespaceMapping must not use the Backup name as a namespace")
 	}
 	if repo.saved == nil {
 		t.Fatal("plan not saved")
@@ -554,6 +589,18 @@ func TestExecute_StaleSource(t *testing.T) {
 	_, err := svc.Execute(context.Background(), "plan-1", "token", "idem-key1")
 	if !errors.Is(err, ErrStaleSource) {
 		t.Fatalf("want ErrStaleSource, got %v", err)
+	}
+}
+
+func TestExecute_StaleSourceResourceVersion(t *testing.T) {
+	plan := Plan{ID: "plan-1", ClusterID: 1, Status: StatusExecuting, SourceBackupName: "weekly-backup", SourceBackupNamespace: "velero", SourceBackupUID: "backup-uid-1", SourceBackupResourceVersion: "42", DestinationNamespace: "restore-weekly-backup-7", VeleroRestoreName: "rehearse-restore-weekly-backup-7", VeleroRestoreNamespace: "velero"}
+	backup := completedBackup()
+	backup.ResourceVersion = "43"
+	kube := &kubernetesStub{backup: backup}
+	repo := &repositoryStub{claimed: plan, shouldExecute: true}
+	_, err := makeService(kube, repo).Execute(context.Background(), "plan-1", "token", "idem-key1")
+	if !errors.Is(err, ErrStaleSource) || kube.createCalled != 0 {
+		t.Fatalf("changed Backup resourceVersion must fail before mutation: err=%v creates=%d", err, kube.createCalled)
 	}
 }
 

@@ -49,12 +49,11 @@ The source Backup must:
 
 - Exist in the target cluster (Velero `backups.velero.io`)
 - Be in `Completed` phase
-- Have exactly one included namespace (M28 enforces single-namespace scope)
+- Have exactly one included namespace, `includeClusterResources=false`,
+  `snapshotVolumes=false`, and no label selector
 
-Any other phase, multi-namespace scope, or missing Backup fails the preview
-closed. Backup UID and resourceVersion are not exposed by the reviewed Velero
-projection; identity is tracked via name + namespace + phase (re-verified at
-execute time).
+Any other phase, scope, or missing identity fails preview closed. Backup UID
+and resourceVersion are captured and compared exactly at execute time.
 
 ### 4. Quarantine controls established before Restore
 
@@ -101,9 +100,16 @@ Identical to M19/ADR 0023, M28/ADR 0044 and M30/ADR 0046 pattern:
 
 - Preview returns a one-time confirmation token (SHA-256 hash stored, plaintext
   returned once and never persisted)
-- Preview performs server-side dry-runs of the quarantine controls AND the
-  Velero Restore CR to surface admission errors before confirmation
-- Preview captures source Backup name + namespace + phase as immutable evidence
+- Preview dry-runs the destination Namespace using its final generated name.
+  NetworkPolicy and ResourceQuota schemas/RBAC are dry-run validated in the
+  existing Velero control Namespace because Kubernetes rejects namespaced
+  dry-runs when the not-yet-created destination Namespace does not exist. Their
+  final manifests are otherwise identical except for `metadata.namespace`.
+  The Velero Restore CR is dry-run in `velero` with the final destination
+  `namespaceMapping`. This separates feasible admission checks without
+  weakening the execute-time creation order or quarantine contract.
+- Preview captures source Backup name, control Namespace, UID, resourceVersion,
+  phase and included source Namespace as immutable evidence
 - Execute requires the token + `Idempotency-Key` header (8–128 chars)
 - `Claim` transaction uses `SELECT FOR UPDATE` + constant-time token comparison
 - Stale lock recovery (claim TTL = 1 min), plan TTL = 10 min
@@ -112,13 +118,15 @@ Identical to M19/ADR 0023, M28/ADR 0044 and M30/ADR 0046 pattern:
 
 ### 7. Execute: re-verify, quarantine, restore, poll, project
 
-`Execute` re-verifies all preconditions (source Backup still Completed,
+`Execute` re-verifies all preconditions (the exact source Backup identity and
+M28 scope are unchanged,
 destination still absent, Restore name still available) before any mutation.
 The execution sequence is:
 
 1. Create quarantine Namespace (capture UID)
 2. Create NetworkPolicy and ResourceQuota (quarantine controls)
-3. Create exactly one Velero Restore CR (capture UID)
+3. Create exactly one Velero Restore CR whose `namespaceMapping` key is the
+   Backup's included source Namespace, never the Backup CR name (capture UID)
 4. Poll the Restore CR until terminal phase (`Completed`,
    `PartiallyFailed`, `Failed`) or bounded timeout (60 attempts × 5s = 5 min)
 5. Project restored items by listing the allowlisted kinds in the destination
@@ -199,9 +207,8 @@ destructive `danger-button` is used for the execute confirmation.
 - The `KubernetesSource` interface bounds the mutation surface to
   `CreateResource` only; no delete, update, patch, or Secret-value path exists
   in the restore package
-- Real-kind E2E requires a kind cluster with Velero installed and a completed
-  M28-compatible Backup; the E2E script is deferred to environments with this
-  configuration
+- Real-kind E2E uses a disposable kind cluster, pinned Velero and disposable
+  S3-compatible storage through `scripts/e2e-m31-isolated-restore-kind.ps1`
 - Quarantine Namespace cleanup is operator-driven; the platform does not
   auto-delete quarantine Namespaces. The `k8s-aiops.local/quarantine` label
   enables future cleanup tooling

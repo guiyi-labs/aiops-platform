@@ -1,7 +1,7 @@
 # M27: Historical Alert Lifecycle
 
 - Date: 2026-07-30
-- Status: Accepted (fast gate passed; real-kind E2E blocked by Docker network isolation, unit tests cover all acceptance criteria)
+- Status: Accepted (unit/contract gates and disposable Metrics Server real-kind E2E passed)
 - ADR: [0043-historical-alert-lifecycle.md](../adr/0043-historical-alert-lifecycle.md)
 
 ## Summary
@@ -39,6 +39,9 @@ An operations administrator can:
   - `insufficient_data`/error → updates rule health only
   - `normal` → resolves alert instance
   - Later `firing` → creates new instance and diagnosis
+  - Scheduler queries a recent bounded window derived from `for_seconds`,
+    minimum points and evaluation interval (with timestamp-jitter slack, capped
+    at 24h), so historical breaches do not delay recovery for six hours
 - `internal/alert/scheduler.go` implements bounded workers:
   - Poll interval: 15s
   - Claim batch: 20
@@ -138,12 +141,16 @@ An operations administrator can:
 - Compose and Kustomize contracts pass
 
 ### L2/L3 - Full Gate and Real-kind E2E
-- Full local gate: not executed (M27 adds no shared contract change to older milestones)
-- Real-kind E2E: **BLOCKED** by Docker network isolation
-  - kind cluster API server binds to host `127.0.0.1:<random-port>`
-  - Compose backend container cannot reach host localhost
-  - This is a known local environment limitation, not a product defect
-  - E2E script `scripts/e2e-m27-alert-lifecycle-kind.ps1` is prepared for environments without this restriction
+- `scripts/e2e-m27-alert-lifecycle-kind.ps1` — **PASSED**
+- Evidence:
+  `.artifacts/m27-alert-lifecycle-kind/m27-alert-lifecycle-kind-20260731013733-e4a6e270.json`
+- Disposable Kubernetes v1.34.0 kind used pinned Metrics Server v0.8.0 and a
+  short-lived least-privilege ServiceAccount registration reachable from the
+  Compose backend
+- Proved sustained firing, same alert/diagnosis deduplication, Metrics API
+  outage containment, soft-delete conflict, complete recent normal-window
+  resolution under controlled CPU load, disabled/resolved persistence across
+  backend restart and full cleanup
 
 ### Unit Test Coverage of Acceptance Criteria
 The following M27 acceptance criteria are covered by unit/repository tests:
@@ -166,8 +173,8 @@ The following M27 acceptance criteria are covered by unit/repository tests:
 - RBAC: backend uses least-privilege ServiceAccount tokens for Metrics API calls
 - Data: no credentials, kubeconfig, tokens, or raw metric payloads persisted in alert tables
 
-## Next Steps
+## Closure
 
-1. Execute real-kind E2E script to generate acceptance evidence
-2. Update roadmap and handoff documents after successful validation
-3. Proceed to M28 controlled Velero Backup creation
+M27 has no remaining locally executable acceptance gap. Notification routing,
+silence schedules and Pod/percentage rules remain explicit non-goals rather
+than hidden deferred work.

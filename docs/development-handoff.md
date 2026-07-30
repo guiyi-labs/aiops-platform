@@ -1,16 +1,17 @@
 # Development Handoff
 
-## Current Baseline (2026-07-30 M32 Closure)
+## Current Baseline (2026-07-31 M32 Archive)
 
-The committed M27-M32 development route is **development complete** as of
-2026-07-30. The next Agent's role is either (a) production-readiness work
-behind the deferred M26 external gates, or (b) a fresh project outside the
-scope archived in `docs/references/final-product-gap-analysis.md`.
+The locally executable M27-M32 development and acceptance route is complete.
+Continue from tag `baseline-m32-20260731`. The next Agent should either work on
+organization-authorized production gates or open a newly approved route; it
+must not silently widen the archived write contracts.
 
-- Last updated: 2026-07-30
-- Repository: `c:\BS\aiops-platform`
-- Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M27-M32 work is committed locally and pending user-authorized push
-- Current milestone: M32 formal closure accepted; project-end criteria 1-4, 6-7, 9-10 satisfied; criteria 5 (browser screenshot recapture) and 8 (green hosted CI + tag/release) deferred with explicit re-entry conditions
+- Last updated: 2026-07-31
+- Repository: `C:\BS\aiops-platform`
+- Git baseline: local `main`, tag `baseline-m32-20260731`; push/release not authorized
+- Current milestone: M32 local archive accepted; only hosted CI/release,
+  organization OIDC/MFA, PITR and HA remain external gates
 
 ### M27-M32 Closure Summary
 
@@ -21,20 +22,25 @@ scope archived in `docs/references/final-product-gap-analysis.md`.
 | M29 Namespace Governance and Capacity Posture | ✅ Accepted 2026-07-31 | `docs/changes/2026-07-31-m29-namespace-posture.md` |
 | M30 Controlled Node Maintenance | ✅ Accepted 2026-07-30 | `docs/changes/2026-07-30-m30-controlled-node-maintenance.md` |
 | M31 Isolated Workload Restore Rehearsal | ✅ Accepted 2026-07-30 | `docs/changes/2026-07-30-m31-isolated-workload-restore-rehearsal.md` |
-| M32 Formal Closure | ✅ Development Complete 2026-07-30 | `docs/changes/2026-07-30-m32-formal-closure.md` |
+| M32 Formal Closure | ✅ Final local archive 2026-07-31 | `docs/changes/2026-07-31-final-baseline-archive.md` |
 
 ### Final Gates
 
-- L1 fast gate: `scripts/verify-fast.ps1 -Scope All` passed in 28.81s (26 backend packages, 73 frontend tests/17 files, Compose/Kustomize contracts)
-- L2 full gate: `scripts/verify.ps1` passed in 227.76s (`.artifacts/verification/verify-20260730-202934.json`; backend ready, frontend 200, 3 healthy Compose services)
-- L3 real-kind E2E: deferred (per-milestone blockers documented in M32 closure record)
+- L1 fast gate: `scripts/verify-fast.ps1 -Scope All` passed in 26.17s
+- L2 full gate: `scripts/verify.ps1` passed in 97.68s
+  (`.artifacts/verification/verify-20260731-015255.json`)
+- L3 real-kind E2E: M27-M31 all passed with disposable clusters and cleanup;
+  evidence paths are listed in the final archive
+- Browser: 390x844 and 1280x720 passed without page overflow or warning/error logs
+- Race: not run because local `gcc` is unavailable; environment blocker, not pass
 - L4 remote CI: deferred (requires user-authorized push)
 
 ### M32 Audit Findings (Fixed)
 
 - OpenAPI gap: 11 M28-M31 routes were missing from `docs/api/openapi.yaml`; fixed in this revision
 - Contract test blind spot: `TestRegisteredRoutesMatchOpenAPI` did not inject Backup/Maintenance/NamespacePosture/Restore service stubs; fixed in this revision
-- All other dimensions (migrations, RBAC, audit actions, generated files) passed without changes
+- Migration 000024, bounded managed-cluster mutations, alert recovery window,
+  real dry-run feasibility and responsive shared styles were aligned and tested
 
 ### Deferred External Gates (M26)
 
@@ -49,9 +55,8 @@ See `docs/changes/2026-07-30-m32-formal-closure.md` §M26 External Gate Disposit
 
 ### Migrations Applied
 
-Migrations 000020-000023 (M27 alert lifecycle, M28 backup plans, M30 node
-maintenance, M31 restore rehearsal) are applied in the development PostgreSQL
-instance. The latest applied migration is 000023.
+Migrations 000020-000024 are applied in the development PostgreSQL instance.
+There are 24 matching up/down pairs; 000024 is the latest applied migration.
 
 ### Stable Baseline (M21-M25)
 
@@ -59,7 +64,9 @@ The M21-M25 baseline remains accepted at
 `.artifacts/verification/verify-20260730-080851.json`. Fresh real-kind evidence
 for M21/M23/M24/M25 is archived under `.artifacts/`.
 
-This section supersedes the older phase-by-phase status narrative below.
+Everything below this point is retained only as historical phase narrative;
+the 2026-07-31 section above is authoritative and supersedes older current/
+deferred statements.
 Local `main` contains the reviewed M21-M25 implementation and tracks
 `https://github.com/guiyi-labs/aiops-platform.git`. The release candidate has
 passed the fresh full repository gate at

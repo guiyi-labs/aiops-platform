@@ -100,31 +100,32 @@ Avoiding the full six-way fan-out per Namespace in `List` keeps response
 bounded to ~`namespaces × 6 lightweight count queries` rather than
 `namespaces × 6 full-list payloads`.
 
-### 5. Reviewed workload kinds only
+### 5. Reviewed workload and risk contract
 
-Aggregate five user-owned workload kinds: Deployment, StatefulSet, DaemonSet,
-Job, CronJob. ReplicaSet is explicitly excluded because it is a Deployment
-internal mechanism; the posture reports objects an operator would directly
-own and reason about. CronJobs intentionally contribute 0 desired/ready
-replicas because they have no steady-state replica dimension (they have
-active children, which the CronJob CR status already reports separately).
+Aggregate Deployment, StatefulSet, DaemonSet and CronJob as reviewed
+controllers. Jobs remain visible in counts but their Pods are not assigned
+inferred controller policy. The fixed finding codes are:
+`MISSING_QUOTA`, `EXHAUSTED_QUOTA`, `QUOTA_PRESSURE`,
+`MISSING_LIMIT_RANGE_DEFAULTS`, `MISSING_CONTAINER_REQUESTS`,
+`MISSING_CONTAINER_LIMITS`, `BEST_EFFORT_WORKLOAD`, `NO_MATCHING_PDB`,
+`BLOCKED_PDB_DISRUPTIONS`, `NODE_UNSCHEDULABLE`, `NODE_PRESSURE`,
+`REQUESTED_CAPACITY_THRESHOLD`, and `INCOMPLETE_EVIDENCE`.
 
-### 6. Explicit non-inferences (non-goals encoded in type comments)
+Quota quantities use Kubernetes Quantity parsing. PDB coverage uses the
+official LabelSelector implementation. Namespace Pod requests are compared
+with schedulable, non-pressure Node allocatable capacity at a frozen 80%
+warning threshold; this is a pressure indicator, not a schedulability claim.
 
-The posture model and view deliberately DO NOT compute or display:
+### 6. Explicit non-inferences
 
-- ResourceQuota **usage ratios** or saturation warnings — those require
-  sustained-window evidence and belong to diagnosis, not posture rollup
-- LimitRange **conflict detection** across multiple LimitRanges — Kubernetes
+The posture still does not compute:
+
+- LimitRange **conflict ordering** across multiple LimitRanges — Kubernetes
   applies them in object-creation order and that order is not observable
-- PDB **selector-match coverage** against running Pods — requires exact
-  label-set matching and is a diagnosis rule input, not posture
-- Node **share-of-cluster** attribution per Namespace — requires scheduler
-  semantic inference (QoS class, preemption, overcommit) that we refuse
+- exact scheduler placement, affinity, taints, preemption or storage binding
 - NetworkPolicy **reachability** — requires full set-based selector
   evaluation and is not posture-level information
-- Workload **ownerReferences expansion** (e.g. CronJob → Job → Pod chain) —
-  posture counts what exists, not who owns what
+- CronJob → Job → Pod owner-chain expansion
 
 ### 7. Read-only HTTP surface, no audit actions
 
@@ -157,13 +158,10 @@ governance views:
   live Kubernetes reads)
 - `httpserver.Service` gains one new constructor-injected dependency
   (`*namespaceposture.Service`) and two new handlers
-- New 10-test `namespaceposture/service_test.go` covers: required Namespace
-  metadata read, ErrResourceNotFound propagation, partial section
-  containment, workload+pod aggregation, list count summary, truncation
-  status, phase sort, copyMap isolation, stringValue numeric coercion, and
-  namespaced API path rendering
+- `namespaceposture/service_test.go` covers source containment, deterministic
+  aggregation, Quantity/risk derivation, selector coverage and incomplete
+  evidence behavior
 - Fast-verification gate: 28.56s with all backend packages (10 new tests),
   frontend typecheck, 73 frontend Vitest tests, compose/kustomize manifests
-- Real-kind E2E is straightforward (no Velero or BSL prerequisites); a
-  default kind cluster already has `default`, `kube-system`, `kube-public`
-  Namespaces with observable ResourceQuota/LimitRange/workload objects
+- Real-kind acceptance is defined in
+  `scripts/e2e-m29-governance-posture-kind.ps1`

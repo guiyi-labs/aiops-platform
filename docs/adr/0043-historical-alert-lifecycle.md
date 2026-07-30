@@ -97,6 +97,13 @@ at the database level.
 4. Complete `normal` evaluation → resolve the unresolved alert instance.
 5. Later `firing` → create a new instance and diagnosis.
 
+The scheduler evaluates a recent bounded window derived from `for_seconds`,
+`minimum_points` and the configured minimum evaluation interval, with two
+intervals of timestamp-jitter slack and a hard 24-hour cap. The historical
+evaluator may still report non-trailing sustained windows within an explicitly
+requested series, but the alert lifecycle does not query a fixed six-hour
+window that would keep a recovered alert firing for hours.
+
 The create-or-touch path is transactional. Two backend instances evaluating
 the same due rule must not create two unresolved alerts. The scheduler uses
 `SELECT ... FOR UPDATE SKIP LOCKED` on the rule row to claim due rules, and

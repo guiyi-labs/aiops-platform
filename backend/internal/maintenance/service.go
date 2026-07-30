@@ -10,9 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s-aiops.local/backend/internal/apiquery"
 	"k8s-aiops.local/backend/internal/cluster"
@@ -109,7 +113,7 @@ func (s *Service) Preview(ctx context.Context, clusterID int64, request Request,
 
 	// Server-side dry-run patch for cordon/uncordon.
 	if request.Action == ActionCordon || request.Action == ActionUncordon {
-		patch := buildNodePatch(request.Action == ActionCordon)
+		patch := buildNodePatch(request.Action == ActionCordon, node.Metadata.ResourceVersion)
 		if _, err := s.kubernetes.PatchNode(ctx, clusterID, request.NodeName, patch, true); err != nil {
 			return Plan{}, err
 		}
@@ -171,7 +175,7 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 		return failed, fmt.Errorf("%w: %v", ErrExecutionFailed, err)
 	}
 	preview := PreviewEvidence(plan.PreviewEvidence)
-	if currentNode.Metadata.UID != preview.NodeUID {
+	if currentNode.Metadata.UID != preview.NodeUID || currentNode.Metadata.ResourceVersion != preview.NodeResourceVersion {
 		failed, _ := s.repository.Fail(ctx, plan.ID, idempotencyKey, "node UID mismatch", nil)
 		return failed, ErrStaleTarget
 	}
@@ -190,7 +194,7 @@ func (s *Service) Execute(ctx context.Context, id, confirmationToken, idempotenc
 }
 
 func (s *Service) executeCordon(ctx context.Context, plan Plan, idempotencyKey string, node k8sgateway.Node) (Plan, error) {
-	patch := buildNodePatch(true)
+	patch := buildNodePatch(true, node.Metadata.ResourceVersion)
 	patched, err := s.kubernetes.PatchNode(ctx, plan.ClusterID, plan.NodeName, patch, false)
 	if err != nil {
 		failed, _ := s.repository.Fail(ctx, plan.ID, idempotencyKey, safeError(err), nil)
@@ -204,7 +208,7 @@ func (s *Service) executeCordon(ctx context.Context, plan Plan, idempotencyKey s
 }
 
 func (s *Service) executeUncordon(ctx context.Context, plan Plan, idempotencyKey string, node k8sgateway.Node) (Plan, error) {
-	patch := buildNodePatch(false)
+	patch := buildNodePatch(false, node.Metadata.ResourceVersion)
 	patched, err := s.kubernetes.PatchNode(ctx, plan.ClusterID, plan.NodeName, patch, false)
 	if err != nil {
 		failed, _ := s.repository.Fail(ctx, plan.ID, idempotencyKey, safeError(err), nil)
@@ -232,8 +236,13 @@ func (s *Service) executeDrain(ctx context.Context, plan Plan, idempotencyKey st
 
 	// Ensure node is cordoned (it should be, since preview required it).
 	if !node.Spec.Unschedulable {
-		patch := buildNodePatch(true)
-		node, _ = s.kubernetes.PatchNode(ctx, plan.ClusterID, plan.NodeName, patch, false)
+		patch := buildNodePatch(true, node.Metadata.ResourceVersion)
+		patched, patchErr := s.kubernetes.PatchNode(ctx, plan.ClusterID, plan.NodeName, patch, false)
+		if patchErr != nil {
+			failed, _ := s.repository.Fail(ctx, plan.ID, idempotencyKey, safeError(patchErr), nil)
+			return failed, fmt.Errorf("%w: %v", ErrExecutionFailed, patchErr)
+		}
+		node = patched
 	}
 
 	// Evict eligible Pods with bounded concurrency.
@@ -387,8 +396,9 @@ func isControlPlane(node k8sgateway.Node) bool {
 	if node.Metadata.Labels == nil {
 		return false
 	}
-	return node.Metadata.Labels["node-role.kubernetes.io/control-plane"] != "" ||
-		node.Metadata.Labels["node-role.kubernetes.io/master"] != ""
+	_, controlPlane := node.Metadata.Labels["node-role.kubernetes.io/control-plane"]
+	_, legacyMaster := node.Metadata.Labels["node-role.kubernetes.io/master"]
+	return controlPlane || legacyMaster
 }
 
 func classifyPod(pod k8sgateway.Pod, pdbMap map[string]k8sgateway.PodDisruptionBudget) PodEvidence {
@@ -418,6 +428,10 @@ func classifyPod(pod k8sgateway.Pod, pdbMap map[string]k8sgateway.PodDisruptionB
 		pe.Classification = PodBlocking
 		return pe
 	}
+	if ownerKind != "ReplicaSet" && ownerKind != "StatefulSet" && ownerKind != "Job" {
+		pe.Classification = PodBlocking
+		return pe
+	}
 
 	// Pods with emptyDir are blocking.
 	if pe.HasEmptyDir {
@@ -425,16 +439,33 @@ func classifyPod(pod k8sgateway.Pod, pdbMap map[string]k8sgateway.PodDisruptionB
 		return pe
 	}
 
-	// Look up PDB evidence.
-	for nsName, pdb := range pdbMap {
-		if strings.HasPrefix(nsName, pod.Metadata.Namespace+"/") {
-			pe.PDBName = pdb.Metadata.Name
-			pe.PDBDisruptionsOK = pdb.Status.DisruptionsAllowed
+	// Only PDBs whose selector matches this Pod are relevant. If multiple
+	// budgets match, Kubernetes requires every one to allow disruption.
+	matchedNames := make([]string, 0)
+	allowed := int32(0)
+	for _, pdb := range pdbMap {
+		if pdb.Metadata.Namespace != pod.Metadata.Namespace || pdb.Spec.Selector == nil {
+			continue
+		}
+		selector, err := metav1.LabelSelectorAsSelector(pdb.Spec.Selector)
+		if err != nil || !selector.Matches(labels.Set(pod.Metadata.Labels)) {
+			continue
+		}
+		matchedNames = append(matchedNames, pdb.Metadata.Name)
+		if len(matchedNames) == 1 || pdb.Status.DisruptionsAllowed < allowed {
+			allowed = pdb.Status.DisruptionsAllowed
 		}
 	}
+	sort.Strings(matchedNames)
+	pe.PDBName = strings.Join(matchedNames, ",")
+	pe.PDBDisruptionsOK = allowed
 
 	// If PDB evidence is unavailable for a managed pod, it's blocking.
 	if pe.PDBName == "" {
+		pe.Classification = PodBlocking
+		return pe
+	}
+	if pe.PDBDisruptionsOK <= 0 {
 		pe.Classification = PodBlocking
 		return pe
 	}
@@ -456,12 +487,8 @@ func ownerInfo(pod k8sgateway.Pod) (string, string) {
 }
 
 func hasEmptyDir(pod k8sgateway.Pod) bool {
-	// The Pod struct does not expose volumes in the read-only gateway.
-	// We rely on the metadata annotation or the absence of volume info.
-	// In a real implementation, we'd need to fetch the full Pod spec.
-	// For now, we use the annotation that the kubernetes gateway may set.
-	if pod.Metadata.Annotations != nil {
-		if pod.Metadata.Annotations["k8s-aiops.local/has-emptydir"] == "true" {
+	for _, volume := range pod.Spec.Volumes {
+		if volume.EmptyDir != nil {
 			return true
 		}
 	}
@@ -512,11 +539,14 @@ func classifyBlockError(evidence PreviewEvidence) error {
 	return ErrInvalidRequest
 }
 
-func buildNodePatch(unschedulable bool) []byte {
+func buildNodePatch(unschedulable bool, resourceVersion ...string) []byte {
 	patch := map[string]any{
 		"spec": map[string]any{
 			"unschedulable": unschedulable,
 		},
+	}
+	if len(resourceVersion) > 0 && resourceVersion[0] != "" {
+		patch["metadata"] = map[string]any{"resourceVersion": resourceVersion[0]}
 	}
 	body, _ := json.Marshal(patch)
 	return body

@@ -50,17 +50,15 @@ and arbitrary YAML patches do not exist.
 Every resident Pod is classified into one of three categories:
 
 - **retained** — DaemonSet-managed or mirror/static Pod. Never evicted.
-- **evictable** — managed by a controller, has no `emptyDir` volumes, and PDB
-  evidence is available (`disruptionsAllowed ≥ 0` observed).
-- **blocking** — unmanaged (no owner), uses `emptyDir`, or PDB evidence is
-  unavailable for a managed Pod.
+- **evictable** — managed by a reviewed controller, has no real
+  `spec.volumes[].emptyDir`, and every selector-matching PDB reports
+  `disruptionsAllowed > 0`.
+- **blocking** — unmanaged/unknown owner, uses `emptyDir`, has no matching PDB,
+  has a matching zero-disruption PDB, or PDB evidence is unavailable.
 
-`emptyDir` detection relies on a `k8s-aiops.local/has-emptydir` annotation
-because the reviewed kubernetes gateway exposes a bounded Pod projection
-without volume detail. The annotation is set by trusted controllers only; its
-absence does NOT imply absence of `emptyDir` — instead, a Pod whose
-classification would depend on volume info is conservatively classified
-`blocking` if any other signal is missing.
+PDB selectors are decoded as Kubernetes `metav1.LabelSelector` values and
+matched with the official selector implementation. Namespace co-location by
+itself never associates a PDB with a Pod.
 
 ### 4. Drain bounds
 
@@ -92,11 +90,13 @@ Identical to M19/ADR 0023 and M28/ADR 0044 pattern:
 
 ### 6. Drain execution: bounded eviction, no force paths
 
-`executeDrain` re-collects Pod evidence and verifies it has not widened since
-preview (`evidenceMatches`). If the Pod set changed, the plan fails with
+Execution first compares both Node UID and resourceVersion, and Node patches
+carry the expected resourceVersion. `executeDrain` re-collects Pod evidence
+and verifies it has not widened since preview (`evidenceMatches`). If the Pod set changed, the plan fails with
 `ErrStaleTarget` and the Node is NOT mutated. The Node is then ensured cordoned
 (preview required it, but the patch is re-applied defensively if the Node was
-uncordoned out-of-band).
+uncordoned out-of-band). A failed cordon is persisted as a failed plan and no
+eviction is attempted.
 
 Eviction uses `policy/v1` Eviction subresource `create` only:
 
@@ -173,8 +173,9 @@ confirmation. The route is role-gated to `system_admin` and `operations_admin`.
 - The `KubernetesSource` interface bounds the mutation surface to Node patch
   and Eviction create; no Pod delete or Node delete path exists in the
   maintenance package
-- Real-kind E2E requires a kind cluster with at least two worker Nodes and a
-  Metrics Server/PDB fixture; the `scripts/e2e-m30-node-maintenance-kind.ps1`
-  script is prepared for environments with this configuration
-- The `emptyDir` annotation dependency is a known limitation; ADR 0046 §3
-  documents the conservative fallback (blocking classification)
+- Real-kind E2E is implemented by
+  `scripts/e2e-m30-node-maintenance-kind.ps1` using a disposable two-worker
+  kind cluster and PDB/emptyDir fixtures; it proves cordon replay, safe
+  eviction, blocked unsafe drains, uncordon and complete cleanup
+- Real Pod volumes and PDB selectors are part of the bounded read projection;
+  there is no annotation-based storage safety assumption

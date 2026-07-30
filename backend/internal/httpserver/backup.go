@@ -16,14 +16,9 @@ type backupHandler struct {
 }
 
 type previewBackupRequest struct {
-	BackupName              string            `json:"backup_name" binding:"required"`
-	BackupNamespace         string            `json:"backup_namespace" binding:"required"`
-	IncludedNamespaces      []string          `json:"included_namespaces" binding:"required"`
-	StorageLocation         string            `json:"storage_location" binding:"required"`
-	TTL                     string            `json:"ttl,omitempty"`
-	IncludeClusterResources bool              `json:"include_cluster_resources,omitempty"`
-	SnapshotVolumes         bool              `json:"snapshot_volumes,omitempty"`
-	LabelSelector           map[string]string `json:"label_selector,omitempty"`
+	SourceNamespace string `json:"source_namespace" binding:"required"`
+	StorageLocation string `json:"storage_location" binding:"required"`
+	TTL             string `json:"ttl,omitempty"`
 }
 
 type executeBackupRequest struct {
@@ -40,17 +35,12 @@ func (h backupHandler) preview(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 		return
 	}
-	setAuditTarget(c, "BackupPlan", request.BackupNamespace, request.BackupName)
+	setAuditTarget(c, "BackupPlan", request.SourceNamespace, "")
 	metadata, _ := requestctx.MetadataFrom(c.Request.Context())
 	plan, err := h.service.Preview(c.Request.Context(), clusterID, backup.Request{
-		BackupName:              strings.TrimSpace(request.BackupName),
-		BackupNamespace:         strings.TrimSpace(request.BackupNamespace),
-		IncludedNamespaces:      request.IncludedNamespaces,
-		StorageLocation:         strings.TrimSpace(request.StorageLocation),
-		TTL:                     strings.TrimSpace(request.TTL),
-		IncludeClusterResources: request.IncludeClusterResources,
-		SnapshotVolumes:         request.SnapshotVolumes,
-		LabelSelector:           request.LabelSelector,
+		SourceNamespace: strings.TrimSpace(request.SourceNamespace),
+		StorageLocation: strings.TrimSpace(request.StorageLocation),
+		TTL:             strings.TrimSpace(request.TTL),
 	}, backup.ActorRef{ID: metadata.ActorID, Name: metadata.ActorDisplayName})
 	if err == nil {
 		setAuditClusterID(c, clusterID)
@@ -115,6 +105,12 @@ func (h backupHandler) writeError(c *gin.Context, err error, fallback string) {
 		writeError(c, http.StatusUnprocessableEntity, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
 	case errors.Is(err, backup.ErrStorageLocationNotFound):
 		writeError(c, http.StatusBadRequest, "STORAGE_LOCATION_NOT_FOUND", "backup storage location not found")
+	case errors.Is(err, backup.ErrStorageLocationUnavailable):
+		writeError(c, http.StatusUnprocessableEntity, "STORAGE_LOCATION_UNAVAILABLE", "backup storage location is not Available")
+	case errors.Is(err, backup.ErrSourceNamespaceNotFound):
+		writeError(c, http.StatusNotFound, "SOURCE_NAMESPACE_NOT_FOUND", "source namespace not found")
+	case errors.Is(err, backup.ErrStaleSourceNamespace):
+		writeError(c, http.StatusConflict, "STALE_SOURCE_NAMESPACE", "source namespace changed since preview")
 	case errors.Is(err, backup.ErrBackupNameConflict):
 		writeError(c, http.StatusConflict, "BACKUP_NAME_CONFLICT", "backup name already exists on the target cluster")
 	case errors.Is(err, backup.ErrConfirmationInvalid):

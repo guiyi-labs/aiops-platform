@@ -26,13 +26,9 @@ const canManage = computed(() => auth.user?.roles.some((role) => role === 'syste
 // Create backup dialog state
 const showCreateDialog = ref(false)
 const createForm = ref({
-  backup_name: '',
-  backup_namespace: 'velero',
-  included_namespaces: 'default',
-  storage_location: 'default',
-  ttl: '720h',
-  include_cluster_resources: false,
-  snapshot_volumes: false,
+	source_namespace: 'default',
+	storage_location: 'default',
+	ttl: '720h',
 })
 const previewPlan = ref<BackupPlan | null>(null)
 const createError = ref('')
@@ -130,14 +126,10 @@ function openCreateDialog() {
   showCreateDialog.value = true
   previewPlan.value = null
   createError.value = ''
-  createForm.value = {
-    backup_name: '',
-    backup_namespace: 'velero',
-    included_namespaces: 'default',
-    storage_location: 'default',
-    ttl: '720h',
-    include_cluster_resources: false,
-    snapshot_volumes: false,
+	createForm.value = {
+		source_namespace: 'default',
+		storage_location: 'default',
+		ttl: '720h',
   }
 }
 
@@ -147,18 +139,10 @@ async function submitPreview() {
   createError.value = ''
   previewPlan.value = null
   try {
-    const included = createForm.value.included_namespaces
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-    const plan = await k8sAPI.previewBackupPlan(auth.accessToken, selectedClusterID.value, {
-      backup_name: createForm.value.backup_name.trim(),
-      backup_namespace: createForm.value.backup_namespace.trim(),
-      included_namespaces: included,
-      storage_location: createForm.value.storage_location.trim(),
-      ttl: createForm.value.ttl.trim() || '720h',
-      include_cluster_resources: createForm.value.include_cluster_resources,
-      snapshot_volumes: createForm.value.snapshot_volumes,
+		const plan = await k8sAPI.previewBackupPlan(auth.accessToken, selectedClusterID.value, {
+			source_namespace: createForm.value.source_namespace.trim(),
+			storage_location: createForm.value.storage_location.trim(),
+			ttl: createForm.value.ttl.trim() || '720h',
     })
     previewPlan.value = plan
   } catch (error) {
@@ -388,16 +372,8 @@ onMounted(initialize)
           <form v-if="!previewPlan" @submit.prevent="submitPreview">
             <div class="detail-grid">
               <div class="detail-field">
-                <label>备份名称 *</label>
-                <input v-model="createForm.backup_name" placeholder="my-backup" required />
-              </div>
-              <div class="detail-field">
-                <label>备份命名空间 *</label>
-                <input v-model="createForm.backup_namespace" placeholder="velero" required />
-              </div>
-              <div class="detail-field">
-                <label>包含命名空间 (逗号分隔) *</label>
-                <input v-model="createForm.included_namespaces" placeholder="default,production" required />
+                <label>源命名空间 *</label>
+                <input v-model="createForm.source_namespace" placeholder="default" required />
               </div>
               <div class="detail-field">
                 <label>存储位置 *</label>
@@ -405,15 +381,11 @@ onMounted(initialize)
               </div>
               <div class="detail-field">
                 <label>TTL</label>
-                <input v-model="createForm.ttl" placeholder="720h" />
-              </div>
-              <div class="detail-field">
-                <label>包含集群资源</label>
-                <label class="checkbox-label"><input type="checkbox" v-model="createForm.include_cluster_resources" /> 包含集群范围资源</label>
-              </div>
-              <div class="detail-field">
-                <label>卷快照</label>
-                <label class="checkbox-label"><input type="checkbox" v-model="createForm.snapshot_volumes" /> 对 PV 创建快照</label>
+                <select v-model="createForm.ttl">
+                  <option value="24h">24h</option>
+                  <option value="168h">168h</option>
+                  <option value="720h">720h</option>
+                </select>
               </div>
             </div>
             <button class="primary-button" type="submit" :disabled="createLoading">

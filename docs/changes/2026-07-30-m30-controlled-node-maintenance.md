@@ -1,7 +1,7 @@
 # M30: Controlled Node Maintenance
 
 - Date: 2026-07-30
-- Status: Accepted (fast gate passed; real-kind E2E deferred to environments with a multi-worker kind cluster)
+- Status: Accepted (unit/contract gates and disposable two-worker real-kind E2E passed)
 - ADR: [0046-controlled-node-maintenance.md](../adr/0046-controlled-node-maintenance.md)
 
 ## Summary
@@ -97,13 +97,12 @@ An operations administrator can:
 | Classification | Criteria |
 |---|---|
 | `retained` | OwnerKind = `DaemonSet` OR mirror Pod (`kubernetes.io/config.mirror` annotation) |
-| `blocking` | No owner (unmanaged) OR `emptyDir` annotation present OR managed Pod with no PDB evidence |
-| `evictable` | Managed by a controller, no `emptyDir`, PDB evidence available |
+| `blocking` | Unknown/unmanaged owner, real `spec.volumes[].emptyDir`, no selector-matching PDB, zero-disruption matching PDB, or unavailable PDB evidence |
+| `evictable` | Reviewed controller owner, no `emptyDir`, and every selector-matching PDB has `disruptionsAllowed > 0` |
 
-`emptyDir` detection uses the `k8s-aiops.local/has-emptydir` annotation because
-the reviewed kubernetes gateway exposes a bounded Pod projection without
-volume detail. The annotation is set by trusted controllers only; its absence
-does not imply absence of `emptyDir`.
+Pod volume projections expose real volume types. PDB association decodes the
+Kubernetes `metav1.LabelSelector` and uses the official selector
+implementation; Namespace co-location alone never associates a PDB.
 
 ## Non-goals
 
@@ -136,12 +135,13 @@ does not imply absence of `emptyDir`.
 
 ### L2/L3 - Real-kind E2E
 
-- Deferred: requires a kind cluster with at least two worker Nodes, a
-  Metrics Server fixture, and PDB test workloads
-- The `scripts/e2e-m30-node-maintenance-kind.ps1` script is prepared for
-  environments with this configuration
-- Default kind clusters have only one worker Node, which is insufficient for
-  drain acceptance
+- `scripts/e2e-m30-node-maintenance-kind.ps1` — **PASSED**
+- Evidence: `.artifacts/m30-node-maintenance-kind/summary.json`
+- A disposable two-worker Kubernetes v1.34.0 kind cluster proved cordon and
+  same-key replay, one PDB-authorized eviction, real emptyDir rejection,
+  zero-disruption PDB rejection, explicit uncordon and complete cleanup
+- Empty-value control-plane/master label keys are covered by focused regression
+  tests and rejected independently of their label values
 
 ### Unit Test Coverage
 

@@ -5,17 +5,18 @@
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?logo=vuedotjs&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-1.34-326CE5?logo=kubernetes&logoColor=white)
 
-## 当前基线（2026-07-30）
+## 当前基线（2026-07-31）
 
-M21–M25 已完成统一收口：持续窗口指标评估与趋势消费、日常排障与治理工作台、
-Deployment 安全镜像更新/精确回滚、固定资源包跨集群发布，以及可选 Velero
-备份库存只读集成均已纳入主线。公共 API、OpenAPI、最小权限 RBAC、数据库迁移
-18/19、前端入口和一次性 kind 验收脚本保持同一合同。
+M1-M32 的本地开发路线已归档到 `baseline-m32-20260731`。M27 历史告警、
+M28 固定范围 Velero Backup 创建、M29 Namespace 治理态势、M30 Node 维护和
+M31 隔离恢复演练均已通过一次性真实 kind 验收；API/OpenAPI、24 组迁移、
+最小权限 RBAC、前端类型和响应式工作流已重新对齐。
 
-本轮基线通过 271 个 Go `Test*` 入口、17 个 Vitest 文件/73 个用例、前端生产构建、
-Compose 三服务健康检查以及 M21/M23/M24/M25 真实 kind 验收。最新完整门禁证据为
-`.artifacts/verification/verify-20260730-080851.json`；完整收口记录见
-[`docs/changes/2026-07-30-m21-m25-baseline-alignment.md`](docs/changes/2026-07-30-m21-m25-baseline-alignment.md)。
+最终快速门禁用时 26.17 秒；完整门禁用时 97.68 秒并通过全量 Go、73 个
+Vitest 用例、前端生产构建、Compose 三服务健康、Kustomize 16/5/22/3 和
+直连/代理 readiness。证据为
+`.artifacts/verification/verify-20260731-015255.json`；归档见
+[`docs/changes/2026-07-31-final-baseline-archive.md`](docs/changes/2026-07-31-final-baseline-archive.md)。
 
 > 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
@@ -42,11 +43,9 @@ Compose 三服务健康检查以及 M21/M23/M24/M25 真实 kind 验收。最新�
 当前功能型 MVP 主链路已经闭环，并进入生产安全加固阶段。完整架构、设计决策、
 测试矩阵和阶段归档见 [`docs/`](docs/README.md)。
 
-M21 历史可观测路线已完成前三个阶段：PostgreSQL 稀疏历史合同之外，后台采集器
-会按固定间隔采集已启用集群，以官方 Kubernetes Quantity 语义写入 CPU 纳核与内存
-字节，并隔离超时、API 缺失、异常载荷和容量截断；鉴权的精确序列 API 已提供最多
-24 小时/1,440 点的稀疏历史和显式覆盖信息。趋势视图与持续窗口告警将在后续阶段
-按同一有界合同接入。
+生产 OIDC/MFA、物理/WAL PITR、HA 切换和远端 release 仍需组织授权与基础设施，
+不属于本地基线的完成声明。Windows 主机缺少 `gcc`，因此 race 检测记录为环境阻塞，
+没有被标记为通过。
 
 ## Quick Start
 
@@ -91,6 +90,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m21-history-ki
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m23-release-lifecycle-kind.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m24-cross-cluster-promotion-kind.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m25-workload-protection-kind.ps1
+
+# M27-M31 final disposable real-environment acceptance
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m27-alert-lifecycle-kind.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m28-backup-creation-kind.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m29-governance-posture-kind.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m30-node-maintenance-kind.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-m31-isolated-restore-kind.ps1
 
 # Real kind diagnosis and controlled-remediation workflow
 $env:AIOPS_ADMIN_PASSWORD = '<local-development-password>'
@@ -147,7 +153,9 @@ docs/       Architecture, conventions, decisions and change records
 
 KRM 和 Ratel 仅用于需求、交互及部署思路参考。本仓库独立实现，不包含参考项目的应用源码或容器镜像内容。
 
-## Delivery Status
+## Delivery Status（历史记录）
+
+以下内容保留早期路线决策与证据链；当前状态以文首 2026-07-31 基线和最终归档为准。
 
 当前已完成 M1-M19 和 M20 第一至第十二阶段。固定操作目录包含 Deployment rollout restart/scale 与 CronJob
 suspend/resume，全部经过 dry-run、typed diff、精确资源快照、一次性确认、幂等执行、

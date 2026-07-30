@@ -59,8 +59,15 @@ func (s *Service) CreateRule(ctx context.Context, input CreateRuleInput, actor A
 	return rule, nil
 }
 
-func (s *Service) GetRule(ctx context.Context, id int64) (Rule, error) {
-	return s.repo.GetRule(ctx, id)
+func (s *Service) GetRule(ctx context.Context, clusterID, id int64) (Rule, error) {
+	rule, err := s.repo.GetRule(ctx, id)
+	if err != nil || rule.ClusterID != clusterID {
+		if err == nil {
+			err = ErrRuleNotFound
+		}
+		return Rule{}, err
+	}
+	return rule, nil
 }
 
 func (s *Service) ListRules(ctx context.Context, filter RuleListFilter) ([]Rule, error) {
@@ -70,14 +77,20 @@ func (s *Service) ListRules(ctx context.Context, filter RuleListFilter) ([]Rule,
 	return s.repo.ListRules(ctx, filter)
 }
 
-func (s *Service) PatchRule(ctx context.Context, id int64, input PatchRuleInput, actor ActorRef) (Rule, error) {
+func (s *Service) PatchRule(ctx context.Context, clusterID, id int64, input PatchRuleInput, actor ActorRef) (Rule, error) {
 	if err := ValidatePatch(input); err != nil {
+		return Rule{}, err
+	}
+	if _, err := s.GetRule(ctx, clusterID, id); err != nil {
 		return Rule{}, err
 	}
 	return s.repo.PatchRule(ctx, id, input, actor)
 }
 
-func (s *Service) DeleteRule(ctx context.Context, id int64) error {
+func (s *Service) DeleteRule(ctx context.Context, clusterID, id int64) error {
+	if _, err := s.GetRule(ctx, clusterID, id); err != nil {
+		return err
+	}
 	return s.repo.DeleteRule(ctx, id)
 }
 
@@ -91,15 +104,22 @@ func (s *Service) ListInstances(ctx context.Context, filter InstanceListFilter) 
 	return s.repo.ListInstances(ctx, filter)
 }
 
-func (s *Service) GetInstance(ctx context.Context, id int64) (Instance, error) {
-	return s.repo.GetInstance(ctx, id)
+func (s *Service) GetInstance(ctx context.Context, clusterID, id int64) (Instance, error) {
+	instance, err := s.repo.GetInstance(ctx, id)
+	if err != nil {
+		return Instance{}, err
+	}
+	if _, err := s.GetRule(ctx, clusterID, instance.RuleID); err != nil {
+		return Instance{}, ErrAlertNotFound
+	}
+	return instance, nil
 }
 
 // EvaluateRule evaluates a single alert rule against the metrics history.
 // It implements the state machine from ADR 0043 section 2.
 func (s *Service) EvaluateRule(ctx context.Context, rule Rule) error {
 	now := s.now()
-	evalFrom := now.Add(-6 * time.Hour)
+	evalFrom := now.Add(-evaluationLookback(rule, s.minEvalInterval))
 	evalTo := now
 
 	eval, err := s.metricEvaluator.Evaluate(ctx, metricshistory.EvaluationQuery{
@@ -137,6 +157,34 @@ func (s *Service) EvaluateRule(ctx context.Context, rule Rule) error {
 	}
 }
 
+// evaluationLookback keeps scheduler state tied to recent evidence. The
+// historical evaluator intentionally reports any sustained window in the
+// queried series; querying a fixed six hours would therefore keep a recovered
+// alert firing for six hours. Two extra scheduler intervals preserve enough
+// boundary slack for collection timestamp jitter and the requested
+// duration/minimum-point contract while
+// allowing a complete recent normal window to resolve the active instance.
+func evaluationLookback(rule Rule, evaluationInterval time.Duration) time.Duration {
+	if evaluationInterval <= 0 {
+		evaluationInterval = time.Minute
+	}
+	minimumPoints := rule.MinimumPoints
+	if minimumPoints < 2 {
+		minimumPoints = 2
+	}
+	byDuration := time.Duration(rule.ForSeconds) * time.Second
+	byPoints := time.Duration(minimumPoints-1) * evaluationInterval
+	lookback := byDuration
+	if byPoints > lookback {
+		lookback = byPoints
+	}
+	lookback += 2 * evaluationInterval
+	if lookback > 24*time.Hour {
+		return 24 * time.Hour
+	}
+	return lookback
+}
+
 func (s *Service) handleFiring(ctx context.Context, rule Rule, eval metricshistory.EvaluationResponse, now time.Time, nextDue time.Time) error {
 	existing, err := s.repo.GetUnresolvedInstance(ctx, rule.ID)
 	if err != nil {
@@ -165,18 +213,13 @@ func (s *Service) handleFiring(ctx context.Context, rule Rule, eval metricshisto
 		return s.repo.ReleaseClaim(ctx, rule.ID, nextDue, EvalStateFiring, now, "")
 	}
 	record.SLADueAt = diagnosis.SLADeadline(record.Severity, record.ObservedAt)
-	if err := s.diagnosisRepo.Save(ctx, &record); err != nil {
-		return err
-	}
-
 	instance := &Instance{
 		RuleID:               rule.ID,
-		DiagnosisID:          record.ID,
 		FirstFiredAt:         now,
 		LastFiredAt:          now,
 		LatestEvidenceAnchor: string(anchor),
 	}
-	if err := s.repo.CreateInstance(ctx, instance); err != nil {
+	if err := s.repo.CreateFiring(ctx, &record, instance); err != nil {
 		return err
 	}
 

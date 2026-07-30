@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s-aiops.local/backend/internal/diagnosis"
+
 	"gorm.io/gorm"
 )
 
@@ -20,6 +22,7 @@ type Repository interface {
 	DeleteRule(ctx context.Context, id int64) error
 	GetUnresolvedInstance(ctx context.Context, ruleID int64) (*Instance, error)
 	CreateInstance(ctx context.Context, instance *Instance) error
+	CreateFiring(ctx context.Context, record *diagnosis.Record, instance *Instance) error
 	TouchInstance(ctx context.Context, ruleID int64, lastFiredAt time.Time, evidenceAnchor string) error
 	ResolveInstance(ctx context.Context, ruleID int64, resolvedAt time.Time) error
 	ListInstances(ctx context.Context, filter InstanceListFilter) ([]Instance, error)
@@ -177,6 +180,39 @@ func (r *GormRepository) CreateInstance(ctx context.Context, instance *Instance)
 	}
 	instance.State = StateFiring
 	return nil
+}
+
+func (r *GormRepository) CreateFiring(ctx context.Context, record *diagnosis.Record, instance *Instance) error {
+	if record.SLADueAt.IsZero() {
+		record.SLADueAt = diagnosis.SLADeadline(record.Severity, record.ObservedAt)
+	}
+	rootCauses, _ := json.Marshal(record.RootCauses)
+	recommendations, _ := json.Marshal(record.Recommendations)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		row := tx.Raw(`INSERT INTO diagnosis_records
+			(cluster_id, rule_id, severity, resource_kind, resource_namespace, resource_name, resource_uid, status, summary, root_causes, recommendations, observed_at, sla_due_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSONB), CAST(? AS JSONB), ?, ?)
+			RETURNING id, created_at, updated_at`, record.ClusterID, record.RuleID, record.Severity, record.Resource.Kind, record.Resource.Namespace, record.Resource.Name, record.Resource.UID, record.Status, record.Summary, string(rootCauses), string(recommendations), record.ObservedAt, record.SLADueAt).Row()
+		if err := row.Scan(&record.ID, &record.CreatedAt, &record.UpdatedAt); err != nil {
+			return fmt.Errorf("insert alert diagnosis: %w", err)
+		}
+		for _, evidence := range record.Evidence {
+			content, _ := json.Marshal(evidence.Content)
+			if err := tx.Exec(`INSERT INTO diagnosis_evidence (diagnosis_id, evidence_type, source, content) VALUES (?, ?, ?, CAST(? AS JSONB))`, record.ID, evidence.Type, evidence.Source, string(content)).Error; err != nil {
+				return fmt.Errorf("insert alert diagnosis evidence: %w", err)
+			}
+		}
+		instance.DiagnosisID = record.ID
+		row = tx.Raw(`INSERT INTO alert_instances
+			(rule_id, diagnosis_id, state, first_fired_at, last_fired_at, latest_evidence_anchor)
+			VALUES (?, ?, 'firing', ?, ?, CAST(? AS JSONB))
+			RETURNING id, created_at, updated_at`, instance.RuleID, instance.DiagnosisID, instance.FirstFiredAt, instance.LastFiredAt, instance.LatestEvidenceAnchor).Row()
+		if err := row.Scan(&instance.ID, &instance.CreatedAt, &instance.UpdatedAt); err != nil {
+			return fmt.Errorf("insert alert instance: %w", err)
+		}
+		instance.State = StateFiring
+		return nil
+	})
 }
 
 func (r *GormRepository) TouchInstance(ctx context.Context, ruleID int64, lastFiredAt time.Time, evidenceAnchor string) error {

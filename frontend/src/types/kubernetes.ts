@@ -164,10 +164,15 @@ export interface VeleroCapability { installed: boolean; version?: string }
 export interface VeleroBackup {
   name: string
   namespace: string
+  uid: string
+  resource_version: string
   phase: string
   included_namespaces?: string[]
   storage_location?: string
   ttl?: string
+  include_cluster_resources?: boolean
+  snapshot_volumes?: boolean
+  has_label_selector: boolean
   expiration?: string
   started_at?: string
   completed_at?: string
@@ -184,12 +189,16 @@ export interface BackupPlan {
   backup_name: string
   backup_namespace: string
   included_namespaces: string[]
+  source_namespace_uid: string
+  source_namespace_resource_version: string
   storage_location: string
   ttl: string
   include_cluster_resources: boolean
   snapshot_volumes: boolean
   label_selector?: Record<string, string>
   velero_version: string
+  backup_uid?: string
+  backup_resource_version?: string
   expires_at: string
   executed_at?: string
   last_error?: string
@@ -271,6 +280,16 @@ export interface PDBPosture { evidence: EvidenceCitation; pdbs: PDBEntry[]; coun
 export interface NodeCapacityEntry { name: string; capacity?: Record<string, string>; allocatable?: Record<string, string>; schedulable: boolean }
 export interface NodeCapacityPosture { evidence: EvidenceCitation; nodes: NodeCapacityEntry[]; count: number }
 
+export type PostureState = 'healthy' | 'warning' | 'critical' | 'incomplete'
+export interface PostureFinding {
+  code: string
+  severity: 'info' | 'warning' | 'critical'
+  summary: string
+  resource: { kind: string; namespace?: string; name: string; uid?: string; resource_version?: string }
+  details?: Record<string, string>
+  observed_at: string
+}
+
 export interface NamespacePosture {
   name: string
   phase: string
@@ -284,6 +303,8 @@ export interface NamespacePosture {
   pdbs: PDBPosture
   node_capacity: NodeCapacityPosture
   partial_sections: string[]
+  overall_state: PostureState
+  findings: PostureFinding[]
 }
 
 export interface PostureListEntry {

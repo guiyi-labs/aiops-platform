@@ -18,32 +18,32 @@ M22 is covered by the current backend, frontend and production-build gates;
 its read-only resource/log/manifest scope is archived in
 `docs/changes/2026-07-30-m22-daily-troubleshooting-and-governance-workbench.md`.
 
-## 2026-07-30 M27-M32 Closure Addendum
+## 2026-07-31 M27-M32 Final Closure Addendum
 
 This addendum is authoritative for the M27-M32 development route; it closes
-the committed development work as "development complete". Real-kind E2E and
-external organization gates are deferred with documented re-entry conditions
-(see `docs/changes/2026-07-30-m32-formal-closure.md`).
+the locally executable development and acceptance work. Only external
+organization production gates remain (see
+`docs/changes/2026-07-30-m32-formal-closure.md`).
 
 | Gate | Evidence | Accepted result |
 |---|---|---|
-| Fast repository gate | `scripts/verify-fast.ps1 -Scope All` | Passed in 29.85s (re-verified after test-matrix fix); 26 backend packages (alert 15, backup 13, namespaceposture 10, maintenance 40+, restore 40+ unit tests), 73 frontend tests/17 files, Compose/Kustomize contracts |
-| Full repository gate | `.artifacts/verification/verify-20260730-202934.json` | Passed in 227.76s; backend ready, frontend 200, 3 healthy Compose services (postgres/backend/frontend) |
+| Fast repository gate | `scripts/verify-fast.ps1 -Scope All` | Passed in 26.17s; full Go vet/test, 73 frontend tests/17 files, typecheck and Compose/Kustomize contracts |
+| Full repository gate | `.artifacts/verification/verify-20260731-015255.json` | Passed in 97.68s; backend/proxy ready, frontend 200, 3 healthy Compose services |
 | OpenAPI ↔ Router parity | `docs/api/openapi.yaml`; `backend/internal/httpserver/openapi_route_test.go` | Audit found 11 missing M28-M31 routes; fixed in this revision; contract test stubs added for Backup/Maintenance/NamespacePosture/Restore |
-| Migrations parity | `backend/migrations/000020`-`000023` | 23 up/down pairs; latest applied is 000023 (M31 isolated restore rehearsal); no orphans |
-| RBAC parity | M27-M31 HTTP handlers | All mutate endpoints require SystemAdmin/OperationsAdmin; list/read endpoints intentionally relaxed; M29 read-only by design |
+| Migrations parity | `backend/migrations/000001`-`000024` | 24 up/down pairs; latest applied is 000024; no orphans |
+| RBAC parity | M27-M31 HTTP handlers and `deploy/managed-cluster/observer.yaml` | Reviewed exact mutations only; generic update/delete remain denied; M29 is read-only |
 | Audit-action parity | `backend/internal/httpserver/audit.go` | M27 (alert_rule.*), M28 (backup.*), M30 (maintenance.*), M31 (restore.*) registered; M29 read-only by design |
-| M27 real kind | `scripts/e2e-m27-alert-lifecycle-kind.ps1` | Deferred — Docker network isolation (Compose containers cannot reach host kind API) |
-| M28 real kind | — | Deferred — Velero controller not installed in default kind |
-| M29 real kind | — | Deferred for time; feasible with fresh kind (Namespace/ResourceQuota/workloads available by default) |
-| M30 real kind | — | Deferred — default kind has only one worker Node; needs ≥2 |
-| M31 real kind | — | Deferred — Velero not installed; no completed M28 Backup prerequisite |
-| Browser screenshot recapture | `docs/thesis/screenshots/` | Deferred to M32.5 step (criterion 5 of project-end checklist) |
+| M27 real kind | `.artifacts/m27-alert-lifecycle-kind/m27-alert-lifecycle-kind-20260731013733-e4a6e270.json` | Passed firing, deduplication, outage containment, complete normal-window resolution, restart persistence and cleanup |
+| M28 real kind | `.artifacts/m28-backup-creation-kind/summary.json` | Passed pinned Velero/MinIO fixed-scope Backup creation, stale-source rejection, replay, RBAC and cleanup |
+| M29 real kind | `.artifacts/m29-governance-posture-kind/summary.json` | Passed deterministic governance findings and cleanup |
+| M30 real kind | `.artifacts/m30-node-maintenance-kind/summary.json` | Passed two-worker safe maintenance lifecycle and cleanup |
+| M31 real kind | `.artifacts/m31-isolated-restore-kind/summary.json` | Passed pinned Velero/MinIO quarantine restore, mapping, replay and cleanup |
+| Responsive browser | in-app acceptance | 390x844 and 1280x720 passed; no page overflow, out-of-bounds controls or warning/error logs |
+| Race detector | local Windows toolchain | Blocked because `gcc` is unavailable; explicitly not reported as passed |
 | Remote CI + tag/release | — | Deferred — requires user-authorized push to private remote |
 
-No skipped suite is reported as passed. Each milestone's fast gate (unit
-tests + contract tests) is green. The M27-M32 ADRs (0043-0047) and per-milestone
-closure records are the authoritative scope boundaries:
+No skipped suite is reported as passed. The M27-M32 ADRs (0043-0047),
+per-milestone records and final archive are the authoritative scope boundaries:
 
 - `docs/changes/2026-07-30-m27-alert-lifecycle.md`
 - `docs/changes/2026-07-30-m28-controlled-backup-creation.md`
@@ -51,6 +51,7 @@ closure records are the authoritative scope boundaries:
 - `docs/changes/2026-07-30-m30-controlled-node-maintenance.md`
 - `docs/changes/2026-07-30-m31-isolated-workload-restore-rehearsal.md`
 - `docs/changes/2026-07-30-m32-formal-closure.md`
+- `docs/changes/2026-07-31-final-baseline-archive.md`
 
 更新时间：2026-07-27
 

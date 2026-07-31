@@ -458,7 +458,10 @@ parity targets.
   enable required checks when the repository plan permits, rehearse a semantic
   release and recapture screenshots bound to the reviewed revision.
 
-## Post-Baseline Development Plan
+## Archived M26-M32 Development Plan
+
+The route below is complete and retained only as planning history. Current post-M32 work is authoritative in
+`docs/kubesphere-optimization-plan.md`.
 
 Detailed execution requirements, phase boundaries, verification commands and
 Agent handoff rules are authoritative in `docs/next-development-plan.md`.

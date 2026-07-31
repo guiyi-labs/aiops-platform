@@ -18,6 +18,9 @@ Vitest 用例、前端生产构建、Compose 三服务健康、Kustomize 16/5/22
 `.artifacts/verification/verify-20260731-015255.json`；归档见
 [`docs/changes/2026-07-31-final-baseline-archive.md`](docs/changes/2026-07-31-final-baseline-archive.md)。
 
+M32 后参照本地 KubeSphere 源码制定的优化路线、开发要求和验收标准见
+[`docs/kubesphere-optimization-plan.md`](docs/kubesphere-optimization-plan.md)。
+
 > 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
 ![AIOps Dashboard](docs/thesis/screenshots/01-dashboard.png)

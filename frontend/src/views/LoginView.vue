@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Boxes, LockKeyhole, ShieldCheck } from 'lucide-vue-next'
+import { Boxes, LockKeyhole } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import { APIError } from '../api/auth'
@@ -46,7 +46,6 @@ async function submit() {
         <h1>让每一次故障判断<br />都有证据可追溯</h1>
         <p class="login-description">统一接入 Kubernetes 集群，关联资源状态、事件与日志，以规则诊断为主、AI 解释为辅。</p>
       </div>
-      <div class="login-boundary"><ShieldCheck :size="18" /><span>AI 仅提供分析建议，不会直接执行集群变更</span></div>
     </section>
 
     <section class="login-form-panel">

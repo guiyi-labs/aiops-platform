@@ -7,6 +7,9 @@ Continue from tag `baseline-m32-20260731`. The next Agent should either work on
 organization-authorized production gates or open a newly approved route; it
 must not silently widen the archived write contracts.
 
+The approved post-M32 optimization route is now `docs/kubesphere-optimization-plan.md`.
+Later historical “Recommended Next Work” and “Next Priorities” sections in this file are not current instructions.
+
 - Last updated: 2026-07-31
 - Repository: `C:\BS\aiops-platform`
 - Git baseline: local `main`, tag `baseline-m32-20260731`; push/release not authorized

@@ -463,6 +463,19 @@ parity targets.
 The route below is complete and retained only as planning history. Current post-M32 work is authoritative in
 `docs/kubesphere-optimization-plan.md`.
 
+## M33: Restricted client-go Migration
+
+- Status: ✅ Development Complete on 2026-07-31. Fast gate passed in 85.91s
+  (26 backend packages, 73 frontend tests, Compose/Kustomize contracts).
+- Closure change log: `docs/changes/2026-07-31-m33-restricted-client-go-migration.md`
+- ADR: [0048](adr/0048-restricted-client-go-migration.md)
+- Replaced the raw `net/http` `cluster.Registry` with a `k8s.io/client-go`-backed
+  `ClusterClientProvider`. The four gateway interfaces (`Prober`, `Gateway`,
+  `PatchGateway`, `CreateGateway`) are unchanged; `service.go` and all call
+  sites are untouched. Satisfies ADR 0004's requirement to use `client-go`.
+- Real-kind E2E deferred; transport-level contract verified by unit tests
+  (Probe, Patch method/body/dryRun, no-redirect invariant).
+
 Detailed execution requirements, phase boundaries, verification commands and
 Agent handoff rules are authoritative in `docs/next-development-plan.md`.
 The cross-project evidence boundary, adopted/rejected gaps and formal project-end

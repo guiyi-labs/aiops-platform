@@ -115,7 +115,7 @@ func TestRegistryProbe(t *testing.T) {
 		_, _ = w.Write([]byte(`{"gitVersion":"v1.33.2"}`))
 	}))
 	defer server.Close()
-	registry := NewRegistry(time.Second)
+	registry := NewClientProvider(time.Second)
 	version, err := registry.Probe(context.Background(), 1, []byte(testKubeconfig(server.URL, "test-token", true)))
 	if err != nil || version != "v1.33.2" {
 		t.Fatalf("Probe() = %q, %v", version, err)
@@ -134,7 +134,7 @@ func TestRegistryPatchUsesExactMethodBodyAndDryRun(t *testing.T) {
 		_, _ = w.Write([]byte(`{"metadata":{"uid":"deployment-1","resourceVersion":"17"}}`))
 	}))
 	defer server.Close()
-	registry := NewRegistry(time.Second)
+	registry := NewClientProvider(time.Second)
 	body, err := registry.Patch(context.Background(), 1, []byte(testKubeconfig(server.URL, "test-token", true)), "/apis/apps/v1/namespaces/demo/deployments/api", url.Values{"dryRun": {"All"}}, "application/strategic-merge-patch+json", patch, 1<<20)
 	if err != nil || !strings.Contains(string(body), "deployment-1") {
 		t.Fatalf("body=%s err=%v", body, err)
@@ -152,7 +152,7 @@ func TestRegistryDoesNotFollowKubernetesRedirects(t *testing.T) {
 		http.Redirect(w, r, target.URL+"/capture", http.StatusTemporaryRedirect)
 	}))
 	defer source.Close()
-	registry := NewRegistry(time.Second)
+	registry := NewClientProvider(time.Second)
 	_, err := registry.Patch(context.Background(), 2, []byte(testKubeconfig(source.URL, "test-token", true)), "/apis/apps/v1/namespaces/demo/deployments/api", nil, "application/strategic-merge-patch+json", []byte(`{"metadata":{"resourceVersion":"17"}}`), 1<<20)
 	var status APIStatusError
 	if !errors.As(err, &status) || status.StatusCode != http.StatusTemporaryRedirect || redirected {

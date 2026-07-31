@@ -80,7 +80,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("configure credential encryption", zap.Error(err))
 	}
-	clusterRegistry := cluster.NewRegistry(cfg.ClusterProbeTimeout)
+	clusterRegistry := cluster.NewClientProvider(cfg.ClusterProbeTimeout)
 	clusterService := cluster.NewService(cluster.NewGormRepository(database.GORM()), credentialEncryptor, clusterRegistry)
 	kubernetesService := k8sgateway.NewService(clusterService, clusterRegistry)
 	metricsHistoryService, err := metricshistory.NewService(metricshistory.Config{Retention: cfg.MetricsHistoryRetention}, metricshistory.NewGormRepository(database.GORM()))

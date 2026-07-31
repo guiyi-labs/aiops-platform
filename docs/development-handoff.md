@@ -1,18 +1,18 @@
 # Development Handoff
 
-## Current Baseline (2026-07-31 M32 Archive)
+## Current Baseline (2026-07-31 M33 In Progress)
 
-The locally executable M27-M32 development and acceptance route is complete.
-Continue from tag `baseline-m32-20260731`. The next Agent should either work on
-organization-authorized production gates or open a newly approved route; it
-must not silently widen the archived write contracts.
+M33 (Restricted client-go Migration) is development complete. The raw `net/http`
+`cluster.Registry` has been replaced by `cluster.ClientProvider` backed by
+`k8s.io/client-go`. The four gateway interfaces are unchanged. Continue from
+the M33 commit on local `main` (ahead of `baseline-m32-20260731`).
 
-The approved post-M32 optimization route is now `docs/kubesphere-optimization-plan.md`.
+The approved post-M32 optimization route is `docs/kubesphere-optimization-plan.md`.
 Later historical “Recommended Next Work” and “Next Priorities” sections in this file are not current instructions.
 
 - Last updated: 2026-07-31
 - Repository: `C:\BS\aiops-platform`
-- Git baseline: local `main`, tag `baseline-m32-20260731`; push/release not authorized
+- Git baseline: local `main`, tag `baseline-m32-20260731`; M33 commit pending; push/release not authorized
 - Current milestone: M32 local archive accepted; only hosted CI/release,
   organization OIDC/MFA, PITR and HA remain external gates
 

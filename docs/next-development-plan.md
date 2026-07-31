@@ -1,12 +1,15 @@
 # Next Development Execution Plan
 
-- Status: Ready for execution
+- Status: Superseded after M32 by `docs/kubesphere-optimization-plan.md`
 - Updated: 2026-07-30
 - Repository baseline: `main` at `17d4f6f`
 - Accepted implementation baseline: `baseline-m25-20260730` -> `62320fc`
-- Default next engineering milestone: M27 Historical Alert Lifecycle
-- Planned product closure: M32 Formal Closure
+- Historical default milestone: M27 Historical Alert Lifecycle (completed)
+- Historical product closure: M32 Formal Closure (completed)
 - Audience: the next development Agent and its reviewer
+
+> Historical execution contract only. M27-M32 are complete. New development starts from the
+> M33-M45 route in `docs/kubesphere-optimization-plan.md`; do not follow the M27 start instruction below.
 
 本文是 M21-M25 收口后的后续开发执行合同。`docs/roadmap.md` 继续说明产品方向，
 本文负责说明下一位 Agent 应该按什么顺序开发、不得突破哪些边界、每个阶段交付什么，

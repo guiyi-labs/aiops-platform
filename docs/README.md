@@ -4,7 +4,8 @@
 
 | 目录或文件 | 内容 |
 |---|---|
-| `next-development-plan.md` | M26 并行闸门、M27-M31 串行开发、M32 正式收口的开发要求、验收标准和 Agent 交接提示 |
+| `kubesphere-optimization-plan.md` | M32 后以 KubeSphere 能力为底座、融合 AIOps 信号/诊断/AI/安全闭环的 M33-M45 路线和验收标准 |
+| `next-development-plan.md` | 已归档的 M26-M32 开发执行合同，不再作为当前开发入口 |
 | `development.md` | 本地开发、测试和运行方法 |
 | `development-handoff.md` | 当前里程碑、稳定基线、进行中工作和下次启动入口 |
 | `roadmap.md` | M19-M32 产品优化顺序、阶段状态、范围边界和发布前置条件 |
@@ -20,9 +21,8 @@
 | `testing/` | 测试策略、报告和演示场景 |
 | `thesis/` | 论文图表、实验数据和答辩材料 |
 
-M25 之后的权威对标与项目结束判定见
-`references/final-product-gap-analysis.md`。该文档区分源码/运行时证据、参考项目文档声称和
-Kubernetes 教学主题，并明确哪些差距纳入 M27-M32、哪些能力不属于本项目。
+M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后曾使用的
+`references/final-product-gap-analysis.md` 已完成其 M27-M32 路线决策职责，现作为历史分析保留。
 
 当前发布冻结候选归档：
 

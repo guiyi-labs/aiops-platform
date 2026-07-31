@@ -1,10 +1,13 @@
 # Final Product Gap Analysis And Closure Route
 
-- Status: Authoritative for post-M25 scope decisions
+- Status: Superseded for post-M32 work by `../kubesphere-optimization-plan.md`
 - Reviewed: 2026-07-30
 - Compared baseline: `main` at `17d4f6f`, accepted M21-M25 implementation
 - Execution contract: [`../next-development-plan.md`](../next-development-plan.md)
 - Product roadmap: [`../roadmap.md`](../roadmap.md)
+
+> This document remains the historical decision record for M27-M32. Those milestones are complete;
+> current optimization scope and acceptance criteria are defined in `../kubesphere-optimization-plan.md`.
 
 本文回答三个问题：当前平台与本机可用的参考项目相比还缺什么，哪些差距值得补齐，
 以及做到什么程度可以正式结束本轮项目。它取代早期

@@ -1,5 +1,7 @@
 # Development Handoff
 
+> **安全重写说明**：Git 历史已执行安全脱敏重写（清除个人邮箱），所有 commit hash 均已变更。本文档中引用的旧 commit hash（如 `2d46588`、`cf20c66`、`0baf858`、`b1f52e0` 等）仅供历史归档参考，无法直接 checkout。请使用 tag 名称或提交信息搜索定位里程碑。文档中的 `<repo-root>`、`<local-refs>`、`<docker-data>` 为路径占位符，需替换为实际路径。
+
 ## Current Baseline (2026-08-01 M36+M37+M38+M39+M40+M41+M42+M43+M44+M45+M46+M47+M48+M49+M50+M51+M52+M56+M57+M58+M59+M60 Complete)
 
 M60 (Static Provider Registry + Lifecycle) closes Phase 5 of the post-M45

@@ -1,5 +1,7 @@
 # CI And Release Operations
 
+> **安全重写说明**：Git 历史已执行安全脱敏重写，本文档中引用的旧 commit hash（如 `0baf8583956e1e987ef5043b5fd70ce33aba90e4`）已失效，仅供历史归档参考。CI run 编号不变，但关联的 revision hash 已变更。如需定位对应版本，请使用 tag 名称或按提交信息搜索。
+
 ## Workflow Inventory
 
 | Workflow | Trigger | Runner | Result |

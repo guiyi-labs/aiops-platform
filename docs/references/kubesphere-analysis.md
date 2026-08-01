@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Reviewed: 2026-07-16
-- Source: `E:/k8s/毕设/kubesphere-master/kubesphere-master`
+- Source: `<local-refs>/kubesphere-master`
 - License: Apache License 2.0
 
 ## Valuable Patterns

@@ -3,8 +3,8 @@
 - Status: Accepted
 - Reviewed: 2026-07-28
 - Compared baseline: `b1f52e098ca2c6a44891f5e83fbed66e43a651af`
-- KRM material: `E:/k8s/毕设/krm-main/krm-main`
-- Ratel material: `E:/k8s/毕设/ratel-doc-master/ratel-doc-master`
+- KRM material: `<local-refs>/krm-main`
+- Ratel material: `<local-refs>/ratel-doc-master`
 
 > Superseded for post-M25 planning: use
 > [`final-product-gap-analysis.md`](final-product-gap-analysis.md) for the current KRM/Ratel/KubeSphere/

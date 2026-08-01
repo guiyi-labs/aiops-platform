@@ -453,7 +453,11 @@ func main() {
 			CapabilityMetricsProvider: capabilityMetricsProvider,
 			CapabilityLogProvider:     capabilityLogProvider,
 			CapabilityRegistry:        capabilityRegistry,
-			Optimization:              optimization.NewService(finops.DefaultCostRate()),
+			Optimization: optimization.NewService(finops.DefaultCostRate(),
+				optimization.NewCollector(
+					optimization.NewKubernetesLister(clusterRegistry, clusterService),
+					optimization.NewMetricsHistorySource(metricsHistoryService, 24*time.Hour),
+				)),
 			OIDC:                      oidcSessionManager,
 			OIDCPostLogout:            oidcPostLogoutURI,
 			SecureCookies:             cfg.SecureCookies,

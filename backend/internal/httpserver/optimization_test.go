@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -21,7 +22,7 @@ func newOptimizationEngine(t *testing.T) *gin.Engine {
 	t.Helper()
 	engine, ok := New(zaptest.NewLogger(t), Options{
 		Probe:        probeStub{},
-		Optimization: optimization.NewService(finops.DefaultCostRate()),
+		Optimization: optimization.NewService(finops.DefaultCostRate(), nil),
 	}).(*gin.Engine)
 	if !ok {
 		t.Fatal("http server is not a gin engine")
@@ -145,5 +146,93 @@ func TestOptimizationAnalyzeValidation(t *testing.T) {
 	})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 for missing target_version", rec.Code)
+	}
+}
+
+// fakeClusterLister is an in-memory optimization.ClusterLister used to exercise
+// the server-side auto-collection path without a real cluster. It returns the
+// canned items registered for each path, or an empty list for unknown paths
+// (mimicking a resource type that is not installed / not listable).
+type fakeClusterLister struct {
+	data map[string][]json.RawMessage
+}
+
+func (f fakeClusterLister) List(_ context.Context, _ int64, path string) ([]json.RawMessage, error) {
+	if items, ok := f.data[path]; ok {
+		return items, nil
+	}
+	return []json.RawMessage{}, nil
+}
+
+// newOptimizationEngineWithCollector builds a gin engine whose optimization
+// service has an auto-collector backed by the given fake lister (no metrics
+// source, so FinOps degrades to request/limit-only collection).
+func newOptimizationEngineWithCollector(t *testing.T, lister optimization.ClusterLister) *gin.Engine {
+	t.Helper()
+	collector := optimization.NewCollector(lister, nil)
+	engine, ok := New(zaptest.NewLogger(t), Options{
+		Probe:        probeStub{},
+		Optimization: optimization.NewService(finops.DefaultCostRate(), collector),
+	}).(*gin.Engine)
+	if !ok {
+		t.Fatal("http server is not a gin engine")
+	}
+	return engine
+}
+
+// TestOptimizationCISAnalyzeAutoCollect verifies that when the request body
+// carries no observation bundle but the service has a collector, the handler
+// auto-collects from the cluster and still returns findings.
+func TestOptimizationCISAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/api/v1/pods": {
+			json.RawMessage(`{"metadata":{"namespace":"default","name":"priv","uid":"uid-1"},"spec":{"containers":[{"name":"c","securityContext":{"privileged":true}}]}}`),
+		},
+		"/api/v1/namespaces": {
+			json.RawMessage(`{"metadata":{"name":"default","uid":"ns-1","labels":{"pod-security.kubernetes.io/enforce":"privileged"}}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/cis/analyze", map[string]any{
+		"cluster_id": 7,
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		Failed int `json:"failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode CIS status: %v", err)
+	}
+	if status.Failed < 1 {
+		t.Fatalf("expected at least one CIS finding from auto-collected privileged pod, got %d", status.Failed)
+	}
+}
+
+// TestOptimizationDeprecatedAPIAnalyzeAutoCollect verifies the same
+// auto-collect wiring for the deprecated-API endpoint.
+func TestOptimizationDeprecatedAPIAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {
+			json.RawMessage(`{"apiVersion":"apps/v1beta1","kind":"Deployment","metadata":{"namespace":"default","name":"legacy","uid":"u1"}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/deprecated-api/analyze", map[string]any{
+		"cluster_id":     7,
+		"target_version": "1.25",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		Removed int `json:"removed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode deprecated-API status: %v", err)
+	}
+	if status.Removed < 1 {
+		t.Fatalf("expected at least one removed-api finding from auto-collected apps/v1beta1 Deployment, got %d", status.Removed)
 	}
 }

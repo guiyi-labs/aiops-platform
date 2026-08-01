@@ -161,8 +161,71 @@ Detailed change records for each milestone live under `docs/changes/`.
   (default `finops.CostRate`); the analyzers themselves remain pure functions.
 - The earlier "deferred service layer" is now the API surface above. Server-side
   auto-collection of the observation bundles from the live Kubernetes API /
-  `metricshistory` store remains a follow-up (it requires control-plane flag
-  access and the metrics pipeline) and is tracked as a P1 item.
+  `metricshistory` store is delivered in **M65** (see below) — the analyze
+  endpoints now auto-collect when the request body carries no bundle and a
+  collector is configured.
+
+### Added — M65 Server-Side Auto-Collection Layer (P1-①, completes M61–M64)
+
+- **`internal/optimization/collector.go`** — `Collector` turns live cluster
+  data into the exact observation bundles the M61–M63 analyzers consume. It is
+  read-only (ADR 0004): it only reads and maps, never mutates cluster state.
+  - `ClusterLister` interface — the only cluster access the collector needs:
+    `List(ctx, clusterID, path) ([]json.RawMessage, error)`. A fake can be
+    supplied in tests (no real cluster, no network), matching the existing
+    `kubernetesEventLister` adapter pattern.
+  - `NewKubernetesLister(gateway kubernetes.Gateway, creds kubernetes.CredentialSource) ClusterLister` — production adapter that talks to the **same read-only
+    `kubernetes.Gateway`** the rest of the platform uses (no new client); it
+    resolves the kubeconfig via `CredentialSource.Access`, calls
+    `Gateway.Get(path, ...)`, and returns the List `items`.
+  - `CollectCIS` — maps pods (workload security context + hostPath count),
+    RBAC (clusterrolebindings→clusterroles + per-namespace rolebindings→roles
+    with resolved policy rules), and namespace Pod Security Admission labels
+    into `cis.Inputs`. Control-plane component flags (kube-apiserver etc.) are
+    intentionally **not** reachable through the K8s API, so `Components` is
+    left empty by design; callers with node/manifest access may populate it
+    directly.
+  - `CollectFinOps` — maps Deployment/StatefulSet/DaemonSet requests/limits/
+    replicas and joins per-pod p95 usage from a `MetricsSource` (see below).
+  - `CollectDeprecatedAPI` — scans 23 resource list paths (core + apps + batch
+    + networking + autoscaling + policy + rbac + storage); a 404 / not-installed
+    type is silently skipped so adding paths is safe.
+- **`internal/optimization/metrics.go`** — `metricsHistorySource` implements
+  the new `MetricsSource` interface (`PodContainerP95(ctx, clusterID, namespace,
+  pod, container) (cpuNanocores, memBytes, ok)`) over `metricshistory.Service`,
+  querying a configurable window (default 24h) of per-pod container cpu/memory
+  samples and returning the p95. When no metrics source is configured the
+  FinOps collector degrades gracefully to request/limit-only collection (the
+  analyzer simply reports no over-provisioning for containers without a usage
+  signal, per `finops.Recommend`).
+- **`internal/optimization/service.go`** — `NewService(rate finops.CostRate,
+  collector *Collector)`; the collector may be `nil` (body-only mode). New
+  `HasCollector()` plus `CollectCIS` / `CollectFinOps` / `CollectDeprecatedAPI`
+  delegate methods.
+- **`internal/httpserver/optimization.go`** — auto-collect wiring: each
+  `/analyze` handler, when the request body carries no observation bundle **and**
+  the service has a collector, auto-collects from the live cluster before
+  running the pure analyzer; a collection failure returns `502 COLLECT_FAILED`
+  (distinct from a `400` client-input error). The three analyze routes are
+  unchanged (OpenAPI contract untouched).
+- **`cmd/server/main.go`** — wires the collector into the optimization service:
+  `optimization.NewCollector(optimization.NewKubernetesLister(clusterRegistry,
+  clusterService), optimization.NewMetricsHistorySource(metricsHistoryService,
+  24*time.Hour))`, reusing the existing `clusterRegistry` (Gateway) and
+  `clusterService` (CredentialSource) variables.
+- **Tests**:
+  - `internal/optimization/collector_test.go` (new) — 5 tests with an in-memory
+    `fakeClusterLister` + `fakeMetrics`: CIS workload/RBAC/namespace mapping,
+    FinOps requests/limits/p95, no-metrics degradation, deprecated-API scan
+    (preserves its own apiVersion), and the `kubernetesLister` Gateway adapter.
+  - `internal/httpserver/optimization_test.go` — 2 new handler-level
+    auto-collect tests (`TestOptimizationCISAnalyzeAutoCollect`,
+    `TestOptimizationDeprecatedAPIAnalyzeAutoCollect`) proving the
+    body-empty → auto-collect → findings path end-to-end with a fake lister;
+    both `NewService` call sites updated for the new signature.
+- `internal/httpserver/openapi_route_test.go` — `NewService` call site updated
+  for the new signature.
+- `go build ./...`, `go vet ./...` and `go test ./...` (all packages) are green.
 
 ### Added — M58 DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI Backend
 

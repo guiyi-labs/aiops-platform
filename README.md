@@ -1,70 +1,57 @@
 # Kubernetes Multi-Cluster AIOps Platform
 
 [![CI](https://github.com/guiyi-labs/aiops-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/guiyi-labs/aiops-platform/actions/workflows/ci.yml)
-![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?logo=vuedotjs&logoColor=white)
-![Kubernetes](https://img.shields.io/badge/Kubernetes-1.34-326CE5?logo=kubernetes&logoColor=white)
-
-## 当前基线（2026-07-31）
-
-M1-M32 的本地开发路线已归档到 `baseline-m32-20260731`。M27 历史告警、
-M28 固定范围 Velero Backup 创建、M29 Namespace 治理态势、M30 Node 维护和
-M31 隔离恢复演练均已通过一次性真实 kind 验收；API/OpenAPI、24 组迁移、
-最小权限 RBAC、前端类型和响应式工作流已重新对齐。
-
-M33 将原始 `net/http` Kubernetes 网关迁移到受控 `client-go` 传输层
-（ADR 0048）；M34 建立 `RouteDescriptor` 统一路由契约并补齐 ADR 0039
-承诺的 RBAC 只读盘点（ADR 0049）；M35 引入轻量集群/Namespace 授权
-（ADR 0050），Authorization 失败返回 404 以避免泄漏隐藏集群。M38 完成
-工程化、交付与供应链加固（ADR 0051）：CI 门禁新增 race 检测、
-golangci-lint、ESLint、50% 覆盖率基线和 OpenAPI 破坏性变更检查；real-kind
-E2E 覆盖 M23-M31；新增官方 Helm 图表；发布流水线产出多架构 OCI 镜像
-（linux/amd64、linux/arm64）和 SPDX SBOM；许可 allowlist 在门禁时强制。
-`SECURITY.md` 和 `CHANGELOG.md` 成为受跟踪的交付物。两个里程碑均通过
-本地 fast gate，未改变任何公开 API 契约。
-
-最终快速门禁用时 26.17 秒；完整门禁用时 97.68 秒并通过全量 Go、73 个
-Vitest 用例、前端生产构建、Compose 三服务健康、Kustomize 16/5/22/3 和
-直连/代理 readiness。证据为
-`.artifacts/verification/verify-20260731-015255.json`；归档见
-[`docs/changes/2026-07-31-final-baseline-archive.md`](docs/changes/2026-07-31-final-baseline-archive.md)。
-
-M32 后参照本地 KubeSphere 源码制定的优化路线、开发要求和验收标准见
-[`docs/kubesphere-optimization-plan.md`](docs/kubesphere-optimization-plan.md)。
-M38 完成记录见
-[`docs/changes/2026-07-31-m38-engineering-delivery-and-supply-chain-hardening.md`](docs/changes/2026-07-31-m38-engineering-delivery-and-supply-chain-hardening.md)。
-完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，安全策略与漏洞披露流程见
-[`SECURITY.md`](SECURITY.md)。
+![Kubernetes](https://img.shields.io/badge/Kubernetes-1.36-326CE5?logo=kubernetes&logoColor=white)
 
 > 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
 ![AIOps Dashboard](docs/thesis/screenshots/01-dashboard.png)
 
+## 项目简介
+
+平台以确定性规则诊断为主链路、AI 解释为可选增强，提供从多集群资源浏览、
+故障定位到受控修复的闭环能力。通过三层控制台（平台 → 集群 → 工作区）和
+2D 授权矩阵（集群 + Namespace 粒度）实现安全的多租户隔离；所有高风险操作
+经 dry-run、确认、幂等和审计，凭据加密存储且未授权资源返回 404 以避免
+信息泄漏。
+
+## 当前基线（2026-08-01）
+
+`baseline-m60-20260801` 完成 post-M45 路线全部 5 个阶段 15 个里程碑
+（M46-M60）：三层控制台与工作区多租户（M46-M47）、多集群联邦（M48）、
+CRD 发现与只读浏览（M49）、监控大盘与日志探索器（M50）、有界事件流与
+告警抑制（M51）、智能巡检与服务网格只读（M52）、黄金质量回放（M56）、
+Helm 应用目录与受控部署（M57）、DevOps 只读与跨集群复制（M58）、签名
+出处与 Provider Registry（M59-M60）。CI 全量通过；完整变更历史见
+[`CHANGELOG.md`](CHANGELOG.md)，安全策略见 [`SECURITY.md`](SECURITY.md)，
+里程碑归档见 [`docs/changes/`](docs/changes/)。
+
 ## 核心能力
 
-- **多集群健康视图**：以固定并发、超时和采样上限汇总集群状态，显式呈现覆盖率、截断和局部失败。
-- **资源工作台**：提供工作负载（Pod/Deployment/StatefulSet/DaemonSet/ReplicaSet/Job/CronJob/HPA）、网络（Service/Ingress）、存储（PVC/PV）、策略（PDB/NetworkPolicy/ResourceQuota/LimitRange）、配置（ConfigMap/Secret 元数据/ServiceAccount）和 RBAC（Role/ClusterRole/RoleBinding/ClusterRoleBinding）等常见 Kubernetes 资源的只读列表、详情、关联事件、拓扑、脱敏 Manifest 和深链接。
-- **全局资源搜索**：在固定 Pod、Deployment、Service、Ingress 范围内执行有界跨集群名称搜索。
-- **证据型诊断**：确定性规则保留资源快照、事件和可追溯证据，AI 仅作为可选解释增强。
-- **真实 Metrics**：读取可选 Metrics API，展示 Node/Pod CPU、内存绝对用量、利用率和消费者排行，并保留七天的精确序列历史与持续窗口评估。
-- **历史告警生命周期**：基于 M21 精确序列的受限后台评估器、去重和确认生命周期（M27）。
-- **受控运维操作**：Deployment rollout restart/scale、镜像更新与 ReplicaSet 修订回滚（M23）、CronJob suspend/resume、Velero Backup 创建（M28）、Node cordon/uncordon/PDB 感知驱逐（M30）、隔离命名空间恢复演练（M31），统一经过 dry-run、确认、幂等和审计。
-- **安全与治理**：包含四类角色、加密集群凭据、会话管理、平台审计、安全 CSV、签名 Webhook outbox、Namespace 治理态势（M29）、RBAC 只读盘点（M34）和轻量集群/Namespace 授权（M35，未授权返回 404）。
-- **交付门禁**：覆盖 Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和；CI 强制 race 检测、golangci-lint、ESLint、50% 覆盖率基线和 OpenAPI 破坏性变更检查；发布产出多架构 OCI 镜像、SPDX SBOM 和 SHA256 清单；许可 allowlist 在门禁时强制；提供官方 Helm 图表（`deploy/helm/aiops-platform/`）与 Kustomize 双路径部署。
+- **多集群与多租户**：有界并发健康 fan-out 与覆盖率/截断显式呈现（M20）；固定资源范围全局搜索与用户私有筛选器（M20）；三层控制台与工作区多租户隔离（M46-M47）；Host/Member 多集群联邦（M48）；轻量集群/Namespace 授权，未授权返回 404（M35）。
+- **资源工作台**：工作负载、网络、存储、策略、配置和 RBAC 等常见资源的只读列表/详情/事件/拓扑/脱敏 Manifest（M12-M17）；编译时白名单的 CRD 发现与只读实例浏览（M49）；深链接详情抽屉与响应式交互。
+- **全栈可观测性**：监控大盘与日志探索器（M50）；有界 SSE 事件流与告警抑制规则（M51）；Node/Pod 真实 Metrics、七天精确序列历史与持续窗口评估（M15-M21）；历史告警去重与确认生命周期（M27）；时序拓扑与变更事件（M40）；SLO 错误预算与影响面（M41）。
+- **证据型诊断**：确定性规则保留资源快照、事件和可追溯证据，AI 仅作可选解释增强（M18）；多信号关联与确定性 RCA（M43）；引用校验的 AI Investigator（M44）；智能巡检规则目录与计划任务（M52）。
+- **受控运维**：Deployment rollout restart/scale/镜像更新/回滚、CronJob suspend/resume（M19/M23）；Velero Backup 创建与备份/恢复 GUI 浏览（M28/M58）；Node cordon/uncordon/PDB 感知驱逐（M30）；隔离命名空间恢复演练（M31）；Helm 应用目录与 Flux HelmRelease 受控部署（M57）；GitOps 只读浏览（M58）；跨集群资源复制（M58）；统一经 dry-run、确认、幂等和审计。
+- **服务网格只读**：VirtualService/DestinationRule 只读浏览与固定 Prometheus 模板流量指标投影（M52）。
+- **质量与交付**：黄金数据集回放与质量报告（M56）；编译时 Provider Registry 统一生命周期/健康/角色选择（M60）；Cosign keyless 签名与 SLSA provenance 占位（M59）。
+- **安全与治理**：四类角色、加密集群凭据、会话管理、平台审计、安全 CSV 导出（M20）；OIDC/MFA 离线就绪准入（M32）；Namespace 治理态势（M29）；RBAC 只读盘点（M34）；签名审计归档（M31）；凭据密钥再加密（M30）。
+- **交付门禁**：Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和；CI 强制 race 检测、golangci-lint、ESLint、50% 覆盖率基线和 OpenAPI 破坏性变更检查；发布产出多架构 OCI 镜像、SPDX SBOM 和 SHA256 清单；许可 allowlist 强制；提供官方 Helm 图表与 Kustomize 双路径部署。
 
 ## 技术栈
 
-- Backend：Go、PostgreSQL/pgvector、Kubernetes client-go v0.34.x
+- Backend：Go 1.26、PostgreSQL/pgvector、Kubernetes client-go v0.36.x
 - Frontend：Vue 3、TypeScript、Vite、Lucide
 - Runtime：Docker Compose、Kustomize、Helm 3、kind、NGINX
-- Delivery：GitHub Actions、Dependabot、actionlint、golangci-lint、ESLint、oasdiff、syft SBOM、多架构 OCI 归档
+- Delivery：GitHub Actions、Dependabot、actionlint、golangci-lint、ESLint、oasdiff、syft SBOM、Cosign、多架构 OCI 归档
 
-当前功能型 MVP 主链路已经闭环，并进入生产安全加固阶段。完整架构、设计决策、
-测试矩阵和阶段归档见 [`docs/`](docs/README.md)。
+功能型 MVP 主链路已闭环并完成生产安全加固与 post-M45 全栈能力扩展。完整
+架构、设计决策、测试矩阵和阶段归档见 [`docs/`](docs/README.md)。
 
 生产 OIDC/MFA、物理/WAL PITR、HA 切换和远端 release 仍需组织授权与基础设施，
-不属于本地基线的完成声明。Windows 主机缺少 `gcc`，因此 race 检测记录为环境阻塞，
-没有被标记为通过。
+不属于本地基线的完成声明。Windows 主机缺少 `gcc`，race 检测由 CI (Linux) 覆盖。
 
 ## Quick Start
 
@@ -191,44 +178,12 @@ KRM 和 Ratel 仅用于需求、交互及部署思路参考。本仓库独立实
 
 ## Delivery Status（历史记录）
 
-以下内容保留早期路线决策与证据链；当前状态以文首 2026-07-31 基线和最终归档为准。
+以下保留早期路线（M1-M32）决策摘要与证据链入口；当前状态以文首 M60 基线为准。
 
-当前已完成 M1-M19 和 M20 第一至第十二阶段。固定操作目录包含 Deployment rollout restart/scale 与 CronJob
-suspend/resume，全部经过 dry-run、typed diff、精确资源快照、一次性确认、幂等执行、
-审计和 namespaced RBAC；真实 kind 已验证执行、重放和 fixture 恢复。Deployment 镜像更新与
-精确 ReplicaSet 修订回滚已在 M23 实现，绑定 preview 时刻捕获的不可变 ReplicaSet revision；
-不接受客户端模板或任意 patch。
-M20 第一阶段增加有界多集群健康比较，固定 20 集群、4 并发、单集群 4 秒与每类 100
-对象采样上限，并显式返回部分失败和采样覆盖率；第二阶段已用两个独立 kind 集群和隔离平台
-验证真实 fan-out、超时、恢复、不可用隔离、只读 RBAC 与完整清理。第三阶段新增固定
-Pod/Deployment/Service/Ingress 的跨集群名称搜索，沿用 20 集群、4 并发和单集群 4 秒
-边界，显式返回结果截断、集群覆盖与局部失败，并深链既有资源工作台。第四阶段新增
-当前用户私有的搜索筛选器，限制 20 条，仅保存名称、查询词、Namespace 和四类固定资源子集，
-支持应用、重命名、完整覆盖和删除，并以所有权谓词、并发锁、兼容状态和统一审计保持边界。
-第五阶段通过两个一次性 Kubernetes v1.34.0 kind 集群和隔离平台，验证 9 条固定资源搜索结果的
-跨集群排序、覆盖率、全局截断、暂停超时、恢复、停机失败隔离、只读 RBAC 与八项完整清理。
-第六阶段新增分层 CI、语义版本发布打包和自托管 Windows 真实 kind 周期门禁：常规 PR 无密钥运行，
-tag 发布前复用完整 CI 并生成 OCI 归档、源码、OpenAPI、依赖许可、元数据和 SHA-256 清单；
-真实集群门禁仅运行一次性诊断/fleet/search 套件。第七阶段完成依赖审查、major 更新隔离和
-Node 24 Actions 治理；第八阶段增加隔离 PostgreSQL 17 逻辑备份恢复门禁，在销毁源实例后
-恢复到全新实例并校验迁移、代表性关系、加密字节和外键一致性，且不声明生产 RPO/RTO、PITR 或 HA。
-第九至第十二阶段完成应用凭据再加密、签名审计归档、离线 OIDC/MFA 就绪准入和
-生产恢复策略准入，均已通过托管 CI，但仍不声明生产 SSO、PITR 或 HA 已启用。
-KRM/Ratel 复评后，后续路线已调整为 M21 历史可观测、M22 日常排障与治理、
-M23 安全部署更新/回滚、M24 固定跨集群发布、M25 集群工作负载备份集成和
-M26 组织集成/正式发布。
-运维合同见 `docs/ci-release.md`，归档见
-`docs/changes/2026-07-27-bounded-multi-cluster-health.md` 和
-`docs/changes/2026-07-27-two-cluster-fleet-e2e.md`、
-`docs/changes/2026-07-27-bounded-global-resource-search.md`、
-`docs/changes/2026-07-27-user-owned-global-search-filters.md`、
-`docs/changes/2026-07-27-two-cluster-global-search-e2e.md`、
-`docs/changes/2026-07-28-versioned-ci-release-pipeline.md`、
-`docs/changes/2026-07-28-dependency-governance.md`、
-`docs/changes/2026-07-28-postgres-backup-restore.md`、
-`docs/changes/2026-07-28-credential-key-reencryption.md`、
-`docs/changes/2026-07-28-signed-audit-archives.md`、
-`docs/changes/2026-07-28-identity-readiness-gate.md`、
-`docs/changes/2026-07-28-recovery-readiness-gate.md` 和
-`docs/changes/2026-07-28-product-roadmap-reprioritization.md`，交接入口见
-`docs/development-handoff.md`。本地初始 Git 基线已经冻结并通过全量门禁，远端流水线状态以页首 CI 徽章为准。
+- **M1-M19**：核心资源只读链路、证据型诊断、受控操作目录（Deployment scale/restart、CronJob suspend/resume），全部经 dry-run、幂等和审计。
+- **M20-M26**：有界多集群健康 fan-out、全局搜索、用户私有筛选器、分层 CI/发布流水线、依赖治理、PostgreSQL 备份恢复、凭据再加密、签名审计归档、OIDC/MFA 就绪准入、恢复策略准入。
+- **M27-M32**：历史告警生命周期、Velero Backup 创建、Namespace 治理态势、Node 维护、隔离恢复演练、最终基线归档。
+
+完整里程碑归档见 [`docs/changes/`](docs/changes/)，交接入口见
+[`docs/development-handoff.md`](docs/development-handoff.md)，运维合同见
+[`docs/ci-release.md`](docs/ci-release.md)。远端流水线状态以页首 CI 徽章为准。

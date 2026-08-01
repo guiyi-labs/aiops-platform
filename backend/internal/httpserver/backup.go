@@ -7,12 +7,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"k8s-aiops.local/backend/internal/apiquery"
 	"k8s-aiops.local/backend/internal/backup"
+	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
 
 type backupHandler struct {
-	service *backup.Service
+	service    *backup.Service
+	kubernetes *k8sgateway.Service
 }
 
 type previewBackupRequest struct {
@@ -130,4 +133,67 @@ func (h backupHandler) writeError(c *gin.Context, err error, fallback string) {
 	default:
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", fallback)
 	}
+}
+
+// --- M58 live Velero Backup CR list/detail -----------------------------------
+
+func (h backupHandler) listBackups(c *gin.Context) {
+	clusterID, ok := clusterID(c)
+	if !ok {
+		return
+	}
+	if h.kubernetes == nil {
+		writeError(c, http.StatusServiceUnavailable, "VELERO_UNAVAILABLE", "Velero live CR provider is not configured")
+		return
+	}
+	query, err := apiquery.Parse(c.Request, "name")
+	if err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", err.Error())
+		return
+	}
+	namespace := strings.TrimSpace(c.Query("namespace"))
+	resp, err := h.kubernetes.Backups(c.Request.Context(), clusterID, namespace, query)
+	if err != nil {
+		switch {
+		case errors.Is(err, k8sgateway.ErrVeleroUnavailable):
+			writeError(c, http.StatusServiceUnavailable, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
+		default:
+			writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to list Velero backups")
+		}
+		return
+	}
+	setAuditClusterID(c, clusterID)
+	c.JSON(http.StatusOK, gin.H{"items": resp.Items, "total": resp.Total, "remaining": resp.Remaining})
+}
+
+func (h backupHandler) getBackup(c *gin.Context) {
+	clusterID, ok := clusterID(c)
+	if !ok {
+		return
+	}
+	if h.kubernetes == nil {
+		writeError(c, http.StatusServiceUnavailable, "VELERO_UNAVAILABLE", "Velero live CR provider is not configured")
+		return
+	}
+	namespace := strings.TrimSpace(c.Param("namespace"))
+	name := strings.TrimSpace(c.Param("name"))
+	if namespace == "" || name == "" {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "namespace and name are required")
+		return
+	}
+	b, err := h.kubernetes.Backup(c.Request.Context(), clusterID, namespace, name)
+	if err != nil {
+		switch {
+		case errors.Is(err, k8sgateway.ErrVeleroUnavailable):
+			writeError(c, http.StatusServiceUnavailable, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
+		case errors.Is(err, k8sgateway.ErrResourceNotFound):
+			writeError(c, http.StatusNotFound, "VELERO_BACKUP_NOT_FOUND", "Velero backup not found")
+		default:
+			writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to fetch Velero backup")
+		}
+		return
+	}
+	setAuditClusterID(c, clusterID)
+	setAuditTarget(c, "VeleroBackup", namespace, name)
+	c.JSON(http.StatusOK, b)
 }

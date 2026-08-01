@@ -7,10 +7,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"k8s-aiops.local/backend/internal/authz"
 	"k8s-aiops.local/backend/internal/globalsearch"
 )
 
-type globalSearchHandler struct{ service *globalsearch.Service }
+type globalSearchHandler struct {
+	service *globalsearch.Service
+	authz   *authz.Service
+}
 
 func (h globalSearchHandler) search(c *gin.Context) {
 	kinds, err := globalsearch.ParseKinds(c.Query("kinds"))
@@ -26,10 +30,15 @@ func (h globalSearchHandler) search(c *gin.Context) {
 	if !ok {
 		return
 	}
+	visible, _, err := authorizedClusterFilter(h.authz, c)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "GLOBAL_SEARCH_FAILED", "unable to evaluate access scope")
+		return
+	}
 	response, err := h.service.Search(c.Request.Context(), globalsearch.Query{
 		Term: c.Query("q"), Namespace: c.Query("namespace"), Kinds: kinds,
 		ClusterLimit: clusterLimit, ResultLimit: resultLimit,
-	})
+	}, visible)
 	if errors.Is(err, globalsearch.ErrInvalidQuery) {
 		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "q, namespace or search limits are invalid")
 		return

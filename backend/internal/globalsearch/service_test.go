@@ -95,7 +95,7 @@ func TestSearchBoundsConcurrencySortsAndTruncates(t *testing.T) {
 	service := NewService(Config{MaxClusters: 3, MaxConcurrentClusters: 2, PerClusterTimeout: time.Second, MaxResults: 5, PerKindLimit: 5}, clusterStub{items: []cluster.Cluster{
 		{ID: 3, Name: "three", Enabled: true}, {ID: 1, Name: "one", Enabled: true}, {ID: 2, Name: "disabled", Enabled: false},
 	}}, resources)
-	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: SupportedKinds(), ClusterLimit: 3, ResultLimit: 5})
+	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: SupportedKinds(), ClusterLimit: 3, ResultLimit: 5}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestSearchReportsEnabledClustersOmittedByRequestLimit(t *testing.T) {
 		{ID: 1, Name: "one", Enabled: true},
 		{ID: 2, Name: "two", Enabled: true},
 	}}, &resourcesStub{})
-	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: []Kind{KindPod}, ClusterLimit: 2, ResultLimit: 100})
+	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: []Kind{KindPod}, ClusterLimit: 2, ResultLimit: 100}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestSearchReportsEnabledClustersOmittedByRequestLimit(t *testing.T) {
 
 func TestSearchKeepsKindFailureLocalAndReportsKnownTotal(t *testing.T) {
 	service := NewService(Config{}, clusterStub{items: []cluster.Cluster{{ID: 7, Name: "partial", Enabled: true}}}, &resourcesStub{failService: map[int64]bool{7: true}})
-	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: SupportedKinds(), ClusterLimit: 20, ResultLimit: 100})
+	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: SupportedKinds(), ClusterLimit: 20, ResultLimit: 100}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +144,7 @@ func TestSearchKeepsKindFailureLocalAndReportsKnownTotal(t *testing.T) {
 
 func TestSearchMarksEveryRemainingKindTimedOut(t *testing.T) {
 	service := NewService(Config{PerClusterTimeout: 10 * time.Millisecond}, clusterStub{items: []cluster.Cluster{{ID: 9, Name: "slow", Enabled: true}}}, &resourcesStub{block: true})
-	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: SupportedKinds(), ClusterLimit: 20, ResultLimit: 100})
+	response, err := service.Search(context.Background(), Query{Term: "api", Kinds: SupportedKinds(), ClusterLimit: 20, ResultLimit: 100}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +169,7 @@ func TestSearchValidatesFixedQueryShapeAndDirectoryFailure(t *testing.T) {
 		{Term: "api", ClusterLimit: 20, ResultLimit: 101},
 	}
 	for _, query := range invalid {
-		if _, err := service.Search(context.Background(), query); !errors.Is(err, ErrInvalidQuery) {
+		if _, err := service.Search(context.Background(), query, nil); !errors.Is(err, ErrInvalidQuery) {
 			t.Fatalf("query=%#v err=%v", query, err)
 		}
 	}
@@ -178,7 +178,7 @@ func TestSearchValidatesFixedQueryShapeAndDirectoryFailure(t *testing.T) {
 	}
 	directoryErr := errors.New("directory unavailable")
 	service = NewService(Config{}, clusterStub{err: directoryErr}, &resourcesStub{})
-	if _, err := service.Search(context.Background(), Query{Term: "api", ClusterLimit: 20, ResultLimit: 100}); !errors.Is(err, directoryErr) {
+	if _, err := service.Search(context.Background(), Query{Term: "api", ClusterLimit: 20, ResultLimit: 100}, nil); !errors.Is(err, directoryErr) {
 		t.Fatalf("directory error = %v", err)
 	}
 }

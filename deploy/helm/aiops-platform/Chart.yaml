@@ -1,0 +1,14 @@
+apiVersion: v2
+name: aiops-platform
+description: Multi-cluster AIOps and controlled operations platform for Kubernetes
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/aiops/aiops-platform
+maintainers:
+  - name: aiops-team
+keywords:
+  - kubernetes
+  - aiops
+  - observability
+  - multi-cluster

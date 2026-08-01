@@ -57,7 +57,7 @@ func (s *gatewayStub) Get(_ context.Context, _ int64, _ []byte, path string, que
 
 func TestPodsFiltersAndPaginates(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"api-2","namespace":"prod"}},{"metadata":{"name":"api-1","namespace":"prod"}},{"metadata":{"name":"worker","namespace":"prod"}}]}`)}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	response, err := service.Pods(context.Background(), 7, "prod", apiquery.ListQuery{Page: 1, Limit: 1, Name: "api", SortBy: "name", Ascending: true})
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +72,7 @@ func TestPodsFiltersAndPaginates(t *testing.T) {
 
 func TestSelectorsAreForwarded(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"items":[]}`)}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	_, err := service.Namespaces(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 20, LabelSelector: "team=platform", FieldSelector: "status.phase=Active"})
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestSelectorsAreForwarded(t *testing.T) {
 
 func TestNodeMetricsExposeFixedContract(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"kind":"NodeMetricsList","apiVersion":"metrics.k8s.io/v1beta1","metadata":{"resourceVersion":"ignored"},"items":[{"metadata":{"name":"worker-1","labels":{"role":"worker"}},"timestamp":"2026-07-27T06:00:00Z","window":"30s","usage":{"cpu":"125m","memory":"512Mi"},"unexpected":"hidden"}]}`)}
-	response, err := NewService(credentialStub{enabled: true}, gateway).NodeMetrics(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 20})
+	response, err := NewService(credentialStub{enabled: true}, gateway, nil).NodeMetrics(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestNodeMetricsExposeFixedContract(t *testing.T) {
 
 func TestPodMetricsUseBoundedNamespacePathAndNormalizeContainers(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"api-1","namespace":"team one"},"timestamp":"2026-07-27T06:00:00Z","window":"20s","containers":null}]}`)}
-	response, err := NewService(credentialStub{enabled: true}, gateway).PodMetrics(context.Background(), 7, "team one", apiquery.ListQuery{Page: 1, Limit: 20, Name: "api"})
+	response, err := NewService(credentialStub{enabled: true}, gateway, nil).PodMetrics(context.Background(), 7, "team one", apiquery.ListQuery{Page: 1, Limit: 20, Name: "api"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestPodMetricsUseBoundedNamespacePathAndNormalizeContainers(t *testing.T) {
 
 func TestMetricsAPINotFoundHasExplicitCapabilityError(t *testing.T) {
 	gateway := &gatewayStub{err: cluster.APIStatusError{StatusCode: 404}}
-	_, err := NewService(credentialStub{enabled: true}, gateway).NodeMetrics(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 20})
+	_, err := NewService(credentialStub{enabled: true}, gateway, nil).NodeMetrics(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 20})
 	if !errors.Is(err, ErrMetricsAPIUnavailable) {
 		t.Fatalf("error = %v", err)
 	}
@@ -123,7 +123,7 @@ func TestPodMetricsKeepResourceNotFoundWhenMetricsAPIExists(t *testing.T) {
 		podPath:                        {err: cluster.APIStatusError{StatusCode: 404}},
 		"/apis/metrics.k8s.io/v1beta1": {body: []byte(`{"groupVersion":"metrics.k8s.io/v1beta1"}`)},
 	}}
-	_, err := NewService(credentialStub{enabled: true}, gateway).PodMetrics(context.Background(), 7, "missing", apiquery.ListQuery{Page: 1, Limit: 20})
+	_, err := NewService(credentialStub{enabled: true}, gateway, nil).PodMetrics(context.Background(), 7, "missing", apiquery.ListQuery{Page: 1, Limit: 20})
 	if !errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrMetricsAPIUnavailable) {
 		t.Fatalf("error = %v", err)
 	}
@@ -134,7 +134,7 @@ func TestPodMetricsKeepResourceNotFoundWhenMetricsAPIExists(t *testing.T) {
 
 func TestEventsPreserveModernObservationFieldsAndFilterByResourceName(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"checkout.1","namespace":"payments"},"type":"Warning","reason":"BackOff","message":"restarting failed container","action":"BackOff","eventTime":"2026-07-26T12:00:00Z","reportingComponent":"kubelet","reportingInstance":"worker-1","series":{"count":4,"lastObservedTime":"2026-07-26T12:03:00Z"},"involvedObject":{"kind":"Pod","namespace":"payments","name":"checkout-1"}},{"metadata":{"name":"worker.1"},"type":"Normal","reason":"Pulled","involvedObject":{"kind":"Pod","namespace":"payments","name":"worker-1"}}]}`)}
-	response, err := NewService(credentialStub{enabled: true}, gateway).Events(context.Background(), 7, "payments", apiquery.ListQuery{Page: 1, Limit: 100, Name: "checkout"})
+	response, err := NewService(credentialStub{enabled: true}, gateway, nil).Events(context.Background(), 7, "payments", apiquery.ListQuery{Page: 1, Limit: 100, Name: "checkout"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestEventsPreserveModernObservationFieldsAndFilterByResourceName(t *testing
 
 func TestLogsAreBoundedAndScoped(t *testing.T) {
 	gateway := &gatewayStub{body: []byte("line one\nline two")}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	logs, err := service.Logs(context.Background(), 7, "prod", "api-1", "app", true, 50)
 	if err != nil || logs != "line one\nline two" {
 		t.Fatalf("Logs() = %q, %v", logs, err)
@@ -160,7 +160,7 @@ func TestLogsAreBoundedAndScoped(t *testing.T) {
 }
 
 func TestDisabledClusterIsRejected(t *testing.T) {
-	service := NewService(credentialStub{}, &gatewayStub{})
+	service := NewService(credentialStub{}, &gatewayStub{}, nil)
 	_, err := service.Pods(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20})
 	if err != cluster.ErrDisabled {
 		t.Fatalf("error = %v, want ErrDisabled", err)
@@ -190,7 +190,7 @@ func TestWorkloadResourcePaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gateway := &gatewayStub{body: tt.body}
-			if err := tt.call(NewService(credentialStub{enabled: true}, gateway)); err != nil {
+			if err := tt.call(NewService(credentialStub{enabled: true}, gateway, nil)); err != nil {
 				t.Fatal(err)
 			}
 			if gateway.path != tt.wantPath {
@@ -247,7 +247,7 @@ func TestExtendedReadOnlyResourcePaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gateway := &gatewayStub{body: tt.body}
-			if err := tt.call(NewService(credentialStub{enabled: true}, gateway)); err != nil {
+			if err := tt.call(NewService(credentialStub{enabled: true}, gateway, nil)); err != nil {
 				t.Fatal(err)
 			}
 			if gateway.path != tt.wantPath {
@@ -280,7 +280,7 @@ func TestM22PodDisruptionBudgetPathsUsePolicyAPIGroup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gateway := &gatewayStub{body: tt.body}
-			if err := tt.call(NewService(credentialStub{enabled: true}, gateway)); err != nil {
+			if err := tt.call(NewService(credentialStub{enabled: true}, gateway, nil)); err != nil {
 				t.Fatal(err)
 			}
 			if gateway.path != tt.wantPath {
@@ -373,7 +373,7 @@ func TestM17ReadOnlyResourcePaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gateway := &gatewayStub{body: tt.body}
-			if err := tt.call(NewService(credentialStub{enabled: true}, gateway)); err != nil {
+			if err := tt.call(NewService(credentialStub{enabled: true}, gateway, nil)); err != nil {
 				t.Fatal(err)
 			}
 			if gateway.path != tt.wantPath {
@@ -386,7 +386,7 @@ func TestM17ReadOnlyResourcePaths(t *testing.T) {
 func TestEndpointSlicesExposeFixedContract(t *testing.T) {
 	const unsafeValue = "ENDPOINT_SLICE_FIELD_MUST_NOT_ESCAPE"
 	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"api-a","namespace":"demo","labels":{"kubernetes.io/service-name":"api"}},"addressType":"IPv4","serviceName":"spoofed","ports":[{"name":"http","protocol":"TCP","port":8080,"appProtocol":"http"}],"endpoints":[{"addresses":["10.0.0.8"],"conditions":{"ready":false,"serving":true,"terminating":false},"nodeName":"worker-1","targetRef":{"kind":"Pod","namespace":"demo","name":"api-1","uid":"pod-uid"},"deprecatedTopology":{"unsafe":"` + unsafeValue + `"}}],"unsafe":"` + unsafeValue + `"}]}`)}
-	response, err := NewService(credentialStub{enabled: true}, gateway).EndpointSlices(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20, SortBy: "name", Ascending: true})
+	response, err := NewService(credentialStub{enabled: true}, gateway, nil).EndpointSlices(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20, SortBy: "name", Ascending: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,7 +412,7 @@ func TestEndpointSlicesExposeFixedContract(t *testing.T) {
 
 func TestEndpointSlicesNormalizeEmptyCollections(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"empty","namespace":"demo","labels":{"kubernetes.io/service-name":"empty"}},"addressType":"IPv4","ports":null,"endpoints":null}]}`)}
-	response, err := NewService(credentialStub{enabled: true}, gateway).EndpointSlices(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
+	response, err := NewService(credentialStub{enabled: true}, gateway, nil).EndpointSlices(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +429,7 @@ func TestSensitiveResourceFieldsNeverSerialize(t *testing.T) {
 	const configValue = "CONFIG_VALUE_MUST_NOT_ESCAPE"
 	const binaryValue = "BINARY_VALUE_MUST_NOT_ESCAPE"
 	configGateway := &gatewayStub{body: []byte(`{"metadata":{"name":"runtime","namespace":"demo"},"immutable":true,"data":{"zeta":"` + configValue + `","alpha":"safe-looking"},"binaryData":{"payload":"` + binaryValue + `"}}`)}
-	configMap, err := NewService(credentialStub{enabled: true}, configGateway).ConfigMap(context.Background(), 7, "demo", "runtime")
+	configMap, err := NewService(credentialStub{enabled: true}, configGateway, nil).ConfigMap(context.Background(), 7, "demo", "runtime")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +444,7 @@ func TestSensitiveResourceFieldsNeverSerialize(t *testing.T) {
 
 	const parameterValue = "STORAGE_PARAMETER_MUST_NOT_ESCAPE"
 	storageGateway := &gatewayStub{body: []byte(`{"metadata":{"name":"standard"},"provisioner":"example.csi.local","parameters":{"api-key":"` + parameterValue + `"}}`)}
-	storageClass, err := NewService(credentialStub{enabled: true}, storageGateway).StorageClass(context.Background(), 7, "standard")
+	storageClass, err := NewService(credentialStub{enabled: true}, storageGateway, nil).StorageClass(context.Background(), 7, "standard")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +459,7 @@ func TestSensitiveResourceFieldsNeverSerialize(t *testing.T) {
 	const secretValue = "SECRET_VALUE_MUST_NOT_ESCAPE"
 	const annotationValue = "SECRET_ANNOTATION_MUST_NOT_ESCAPE"
 	secretGateway := &gatewayStub{body: []byte(`{"metadata":{"name":"runtime","namespace":"demo","uid":"secret-1","annotations":{"credential":"` + annotationValue + `"},"labels":{"team":"platform"}},"type":"Opaque","immutable":true,"data":{"zeta":"` + secretValue + `","alpha":"safe-looking"}}`)}
-	secret, err := NewService(credentialStub{enabled: true}, secretGateway).Secret(context.Background(), 7, "demo", "runtime")
+	secret, err := NewService(credentialStub{enabled: true}, secretGateway, nil).Secret(context.Background(), 7, "demo", "runtime")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +476,7 @@ func TestSensitiveResourceFieldsNeverSerialize(t *testing.T) {
 func TestHPAContractDropsMetricSelectorsAndNormalizesCollections(t *testing.T) {
 	const selectorValue = "HPA_SELECTOR_MUST_NOT_ESCAPE"
 	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"api","namespace":"demo"},"spec":{"scaleTargetRef":{"apiVersion":"apps/v1","kind":"Deployment","name":"api"},"minReplicas":1,"maxReplicas":5,"metrics":[{"type":"Resource","resource":{"name":"cpu","target":{"type":"Utilization","averageUtilization":70}}},{"type":"External","external":{"metric":{"name":"queue_depth","selector":{"matchLabels":{"unsafe":"` + selectorValue + `"}}},"target":{"type":"AverageValue","averageValue":"10"}}}]},"status":{"currentReplicas":2,"desiredReplicas":3,"conditions":null}}]}`)}
-	response, err := NewService(credentialStub{enabled: true}, gateway).HorizontalPodAutoscalers(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
+	response, err := NewService(credentialStub{enabled: true}, gateway, nil).HorizontalPodAutoscalers(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +492,7 @@ func TestHPAContractDropsMetricSelectorsAndNormalizesCollections(t *testing.T) {
 
 func TestPatchDeploymentIsBoundedAndSupportsServerDryRun(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"metadata":{"name":"api","namespace":"demo","uid":"uid-1","resourceVersion":"12"}}`)}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	patch := []byte(`{"metadata":{"resourceVersion":"11"},"spec":{"template":{"metadata":{"annotations":{"k8s-aiops.local/restarted-at":"2026-07-17T12:00:00Z"}}}}}`)
 	item, err := service.PatchDeployment(context.Background(), 7, "demo", "api", patch, true)
 	if err != nil {
@@ -508,7 +508,7 @@ func TestPatchDeploymentIsBoundedAndSupportsServerDryRun(t *testing.T) {
 
 func TestPatchCronJobIsBoundedAndSupportsServerDryRun(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"metadata":{"name":"cleanup","namespace":"demo","uid":"uid-2","resourceVersion":"22"},"spec":{"suspend":true}}`)}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	patch := []byte(`{"metadata":{"uid":"uid-2","resourceVersion":"21"},"spec":{"suspend":true}}`)
 	item, err := service.PatchCronJob(context.Background(), 7, "team one", "nightly/cleanup", patch, true)
 	if err != nil {
@@ -549,7 +549,7 @@ func TestServiceDiagnosisResourcePaths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			gateway := &gatewayStub{body: tt.body}
-			if err := tt.call(NewService(credentialStub{enabled: true}, gateway)); err != nil {
+			if err := tt.call(NewService(credentialStub{enabled: true}, gateway, nil)); err != nil {
 				t.Fatal(err)
 			}
 			if gateway.path != tt.wantPath {
@@ -561,7 +561,7 @@ func TestServiceDiagnosisResourcePaths(t *testing.T) {
 
 func TestServiceEndpointsPrefersEndpointSlices(t *testing.T) {
 	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"api-a"},"addressType":"IPv4","endpoints":[{"addresses":["10.0.0.1","10.0.0.2"],"conditions":{"ready":true}},{"addresses":["10.0.0.3"],"conditions":{"ready":false}},{"addresses":["10.0.0.4"],"conditions":{}}]}]}`)}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	endpoints, err := service.ServiceEndpoints(context.Background(), 7, "demo", "api")
 	if err != nil {
 		t.Fatal(err)
@@ -581,13 +581,13 @@ func TestServiceEndpointsFallsBackOnlyWhenDiscoveryAPIIsMissing(t *testing.T) {
 		discoveryPath: {err: cluster.APIStatusError{StatusCode: 404}},
 		legacyPath:    {body: []byte(`{"metadata":{"name":"api"},"subsets":[{"addresses":[{"ip":"10.0.0.8"}]}]}`)},
 	}}
-	endpoints, err := NewService(credentialStub{enabled: true}, gateway).ServiceEndpoints(context.Background(), 7, "demo", "api")
+	endpoints, err := NewService(credentialStub{enabled: true}, gateway, nil).ServiceEndpoints(context.Background(), 7, "demo", "api")
 	if err != nil || endpoints.SourceAPI != "core/v1" || len(endpoints.Subsets) != 1 || len(gateway.paths) != 2 {
 		t.Fatalf("endpoints=%#v paths=%v err=%v", endpoints, gateway.paths, err)
 	}
 
 	forbidden := &gatewayStub{responses: map[string]gatewayResponse{discoveryPath: {err: cluster.APIStatusError{StatusCode: 403}}}}
-	_, err = NewService(credentialStub{enabled: true}, forbidden).ServiceEndpoints(context.Background(), 7, "demo", "api")
+	_, err = NewService(credentialStub{enabled: true}, forbidden, nil).ServiceEndpoints(context.Background(), 7, "demo", "api")
 	var status cluster.APIStatusError
 	if !errors.As(err, &status) || status.StatusCode != 403 || len(forbidden.paths) != 1 {
 		t.Fatalf("paths=%v err=%v", forbidden.paths, err)
@@ -599,7 +599,7 @@ func TestContainersListsContainerInfo(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		podPath: {body: []byte(`{"metadata":{"name":"api-1","namespace":"prod"},"spec":{"containers":[{"name":"app","image":"app:1.0"},{"name":"sidecar","image":"sidecar:2.0"}],"initContainers":[{"name":"migrate","image":"migrate:1.0"}]},"status":{"containerStatuses":[{"name":"app","ready":true,"restartCount":0,"state":{"running":{}},"lastState":{}},{"name":"sidecar","ready":false,"restartCount":3,"state":{"waiting":{"reason":"ImagePullBackOff"}},"lastState":{"terminated":{"exitCode":1}}}],"initContainerStatuses":[{"name":"migrate","ready":true,"restartCount":1,"state":{"terminated":{"exitCode":0}}}]}}`)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	containers, err := service.Containers(context.Background(), 7, "prod", "api-1")
 	if err != nil {
 		t.Fatal(err)
@@ -625,7 +625,7 @@ func TestLogsSinceSupportsSinceSecondsAndDisclosesTruncation(t *testing.T) {
 		podPath: {body: []byte(`{"metadata":{"name":"api-1"},"spec":{"containers":[{"name":"app"}]},"status":{"containerStatuses":[{"name":"app","ready":true}]}}`)},
 		logPath: {body: []byte("2026-07-29T10:00:00Z line one\n2026-07-29T10:00:05Z line two\n")},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	log, err := service.LogsSince(context.Background(), 7, "prod", "api-1", "app", false, 200, 3600, "")
 	if err != nil {
 		t.Fatal(err)
@@ -643,7 +643,7 @@ func TestLogsSinceSupportsSinceSecondsAndDisclosesTruncation(t *testing.T) {
 
 func TestLogsSinceDisallowsBothSinceSecondsAndSinceTime(t *testing.T) {
 	gateway := &gatewayStub{}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	_, err := service.LogsSince(context.Background(), 7, "prod", "api-1", "app", false, 200, 3600, "2026-07-29T00:00:00Z")
 	if err == nil {
 		t.Fatal("expected mutually exclusive log window parameters to be rejected")
@@ -658,7 +658,7 @@ func TestLogsSinceDetectsTruncation(t *testing.T) {
 		podPath: {body: []byte(`{"metadata":{"name":"api-1"},"spec":{"containers":[{"name":"app"}]},"status":{"containerStatuses":[{"name":"app","ready":true}]}}`)},
 		logPath: {body: []byte("2026-07-29T10:00:00Z " + longLine)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	log, err := service.LogsSince(context.Background(), 7, "prod", "api-1", "app", false, 200, 0, "")
 	if err != nil {
 		t.Fatal(err)
@@ -674,7 +674,7 @@ func TestAllContainerLogsFetchesAllContainers(t *testing.T) {
 		podPath: {body: []byte(`{"metadata":{"name":"api-1"},"spec":{"containers":[{"name":"app"},{"name":"sidecar"}]},"status":{"containerStatuses":[{"name":"app","ready":true},{"name":"sidecar","ready":true}]}}`)},
 	}}
 	g := gateway
-	service := NewService(credentialStub{enabled: true}, g)
+	service := NewService(credentialStub{enabled: true}, g, nil)
 	resp, err := service.AllContainerLogs(context.Background(), 7, "prod", "api-1", false, 100, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -721,7 +721,7 @@ func TestParseLogLinesHandlesEmpty(t *testing.T) {
 
 func TestManifestRejectsNonApprovedKind(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	_, err := service.Manifest(context.Background(), 7, "Secret", "default", "my-secret")
 	if err != ErrResourceNotFound {
 		t.Fatalf("expected ErrResourceNotFound, got %v", err)
@@ -737,7 +737,7 @@ func TestManifestFetchesAndRedacts(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		"/api/v1/namespaces/prod/pods/api-1": {body: []byte(manifestJSON)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	result, err := service.Manifest(context.Background(), 7, "Pod", "prod", "api-1")
 	if err != nil {
 		t.Fatal(err)
@@ -763,7 +763,7 @@ func TestManifestRedactsSensitiveFieldNames(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		"/apis/apps/v1/namespaces/default/deployments/test": {body: []byte(manifestJSON)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	result, err := service.Manifest(context.Background(), 7, "Deployment", "default", "test")
 	if err != nil {
 		t.Fatal(err)
@@ -803,7 +803,7 @@ func TestVeleroCapabilityReturnsNotInstalledWhenAPIGroupMissing(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		"/apis/velero.io/v1": {err: cluster.APIStatusError{StatusCode: 404}},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	capability, err := service.VeleroCapability(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
@@ -817,7 +817,7 @@ func TestVeleroCapabilityReturnsInstalledWhenAPIGroupExists(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		"/apis/velero.io/v1": {body: []byte(`{"groupVersion":"velero.io/v1","kind":"APIResourceList"}`)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	capability, err := service.VeleroCapability(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
@@ -832,7 +832,7 @@ func TestBackupsReturnsVeleroUnavailableWhenAPIGroupMissing(t *testing.T) {
 		"/apis/velero.io/v1/backups": {err: cluster.APIStatusError{StatusCode: 404}},
 		"/apis/velero.io/v1":         {err: cluster.APIStatusError{StatusCode: 404}},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	_, err := service.Backups(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20})
 	if !errors.Is(err, ErrVeleroUnavailable) {
 		t.Fatalf("expected ErrVeleroUnavailable, got %v", err)
@@ -847,7 +847,7 @@ func TestBackupsProjectsBoundedShapeAndPaginates(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		"/apis/velero.io/v1/backups": {body: []byte(backupListJSON)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	response, err := service.Backups(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 10, SortBy: "name", Ascending: true})
 	if err != nil {
 		t.Fatal(err)
@@ -872,7 +872,7 @@ func TestBackupsUsesNamespaceScopedPath(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		"/apis/velero.io/v1/namespaces/velero/backups": {body: []byte(`{"items":[]}`)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	response, err := service.Backups(context.Background(), 7, "velero", apiquery.ListQuery{Page: 1, Limit: 20})
 	if err != nil {
 		t.Fatal(err)
@@ -890,7 +890,7 @@ func TestBackupReturnsProjectedSingleResource(t *testing.T) {
 	gateway := &gatewayStub{responses: map[string]gatewayResponse{
 		"/apis/velero.io/v1/namespaces/velero/backups/backup-a": {body: []byte(backupJSON)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	backup, err := service.Backup(context.Background(), 7, "velero", "backup-a")
 	if err != nil {
 		t.Fatal(err)
@@ -905,7 +905,7 @@ func TestBackupKeepsResourceNotFoundWhenVeleroInstalledButBackupMissing(t *testi
 		"/apis/velero.io/v1/namespaces/velero/backups/missing": {err: cluster.APIStatusError{StatusCode: 404}},
 		"/apis/velero.io/v1": {body: []byte(`{"groupVersion":"velero.io/v1"}`)},
 	}}
-	service := NewService(credentialStub{enabled: true}, gateway)
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
 	_, err := service.Backup(context.Background(), 7, "velero", "missing")
 	if !errors.Is(err, ErrResourceNotFound) || errors.Is(err, ErrVeleroUnavailable) {
 		t.Fatalf("expected ErrResourceNotFound without ErrVeleroUnavailable, got %v", err)

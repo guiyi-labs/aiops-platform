@@ -1,0 +1,10 @@
+# Patterns to ignore when packaging the Helm chart
+*.bck
+*.bak
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+.git/

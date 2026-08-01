@@ -12,6 +12,17 @@ M28 固定范围 Velero Backup 创建、M29 Namespace 治理态势、M30 Node �
 M31 隔离恢复演练均已通过一次性真实 kind 验收；API/OpenAPI、24 组迁移、
 最小权限 RBAC、前端类型和响应式工作流已重新对齐。
 
+M33 将原始 `net/http` Kubernetes 网关迁移到受控 `client-go` 传输层
+（ADR 0048）；M34 建立 `RouteDescriptor` 统一路由契约并补齐 ADR 0039
+承诺的 RBAC 只读盘点（ADR 0049）；M35 引入轻量集群/Namespace 授权
+（ADR 0050），Authorization 失败返回 404 以避免泄漏隐藏集群。M38 完成
+工程化、交付与供应链加固（ADR 0051）：CI 门禁新增 race 检测、
+golangci-lint、ESLint、50% 覆盖率基线和 OpenAPI 破坏性变更检查；real-kind
+E2E 覆盖 M23-M31；新增官方 Helm 图表；发布流水线产出多架构 OCI 镜像
+（linux/amd64、linux/arm64）和 SPDX SBOM；许可 allowlist 在门禁时强制。
+`SECURITY.md` 和 `CHANGELOG.md` 成为受跟踪的交付物。两个里程碑均通过
+本地 fast gate，未改变任何公开 API 契约。
+
 最终快速门禁用时 26.17 秒；完整门禁用时 97.68 秒并通过全量 Go、73 个
 Vitest 用例、前端生产构建、Compose 三服务健康、Kustomize 16/5/22/3 和
 直连/代理 readiness。证据为
@@ -20,6 +31,10 @@ Vitest 用例、前端生产构建、Compose 三服务健康、Kustomize 16/5/22
 
 M32 后参照本地 KubeSphere 源码制定的优化路线、开发要求和验收标准见
 [`docs/kubesphere-optimization-plan.md`](docs/kubesphere-optimization-plan.md)。
+M38 完成记录见
+[`docs/changes/2026-07-31-m38-engineering-delivery-and-supply-chain-hardening.md`](docs/changes/2026-07-31-m38-engineering-delivery-and-supply-chain-hardening.md)。
+完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，安全策略与漏洞披露流程见
+[`SECURITY.md`](SECURITY.md)。
 
 > 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
@@ -28,20 +43,21 @@ M32 后参照本地 KubeSphere 源码制定的优化路线、开发要求和验�
 ## 核心能力
 
 - **多集群健康视图**：以固定并发、超时和采样上限汇总集群状态，显式呈现覆盖率、截断和局部失败。
-- **资源工作台**：提供 17 类常见 Kubernetes 资源的只读列表、详情、关联事件、拓扑和深链接。
+- **资源工作台**：提供工作负载（Pod/Deployment/StatefulSet/DaemonSet/ReplicaSet/Job/CronJob/HPA）、网络（Service/Ingress）、存储（PVC/PV）、策略（PDB/NetworkPolicy/ResourceQuota/LimitRange）、配置（ConfigMap/Secret 元数据/ServiceAccount）和 RBAC（Role/ClusterRole/RoleBinding/ClusterRoleBinding）等常见 Kubernetes 资源的只读列表、详情、关联事件、拓扑、脱敏 Manifest 和深链接。
 - **全局资源搜索**：在固定 Pod、Deployment、Service、Ingress 范围内执行有界跨集群名称搜索。
-- **证据型诊断**：七类确定性规则保留资源快照、事件和可追溯证据，AI 仅作为可选解释增强。
-- **真实 Metrics**：读取可选 Metrics API，展示 Node/Pod CPU、内存绝对用量、利用率和消费者排行。
-- **受控运维操作**：支持 Deployment rollout restart/scale 与 CronJob suspend/resume，统一经过 dry-run、确认、幂等和审计。
-- **安全与治理**：包含四类角色、加密集群凭据、会话管理、平台审计、安全 CSV 和签名 Webhook outbox。
-- **交付门禁**：覆盖 Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和。
+- **证据型诊断**：确定性规则保留资源快照、事件和可追溯证据，AI 仅作为可选解释增强。
+- **真实 Metrics**：读取可选 Metrics API，展示 Node/Pod CPU、内存绝对用量、利用率和消费者排行，并保留七天的精确序列历史与持续窗口评估。
+- **历史告警生命周期**：基于 M21 精确序列的受限后台评估器、去重和确认生命周期（M27）。
+- **受控运维操作**：Deployment rollout restart/scale、镜像更新与 ReplicaSet 修订回滚（M23）、CronJob suspend/resume、Velero Backup 创建（M28）、Node cordon/uncordon/PDB 感知驱逐（M30）、隔离命名空间恢复演练（M31），统一经过 dry-run、确认、幂等和审计。
+- **安全与治理**：包含四类角色、加密集群凭据、会话管理、平台审计、安全 CSV、签名 Webhook outbox、Namespace 治理态势（M29）、RBAC 只读盘点（M34）和轻量集群/Namespace 授权（M35，未授权返回 404）。
+- **交付门禁**：覆盖 Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和；CI 强制 race 检测、golangci-lint、ESLint、50% 覆盖率基线和 OpenAPI 破坏性变更检查；发布产出多架构 OCI 镜像、SPDX SBOM 和 SHA256 清单；许可 allowlist 在门禁时强制；提供官方 Helm 图表（`deploy/helm/aiops-platform/`）与 Kustomize 双路径部署。
 
 ## 技术栈
 
-- Backend：Go、PostgreSQL/pgvector、Kubernetes client-go
+- Backend：Go、PostgreSQL/pgvector、Kubernetes client-go v0.34.x
 - Frontend：Vue 3、TypeScript、Vite、Lucide
-- Runtime：Docker Compose、Kustomize、kind、NGINX
-- Delivery：GitHub Actions、Dependabot、actionlint、版本化 OCI 归档
+- Runtime：Docker Compose、Kustomize、Helm 3、kind、NGINX
+- Delivery：GitHub Actions、Dependabot、actionlint、golangci-lint、ESLint、oasdiff、syft SBOM、多架构 OCI 归档
 
 当前功能型 MVP 主链路已经闭环，并进入生产安全加固阶段。完整架构、设计决策、
 测试矩阵和阶段归档见 [`docs/`](docs/README.md)。
@@ -78,6 +94,20 @@ docker compose up --build
 ```powershell
 docker compose down
 ```
+
+### Helm 部署（可选）
+
+M38 提供官方 Helm 3 图表，与 Kustomize 基线并行支持。Secrets 必须由外部提供（图表不生成 Secret）：
+
+```powershell
+# 准备 aiops-secrets（参考 deploy/kubernetes/secret.example.yaml 的 schema）
+kubectl apply -f /secure/path/aiops-secret.yaml
+
+# 渲染并安装
+helm install aiops deploy/helm/aiops-platform -n aiops-system --create-namespace
+```
+
+图表契约由 `backend/internal/deployment/helm_chart_test.go` 强制保护，包含元数据、values、schema、必需模板、安全基线和不生成 Secret 规则等 10 项测试。
 
 ## Verification
 
@@ -136,10 +166,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-down.ps1
 ## Repository Layout
 
 ```text
-backend/    Go API service
-frontend/   Vue 3 web console
-deploy/     Compose, Kubernetes and demo manifests
-docs/       Architecture, conventions, decisions and change records
+backend/             Go API service
+frontend/            Vue 3 web console
+deploy/              Compose, Kubernetes, Helm chart and demo manifests
+deploy/helm/aiops-platform/   Official Helm 3 chart (Chart.yaml, values.schema.json, templates/)
+docs/                Architecture, conventions, decisions and change records
+SECURITY.md          Supported versions, vulnerability reporting, threat-model boundaries
+CHANGELOG.md         Keep a Changelog 1.1.0 / SemVer 2.0.0 history
 ```
 
 开发前请先阅读 [开发指南](docs/development.md) 和 [目录与文件规范](docs/conventions/project-structure.md)。
@@ -162,8 +195,9 @@ KRM 和 Ratel 仅用于需求、交互及部署思路参考。本仓库独立实
 
 当前已完成 M1-M19 和 M20 第一至第十二阶段。固定操作目录包含 Deployment rollout restart/scale 与 CronJob
 suspend/resume，全部经过 dry-run、typed diff、精确资源快照、一次性确认、幂等执行、
-审计和 namespaced RBAC；真实 kind 已验证执行、重放和 fixture 恢复。Deployment rollback
-因缺少精确 ReplicaSet revision/template 历史而明确延后，不接受客户端模板或任意 patch。
+审计和 namespaced RBAC；真实 kind 已验证执行、重放和 fixture 恢复。Deployment 镜像更新与
+精确 ReplicaSet 修订回滚已在 M23 实现，绑定 preview 时刻捕获的不可变 ReplicaSet revision；
+不接受客户端模板或任意 patch。
 M20 第一阶段增加有界多集群健康比较，固定 20 集群、4 并发、单集群 4 秒与每类 100
 对象采样上限，并显式返回部分失败和采样覆盖率；第二阶段已用两个独立 kind 集群和隔离平台
 验证真实 fan-out、超时、恢复、不可用隔离、只读 RBAC 与完整清理。第三阶段新增固定

@@ -113,7 +113,7 @@ func NewService(config Config, clusters ClusterSource, resources ResourceSource)
 	return &Service{config: config, clusters: clusters, resources: resources, now: time.Now}
 }
 
-func (s *Service) Compare(ctx context.Context, limit int) (Response, error) {
+func (s *Service) Compare(ctx context.Context, limit int, visibleClusters []int64) (Response, error) {
 	if limit < 1 || limit > s.config.MaxClusters {
 		return Response{}, ErrInvalidLimit
 	}
@@ -121,11 +121,19 @@ func (s *Service) Compare(ctx context.Context, limit int) (Response, error) {
 	if err != nil {
 		return Response{}, err
 	}
+	visible := make(map[int64]bool, len(visibleClusters))
+	for _, id := range visibleClusters {
+		visible[id] = true
+	}
 	enabled := make([]cluster.Cluster, 0, len(items))
 	for _, item := range items {
-		if item.Enabled {
-			enabled = append(enabled, item)
+		if !item.Enabled {
+			continue
 		}
+		if visibleClusters != nil && !visible[item.ID] {
+			continue
+		}
+		enabled = append(enabled, item)
 	}
 	sort.Slice(enabled, func(i, j int) bool { return enabled[i].ID < enabled[j].ID })
 	total := len(enabled)

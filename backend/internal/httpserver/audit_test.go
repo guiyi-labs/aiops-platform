@@ -30,39 +30,63 @@ func (s *auditRecorderStub) Record(_ *gin.Context, entry *audit.Entry) error {
 
 func TestAuditedOperation(t *testing.T) {
 	tests := []struct {
-		method, path, action string
+		method, path, action, resource string
 	}{
-		{method: http.MethodPost, path: "/api/v1/clusters", action: "cluster.create"},
-		{method: http.MethodPatch, path: "/api/v1/diagnoses/:diagnosis_id", action: "diagnosis.status.update"},
-		{method: http.MethodPatch, path: "/api/v1/diagnoses/:diagnosis_id/assignment", action: "diagnosis.assignment.update"},
-		{method: http.MethodPost, path: "/api/v1/diagnoses/:diagnosis_id/explanations", action: "diagnosis.ai_explanation.create"},
-		{method: http.MethodPost, path: "/api/v1/ai/explanations/:explanation_id/feedback", action: "ai_explanation.feedback.create"},
-		{method: http.MethodGet, path: "/api/v1/audit-logs/export", action: "audit.export"},
-		{method: http.MethodPost, path: "/api/v1/users", action: "user.create"},
-		{method: http.MethodPatch, path: "/api/v1/users/:user_id", action: "user.update"},
-		{method: http.MethodPut, path: "/api/v1/clusters/:cluster_id/credentials", action: "cluster.credentials.rotate"},
-		{method: http.MethodPost, path: "/api/v1/users/:user_id/password-reset", action: "user.password.reset"},
-		{method: http.MethodPost, path: "/api/v1/auth/login", action: "auth.login"},
-		{method: http.MethodPost, path: "/api/v1/auth/password-change", action: "auth.password.change"},
-		{method: http.MethodDelete, path: "/api/v1/auth/sessions/:session_id", action: "auth.session.revoke"},
-		{method: http.MethodPost, path: "/api/v1/auth/sessions/revoke-others", action: "auth.sessions.revoke_others"},
-		{method: http.MethodPost, path: "/api/v1/notification-deliveries/:delivery_id/retry", action: "notification.delivery.retry"},
-		{method: http.MethodPost, path: "/api/v1/diagnoses/:diagnosis_id/remediations/preview", action: "remediation.preview"},
-		{method: http.MethodPost, path: "/api/v1/clusters/:cluster_id/operations/preview", action: "operation.preview"},
-		{method: http.MethodPost, path: "/api/v1/remediations/:remediation_id/execute", action: "remediation.execute"},
-		{method: http.MethodPost, path: "/api/v1/fleet/resources/search/filters", action: "global_search_filter.create"},
-		{method: http.MethodPatch, path: "/api/v1/fleet/resources/search/filters/:filter_id", action: "global_search_filter.update"},
-		{method: http.MethodDelete, path: "/api/v1/fleet/resources/search/filters/:filter_id", action: "global_search_filter.delete"},
+		{method: http.MethodPost, path: "/api/v1/clusters", action: "cluster.create", resource: "Cluster"},
+		{method: http.MethodPatch, path: "/api/v1/diagnoses/:diagnosis_id", action: "diagnosis.status.update", resource: "Diagnosis"},
+		{method: http.MethodPatch, path: "/api/v1/diagnoses/:diagnosis_id/assignment", action: "diagnosis.assignment.update", resource: "Diagnosis"},
+		{method: http.MethodPost, path: "/api/v1/diagnoses/:diagnosis_id/explanations", action: "diagnosis.ai_explanation.create", resource: "DiagnosisAIExplanation"},
+		{method: http.MethodPost, path: "/api/v1/ai/explanations/:explanation_id/feedback", action: "ai_explanation.feedback.create", resource: "AIExplanationFeedback"},
+		{method: http.MethodGet, path: "/api/v1/audit-logs/export", action: "audit.export", resource: "AuditExport"},
+		{method: http.MethodPost, path: "/api/v1/users", action: "user.create", resource: "User"},
+		{method: http.MethodPatch, path: "/api/v1/users/:user_id", action: "user.update", resource: "User"},
+		{method: http.MethodPut, path: "/api/v1/clusters/:cluster_id/credentials", action: "cluster.credentials.rotate", resource: "ClusterCredential"},
+		{method: http.MethodPost, path: "/api/v1/users/:user_id/password-reset", action: "user.password.reset", resource: "User"},
+		{method: http.MethodPost, path: "/api/v1/auth/login", action: "auth.login", resource: "Session"},
+		{method: http.MethodPost, path: "/api/v1/auth/password-change", action: "auth.password.change", resource: "UserCredential"},
+		{method: http.MethodDelete, path: "/api/v1/auth/sessions/:session_id", action: "auth.session.revoke", resource: "Session"},
+		{method: http.MethodPost, path: "/api/v1/auth/sessions/revoke-others", action: "auth.sessions.revoke_others", resource: "Session"},
+		{method: http.MethodPost, path: "/api/v1/notification-deliveries/:delivery_id/retry", action: "notification.delivery.retry", resource: "NotificationDelivery"},
+		{method: http.MethodPost, path: "/api/v1/diagnoses/:diagnosis_id/remediations/preview", action: "remediation.preview", resource: "RemediationPlan"},
+		{method: http.MethodPost, path: "/api/v1/clusters/:cluster_id/operations/preview", action: "operation.preview", resource: "ControlledOperation"},
+		{method: http.MethodPost, path: "/api/v1/remediations/:remediation_id/execute", action: "remediation.execute", resource: "RemediationPlan"},
+		{method: http.MethodPost, path: "/api/v1/fleet/resources/search/filters", action: "global_search_filter.create", resource: "GlobalSearchFilter"},
+		{method: http.MethodPatch, path: "/api/v1/fleet/resources/search/filters/:filter_id", action: "global_search_filter.update", resource: "GlobalSearchFilter"},
+		{method: http.MethodDelete, path: "/api/v1/fleet/resources/search/filters/:filter_id", action: "global_search_filter.delete", resource: "GlobalSearchFilter"},
+		{method: http.MethodPost, path: "/api/v1/clusters/:cluster_id/alert-rules", action: "alert_rule.create", resource: "AlertRule"},
+		{method: http.MethodPatch, path: "/api/v1/clusters/:cluster_id/alert-rules/:rule_id", action: "alert_rule.update", resource: "AlertRule"},
+		{method: http.MethodDelete, path: "/api/v1/clusters/:cluster_id/alert-rules/:rule_id", action: "alert_rule.delete", resource: "AlertRule"},
+		{method: http.MethodPost, path: "/api/v1/clusters/:cluster_id/backup-plans/preview", action: "backup.preview", resource: "BackupPlan"},
+		{method: http.MethodPost, path: "/api/v1/backup-plans/:plan_id/execute", action: "backup.execute", resource: "BackupPlan"},
+		{method: http.MethodPost, path: "/api/v1/clusters/:cluster_id/maintenance-plans/preview", action: "maintenance.preview", resource: "MaintenancePlan"},
+		{method: http.MethodPost, path: "/api/v1/maintenance-plans/:plan_id/execute", action: "maintenance.execute", resource: "MaintenancePlan"},
+		{method: http.MethodPost, path: "/api/v1/clusters/:cluster_id/restore-plans/preview", action: "restore.preview", resource: "RestorePlan"},
+		{method: http.MethodPost, path: "/api/v1/restore-plans/:plan_id/execute", action: "restore.execute", resource: "RestorePlan"},
+	}
+	// Seed routeTable from the descriptor records so the lookup is driven by
+	// the same table populated by routeRegistrar.register in production.
+	resetRouteTable()
+	for _, tt := range tests {
+		routeTable = append(routeTable, registeredRoute{
+			Method:        tt.method,
+			FullPath:      tt.path,
+			AuditAction:   tt.action,
+			AuditResource: tt.resource,
+		})
 	}
 	for _, tt := range tests {
-		action, _, ok := auditedOperation(tt.method, tt.path)
+		action, resource, ok := auditedOperation(tt.method, tt.path)
 		if !ok || action != tt.action {
-			t.Fatalf("auditedOperation(%q, %q) = %q, %v", tt.method, tt.path, action, ok)
+			t.Fatalf("auditedOperation(%q, %q) action = %q, %v", tt.method, tt.path, action, ok)
+		}
+		if resource != tt.resource {
+			t.Fatalf("auditedOperation(%q, %q) resource = %q, want %q", tt.method, tt.path, resource, tt.resource)
 		}
 	}
 	if _, _, ok := auditedOperation(http.MethodGet, "/api/v1/clusters"); ok {
 		t.Fatal("read-only request was audited as a mutation")
 	}
+	resetRouteTable()
 }
 
 func TestAuditResult(t *testing.T) {
@@ -73,6 +97,18 @@ func TestAuditResult(t *testing.T) {
 
 func TestAuditTrailRecordsDeniedMutation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	// Seed routeTable so the audit middleware can resolve auth.login from the
+	// descriptor-driven lookup, mirroring how routeRegistrar.register populates
+	// the table in the real router.
+	resetRouteTable()
+	routeTable = append(routeTable, registeredRoute{
+		Method:        http.MethodPost,
+		FullPath:      "/api/v1/auth/login",
+		AuditAction:   "auth.login",
+		AuditResource: "Session",
+	})
+	defer resetRouteTable()
+
 	recorder := &auditRecorderStub{}
 	router := gin.New()
 	router.Use(withRequestID(), auditTrail(zaptest.NewLogger(t), recorder))

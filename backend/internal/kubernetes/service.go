@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 
 	"k8s-aiops.local/backend/internal/apiquery"
 	"k8s-aiops.local/backend/internal/cluster"
@@ -21,6 +22,7 @@ var (
 	ErrResourceConflict      = errors.New("Kubernetes resource already exists")
 	ErrMetricsAPIUnavailable = errors.New("Kubernetes Metrics API is unavailable")
 	ErrVeleroUnavailable     = errors.New("Velero API is not installed")
+	ErrGitOpsUnavailable     = errors.New("ArgoCD Application API is not installed")
 )
 
 type CredentialSource interface {
@@ -36,13 +38,24 @@ type CreateGateway interface {
 	Create(context.Context, int64, []byte, string, url.Values, string, []byte, int64) ([]byte, error)
 }
 
+// DiscoveryProvider exposes a client-go discovery interface for a given
+// cluster. It is implemented by *cluster.ClientProvider. M47 uses it for
+// /api/v1/clusters/:cluster_id/api-resources (CRD discovery preview).
+type DiscoveryProvider interface {
+	Discovery(clusterID int64, kubeconfig []byte) (discovery.DiscoveryInterface, error)
+}
+
 type Service struct {
 	credentials CredentialSource
 	gateway     Gateway
+	discovery   DiscoveryProvider
 }
 
-func NewService(credentials CredentialSource, gateway Gateway) *Service {
-	return &Service{credentials: credentials, gateway: gateway}
+// NewService constructs a Service. discovery may be nil — when nil, the
+// APIResources method returns ErrDiscoveryUnavailable so callers can degrade
+// gracefully without panicking.
+func NewService(credentials CredentialSource, gateway Gateway, discovery DiscoveryProvider) *Service {
+	return &Service{credentials: credentials, gateway: gateway, discovery: discovery}
 }
 
 type ObjectMeta struct {
@@ -763,6 +776,62 @@ type ServiceAccount struct {
 	} `json:"imagePullSecrets,omitempty"`
 }
 
+// PolicyRule is the bounded projection of a Kubernetes RBAC PolicyRule. Verbs
+// and resources are kept as-is because they are already bounded enumerations
+// in the Kubernetes API; nonResourceURLs is included for ClusterRole audit.
+type PolicyRule struct {
+	APIGroups       []string `json:"apiGroups,omitempty"`
+	Resources       []string `json:"resources,omitempty"`
+	ResourceNames   []string `json:"resourceNames,omitempty"`
+	Verbs           []string `json:"verbs"`
+	NonResourceURLs []string `json:"nonResourceURLs,omitempty"`
+}
+
+// Role is the bounded projection of a namespaced Kubernetes Role.
+type Role struct {
+	Metadata ObjectMeta   `json:"metadata"`
+	Rules    []PolicyRule `json:"rules"`
+}
+
+// ClusterRole is the bounded projection of a cluster-scoped Kubernetes
+// ClusterRole. aggregationRule is omitted on purpose: the platform does not
+// edit or merge aggregation rules, only inventories them.
+type ClusterRole struct {
+	Metadata ObjectMeta   `json:"metadata"`
+	Rules    []PolicyRule `json:"rules"`
+}
+
+// RoleRef is the bounded projection of a Kubernetes RoleRef.
+type RoleRef struct {
+	APIGroup string `json:"apiGroup"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+}
+
+// Subject is the bounded projection of a Kubernetes Subject. The platform
+// never inventories ServiceAccount tokens, only the Subject reference.
+type Subject struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+	APIGroup  string `json:"apiGroup,omitempty"`
+}
+
+// RoleBinding is the bounded projection of a namespaced Kubernetes RoleBinding.
+type RoleBinding struct {
+	Metadata ObjectMeta `json:"metadata"`
+	RoleRef  RoleRef    `json:"roleRef"`
+	Subjects []Subject  `json:"subjects"`
+}
+
+// ClusterRoleBinding is the bounded projection of a cluster-scoped Kubernetes
+// ClusterRoleBinding.
+type ClusterRoleBinding struct {
+	Metadata ObjectMeta `json:"metadata"`
+	RoleRef  RoleRef    `json:"roleRef"`
+	Subjects []Subject  `json:"subjects"`
+}
+
 type ConfigMap struct {
 	Metadata       ObjectMeta `json:"metadata"`
 	Immutable      *bool      `json:"immutable,omitempty"`
@@ -930,8 +999,16 @@ type PodCondition struct {
 	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
 }
 type PodVolume struct {
-	Name     string           `json:"name"`
-	EmptyDir *json.RawMessage `json:"emptyDir,omitempty"`
+	Name                  string                             `json:"name"`
+	EmptyDir              *json.RawMessage                   `json:"emptyDir,omitempty"`
+	PersistentVolumeClaim *PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty"`
+}
+
+// PersistentVolumeClaimVolumeSource is the bounded projection of a Pod volume
+// reference to a PVC. Only the claim name is needed for topology derivation.
+type PersistentVolumeClaimVolumeSource struct {
+	ClaimName string `json:"claimName"`
+	ReadOnly  bool   `json:"readOnly,omitempty"`
 }
 type PodContainer struct {
 	Name      string               `json:"name"`
@@ -1344,6 +1421,113 @@ func (s *Service) ServiceAccount(ctx context.Context, clusterID int64, namespace
 	return item, err
 }
 
+// normalizeRBACRules ensures Rules and Subject slices are non-nil so callers
+// get stable empty arrays instead of null in JSON responses.
+func normalizeRBACRules(rules []PolicyRule) []PolicyRule {
+	if rules == nil {
+		return []PolicyRule{}
+	}
+	return rules
+}
+
+func normalizeSubjects(subjects []Subject) []Subject {
+	if subjects == nil {
+		return []Subject{}
+	}
+	return subjects
+}
+
+// Roles lists namespaced Kubernetes Role resources. The rbac.authorization.k8s.io
+// API group is read-only at this layer; no Role mutation is exposed.
+func (s *Service) Roles(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[Role], error) {
+	path := namespacedListPath("/apis/rbac.authorization.k8s.io/v1", namespace, "roles")
+	var envelope listEnvelope[Role]
+	if err := s.getJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[Role]{}, err
+	}
+	for i := range envelope.Items {
+		envelope.Items[i].Rules = normalizeRBACRules(envelope.Items[i].Rules)
+	}
+	return pageResponse(envelope.Items, query, func(item Role) string { return item.Metadata.Name }), nil
+}
+
+// Role reads a single namespaced Kubernetes Role by namespace and name.
+func (s *Service) Role(ctx context.Context, clusterID int64, namespace, name string) (Role, error) {
+	var item Role
+	err := s.getJSON(ctx, clusterID, namespacedDetailPath("/apis/rbac.authorization.k8s.io/v1", namespace, "roles", name), nil, &item)
+	if err == nil {
+		item.Rules = normalizeRBACRules(item.Rules)
+	}
+	return item, err
+}
+
+// ClusterRoles lists cluster-scoped Kubernetes ClusterRole resources.
+func (s *Service) ClusterRoles(ctx context.Context, clusterID int64, query apiquery.ListQuery) (apiquery.ListResponse[ClusterRole], error) {
+	var envelope listEnvelope[ClusterRole]
+	if err := s.getJSON(ctx, clusterID, "/apis/rbac.authorization.k8s.io/v1/clusterroles", selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[ClusterRole]{}, err
+	}
+	for i := range envelope.Items {
+		envelope.Items[i].Rules = normalizeRBACRules(envelope.Items[i].Rules)
+	}
+	return pageResponse(envelope.Items, query, func(item ClusterRole) string { return item.Metadata.Name }), nil
+}
+
+// ClusterRole reads a single cluster-scoped Kubernetes ClusterRole by name.
+func (s *Service) ClusterRole(ctx context.Context, clusterID int64, name string) (ClusterRole, error) {
+	var item ClusterRole
+	err := s.getJSON(ctx, clusterID, "/apis/rbac.authorization.k8s.io/v1/clusterroles/"+url.PathEscape(name), nil, &item)
+	if err == nil {
+		item.Rules = normalizeRBACRules(item.Rules)
+	}
+	return item, err
+}
+
+// RoleBindings lists namespaced Kubernetes RoleBinding resources.
+func (s *Service) RoleBindings(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[RoleBinding], error) {
+	path := namespacedListPath("/apis/rbac.authorization.k8s.io/v1", namespace, "rolebindings")
+	var envelope listEnvelope[RoleBinding]
+	if err := s.getJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[RoleBinding]{}, err
+	}
+	for i := range envelope.Items {
+		envelope.Items[i].Subjects = normalizeSubjects(envelope.Items[i].Subjects)
+	}
+	return pageResponse(envelope.Items, query, func(item RoleBinding) string { return item.Metadata.Name }), nil
+}
+
+// RoleBinding reads a single namespaced Kubernetes RoleBinding by namespace and name.
+func (s *Service) RoleBinding(ctx context.Context, clusterID int64, namespace, name string) (RoleBinding, error) {
+	var item RoleBinding
+	err := s.getJSON(ctx, clusterID, namespacedDetailPath("/apis/rbac.authorization.k8s.io/v1", namespace, "rolebindings", name), nil, &item)
+	if err == nil {
+		item.Subjects = normalizeSubjects(item.Subjects)
+	}
+	return item, err
+}
+
+// ClusterRoleBindings lists cluster-scoped Kubernetes ClusterRoleBinding resources.
+func (s *Service) ClusterRoleBindings(ctx context.Context, clusterID int64, query apiquery.ListQuery) (apiquery.ListResponse[ClusterRoleBinding], error) {
+	var envelope listEnvelope[ClusterRoleBinding]
+	if err := s.getJSON(ctx, clusterID, "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings", selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[ClusterRoleBinding]{}, err
+	}
+	for i := range envelope.Items {
+		envelope.Items[i].Subjects = normalizeSubjects(envelope.Items[i].Subjects)
+	}
+	return pageResponse(envelope.Items, query, func(item ClusterRoleBinding) string { return item.Metadata.Name }), nil
+}
+
+// ClusterRoleBinding reads a single cluster-scoped Kubernetes ClusterRoleBinding by name.
+func (s *Service) ClusterRoleBinding(ctx context.Context, clusterID int64, name string) (ClusterRoleBinding, error) {
+	var item ClusterRoleBinding
+	err := s.getJSON(ctx, clusterID, "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings/"+url.PathEscape(name), nil, &item)
+	if err == nil {
+		item.Subjects = normalizeSubjects(item.Subjects)
+	}
+	return item, err
+}
+
 var manifestAllowlist = map[string]bool{
 	"Pod":                   true,
 	"Deployment":            true,
@@ -1356,6 +1540,8 @@ var manifestAllowlist = map[string]bool{
 	"ServiceAccount":        true,
 	"Role":                  true,
 	"ClusterRole":           true,
+	"RoleBinding":           true,
+	"ClusterRoleBinding":    true,
 }
 
 var manifestSensitiveFields = map[string]bool{
@@ -1415,6 +1601,10 @@ func manifestPath(kind, namespace, name string) string {
 		return "/apis/rbac.authorization.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/roles/" + url.PathEscape(name)
 	case "ClusterRole":
 		return "/apis/rbac.authorization.k8s.io/v1/clusterroles/" + url.PathEscape(name)
+	case "RoleBinding":
+		return "/apis/rbac.authorization.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/rolebindings/" + url.PathEscape(name)
+	case "ClusterRoleBinding":
+		return "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings/" + url.PathEscape(name)
 	default:
 		return ""
 	}
@@ -2151,6 +2341,179 @@ func (s *Service) VeleroRestoreExists(ctx context.Context, clusterID int64, name
 	return true, nil
 }
 
+// Restores lists Velero Restore CRs in the given namespace on the target
+// cluster. If the Velero API group is not installed, returns ErrVeleroUnavailable.
+func (s *Service) Restores(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[VeleroRestore], error) {
+	path := "/apis/velero.io/v1/restores"
+	if namespace != "" {
+		path = "/apis/velero.io/v1/namespaces/" + url.PathEscape(namespace) + "/restores"
+	}
+	var envelope listEnvelope[rawVeleroRestore]
+	if err := s.veleroJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[VeleroRestore]{}, err
+	}
+	projected := make([]VeleroRestore, 0, len(envelope.Items))
+	for _, raw := range envelope.Items {
+		projected = append(projected, raw.project())
+	}
+	return pageResponse(projected, query, func(item VeleroRestore) string { return item.Name }), nil
+}
+
+// GitOpsCapability probes the ArgoCD Application API group on the target
+// cluster. A 404 for /apis/argoproj.io/v1alpha1 means ArgoCD is not installed;
+// the method returns {Installed: false} without error.
+type GitOpsCapability struct {
+	Installed bool   `json:"installed"`
+	Version   string `json:"version,omitempty"`
+}
+
+func (s *Service) GitOpsCapability(ctx context.Context, clusterID int64) (GitOpsCapability, error) {
+	var discovery struct {
+		GroupVersion string `json:"groupVersion"`
+		Kind         string `json:"kind"`
+	}
+	err := s.getJSON(ctx, clusterID, "/apis/argoproj.io/v1alpha1", nil, &discovery)
+	if errors.Is(err, ErrResourceNotFound) {
+		return GitOpsCapability{Installed: false}, nil
+	}
+	if err != nil {
+		return GitOpsCapability{}, err
+	}
+	return GitOpsCapability{Installed: true, Version: "v1alpha1"}, nil
+}
+
+// GitOpsApplication is the bounded, read-only projection of an ArgoCD
+// Application CR. It carries sync status, health, project, source and
+// destination identifiers — not the raw manifest or full spec/status.
+type GitOpsApplication struct {
+	Name                 string   `json:"name"`
+	UID                  string   `json:"uid"`
+	ResourceVersion      string   `json:"resource_version"`
+	Project              string   `json:"project"`
+	SyncStatus           string   `json:"sync_status"`
+	SyncRevision         string   `json:"sync_revision,omitempty"`
+	HealthStatus         string   `json:"health_status"`
+	HealthMessage        string   `json:"health_message,omitempty"`
+	SourceRepoURL        string   `json:"source_repo_url"`
+	SourceTargetRevision string   `json:"source_target_revision,omitempty"`
+	SourcePath           string   `json:"source_path,omitempty"`
+	DestinationServer    string   `json:"destination_server,omitempty"`
+	DestinationNamespace string   `json:"destination_namespace"`
+	OperationStatePhase  string   `json:"operation_state_phase,omitempty"`
+	OperationStartedAt   string   `json:"operation_started_at,omitempty"`
+	LastSyncStartedAt    string   `json:"last_sync_started_at,omitempty"`
+	LastSyncFinishedAt   string   `json:"last_sync_finished_at,omitempty"`
+	Conditions           []string `json:"conditions,omitempty"`
+	CreatedAt            string   `json:"created_at"`
+}
+
+type rawGitOpsApplication struct {
+	Metadata ObjectMeta `json:"metadata"`
+	Spec     struct {
+		Project string `json:"project"`
+		Source  struct {
+			RepoURL        string `json:"repoURL"`
+			TargetRevision string `json:"targetRevision,omitempty"`
+			Path           string `json:"path,omitempty"`
+		} `json:"source"`
+		Destination struct {
+			Server    string `json:"server,omitempty"`
+			Namespace string `json:"namespace"`
+		} `json:"destination"`
+	} `json:"spec"`
+	Status struct {
+		Sync struct {
+			Status   string `json:"status"`
+			Revision string `json:"revision,omitempty"`
+		} `json:"sync"`
+		Health struct {
+			Status  string `json:"status"`
+			Message string `json:"message,omitempty"`
+		} `json:"health"`
+		OperationState struct {
+			Phase      string `json:"phase,omitempty"`
+			StartedAt  string `json:"startedAt,omitempty"`
+			FinishedAt string `json:"finishedAt,omitempty"`
+		} `json:"operationState,omitempty"`
+		ReconciledAt string `json:"reconciledAt,omitempty"`
+		Conditions   []struct {
+			Type    string `json:"type"`
+			Message string `json:"message,omitempty"`
+		} `json:"conditions,omitempty"`
+	} `json:"status"`
+}
+
+func (raw rawGitOpsApplication) project() GitOpsApplication {
+	conds := make([]string, 0, len(raw.Status.Conditions))
+	for _, c := range raw.Status.Conditions {
+		conds = append(conds, c.Type+": "+c.Message)
+	}
+	return GitOpsApplication{
+		Name:                 raw.Metadata.Name,
+		UID:                  raw.Metadata.UID,
+		ResourceVersion:      raw.Metadata.ResourceVersion,
+		Project:              raw.Spec.Project,
+		SyncStatus:           raw.Status.Sync.Status,
+		SyncRevision:         raw.Status.Sync.Revision,
+		HealthStatus:         raw.Status.Health.Status,
+		HealthMessage:        raw.Status.Health.Message,
+		SourceRepoURL:        raw.Spec.Source.RepoURL,
+		SourceTargetRevision: raw.Spec.Source.TargetRevision,
+		SourcePath:           raw.Spec.Source.Path,
+		DestinationServer:    raw.Spec.Destination.Server,
+		DestinationNamespace: raw.Spec.Destination.Namespace,
+		OperationStatePhase:  raw.Status.OperationState.Phase,
+		OperationStartedAt:   raw.Status.OperationState.StartedAt,
+		LastSyncStartedAt:    raw.Status.OperationState.StartedAt,
+		LastSyncFinishedAt:   raw.Status.OperationState.FinishedAt,
+		Conditions:           conds,
+		CreatedAt:            raw.Metadata.CreationTimestamp,
+	}
+}
+
+func (s *Service) gitopsJSON(ctx context.Context, clusterID int64, path string, query url.Values, target any) error {
+	err := s.getJSON(ctx, clusterID, path, query, target)
+	if !errors.Is(err, ErrResourceNotFound) {
+		return err
+	}
+	var discovery struct{}
+	discoveryErr := s.getJSON(ctx, clusterID, "/apis/argoproj.io/v1alpha1", nil, &discovery)
+	if errors.Is(discoveryErr, ErrResourceNotFound) {
+		return ErrGitOpsUnavailable
+	}
+	if discoveryErr != nil {
+		return discoveryErr
+	}
+	return ErrResourceNotFound
+}
+
+// GitOpsApplications lists ArgoCD Application CRs on the target cluster
+// (cluster-scoped). If ArgoCD is not installed, returns ErrGitOpsUnavailable.
+func (s *Service) GitOpsApplications(ctx context.Context, clusterID int64, query apiquery.ListQuery) (apiquery.ListResponse[GitOpsApplication], error) {
+	path := "/apis/argoproj.io/v1alpha1/applications"
+	var envelope listEnvelope[rawGitOpsApplication]
+	if err := s.gitopsJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[GitOpsApplication]{}, err
+	}
+	projected := make([]GitOpsApplication, 0, len(envelope.Items))
+	for _, raw := range envelope.Items {
+		projected = append(projected, raw.project())
+	}
+	return pageResponse(projected, query, func(item GitOpsApplication) string { return item.Name }), nil
+}
+
+// GitOpsApplication reads a single ArgoCD Application by name. If ArgoCD is
+// not installed, returns ErrGitOpsUnavailable; if name missing returns
+// ErrResourceNotFound.
+func (s *Service) GitOpsApplication(ctx context.Context, clusterID int64, name string) (GitOpsApplication, error) {
+	var raw rawGitOpsApplication
+	path := "/apis/argoproj.io/v1alpha1/applications/" + url.PathEscape(name)
+	if err := s.gitopsJSON(ctx, clusterID, path, nil, &raw); err != nil {
+		return GitOpsApplication{}, err
+	}
+	return raw.project(), nil
+}
+
 func validPromotionKind(kind string) bool {
 	switch kind {
 	case "Deployment", "Service", "Ingress":
@@ -2169,20 +2532,6 @@ func promotionPath(kind, namespace, name string) (string, error) {
 		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/services/" + url.PathEscape(name), nil
 	case "Ingress":
 		return "/apis/networking.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/ingresses/" + url.PathEscape(name), nil
-	}
-	return "", fmt.Errorf("unsupported promotion kind %q", kind)
-}
-
-// promotionCreatePath returns the Kubernetes API collection path for creating a
-// promotion-allowlisted resource in a namespace.
-func promotionCreatePath(kind, namespace string) (string, error) {
-	switch kind {
-	case "Deployment":
-		return "/apis/apps/v1/namespaces/" + url.PathEscape(namespace) + "/deployments", nil
-	case "Service":
-		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/services", nil
-	case "Ingress":
-		return "/apis/networking.k8s.io/v1/namespaces/" + url.PathEscape(namespace) + "/ingresses", nil
 	}
 	return "", fmt.Errorf("unsupported promotion kind %q", kind)
 }
@@ -2255,4 +2604,473 @@ func pageResponse[T any](items []T, query apiquery.ListQuery, getName func(T) st
 	total := countNamed(items, query.Name, getName)
 	paged := filterAndPage(items, query, getName)
 	return apiquery.ListResponse[T]{Items: paged, Total: total, Remaining: remaining(len(paged), total, query.Offset)}
+}
+
+// --- Copy / GitOps helpers ---------------------------------------------------
+
+// KindToGVR maps a human-friendly kind name to the canonical (group, version,
+// resource) tuple used by the Kubernetes API. It returns ok=false when the
+// kind is not in the operator-curated cross-cluster copy whitelist.
+func KindToGVR(kind string) (group, version, resource string, ok bool) {
+	switch kind {
+	case KindDeployment:
+		return "apps", "v1", "deployments", true
+	case KindStatefulSet:
+		return "apps", "v1", "statefulsets", true
+	case KindDaemonSet:
+		return "apps", "v1", "daemonsets", true
+	case KindCronJob:
+		return "batch", "v1", "cronjobs", true
+	case KindService:
+		return "", "v1", "services", true
+	case KindIngress:
+		return "networking.k8s.io", "v1", "ingresses", true
+	case KindServiceAccount:
+		return "", "v1", "serviceaccounts", true
+	case KindConfigMap:
+		return "", "v1", "configmaps", true
+	case KindSecret:
+		return "", "v1", "secrets", true
+	}
+	return "", "", "", false
+}
+
+const (
+	KindDeployment     = "Deployment"
+	KindStatefulSet    = "StatefulSet"
+	KindDaemonSet      = "DaemonSet"
+	KindCronJob        = "CronJob"
+	KindService        = "Service"
+	KindIngress        = "Ingress"
+	KindServiceAccount = "ServiceAccount"
+	KindConfigMap      = "ConfigMap"
+	KindSecret         = "Secret"
+)
+
+func namespacedAPIPath(group, version, resource, namespace, name string) string {
+	if group == "" {
+		// core API group lives under /api.
+		return "/api/" + version + "/namespaces/" + url.PathEscape(namespace) + "/" + resource + "/" + url.PathEscape(name)
+	}
+	return "/apis/" + group + "/" + version + "/namespaces/" + url.PathEscape(namespace) + "/" + resource + "/" + url.PathEscape(name)
+}
+
+func namespacedCollectionPath(group, version, resource, namespace string) string {
+	if group == "" {
+		return "/api/" + version + "/namespaces/" + url.PathEscape(namespace) + "/" + resource
+	}
+	return "/apis/" + group + "/" + version + "/namespaces/" + url.PathEscape(namespace) + "/" + resource
+}
+
+// GetRawResource reads a single namespaced Kubernetes resource as an arbitrary
+// JSON object (no typed projection). Used by M58 cross-cluster copy, which
+// must scrub and re-apply the raw manifest.
+func (s *Service) GetRawResource(ctx context.Context, clusterID int64, group, version, resource, namespace, name string) (map[string]any, error) {
+	if clusterID < 1 {
+		return nil, ErrResourceNotFound
+	}
+	path := namespacedAPIPath(group, version, resource, namespace, name)
+	var obj map[string]any
+	if err := s.getJSON(ctx, clusterID, path, nil, &obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+// NamespaceExists reports whether a namespace exists on the target cluster.
+// A 404 for the namespaced core API path is treated as "does not exist" with
+// ok=false and no error.
+//
+// SourceNamespaceIdentity fetches the source namespace's UID and
+// resourceVersion so a copy plan can capture a Compare-And-Swap identity: if
+// the source namespace is recreated between Preview and Execute, the Execute
+// phase aborts (the operator must re-run Preview).
+type SourceNamespaceIdentity struct {
+	Name            string `json:"name"`
+	UID             string `json:"uid"`
+	ResourceVersion string `json:"resource_version"`
+}
+
+func (s *Service) SourceNamespaceIdentity(ctx context.Context, clusterID int64, namespace string) (SourceNamespaceIdentity, error) {
+	if clusterID < 1 {
+		return SourceNamespaceIdentity{}, ErrResourceNotFound
+	}
+	path := "/api/v1/namespaces/" + url.PathEscape(namespace)
+	var obj struct {
+		Metadata ObjectMeta `json:"metadata"`
+	}
+	if err := s.getJSON(ctx, clusterID, path, nil, &obj); err != nil {
+		return SourceNamespaceIdentity{}, err
+	}
+	return SourceNamespaceIdentity{
+		Name:            obj.Metadata.Name,
+		UID:             obj.Metadata.UID,
+		ResourceVersion: obj.Metadata.ResourceVersion,
+	}, nil
+}
+
+// NamespacedResourceExists reports whether a single namespaced object already
+// exists on the target cluster. Used by copy preview as a preflight before
+// dry-run, so we can skip already-existing resources with a friendly reason
+// instead of surfacing a 409 from the dry-run admission.
+func (s *Service) NamespacedResourceExists(ctx context.Context, clusterID int64, group, version, resource, namespace, name string) (bool, error) {
+	if clusterID < 1 {
+		return false, nil
+	}
+	path := namespacedAPIPath(group, version, resource, namespace, name)
+	var obj map[string]any
+	err := s.getJSON(ctx, clusterID, path, nil, &obj)
+	if errors.Is(err, ErrResourceNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// ============================================================================
+// M47: API resource discovery (CRD preview)
+// ============================================================================
+
+// ErrDiscoveryUnavailable is returned by APIResources when the Service was
+// constructed without a DiscoveryProvider (e.g. in route-contract tests).
+var ErrDiscoveryUnavailable = errors.New("kubernetes discovery is unavailable")
+
+// APIResource describes a single (group, version, resource, namespaced, kind)
+// tuple discoverable on a cluster. It is the union of the fixed GVR whitelist
+// (always present, even if discovery fails) and the dynamically discovered
+// resources.
+type APIResource struct {
+	Group      string `json:"group,omitempty"`
+	Version    string `json:"version"`
+	Resource   string `json:"resource"`
+	Kind       string `json:"kind"`
+	Namespaced bool   `json:"namespaced"`
+	// Source is "whitelist" for the fixed operator GVRs and "discovery" for
+	// CRDs and other dynamically discovered resources. The frontend uses it
+	// to distinguish "guaranteed core resources" from "cluster-specific CRDs".
+	Source string `json:"source"`
+}
+
+// fixedAPIResources is the operator-curated whitelist of GVRs the console
+// always renders regardless of discovery success. It mirrors the resource
+// families already exposed by the typed list methods on Service (Pods,
+// Deployments, Services, ...). Discovery may add CRDs and other dynamic
+// resources on top, but never replaces these.
+//
+// The whitelist is intentionally a static slice — M47 does NOT introduce a
+// dynamic GVR proxy (ADR 0062 §3). M49 will refine the CRD subset.
+var fixedAPIResources = []APIResource{
+	// core/v1
+	{Version: "v1", Resource: "pods", Kind: "Pod", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "services", Kind: "Service", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "configmaps", Kind: "ConfigMap", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "secrets", Kind: "Secret", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "namespaces", Kind: "Namespace", Namespaced: false, Source: "whitelist"},
+	{Version: "v1", Resource: "nodes", Kind: "Node", Namespaced: false, Source: "whitelist"},
+	{Version: "v1", Resource: "events", Kind: "Event", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "persistentvolumes", Kind: "PersistentVolume", Namespaced: false, Source: "whitelist"},
+	{Version: "v1", Resource: "persistentvolumeclaims", Kind: "PersistentVolumeClaim", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "serviceaccounts", Kind: "ServiceAccount", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "resourcequotas", Kind: "ResourceQuota", Namespaced: true, Source: "whitelist"},
+	{Version: "v1", Resource: "limitranges", Kind: "LimitRange", Namespaced: true, Source: "whitelist"},
+	// apps/v1
+	{Group: "apps", Version: "v1", Resource: "deployments", Kind: "Deployment", Namespaced: true, Source: "whitelist"},
+	{Group: "apps", Version: "v1", Resource: "replicasets", Kind: "ReplicaSet", Namespaced: true, Source: "whitelist"},
+	{Group: "apps", Version: "v1", Resource: "statefulsets", Kind: "StatefulSet", Namespaced: true, Source: "whitelist"},
+	{Group: "apps", Version: "v1", Resource: "daemonsets", Kind: "DaemonSet", Namespaced: true, Source: "whitelist"},
+	// batch/v1
+	{Group: "batch", Version: "v1", Resource: "jobs", Kind: "Job", Namespaced: true, Source: "whitelist"},
+	{Group: "batch", Version: "v1", Resource: "cronjobs", Kind: "CronJob", Namespaced: true, Source: "whitelist"},
+	// networking.k8s.io/v1
+	{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses", Kind: "Ingress", Namespaced: true, Source: "whitelist"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies", Kind: "NetworkPolicy", Namespaced: true, Source: "whitelist"},
+	// discovery.k8s.io/v1
+	{Group: "discovery.k8s.io", Version: "v1", Resource: "endpointslices", Kind: "EndpointSlice", Namespaced: true, Source: "whitelist"},
+	// policy/v1
+	{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets", Kind: "PodDisruptionBudget", Namespaced: true, Source: "whitelist"},
+	// autoscaling/v2
+	{Group: "autoscaling", Version: "v2", Resource: "horizontalpodautoscalers", Kind: "HorizontalPodAutoscaler", Namespaced: true, Source: "whitelist"},
+	// rbac.authorization.k8s.io/v1
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles", Kind: "Role", Namespaced: true, Source: "whitelist"},
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "rolebindings", Kind: "RoleBinding", Namespaced: true, Source: "whitelist"},
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "clusterroles", Kind: "ClusterRole", Namespaced: false, Source: "whitelist"},
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "clusterrolebindings", Kind: "ClusterRoleBinding", Namespaced: false, Source: "whitelist"},
+	// storage.k8s.io/v1
+	{Group: "storage.k8s.io", Version: "v1", Resource: "storageclasses", Kind: "StorageClass", Namespaced: false, Source: "whitelist"},
+}
+
+// APIResources returns the union of the fixed GVR whitelist and the
+// dynamically discovered resources on the cluster. Discovery failures are
+// non-fatal: the whitelist is always returned, and any error from the
+// discovery API is swallowed (the discovery source is simply omitted).
+//
+// This is the M47 preview of M49's full CRD browsing — the response is
+// read-only and contains no resource instances, only GVR metadata.
+func (s *Service) APIResources(ctx context.Context, clusterID int64) ([]APIResource, error) {
+	// Seed with the whitelist so callers always get a usable catalog even
+	// when discovery is unavailable (e.g. air-gapped clusters, stale
+	// kubeconfig, throttled API server).
+	out := make([]APIResource, len(fixedAPIResources))
+	copy(out, fixedAPIResources)
+	// Sort immediately so the early-return fallback paths (nil discovery,
+	// credential error, discovery error) also return a sorted catalog. The
+	// discovery-success path re-sorts below after appending dynamic entries.
+	sortAPIResources(out)
+
+	if s.discovery == nil {
+		return out, nil
+	}
+
+	_, kubeconfig, err := s.credentials.Access(ctx, clusterID)
+	if err != nil {
+		// Whitelist-only fallback; do not surface credential errors here so
+		// the endpoint degrades gracefully.
+		return out, nil
+	}
+	disco, err := s.discovery.Discovery(clusterID, kubeconfig)
+	if err != nil {
+		return out, nil
+	}
+	// ServerGroupsAndResources is the most complete discovery call. It is
+	// expensive (one request per group) but the endpoint is bounded by
+	// cluster scope and cached client-side by client-go's discovery memcache.
+	_, lists, err := disco.ServerGroupsAndResources()
+	if err != nil {
+		// Partial discovery is acceptable — return whitelist only.
+		return out, nil
+	}
+
+	seen := make(map[string]struct{}, len(out))
+	for _, r := range out {
+		seen[apiResourceKey(r.Group, r.Version, r.Resource)] = struct{}{}
+	}
+
+	for _, list := range lists {
+		if list == nil {
+			continue
+		}
+		gv := strings.SplitN(list.GroupVersion, "/", 2)
+		var group, version string
+		if len(gv) == 2 {
+			group, version = gv[0], gv[1]
+		} else {
+			version = gv[0]
+		}
+		for _, ar := range list.APIResources {
+			// Skip subresources (e.g. "pods/log") — they are not listable.
+			if strings.Contains(ar.Name, "/") {
+				continue
+			}
+			// Skip verbs that are not listable/gettable; discovery returns
+			// resources with no verbs in some cases (e.g. custom subresources).
+			if !hasVerb(ar.Verbs, "list") && !hasVerb(ar.Verbs, "get") {
+				continue
+			}
+			key := apiResourceKey(group, version, ar.Name)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, APIResource{
+				Group:      group,
+				Version:    version,
+				Resource:   ar.Name,
+				Kind:       ar.Kind,
+				Namespaced: ar.Namespaced,
+				Source:     "discovery",
+			})
+		}
+	}
+
+	sortAPIResources(out)
+	return out, nil
+}
+
+// sortAPIResources orders resources by group, version, then resource for
+// stable frontend rendering. It is a total order, so repeated calls are
+// idempotent.
+func sortAPIResources(out []APIResource) {
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Group != out[j].Group {
+			return out[i].Group < out[j].Group
+		}
+		if out[i].Version != out[j].Version {
+			return out[i].Version < out[j].Version
+		}
+		return out[i].Resource < out[j].Resource
+	})
+}
+
+func apiResourceKey(group, version, resource string) string {
+	return group + "/" + version + "/" + resource
+}
+
+func hasVerb(verbs []string, want string) bool {
+	for _, v := range verbs {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
+
+// ============================================================================
+// M49: CRD discovery + read-only custom resource browsing
+// ============================================================================
+
+// ErrCustomResourceNotWhitelisted is returned when the requested
+// (group, version, resource) tuple is not in the operator-curated
+// customResourceWhitelist. The handler maps it to 404 RESOURCE_NOT_FOUND so a
+// non-whitelisted CRD is indistinguishable from a missing one — the
+// anti-leakage pattern (ADR 0064 §4).
+var ErrCustomResourceNotWhitelisted = errors.New("custom resource is not whitelisted for browsing")
+
+// customResourceDescriptor describes a whitelisted CRD GVR. Namespaced reports
+// whether instances live in a namespace (true) or are cluster-scoped (false);
+// it drives both the API path construction and the handler's fan-out decision.
+type customResourceDescriptor struct {
+	Namespaced bool
+}
+
+// customResourceWhitelist is the operator-curated, compile-time-fixed catalogue
+// of CRD GVRs that the console may browse read-only (ADR 0064 §2). It covers
+// the common operator CRDs (Velero, Prometheus operator, Flux Helm/source,
+// cert-manager). Adding an entry is a contract change — there is no runtime
+// discovery-based expansion, preserving the static-extension hard constraint
+// and deterministic browseability.
+//
+// The whitelist is keyed by "group/version/resource". The caller supplies all
+// three via the route path, and the exact tuple must match. Core resources
+// (empty group) are intentionally absent — they are already covered by the
+// typed list endpoints and the M47 fixedAPIResources whitelist.
+var customResourceWhitelist = map[string]customResourceDescriptor{
+	// Velero (backup/restore).
+	"velero.io/v1/backups":   {Namespaced: true},
+	"velero.io/v1/restores":  {Namespaced: true},
+	"velero.io/v1/schedules": {Namespaced: true},
+	// Prometheus operator.
+	"monitoring.coreos.com/v1/prometheuses":        {Namespaced: true},
+	"monitoring.coreos.com/v1/alertmanagers":       {Namespaced: true},
+	"monitoring.coreos.com/v1/servicemonitors":     {Namespaced: true},
+	"monitoring.coreos.com/v1/podmonitors":         {Namespaced: true},
+	"monitoring.coreos.com/v1/prometheusrules":     {Namespaced: true},
+	"monitoring.coreos.com/v1/thanosrulers":        {Namespaced: true},
+	"monitoring.coreos.com/v1/probes":              {Namespaced: true},
+	"monitoring.coreos.com/v1/alertmanagerconfigs": {Namespaced: true},
+	// Flux Helm release + source controllers.
+	"helm.toolkit.fluxcd.io/v2beta1/helmreleases":  {Namespaced: true},
+	"source.toolkit.fluxcd.io/v1/helmrepositories": {Namespaced: true},
+	"source.toolkit.fluxcd.io/v1/gitrepositories":  {Namespaced: true},
+	"source.toolkit.fluxcd.io/v1/buckets":          {Namespaced: true},
+	"source.toolkit.fluxcd.io/v1/ocirepositories":  {Namespaced: true},
+	// cert-manager.
+	"cert-manager.io/v1/certificates":        {Namespaced: true},
+	"cert-manager.io/v1/certificaterequests": {Namespaced: true},
+	"cert-manager.io/v1/issuers":             {Namespaced: true},
+	"cert-manager.io/v1/clusterissuers":      {Namespaced: false},
+	"cert-manager.io/v1/orders":              {Namespaced: true},
+	"cert-manager.io/v1/challenges":          {Namespaced: true},
+	// ArgoCD (GitOps, M58). Read-only Application browse. The
+	// Application is cluster-scoped in ArgoCD v2.
+	"argoproj.io/v1alpha1/applications": {Namespaced: false},
+}
+
+// IsCustomResourceBrowsable reports whether the given (group, version, resource)
+// tuple is in the operator-curated whitelist for read-only CRD browsing. When
+// ok is true, namespaced indicates whether instances live in a namespace (true)
+// or are cluster-scoped (false). When ok is false the GVR is not browsable and
+// the handler returns 404 (anti-leakage, ADR 0064 §4).
+func (s *Service) IsCustomResourceBrowsable(group, version, resource string) (namespaced, ok bool) {
+	entry, found := customResourceWhitelist[customResourceKey(group, version, resource)]
+	if !found {
+		return false, false
+	}
+	return entry.Namespaced, true
+}
+
+func customResourceKey(group, version, resource string) string {
+	return group + "/" + version + "/" + resource
+}
+
+// CustomResources lists instances of a whitelisted custom resource on a
+// cluster. Each returned item is the full manifest with sensitive fields
+// redacted via redactManifest (M22 redaction reused — ADR 0064 §3). The list is
+// bounded by apiquery.ListQuery (limit ≤100, enforced by apiquery.Parse).
+//
+// For namespaced CRDs, namespace selects the namespace ("" means all
+// namespaces — the handler fans out per authorized namespace for non-cluster
+// callers). For cluster-scoped CRDs, namespace is ignored.
+//
+// Read-only: no write path is exposed (ADR 0064 §2).
+func (s *Service) CustomResources(ctx context.Context, clusterID int64, group, version, resource, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[map[string]interface{}], error) {
+	desc, ok := customResourceWhitelist[customResourceKey(group, version, resource)]
+	if !ok {
+		return apiquery.ListResponse[map[string]interface{}]{}, ErrCustomResourceNotWhitelisted
+	}
+	path := customResourceListPath(group, version, resource, namespace, desc.Namespaced)
+	var envelope listEnvelope[map[string]interface{}]
+	if err := s.getJSON(ctx, clusterID, path, selectors(query), &envelope); err != nil {
+		return apiquery.ListResponse[map[string]interface{}]{}, err
+	}
+	for i := range envelope.Items {
+		if envelope.Items[i] != nil {
+			redactManifest(envelope.Items[i], "")
+		}
+	}
+	items := filterAndPage(envelope.Items, query, customResourceName)
+	total := countNamed(envelope.Items, query.Name, customResourceName)
+	return apiquery.ListResponse[map[string]interface{}]{Items: items, Total: total, Remaining: remaining(len(items), total, query.Offset)}, nil
+}
+
+// CustomResource returns a single whitelisted custom resource instance by
+// name. The manifest is redacted via redactManifest (M22 redaction reused).
+// For namespaced CRDs, namespace must be non-empty; for cluster-scoped CRDs,
+// namespace is ignored. Read-only (ADR 0064 §2).
+func (s *Service) CustomResource(ctx context.Context, clusterID int64, group, version, resource, namespace, name string) (map[string]interface{}, error) {
+	desc, ok := customResourceWhitelist[customResourceKey(group, version, resource)]
+	if !ok {
+		return nil, ErrCustomResourceNotWhitelisted
+	}
+	path := customResourcePath(group, version, resource, namespace, name, desc.Namespaced)
+	var raw map[string]interface{}
+	if err := s.getJSON(ctx, clusterID, path, nil, &raw); err != nil {
+		return nil, err
+	}
+	redactManifest(raw, "")
+	return raw, nil
+}
+
+// customResourceListPath builds the Kubernetes API collection path for a CRD.
+// For namespaced CRDs with a non-empty namespace, the path is namespace-scoped;
+// otherwise (cluster-scoped CRD, or namespaced CRD with empty namespace to list
+// across all namespaces) the cluster-wide collection path is returned.
+func customResourceListPath(group, version, resource, namespace string, namespaced bool) string {
+	if namespaced && namespace != "" {
+		return "/apis/" + url.PathEscape(group) + "/" + url.PathEscape(version) + "/namespaces/" + url.PathEscape(namespace) + "/" + url.PathEscape(resource)
+	}
+	return "/apis/" + url.PathEscape(group) + "/" + url.PathEscape(version) + "/" + url.PathEscape(resource)
+}
+
+// customResourcePath builds the Kubernetes API item path for a single CRD
+// instance. For namespaced CRDs the namespace segment is always included
+// (callers must supply a non-empty namespace); for cluster-scoped CRDs the
+// namespace segment is omitted.
+func customResourcePath(group, version, resource, namespace, name string, namespaced bool) string {
+	if namespaced {
+		return "/apis/" + url.PathEscape(group) + "/" + url.PathEscape(version) + "/namespaces/" + url.PathEscape(namespace) + "/" + url.PathEscape(resource) + "/" + url.PathEscape(name)
+	}
+	return "/apis/" + url.PathEscape(group) + "/" + url.PathEscape(version) + "/" + url.PathEscape(resource) + "/" + url.PathEscape(name)
+}
+
+// customResourceName extracts metadata.name from a raw CRD manifest for
+// filterAndPage / countNamed.
+func customResourceName(item map[string]interface{}) string {
+	if metadata, ok := item["metadata"].(map[string]interface{}); ok {
+		if name, ok := metadata["name"].(string); ok {
+			return name
+		}
+	}
+	return ""
 }

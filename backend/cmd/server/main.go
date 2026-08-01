@@ -14,25 +14,38 @@ import (
 
 	"k8s-aiops.local/backend/internal/aiexplain"
 	"k8s-aiops.local/backend/internal/alert"
+	"k8s-aiops.local/backend/internal/appcatalog"
 	"k8s-aiops.local/backend/internal/audit"
 	"k8s-aiops.local/backend/internal/auth"
+	"k8s-aiops.local/backend/internal/authz"
 	"k8s-aiops.local/backend/internal/backup"
 	"k8s-aiops.local/backend/internal/buildinfo"
+	"k8s-aiops.local/backend/internal/capability"
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/config"
+	"k8s-aiops.local/backend/internal/copyops"
 	"k8s-aiops.local/backend/internal/diagnosis"
+	"k8s-aiops.local/backend/internal/eventstream"
+	"k8s-aiops.local/backend/internal/federation"
 	"k8s-aiops.local/backend/internal/fleet"
+	"k8s-aiops.local/backend/internal/gitops"
 	"k8s-aiops.local/backend/internal/globalsearch"
+	"k8s-aiops.local/backend/internal/golden"
 	"k8s-aiops.local/backend/internal/httpserver"
+	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/metricshistory"
+	"k8s-aiops.local/backend/internal/monitoring"
 	"k8s-aiops.local/backend/internal/namespaceposture"
 	"k8s-aiops.local/backend/internal/notification"
+	"k8s-aiops.local/backend/internal/oidc"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/restore"
+	"k8s-aiops.local/backend/internal/servicemesh"
 	"k8s-aiops.local/backend/internal/store"
+	"k8s-aiops.local/backend/internal/workspace"
 	"k8s-aiops.local/backend/migrations"
 )
 
@@ -82,7 +95,7 @@ func main() {
 	}
 	clusterRegistry := cluster.NewClientProvider(cfg.ClusterProbeTimeout)
 	clusterService := cluster.NewService(cluster.NewGormRepository(database.GORM()), credentialEncryptor, clusterRegistry)
-	kubernetesService := k8sgateway.NewService(clusterService, clusterRegistry)
+	kubernetesService := k8sgateway.NewService(clusterService, clusterRegistry, clusterRegistry)
 	metricsHistoryService, err := metricshistory.NewService(metricshistory.Config{Retention: cfg.MetricsHistoryRetention}, metricshistory.NewGormRepository(database.GORM()))
 	if err != nil {
 		logger.Fatal("configure metrics history", zap.Error(err))
@@ -101,11 +114,256 @@ func main() {
 	diagnosisService := diagnosis.NewService(kubernetesService, diagnosis.NewGormRepository(database.GORM())).WithMetricEvaluator(metricsHistoryService)
 	remediationService := remediation.NewService(diagnosisService, kubernetesService, remediation.NewGormRepository(database.GORM()))
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
+	appCatalogService := appcatalog.NewService(kubernetesService, appcatalog.NewGormRepository(database.GORM()))
+	// M58: GitOps read-only adapter (ArgoCD Application browse) + interactive
+	// cross-cluster copy service. Both are thin wrappers over kubernetes typed
+	// readers (ADR 0070).
+	gitopsService := gitops.NewService(kubernetesService)
+	copyOpsService := copyops.NewService(kubernetesService, copyops.NewGormRepository(database.GORM()))
 	alertService := alert.NewService(alert.NewGormRepository(database.GORM()), diagnosis.NewGormRepository(database.GORM()), metricsHistoryService, cfg.AlertMinEvaluationInterval)
 	backupService := backup.NewService(kubernetesService, backup.NewGormRepository(database.GORM()))
 	maintenanceService := maintenance.NewService(kubernetesService, maintenance.NewGormRepository(database.GORM()))
 	namespacePostureService := namespaceposture.NewService(kubernetesService)
 	restoreService := restore.NewService(kubernetesService, restore.NewGormRepository(database.GORM()))
+	authzRepo := authz.NewGormRepository(database.GORM())
+	authzService := authz.NewService(authzRepo)
+	grantManager := authz.NewGrantManager(authzRepo)
+	workspaceService := workspace.NewService(workspace.NewGormRepository(database.GORM()))
+	federationService := federation.NewService(federation.NewGormRepository(database.GORM()), newKubernetesClusterLister(kubernetesService))
+
+	// M50: capability providers (Prometheus + Loki). Constructed only when
+	// cfg.Capability.Enabled is true and the corresponding endpoint is set.
+	// When disabled, the Options fields stay nil and the capability / logs
+	// routes return 503 (ADR 0053 §6, ADR 0065 §3).
+	var capabilityMetricsProvider capability.MetricsProvider
+	var capabilityLogProvider capability.LogProvider
+	if cfg.Capability.Enabled {
+		if cfg.Capability.PrometheusEndpoint != "" {
+			mp, err := capability.NewPrometheusMetricsProvider(capability.PrometheusConfig{
+				Endpoint:       cfg.Capability.PrometheusEndpoint,
+				RequestTimeout: cfg.Capability.PrometheusTimeout,
+			})
+			if err != nil {
+				logger.Fatal("configure prometheus capability provider", zap.Error(err))
+			}
+			capabilityMetricsProvider = mp
+		}
+		if cfg.Capability.LokiEndpoint != "" {
+			lp, err := capability.NewLokiLogProvider(capability.LokiConfig{
+				Endpoint:       cfg.Capability.LokiEndpoint,
+				RequestTimeout: cfg.Capability.LokiTimeout,
+			})
+			if err != nil {
+				logger.Fatal("configure loki capability provider", zap.Error(err))
+			}
+			capabilityLogProvider = lp
+		}
+	}
+
+	// M60: compile-time provider registry (ADR 0075). One Registry is created
+	// per process; we register the stable provider catalog here and wire its
+	// lifecycle (StartAll before serving, StopAll during graceful shutdown).
+	// Cluster roles include the full set so every registered descriptor can
+	// report its own ClusterRoles gate; the registry applies the per-process
+	// role set at runtime when computing initial state.
+	capabilityRegistry := capability.NewRegistry(
+		[]string{
+			capability.ClusterRoleStandalone,
+			capability.ClusterRoleHost,
+			capability.ClusterRoleMember,
+		},
+		5*time.Second,
+	)
+	metricsConfigured := capabilityMetricsProvider != nil
+	logsConfigured := capabilityLogProvider != nil
+	// metrics / logs providers are two individual registry entries that share
+	// the prometheus / loki HealthChecker adapter (when the provider carries
+	// a probe hook). Both are registered as capability kind so the GUI groups
+	// them together.
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "metrics_prometheus",
+		Description:  "Fixed-template SLI metrics provider backed by a Prometheus-compatible HTTP API",
+		Kind:         "capability",
+		Dependencies: nil,
+		ClusterRoles: nil,
+		Configured:   metricsConfigured,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "logs_loki",
+		Description:  "Read-only historical log provider backed by a Loki-compatible HTTP API",
+		Kind:         "capability",
+		Dependencies: nil,
+		ClusterRoles: nil,
+		Configured:   logsConfigured,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "federation",
+		Description:  "Host / member cluster topology aggregation (ADR 0063)",
+		Kind:         "federation",
+		Dependencies: nil,
+		ClusterRoles: []string{capability.ClusterRoleHost, capability.ClusterRoleStandalone},
+		Configured:   true,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "inspection_scheduler",
+		Description:  "Compile-time KubeEye-style inspection rule catalog with periodical Cron runner",
+		Kind:         "inspection",
+		Dependencies: []string{"metrics_prometheus"},
+		ClusterRoles: []string{capability.ClusterRoleStandalone, capability.ClusterRoleHost},
+		Configured:   true,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "service_mesh_readonly",
+		Description:  "Istio VirtualService/DestinationRule listing and traffic-metrics projections (read-only)",
+		Kind:         "mesh",
+		Dependencies: []string{"metrics_prometheus"},
+		ClusterRoles: nil,
+		Configured:   true,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "gitops_argocd",
+		Description:  "Read-only ArgoCD Application browse projection and capability probe",
+		Kind:         "gitops",
+		Dependencies: nil,
+		ClusterRoles: nil,
+		Configured:   true,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "copyops_cross_cluster",
+		Description:  "Interactive cross-cluster resource copy with M19 controlled-operation confirm + idempotency contract",
+		Kind:         "copyops",
+		Dependencies: []string{"federation"},
+		ClusterRoles: []string{capability.ClusterRoleHost, capability.ClusterRoleStandalone},
+		Configured:   true,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "app_catalog_helm",
+		Description:  "Helm repository CRUD, index.yaml chart browse and M19 controlled HelmRelease deploy plans",
+		Kind:         "appcatalog",
+		Dependencies: nil,
+		ClusterRoles: nil,
+		Configured:   true,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "backup_restore_velero",
+		Description:  "Velero backup/restore plan execution and browse projections",
+		Kind:         "backup",
+		Dependencies: nil,
+		ClusterRoles: nil,
+		Configured:   true,
+	})
+	_ = capabilityRegistry.Register(capability.ProviderDescriptor{
+		Name:         "ai_investigator",
+		Description:  "Cited, bounded AI investigation advisor with deterministic M42 RCA as primary input",
+		Kind:         "ai",
+		Dependencies: nil,
+		ClusterRoles: nil,
+		Configured:   cfg.AIEnabled,
+	})
+
+	// M50: monitoring service aggregates metricshistory across clusters for
+	// the workspace-level dashboard. Bounded fan-out mirrors federation.
+	monitoringService := monitoring.NewService(monitoring.Config{
+		MaxClusters:       20,
+		MaxConcurrent:     4,
+		PerClusterTimeout: 4 * time.Second,
+	}, metricsHistoryService, workspaceService)
+	// M51: bounded SSE event stream over Kubernetes Events. The service wraps
+	// the read-only gateway via an adapter (ADR 0066); nil lister would make
+	// the handler return 503, so we wire the real gateway.
+	eventStreamService, err := eventstream.NewService(eventstream.Config{}, kubernetesEventLister{gateway: kubernetesService})
+	if err != nil {
+		logger.Fatal("configure eventstream service", zap.Error(err))
+	}
+
+	// M52: intelligent inspection (KubeEye-style compile-time rule catalog).
+	// The rule executor uses the same read-only kubernetes gateway as M49/M51;
+	// the cluster lister resolves reachable clusters for ad-hoc runs. Both
+	// the executor and lister are wired as adapters so the inspection package
+	// stays free of kubernetes-gateway dependencies.
+	inspectionExecutor := inspection.NewDefaultExecutor(kubernetesService)
+	inspectionRepo := inspection.NewGormRepository(database.GORM())
+	inspectionService, err := inspection.NewService(
+		inspection.Config{
+			MaxConcurrentClusters: 4,
+			PerClusterTimeout:     15 * time.Second,
+			MaxTaskResults:        1000,
+		},
+		inspectionRepo,
+		inspectionExecutor,
+		inspectionClusterLister{svc: clusterService},
+		logger,
+	)
+	if err != nil {
+		logger.Fatal("configure inspection service", zap.Error(err))
+	}
+
+	// M52: service-mesh read-only access. Istio VirtualService/DestinationRule
+	// listing reuses the M49 CRD gateway; traffic metrics come from the M30
+	// metrics-history table (tagged source=istio). Both are nil-safe: the
+	// handler returns 503 when the service is nil, and the service returns
+	// ErrIstioNotInstalled / ErrMeshDataUnavailable for partial install.
+	serviceMeshService := servicemesh.NewService(kubernetesService, metricsHistoryService)
+
+	// M56: golden quality-report service. The replay runner verifies the
+	// golden dataset (3 scenarios, 10-step mandatory + 2 negative companions)
+	// against the current M39-M44 engine contracts and persists the quality
+	// report to .artifacts/quality-report/. GET reads the latest report;
+	// POST triggers an async replay (SystemOpsAdmin only).
+	goldenStorage := golden.NewFileReportStorage(".artifacts/quality-report")
+	goldenService := golden.NewService(goldenEngineContracts(), goldenStorage, logger)
+
+	var oidcSessionManager *oidc.SessionManager
+	var oidcPostLogoutURI string
+	if cfg.OIDC.Enabled {
+		provider, err := oidc.NewProvider(oidc.ProviderConfig{
+			Issuer:                   cfg.OIDC.Issuer,
+			ClientID:                 cfg.OIDC.ClientID,
+			ClientSecret:             cfg.OIDC.ClientSecret,
+			RedirectURI:              cfg.OIDC.RedirectURI,
+			RequiredScopes:           cfg.OIDC.RequiredScopes,
+			AllowedSigningAlgorithms: cfg.OIDC.AllowedSigningAlgorithms,
+			ClaimMapping: oidc.ClaimMapping{
+				Subject:     cfg.OIDC.ClaimMapping.Subject,
+				Username:    cfg.OIDC.ClaimMapping.Username,
+				DisplayName: cfg.OIDC.ClaimMapping.DisplayName,
+				Groups:      cfg.OIDC.ClaimMapping.Groups,
+			},
+			GroupToRoles: cfg.OIDC.GroupToRoles,
+			MFA: oidc.MFAConfig{
+				Required:       cfg.OIDC.MFA.Required,
+				EvidenceClaim:  cfg.OIDC.MFA.EvidenceClaim,
+				AcceptedValues: cfg.OIDC.MFA.AcceptedValues,
+			},
+			Sessions: oidc.SessionConfig{
+				MaxAge:           cfg.OIDC.Sessions.MaxAge,
+				Reauthentication: cfg.OIDC.Sessions.Reauthentication,
+				RevokeOnDisable:  cfg.OIDC.Sessions.RevokeOnDisable,
+			},
+			JWKSCacheTTL:       cfg.OIDC.JWKS.CacheTTL,
+			JWKSRefreshTimeout: cfg.OIDC.JWKS.RefreshTimeout,
+			SigningKey:         cfg.OIDC.AuthSessionSigningKey,
+		})
+		if err != nil {
+			logger.Fatal("configure OIDC provider", zap.Error(err))
+		}
+		bootstrapCtx, cancelBootstrap := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := provider.Init(bootstrapCtx); err != nil {
+			cancelBootstrap()
+			logger.Fatal("initialize OIDC provider", zap.Error(err))
+		}
+		cancelBootstrap()
+		resolver := oidc.NewGormIdentityResolver(database.GORM())
+		issuer := oidc.NewAuthSessionIssuer(authService)
+		oidcSessionManager = oidc.NewSessionManager(provider, resolver, issuer, oidc.SessionManagerConfig{
+			Reauthentication: cfg.OIDC.Sessions.Reauthentication,
+		})
+		oidcPostLogoutURI = cfg.OIDC.RedirectURI
+		logger.Info("OIDC provider initialized",
+			zap.String("issuer", cfg.OIDC.Issuer),
+			zap.String("client_id", cfg.OIDC.ClientID),
+		)
+	}
 	alertScheduler := alert.NewScheduler(alert.SchedulerConfig{
 		Enabled:           cfg.AlertEnabled,
 		PollInterval:      cfg.AlertPollInterval,
@@ -148,31 +406,56 @@ func main() {
 		alertScheduler.Run(backgroundContext)
 	}()
 
+	// M60: start providers that carry background goroutines. Providers that
+	// implement Lifecycle are started in dependency order (topological sort).
+	// Start errors are logged but never fatal — a partial provider failure must
+	// not crash the control plane.
+	if startErr := capabilityRegistry.StartAll(backgroundContext); startErr != nil {
+		logger.Warn("some providers failed to start", zap.Error(startErr))
+	}
+
 	server := &http.Server{
 		Addr: cfg.HTTPAddress,
 		Handler: httpserver.New(logger, httpserver.Options{
-			Probe:            database,
-			Auth:             authService,
-			Clusters:         clusterService,
-			Kubernetes:       kubernetesService,
-			Fleet:            fleetService,
-			GlobalSearch:     globalSearchService,
-			SavedFilters:     savedFilterService,
-			MetricsHistory:   metricsHistoryService,
-			Diagnosis:        diagnosisService,
-			AIExplanation:    aiExplanationService,
-			Audit:            auditService,
-			Notifications:    notificationService,
-			Remediation:      remediationService,
-			Promotion:        promotionService,
-			Alert:            alertService,
-			Backup:           backupService,
-			Maintenance:      maintenanceService,
-			NamespacePosture: namespacePostureService,
-			Restore:          restoreService,
-			SecureCookies:    cfg.SecureCookies,
-			RefreshTTL:       cfg.RefreshTokenTTL,
-			Version:          buildinfo.Version,
+			Probe:                     database,
+			Auth:                      authService,
+			Clusters:                  clusterService,
+			Kubernetes:                kubernetesService,
+			Fleet:                     fleetService,
+			GlobalSearch:              globalSearchService,
+			SavedFilters:              savedFilterService,
+			MetricsHistory:            metricsHistoryService,
+			Diagnosis:                 diagnosisService,
+			AIExplanation:             aiExplanationService,
+			Audit:                     auditService,
+			Notifications:             notificationService,
+			Remediation:               remediationService,
+			Promotion:                 promotionService,
+			Alert:                     alertService,
+			Backup:                    backupService,
+			Maintenance:               maintenanceService,
+			NamespacePosture:          namespacePostureService,
+			Restore:                   restoreService,
+			Authz:                     authzService,
+			GrantManager:              grantManager,
+			WorkspaceService:          workspaceService,
+			FederationService:         federationService,
+			Monitoring:                monitoringService,
+			EventStreamService:        eventStreamService,
+			InspectionService:         inspectionService,
+			ServiceMeshService:        serviceMeshService,
+			GoldenService:             goldenService,
+			AppCatalogService:         appCatalogService,
+			GitOpsService:             gitopsService,
+			CopyOpsService:            copyOpsService,
+			CapabilityMetricsProvider: capabilityMetricsProvider,
+			CapabilityLogProvider:     capabilityLogProvider,
+			CapabilityRegistry:        capabilityRegistry,
+			OIDC:                      oidcSessionManager,
+			OIDCPostLogout:            oidcPostLogoutURI,
+			SecureCookies:             cfg.SecureCookies,
+			RefreshTTL:                cfg.RefreshTokenTTL,
+			Version:                   buildinfo.Version,
 		}),
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
@@ -205,6 +488,12 @@ func main() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
+	// M60: stop providers that implement Lifecycle, in reverse dependency order
+	// (dependents stop before their dependencies). Errors are aggregated into
+	// a single log line — shutdown must not hang on provider teardown.
+	if stopErr := capabilityRegistry.StopAll(shutdownCtx); stopErr != nil {
+		logger.Warn("some providers failed to stop cleanly", zap.Error(stopErr))
+	}
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error("graceful shutdown failed", zap.Error(err))
 	}

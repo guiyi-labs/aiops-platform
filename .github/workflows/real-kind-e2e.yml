@@ -16,6 +16,14 @@ on:
           - fleet
           - search
           - history
+          - m23
+          - m24
+          - m25
+          - m27
+          - m28
+          - m29
+          - m30
+          - m31
 
 permissions:
   contents: read
@@ -56,6 +64,14 @@ jobs:
             diagnosis = '.\scripts\e2e-diagnosis-kind.ps1'
             fleet = '.\scripts\e2e-fleet-kind.ps1'
             search = '.\scripts\e2e-global-search-kind.ps1'
+            m23 = '.\scripts\e2e-m23-release-lifecycle-kind.ps1'
+            m24 = '.\scripts\e2e-m24-cross-cluster-promotion-kind.ps1'
+            m25 = '.\scripts\e2e-m25-workload-protection-kind.ps1'
+            m27 = '.\scripts\e2e-m27-alert-lifecycle-kind.ps1'
+            m28 = '.\scripts\e2e-m28-backup-creation-kind.ps1'
+            m29 = '.\scripts\e2e-m29-governance-posture-kind.ps1'
+            m30 = '.\scripts\e2e-m30-node-maintenance-kind.ps1'
+            m31 = '.\scripts\e2e-m31-isolated-restore-kind.ps1'
           }
           if ($env:E2E_SUITE -ne 'all' -and $env:E2E_SUITE -ne 'history' -and -not $suites.Contains($env:E2E_SUITE)) {
             throw "Unsupported E2E suite: $env:E2E_SUITE"
@@ -113,5 +129,13 @@ jobs:
             .artifacts/fleet-e2e/*.json
             .artifacts/search-e2e/*.json
             .artifacts/m21-history-kind/*.json
+            .artifacts/m23-release-lifecycle-kind/*.json
+            .artifacts/m24-cross-cluster-promotion-kind/*.json
+            .artifacts/m25-workload-protection-kind/*.json
+            .artifacts/m27-alert-lifecycle-kind/*.json
+            .artifacts/m28-backup-creation-kind/*.json
+            .artifacts/m29-governance-posture-kind/*.json
+            .artifacts/m30-node-maintenance-kind/*.json
+            .artifacts/m31-isolated-restore-kind/*.json
           if-no-files-found: warn
           retention-days: 14

@@ -281,6 +281,42 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"docs/thesis/references.md":          {"KubeSphere", "KRM", "Ratel"},
 		"docs/thesis/demo-environment.md":    {"Preparation", "Cleanup", "short-lived credential"},
 		"docs/thesis/screenshots/README.md":  {"Dashboard", "Clusters", "Diagnoses"},
+		"deploy/helm/aiops-platform/Chart.yaml": {
+			"apiVersion: v2", "name: aiops-platform", "type: application",
+			"version:", "appVersion:",
+		},
+		"deploy/helm/aiops-platform/values.yaml": {
+			"existingSecret: aiops-secrets", "namespace:", "backend:", "frontend:", "postgres:",
+			"pod-security.kubernetes.io/enforce: restricted",
+		},
+		"deploy/helm/aiops-platform/values.schema.json": {
+			`"required": ["backend", "frontend", "postgres", "existingSecret"]`,
+			`"pullPolicy"`, `"enum": ["Always", "IfNotPresent", "Never"]`,
+		},
+		"deploy/helm/aiops-platform/templates/backend.yaml": {
+			"kind: Deployment", "kind: Service", "prometheus.io/scrape",
+			"runAsNonRoot: true", "readOnlyRootFilesystem: true", "drop: [ALL]",
+		},
+		"deploy/helm/aiops-platform/templates/network-policies.yaml": {
+			"kind: NetworkPolicy", "name: default-deny", "policyTypes: [Ingress, Egress]",
+		},
+		"deploy/helm/aiops-platform/templates/_helpers.tpl": {
+			`"aiops-platform.namespace"`, `"aiops-platform.labels"`, `"aiops-platform.selectorLabels"`,
+		},
+		"SECURITY.md": {
+			"Supported Versions", "Reporting a Vulnerability",
+			"GitHub Security Advisory", "Disclosure timeline",
+			"Authorization returns 404", "Restricted pod security",
+		},
+		"CHANGELOG.md": {
+			"Keep a Changelog", "Semantic Versioning",
+			"baseline-m35-20260731", "baseline-m34-20260731", "baseline-m33-20260731",
+		},
+		"docs/security/license-allowlist.json": {
+			`"allowedLicenses"`, `"reviewRequiredLicenses"`,
+			`"MIT"`, `"ISC"`, `"BSD-2-Clause"`, `"BSD-3-Clause"`, `"Apache-2.0"`,
+			`"GPL"`, `"LGPL"`, `"UNKNOWN"`, `"SEE-LICENSE"`,
+		},
 	}
 
 	for name, markers := range required {

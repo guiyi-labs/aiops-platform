@@ -1,0 +1,75 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps } from './optimization'
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status })
+}
+
+describe('optimization API client', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('asks the server to auto-collect the CIS bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 7, evaluated_at: '2026-08-01T10:00:00Z', total: 3, failed: 1, passed: 2,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzeCIS('token', 7)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/cis/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    // Only cluster_id is sent: the server collects the bundle itself.
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 7 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.failed).toBe(1)
+  })
+
+  it('omits the cost rate unless one is supplied and normalises recommendations', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ cluster_id: 4, containers_evaluated: 0, containers_over_provisioned: 0, monthly_waste_usd: 0, cpu_idle_cores: 0, mem_idle_gb: 0, recommendations: null, evaluated_at: '2026-08-01T10:00:00Z' }))
+      .mockResolvedValueOnce(jsonResponse({ cluster_id: 4, containers_evaluated: 1, containers_over_provisioned: 1, monthly_waste_usd: 12.5, cpu_idle_cores: 0.4, mem_idle_gb: 1.2, recommendations: [], evaluated_at: '2026-08-01T10:00:00Z' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const withoutRate = await analyzeFinOps('token', 4)
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ cluster_id: 4 })
+    expect(withoutRate.recommendations).toEqual([])
+
+    await analyzeFinOps('token', 4, { per_core_month: 30, per_gb_month: 4 })
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      cluster_id: 4, rate: { per_core_month: 30, per_gb_month: 4 },
+    })
+  })
+
+  it('sends the target version for the deprecated-API check', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 9, target_minor: 29, total: 2, removed: 1, deprecated: 0, clean: 1,
+      findings: [{ code: 'DEPRECATED_API_REMOVED', severity: 'critical', summary: 'removed in 1.16', resource: { kind: 'Deployment', namespace: 'ops', name: 'legacy' }, observed_at: '2026-08-01T10:00:00Z' }],
+      evaluated_at: '2026-08-01T10:00:00Z',
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzeDeprecatedAPI('token', 9, '1.29')
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/optimization/deprecated-api/analyze')
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ cluster_id: 9, target_version: '1.29' })
+    expect(status.removed).toBe(1)
+    expect(status.findings[0]?.resource.name).toBe('legacy')
+  })
+
+  it('surfaces a failed server-side collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 7 is unreachable' }, 502,
+    )))
+
+    await expect(analyzeCIS('token', 7)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 7 is unreachable',
+    })
+  })
+})

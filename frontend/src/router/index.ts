@@ -73,6 +73,12 @@ const router = createRouter({
       name: 'namespace-posture',
       component: () => import('../views/NamespacePostureView.vue'),
     },
+    // M66: 优化中心（M61-M65 只读分析器的控制台入口）
+    {
+      path: '/optimization',
+      name: 'optimization',
+      component: () => import('../views/OptimizationView.vue'),
+    },
     {
       path: '/node-maintenance',
       name: 'node-maintenance',

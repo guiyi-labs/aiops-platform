@@ -227,6 +227,53 @@ Detailed change records for each milestone live under `docs/changes/`.
   for the new signature.
 - `go build ./...`, `go vet ./...` and `go test ./...` (all packages) are green.
 
+### Added — M66 Optimization Console (frontend for the M61–M65 analyzers)
+
+Until now the FinOps / CIS / deprecated-API analyzers were reachable only over
+HTTP — the console had no entry point, so none of M61–M65 was visible to an
+operator. M66 closes that gap with a single read-only "优化中心" view.
+
+- **`frontend/src/types/optimization.ts`** — TypeScript contracts mirroring the
+  backend exactly: `CISStatus` (`cis.Status`), `FinOpsWasteSummary` /
+  `FinOpsRecommendation` / `FinOpsQuantity` (`finops.*`), `DeprecatedAPIStatus`
+  (`deprecatedapi.Status`), and a shared `OptimizationFinding` — CIS and
+  deprecated-API both alias `finding.Finding` server-side, so the console
+  renders both through one table shape.
+- **`frontend/src/api/optimization.ts`** — client for the three `/analyze`
+  endpoints. Each request sends only `cluster_id` (plus `target_version` for
+  the deprecated-API check), which triggers the M65 server-side auto-collection
+  path. Go marshals a nil slice/map as `null`, so `findings`, `recommendations`,
+  `by_severity` and `by_family` are normalised to `[]`/`{}` at the boundary
+  instead of forcing every view to guard against null.
+- **`frontend/src/views/OptimizationView.vue`** — three tabs over one shared
+  cluster selector:
+  - *成本优化* — headline cards (monthly savings, over-provisioned containers,
+    idle CPU cores, idle memory) plus a right-sizing table sorted by monthly
+    waste. CPU is rendered from nanocores (cores / millicores) and memory from
+    bytes (GiB / MiB); `-1` renders as 未设置, matching `finops.Quantity`'s
+    unset sentinel. Costs stay in USD because `finops.CostRate` is defined as
+    USD per core-/GB-month.
+  - *CIS 合规* — pass-rate score, failed controls, severity split, per-family
+    chips, and a findings table ordered critical → warning → info, showing the
+    catalog `remediation` under each summary.
+  - *废弃 API* — target-version input (default `1.29`), removed/deprecated/clean
+    counters, and a migration table pairing each object's current
+    `api_version` with its `replacement`.
+  - Results are cached per tab and invalidated when the cluster changes; a
+    request sequence guard prevents a slow response for a previous cluster from
+    overwriting a newer one. `COLLECT_FAILED` (502) and `NO_INPUTS` (400) are
+    translated into actionable Chinese messages rather than raw error codes.
+- **`frontend/src/router/index.ts`** / **`ConsoleLayout.vue`** — `/optimization`
+  route and a "优化中心" entry in the 分析与治理 navigation group.
+- **`frontend/src/api/optimization.test.ts`** (new, 4 tests) — asserts the
+  auto-collection request shape (`cluster_id` only), null-to-empty
+  normalisation, the optional cost-rate override, and that a 502
+  `COLLECT_FAILED` surfaces as a stable typed API error.
+- The whole view is read-only: it issues no mutating request and offers no
+  apply/patch action, consistent with ADR 0004.
+- Frontend `eslint`, `vue-tsc -b`, `vitest run` (19 files / 85 tests) and
+  `vite build` are green.
+
 ### Added — M58 DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI Backend
 
 - **GitOps (ArgoCD Application) read-only** (`backend/internal/gitops/*`):

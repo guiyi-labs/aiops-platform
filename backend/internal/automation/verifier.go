@@ -159,13 +159,8 @@ func (v *Verifier) Evaluate(ctx context.Context, plan ActionPlan, pre ActionVeri
 //
 // Missing or partial evidence yields ComparisonInsufficient.
 func compareEvidence(pre, post EvidenceSnapshot, plan ActionPlan) (EvidenceComparison, bool) {
-	missing := false
-	if pre.ContentHash == "" || post.ContentHash == "" {
-		missing = true
-	}
-	if pre.CapturedAt.IsZero() || post.CapturedAt.IsZero() {
-		missing = true
-	}
+	missing := pre.ContentHash == "" || post.ContentHash == "" ||
+		pre.CapturedAt.IsZero() || post.CapturedAt.IsZero()
 	if missing {
 		return ComparisonInsufficient, true
 	}

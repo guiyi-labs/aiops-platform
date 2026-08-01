@@ -491,7 +491,7 @@ func effectiveClusterIDs(clusters []struct {
 
 func fingerprint(clusterID int64, f Finding) string {
 	h := sha256.New()
-	h.Write([]byte(fmt.Sprintf("%d|%s|%s|%s|%s", clusterID, f.RuleCode, f.Namespace, f.ResourceUID, f.ResourceKind+"."+f.ResourceName)))
+	fmt.Fprintf(h, "%d|%s|%s|%s|%s", clusterID, f.RuleCode, f.Namespace, f.ResourceUID, f.ResourceKind+"."+f.ResourceName)
 	return hex.EncodeToString(h.Sum(nil))[:MaxFingerprintLen]
 }
 

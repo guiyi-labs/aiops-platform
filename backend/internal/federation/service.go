@@ -350,10 +350,8 @@ func (s *Service) Overview(ctx context.Context, visibleClusterIDs []int64) (Over
 		return Overview{}, err
 	}
 	visible := make(map[int64]bool, len(visibleClusterIDs))
-	if visibleClusterIDs != nil {
-		for _, id := range visibleClusterIDs {
-			visible[id] = true
-		}
+	for _, id := range visibleClusterIDs {
+		visible[id] = true
 	}
 	overview := Overview{
 		Members:     []ClusterSummary{},
@@ -446,10 +444,8 @@ func (s *Service) ResourceSummary(ctx context.Context, visibleClusterIDs []int64
 		return ResourceSummary{}, err
 	}
 	visible := make(map[int64]bool, len(visibleClusterIDs))
-	if visibleClusterIDs != nil {
-		for _, id := range visibleClusterIDs {
-			visible[id] = true
-		}
+	for _, id := range visibleClusterIDs {
+		visible[id] = true
 	}
 	clusters := make([]cluster.Cluster, 0, len(items))
 	for _, item := range items {

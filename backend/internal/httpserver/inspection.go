@@ -21,6 +21,8 @@ type inspectionHandler struct {
 
 // rolesSystemOpsAdmin is reused from router.go; declared here for audit gating
 // on plan mutations (create/update/delete) and on-demand runs.
+//
+//nolint:unused // reserved for audit gating documentation
 var rolesInspectionWriters = rolesSystemOpsAdmin // alias for documentation
 
 // --- catalog (read-only, any authenticated user) ---

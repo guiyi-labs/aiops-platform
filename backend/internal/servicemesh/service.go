@@ -367,9 +367,11 @@ func aggregateTopK(collected []istioTrafficMetric, topK int) []ServiceMetric {
 		ServiceName string
 	}
 	type aggregate struct {
-		requests     int64
-		errors       int64
-		latencySum   int64
+		requests int64
+		errors   int64
+		//nolint:unused // reserved for future latency histogram
+		latencySum int64
+		//nolint:unused // reserved for future latency histogram
 		latencyCount int64
 		p50          float64
 		p95          float64

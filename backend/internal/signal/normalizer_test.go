@@ -72,11 +72,9 @@ func TestAlertNormalizer_FromInstance(t *testing.T) {
 	if req.SignalID != "alert.firing.v1" {
 		t.Fatalf("expected signal_id alert.firing.v1, got %s", req.SignalID)
 	}
-	if req.Resource.UID == "" && !req.Resource.Incomplete {
-		// Alert rules don't carry UID; the normalizer doesn't set Incomplete
-		// itself, but BuildOccurrence will mark it. Here we just check the
-		// signal id mapping.
-	}
+	// Alert rules don't carry UID; the normalizer doesn't set Incomplete
+	// itself, but BuildOccurrence will mark it. Here we just check the
+	// signal id mapping.
 }
 
 func TestAlertNormalizer_ResolvedTransition(t *testing.T) {

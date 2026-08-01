@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -14,6 +15,7 @@ import (
 // and report storage, exposing synchronous report reads and async replay
 // execution with in-memory task tracking.
 type Service struct {
+	mu      sync.Mutex
 	runner  *ReplayRunner
 	storage ReportStorage
 	logger  *zap.Logger
@@ -67,6 +69,8 @@ func (s *Service) RunReplay(ctx context.Context) (string, error) {
 // GetTask returns the current status of an async replay task. Returns
 // false if the task ID is unknown (e.g. expired or never created).
 func (s *Service) GetTask(id string) (ReplayTaskView, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	task, ok := s.tasks.get(id)
 	if !ok {
 		return ReplayTaskView{}, false
@@ -84,15 +88,19 @@ func (s *Service) executeReplay(taskID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
+	s.mu.Lock()
 	task, _ := s.tasks.get(taskID)
+	s.mu.Unlock()
 
 	dataset := DefaultDataset()
 	results, err := s.runner.Run(ctx, dataset)
 	if err != nil {
+		s.mu.Lock()
 		task.Status = ReplayTaskFailed
 		task.EndedAt = NowFunc()
 		task.Error = fmt.Sprintf("replay runner failed: %v", err)
 		s.tasks.set(task)
+		s.mu.Unlock()
 		s.logger.Error("golden replay failed", zap.String("task_id", taskID), zap.Error(err))
 		return
 	}
@@ -134,18 +142,22 @@ func (s *Service) executeReplay(taskID string) {
 	}
 
 	if err := s.storage.Save(report); err != nil {
+		s.mu.Lock()
 		task.Status = ReplayTaskFailed
 		task.EndedAt = NowFunc()
 		task.Error = fmt.Sprintf("save quality report failed: %v", err)
 		s.tasks.set(task)
+		s.mu.Unlock()
 		s.logger.Error("golden replay save failed", zap.String("task_id", taskID), zap.Error(err))
 		return
 	}
 
+	s.mu.Lock()
 	task.Status = ReplayTaskSucceeded
 	task.EndedAt = NowFunc()
 	task.Report = &report
 	s.tasks.set(task)
+	s.mu.Unlock()
 	s.logger.Info("golden replay succeeded",
 		zap.String("task_id", taskID),
 		zap.Int("scenarios", len(scenarioQualities)),

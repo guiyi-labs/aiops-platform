@@ -102,7 +102,7 @@ func (c *Collector) CollectCIS(ctx context.Context, clusterID int64) (cis.Inputs
 		}
 		for _, ctr := range p.Spec.Containers {
 			cs := cis.ContainerSecurity{
-				Name:       ctr.Name,
+				Name:        ctr.Name,
 				HostNetwork: p.Spec.HostNetwork,
 				HostPID:     p.Spec.HostPID,
 				HostIPC:     p.Spec.HostIPC,
@@ -285,9 +285,9 @@ func (c *Collector) CollectDeprecatedAPI(ctx context.Context, clusterID int64) (
 			if json.Unmarshal(raw, &o) != nil {
 				continue
 			}
-		if o.Kind == "" || o.Metadata.Name == "" {
-			continue
-		}
+			if o.Kind == "" || o.Metadata.Name == "" {
+				continue
+			}
 			objects = append(objects, deprecatedapi.ResourceObject{
 				APIVersion: o.APIVersion,
 				Kind:       o.Kind,
@@ -447,13 +447,13 @@ type podRaw struct {
 		HostPID     bool `json:"hostPID"`
 		HostIPC     bool `json:"hostIPC"`
 		Containers  []struct {
-			Name string `json:"name"`
+			Name            string `json:"name"`
 			SecurityContext *struct {
-				Privileged               *bool `json:"privileged"`
-				AllowPrivilegeEscalation *bool `json:"allowPrivilegeEscalation"`
-				RunAsNonRoot             *bool `json:"runAsNonRoot"`
+				Privileged               *bool  `json:"privileged"`
+				AllowPrivilegeEscalation *bool  `json:"allowPrivilegeEscalation"`
+				RunAsNonRoot             *bool  `json:"runAsNonRoot"`
 				RunAsUser                *int64 `json:"runAsUser"`
-				ReadOnlyRootFilesystem   *bool `json:"readOnlyRootFilesystem"`
+				ReadOnlyRootFilesystem   *bool  `json:"readOnlyRootFilesystem"`
 				Capabilities             *struct {
 					Drop []string `json:"drop"`
 				} `json:"capabilities"`
@@ -463,7 +463,7 @@ type podRaw struct {
 			} `json:"volumeMounts"`
 		} `json:"containers"`
 		Volumes []struct {
-			Name string `json:"name"`
+			Name     string `json:"name"`
 			HostPath *struct {
 				Path string `json:"path"`
 			} `json:"hostPath"`

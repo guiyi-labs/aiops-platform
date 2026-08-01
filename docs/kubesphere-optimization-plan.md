@@ -1,10 +1,10 @@
 # Post-M32 KubeSphere-Informed Optimization Plan
 
-- Status: Ready for execution
+- Status: M33-M38 and M36 development complete; next targets M37 or M39
 - Created: 2026-07-31
 - Repository baseline: `main` at `ffc996a615aa3003a6cdf4909efd1fba7c6d4d00`
 - Baseline tag: `baseline-m32-20260731`
-- Default next milestone: M33 restricted `client-go` migration
+- Default next milestone: M37 capability adapters or M39 AIOps signal model
 - Planned product closure: M45 production validation and new baseline
 - Audience: development Agent, reviewer and release owner
 
@@ -289,7 +289,7 @@ Execution rules:
   versions, result and cleanup assertions.
 - No skipped or unavailable check may be reported as passed.
 
-## 7. M33 - Restricted client-go Migration
+## 7. M33 - Restricted client-go Migration ✅
 
 ### 7.1 Goal
 
@@ -338,7 +338,7 @@ redaction, precondition, timeout, size and least-privilege invariant accepted th
 - No RESTMapper-driven arbitrary resource access.
 - No generic dynamic client API exposed above the infrastructure package.
 
-## 8. M34 - Unified Route Contract, RBAC Inventory And Documentation Truth
+## 8. M34 - Unified Route Contract, RBAC Inventory And Documentation Truth ✅
 
 ### 8.1 M34A RouteDescriptor
 
@@ -397,7 +397,7 @@ Acceptance:
 - Current screenshots include the principal M27-M34 surfaces and bind to an actual Git revision.
 - Markdown links, code snippets and version/status consistency checks pass.
 
-## 9. M35 - Lightweight Cluster And Namespace Access Grants
+## 9. M35 - Lightweight Cluster And Namespace Access Grants ✅
 
 ### 9.1 Decision gate
 
@@ -425,7 +425,7 @@ to one trusted global operations team, an ADR may mark M35 not applicable with o
 - Fleet/search completeness is calculated over authorized scope, not over hidden clusters.
 - Real two-kind E2E proves cluster and Namespace isolation and full cleanup.
 
-## 10. M36 - Production OIDC And MFA
+## 10. M36 - Production OIDC And MFA ✅
 
 ### 10.1 Scope
 
@@ -518,7 +518,7 @@ Acceptance:
 - hidden projects and clusters are absent from API, counts and later AI context;
 - the adapter grants no repository write, pipeline execute or cluster mutation permission.
 
-## 12. M38 - Engineering, Delivery And Supply-Chain Hardening
+## 12. M38 - Engineering, Delivery And Supply-Chain Hardening ✅
 
 ### 12.1 M38A Hosted CI completeness
 
@@ -915,7 +915,6 @@ Every development Agent must report:
 - Git branch, HEAD, worktree and origin divergence;
 - next earliest incomplete phase and its prerequisites.
 
-The next Agent starts M33 unless the repository already contains accepted M33 evidence or the user explicitly changes
-the route. It must not skip M33-M34, silently activate M35 multi-user scope, or begin optional M37 adapters before their
-provider/security ADR. M39-M44 are the AIOps product route, but each starts only after its declared foundation evidence
-is accepted.
+The next Agent starts M37 or M39 unless the repository already contains accepted evidence or the user explicitly changes
+the route. M33-M38 and M36 are development complete. It must not skip M37 optional adapters without an ADR, or begin
+M39-M44 AIOps phases before their declared foundation evidence is accepted.

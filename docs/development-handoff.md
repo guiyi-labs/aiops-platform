@@ -1,22 +1,198 @@
 # Development Handoff
 
-## Current Baseline (2026-07-31 M33 In Progress)
+## Current Baseline (2026-08-01 M36+M37+M38+M39+M40+M41+M42+M43+M44+M45+M46+M47+M48+M49+M50+M51+M52+M56+M57+M58+M59+M60 Complete)
 
-M33 (Restricted client-go Migration) is development complete. The raw `net/http`
-`cluster.Registry` has been replaced by `cluster.ClientProvider` backed by
-`k8s.io/client-go`. The four gateway interfaces are unchanged. Continue from
-the M33 commit on local `main` (ahead of `baseline-m32-20260731`).
+M60 (Static Provider Registry + Lifecycle) closes Phase 5 of the post-M45
+roadmap with a single centralized `capability.Registry` that unifies the ten
+previously ad-hoc capability surfaces wired into `cmd/server/main.go` and the
+HTTP router. Every provider now carries a stable `ProviderDescriptor` (name,
+kind, dependencies, cluster-role eligibility, configured flag, optional
+Lifecycle and HealthChecker), starts in deterministic topological order
+(dependencies before dependents) and stops in reverse, honors cluster-role
+gating (`federation`, `inspection_scheduler`, `copyops_cross_cluster` only
+start under host/standalone roles — member clusters keep them `disabled` with
+`InactiveReason = "cluster role"`), and reports cached health (1s cache,
+refreshable via `?refresh=true`). Two new OpenAPI routes
+(`GET /api/v1/capability/providers` and `/:name`) expose the registry under
+the `system_ops_admin` scope using a 1:1 `ProviderInfo` schema. 12 table-driven
+registry tests cover Register/Start/Stop/Health/ClusterRoles/Cache/Cycle
+branches at 84.2% statement coverage.
+M59 (Structural) extends `.github/workflows/release.yml` with Cosign v2.4.1
+keyless signing of SHA256SUMS + release-metadata.json, an in-toto SLSA v1
+provenance placeholder bound to a bundle aggregate digest, and a
+`cosign attest-blob` placeholder (`|| true` fail-open for rehearsal runs).
+HA and PITR are *not* implemented in M59; ADR 0075 marks their place in the
+signing chain so they can reuse the same workflow identity when they land.
+Fast gate: `verify-fast.ps1 -Scope All` passed in 76.71s (backend=True
+frontend=True manifests=True); helm lint skipped locally (helm not installed,
+CI-enforced).
+
+M58 (DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI) closes
+Phase 3 of the post-M45 roadmap with three DevOps-facing backend
+enhancements: (a) GitOps (ArgoCD Application) read-only integration —
+`argoproj.io/v1alpha1 Application` CRs are read directly via the ADR
+0004 bounded Kubernetes gateway, projected into GUI-friendly
+sync/health + repo/destination envelopes with a capability probe that
+gracefully returns `available=false` when ArgoCD is not installed on
+the cluster; (b) interactive cross-cluster copy (copyops) — a
+lightweight primitive built on the same M19 controlled-operation state
+machine as promotion/backup/restore, supporting preview → execute flow
+with a 20-item bundle cap, operator-curated kind whitelist, source
+namespace identity CAS gate, per-item scrubbing and dry-run validation,
+and idempotency-key replay; (c) Velero backup/restore GUI browse
+extensions — list/get endpoints for `velero.io/v1 Backup` and
+`Restore` CRs so the GUI can render existing cluster backups before
+guiding users through M22/M23 plan creation. 11 routes total; copyops
+writes audit targets into the unified audit trail. 000039 migration
+adds one JSONB-heavy `copy_plans` table. GitOps + copyops service
+tests use stubbed dependencies (no CGO).
+M57 (Helm Application Catalog + Controlled Deploy Plans) opens Phase 4
+(delivery & ops integration) of the post-M45 roadmap with a simplified
+Helm application catalog and M19 controlled-operation deploy plans.
+M57 delivers (a) Helm repository CRUD with optional basic-auth
+credentials stored in a `credentials_json` JSONB column — credentials
+are structurally never returned in API responses (the `RepositoryView`
+projection has no credentials field; only a `has_auth` boolean is
+exposed); (b) read-only chart listing/detail via live `index.yaml`
+HTTP fetch (10 MiB body limit, 15s timeout) — no Helm SDK dependency,
+no caching, metadata always fresh; (c) M19 controlled-operation deploy
+plans that reuse the exact confirmation-token + idempotency-key + Claim
+state machine from promotion/backup/restore/maintenance — preview
+builds a Flux `HelmRelease` CR manifest (`helm.toolkit.fluxcd.io/
+v2beta1`, already in the M49 CRD whitelist), validates it via a
+server-side dry-run, and persists the plan with a one-time confirmation
+token (SHA-256 hashed); execute claims the plan (row-level lock +
+constant-time token compare + idempotency key check), creates the
+HelmRelease CR via the M49 generic `CreateResource` path, and marks the
+plan succeeded/failed (a 409 conflict during execute is treated as
+success — the HelmRelease already exists from a previous timed-out
+attempt). The manifest is built once at preview and applied verbatim at
+execute — deterministic, no re-rendering. 10 routes under
+`/api/v1/app-catalog` (4 repository CRUD, 2 chart read, 2 plan read, 2
+plan write); writes require `system_ops_admin`, reads are any-auth. 32
+appcatalog service tests + 24 handler tests.
+M52 (Intelligent Inspection + Service Mesh Read-Only) closes Phase 2 of the
+post-M45 roadmap. M52 delivers (a) a KubeEye-style single-binary inspection
+engine over an 8-rule compile-time catalog (node_not_ready, pod_restart_loop,
+pod_oom_killed, pvc_pending, image_pull_backoff, pod_crash_loop,
+endpoints_orphan, namespace_quota_high) with per-cluster enabled/severity
+overrides, bounded execution at every layer (MaxConcurrentClusters=4,
+PerClusterTimeout=15s, per-rule descriptor timeout, MaxTaskResults=1000
+short-circuit truncation), one-shot trigger + standard-cron periodic plans,
+and findings normalized into the M39 signal_occurrences table so M42
+correlation and M44 automation consume them natively; plus (b) a strictly
+read-only Istio service-mesh surface covering VirtualService/DestinationRule
+list+detail via the M49 CustomResource gateway (shallow projections; raw
+manifest not returned — operators use M49 generic CRD browser for drilldown)
+and traffic metrics (request volume, 2xx/4xx/5xx, error rate, latency
+p50/p95/p99) aggregated from the M36 Prometheus history via six fixed
+template queries (no client PromQL, window capped at 24h, step normalized
+floor 15s). Everything evidence-only, zero governance write paths.
+M51 (Bounded Event Stream + Alert Inhibits), M50 (Monitoring Dashboard + Log
+Explorer), M49 (CRD Discovery + Read-Only
+Custom Resource Browsing), M48 (Multi-Cluster Federation), M47 (Three-Tier
+Console Navigation + Workspace Resource Filter), M46 (Workspace
+Multi-Tenancy), M45 (Versioned AIOps Golden Dataset And
+Quality Report), M44
+(Policy-Constrained Automation and Post-Action Verification), M43
+(Cited and Evaluated AI Investigator), M42 (Multi-Signal Correlation
+and Deterministic RCA), M41 (SLO, Error Budget and Impact), M40 (Temporal
+Topology and Change Intelligence), M39 (Unified Service Identity and
+Signal Model), M38 (Engineering, Delivery and Supply-Chain Hardening),
+M37 (Capability Plane Adapters) and M36 (Production OIDC and MFA) are
+development complete. M51 extends Phase 2 (full-stack observability)
+with a bounded SSE event stream over Kubernetes Events (poller, not
+Watch) and alert inhibit rules (source_match → target_match suppression
+while the source is firing, not time-bounded). The event stream reuses
+the M35 namespace scope (empty scope → empty stream, anti-leakage) and
+the read-only gateway (ADR 0004); drop-oldest backpressure bounds
+per-client memory. Inhibits complement the M37B time-bounded silences
+and are re-evaluated on every `MatchAndDeliver` call against the M27
+delivery table (no second alert system). M50 opens Phase 2 (full-stack observability) with
+a fixed-template monitoring dashboard (single-cluster + workspace
+cross-cluster topology) and a bounded Loki log explorer reusing the
+M37A `capability.LogProvider`. Clients cannot inject PromQL/LogQL; the
+dashboard returns panel descriptors that the frontend uses to drive
+existing `/metrics/history` calls, and the workspace dashboard returns
+only the cross-cluster `(cluster_id, namespaces)` topology (no
+per-cluster time-series pre-fetch). The log explorer re-checks the body
+namespace against the M35 resolved namespace scope (anti-leakage 404).
+M45 introduces the versioned AIOps golden dataset
+and quality report as the replayable contract for the full AIOps loop
+(M39-M44); the dataset contains 3 scenarios (mandatory 10-step end-to-end
++ 2 negative companions: misattribution prevention, partial/unknown
+fail-closed) and the quality report records before/after comparison per
+scenario with aggregated summary metrics. M44 closes the AIOps loop: an
+eligible M43 runbook is materialized into an action plan, gated through
+deterministic policy checks (8 gates), approved by a human (L2 default;
+four-eyes for rollback/image_update), executed idempotently against the
+Kubernetes source, and verified against captured pre/post evidence;
+missing evidence never resolves a diagnosis automatically (yields
+`unknown`), and a server-owned rollback contract drafts a rollback plan
+when safe or escalates to a human. M43 introduces a cited and evaluated
+AI investigator bound to M42 correlation cases; the investigation is a
+read-only advisory that never modifies the case, diagnosis or alert, and
+every factual claim cites an authorized evidence ID (fabricated or
+out-of-scope citations reject the entire output); on provider failure or
+citation rejection a failed investigation is persisted so deterministic
+investigation remains available. M42 introduces a deterministic,
+replayable multi-signal correlation engine that links M39 signals, M40
+topology/changes and diagnosis records into bounded cases; the diagnosis
+record remains the human status/SLA/feedback source of truth. M41
+introduces server-owned SLI templates, versioned SLO definitions,
+deterministic evaluation with explicit missing-data handling, and
+burn-alert transitions that feed the existing M27 alert lifecycle; the
+native signal path is unchanged. M40 persists reviewed relationship edges
+(8 kinds with validity intervals) and normalizes M23-M31 platform-operation
+outcomes into a unified change timeline; the native signal path is
+unchanged. M39 normalizes existing M21-M31 outputs into a unified
+`signal_occurrences` table with fingerprint-based deduplication; the
+native signal path is unchanged. M37 adds bounded Prometheus/Loki
+capability adapters and alert routing with bounded silences; all adapters
+are disabled by default. The OIDC provider supports Authorization Code +
+PKCE S256, JWKS caching with key rotation, MFA evidence, GORM identity
+resolver and session management; OIDC remains disabled by default. The
+pull-request gate now runs the race detector, golangci-lint, ESLint, a 50%
+coverage baseline and an OpenAPI breaking-change check; the real-kind E2E
+workflow covers M23-M31; an official Helm 3 chart ships under
+`deploy/helm/aiops-platform/`; releases produce multi-architecture OCI
+images and SPDX SBOMs; a license allowlist is enforced at gate time;
+`SECURITY.md` and `CHANGELOG.md` are tracked delivery assets. M35
+(lightweight cluster and namespace access grants) and M34 (RouteDescriptor
+contract and RBAC inventory) remain the contract and authorization
+foundation. M33 (restricted `client-go` migration) remains the
+transport-layer foundation. Continue from the current commit on local
+`main` (ahead of `baseline-m32-20260731`).
 
 The approved post-M32 optimization route is `docs/kubesphere-optimization-plan.md`.
-Later historical “Recommended Next Work” and “Next Priorities” sections in this file are not current instructions.
+Later historical "Recommended Next Work" and "Next Priorities" sections in this file are not current instructions.
 
-- Last updated: 2026-07-31
+- Last updated: 2026-08-01
 - Repository: `C:\BS\aiops-platform`
-- Git baseline: local `main`, tag `baseline-m32-20260731`; M33 commit pending; push/release not authorized
-- Current milestone: M32 local archive accepted; only hosted CI/release,
-  organization OIDC/MFA, PITR and HA remain external gates
+- Git baseline: local `main`, tag `baseline-m32-20260731`;
+  M33+M34+M35+M36+M37+M38+M39+M40+M41+M42+M43+M44+M45+M46+M47+M48+M49+M50+M51+M52+M56+M57+M58 commits pending; push/release not authorized
+- Current milestone: M32 local archive accepted; M33 transport swap, M34
+  contract-debt closure, M35 resource-scope authorization, M36 production
+  OIDC/MFA, M37 capability plane adapters, M38 engineering/delivery/
+  supply-chain hardening, M39 unified signal model, M40 temporal topology
+  and change intelligence, M41 SLO/error budget/impact, M42 multi-signal
+  correlation/deterministic RCA, M43 cited/evaluated AI investigator,
+  M44 policy-constrained automation/post-action verification, M45
+  versioned golden dataset/quality report, M46 workspace
+  multi-tenancy, M47 three-tier console navigation/workspace resource
+  filter, M48 multi-cluster federation, M49 CRD discovery + read-only
+  custom resource browsing, M50 monitoring dashboard + log explorer,
+  M51 bounded event stream + alert inhibits,
+  M52 intelligent inspection + service mesh read-only,
+  M56 golden dataset replay + quality dashboard,
+  M57 Helm application catalog + controlled deploy plans,
+  and M58 DevOps readonly + cross-cluster copy + backup/restore GUI
+  complete; only hosted CI/release,
+  organization OIDC/MFA production run, PITR and HA remain external gates.
+  The committed development route ends at M32; M33-M52 are post-M32
+  optimization milestones per `docs/kubesphere-optimization-plan.md`.
 
-### M27-M32 Closure Summary
+### M27-M58 Closure Summary
 
 | Milestone | Status | Closure record |
 |---|---|---|
@@ -26,16 +202,826 @@ Later historical “Recommended Next Work” and “Next Priorities” sections 
 | M30 Controlled Node Maintenance | ✅ Accepted 2026-07-30 | `docs/changes/2026-07-30-m30-controlled-node-maintenance.md` |
 | M31 Isolated Workload Restore Rehearsal | ✅ Accepted 2026-07-30 | `docs/changes/2026-07-30-m31-isolated-workload-restore-rehearsal.md` |
 | M32 Formal Closure | ✅ Final local archive 2026-07-31 | `docs/changes/2026-07-31-final-baseline-archive.md` |
+| M33 Restricted client-go Migration | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m33-restricted-client-go-migration.md` |
+| M34 Route Descriptor Contract and RBAC Inventory | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m34-route-descriptor-and-rbac-inventory.md` |
+| M35 Lightweight Cluster and Namespace Access Grants | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m35-lightweight-cluster-and-namespace-access-grants.md` |
+| M36 Production OIDC and MFA | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m36f-oidc-http-wiring-and-gorm-resolver.md` |
+| M37 Capability Plane Adapters | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m37-capability-plane-adapters.md` |
+| M38 Engineering, Delivery and Supply-Chain Hardening | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m38-engineering-delivery-and-supply-chain-hardening.md` |
+| M39 Unified Service Identity and Signal Model | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m39-unified-signal-model.md` |
+| M40 Temporal Topology and Change Intelligence | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m40-temporal-topology-and-change-intelligence.md` |
+| M41 SLO, Error Budget and Impact | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m41-slo-error-budget-and-impact.md` |
+| M42 Multi-Signal Correlation and Deterministic RCA | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m42-multi-signal-correlation-and-deterministic-rca.md` |
+| M43 Cited and Evaluated AI Investigator | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m43-cited-and-evaluated-ai-investigator.md` |
+| M44 Policy-Constrained Automation and Post-Action Verification | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m44-policy-constrained-automation-and-post-action-verification.md` |
+| M45 Versioned AIOps Golden Dataset and Quality Report | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m45-versioned-aiops-golden-dataset-and-quality-report.md` |
+| M46 Workspace Multi-Tenancy | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m46-workspace-multi-tenancy.md` |
+| M47 Three-Tier Console Navigation + Workspace Resource Filter | ✅ Development complete 2026-07-31 | `docs/changes/2026-07-31-m47-three-tier-console-and-workspace-filter.md` |
+| M48 Multi-Cluster Federation (Host/Member Model) | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m48-multi-cluster-federation.md` |
+| M49 CRD Discovery + Read-Only Custom Resource Browsing | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m49-crd-discovery-and-browsing.md` |
+| M50 Monitoring Dashboard + Log Explorer | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m50-monitoring-dashboard-and-log-explorer.md` |
+| M51 Bounded Event Stream + Alert Inhibits | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m51-bounded-event-stream-and-alert-inhibits.md` |
+| M52 Intelligent Inspection + Service Mesh Read-Only | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m52-inspection-and-servicemesh.md` |
+| M56 Golden Dataset Replay + Quality Dashboard | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m56-golden-replay-and-quality-dashboard.md` |
+| M57 Helm Application Catalog + Controlled Deploy Plans | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m57-helm-app-catalog.md` |
+| M58 DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI | ✅ Development complete 2026-08-01 | `docs/changes/2026-08-01-m58-devops-readonly-copyops-backup-gui.md` |
+
+### M58 Highlights
+
+- **GitOps (ArgoCD Application) read-only (M58):** New `internal/gitops` package
+  with `Service.Capability` / `List` / `Get`. `Capability` probes for
+  `argoproj.io/v1alpha1 Application` CRDs first; absent CRD →
+  `{available: false, mode: "none"}` with probe-level counts. List/Get
+  read Application manifests via the existing ADR 0004 bounded Kubernetes
+  gateway and project into GUI-friendly rows (name, namespace, project,
+  sync_status, health_status, repo_url/path/revision, destination) plus
+  `raw_manifest`. No ArgoCD SDK, no proxy credentials.
+- **Interactive cross-cluster copy (copyops) (M58):** New `internal/copyops`
+  package reusing the M19 controlled-operation state machine.
+  `Service.Preview` captures source-namespace identity (CAS gate), scrubs
+  manifests with fixed label/annotation prefix strips + Secret scrub
+  toggle + nodeName drops, runs per-item "already exists on destination"
+  skip + server-side dry-run create. Bundle cap MaxBundle=20 enforced
+  BEFORE normalize/dedup. `Service.Execute` re-checks CAS (M28 backup
+  style), re-checks destination namespace, applies pending items as
+  create-only. `Repository.ClaimAndLoad` rewritten for idempotency-replay
+  short-circuit: terminal status + matching idempotency-key → returns
+  completed plan (not ErrAlreadyExecuted). Migration 000039 adds one
+  JSONB-heavy `copy_plans` table (single-row, no child tables;
+  char_length(id)=36 CHECK; TTL expires_at; locked_at lease).
+- **Velero backup/restore GUI browse extensions (M58):** `backup.go` and
+  `restore.go` in `httpserver` extended with `listBackups`/`getBackup`
+  and `listRestores`/`getRestore` reading `velero.io/v1 Backup`/
+  `Restore` CRs via existing cluster dynamic client. Rows project
+  phase/errors/warnings/started/completed/storage_location/schedule/
+  included/excluded namespaces; raw_manifest available for detail views.
+  Existing M22/M23 Plan CRUD is untouched.
+- **OpenAPI + route-contract (M58):** 11 new paths + 13 new schemas in
+  `openapi.yaml` (GitOpsCapability, GitOpsApplication[List],
+  VeleroBackupList, VeleroRestoreList, CopyBundleItem,
+  CopyPlanPreviewRequest, CopyPlanExecuteRequest, CopyItemDiff,
+  CopyPlanResourceItem, CopyPlanDiffSummary, CopyPlan[List]).
+  `TestRegisteredRoutesMatchOpenAPI` passes for all 11 routes.
+- **Authorization + tests (M58):** All 11 routes protected by bearerAuth
+  + per-cluster + workspace tenancy gates. copyops preview/execute write
+  audit targets into the unified audit trail. GitOps service tests cover
+  capability-none/present, list filters, get hit/miss with stubbed Raw
+  client. Copyops service tests use thread-safe `inmemRepo` (no CGO) +
+  `fakeKubernetes` covering invalid inputs, bundle-too-large pre-dedup,
+  disallowed kind, success preview+write, destination missing, Execute
+  idempotency replay SAME/DIFFERENT keys, Execute CAS drift → failPlan.
+- **Service DI (M58):** `cmd/server/main.go` wires `gitops.NewService(k8sSvc)`
+  and `copyops.NewService(k8sSvc, copyops.NewGormRepository(db))` into the
+  HTTP server options; all handlers reuse existing auth/session/aikit
+  middleware.
+
+### M57 Highlights
+
+- **Helm repository CRUD (M57):** New `internal/appcatalog` package
+  with `Service.CreateRepository` / `GetRepository` /
+  `ListRepositories` / `DeleteRepository`. Credentials stored in
+  `helm_repositories.credentials_json` JSONB column; structurally
+  never returned in API responses (the `RepositoryView` projection
+  has no credentials field; only a `has_auth` boolean is exposed).
+  Repository writes (create/delete) require `system_ops_admin`;
+  reads are any-auth. See ADR 0069.
+- **Read-only chart listing/detail (M57):** `Service.ListCharts` and
+  `Service.GetChart` fetch chart metadata live from each repository's
+  `index.yaml` over HTTP via `HTTPIndexSource` (10 MiB body limit,
+  15s timeout, basic-auth from `credentials_json`). No Helm SDK
+  dependency — plain HTTP + YAML parse. No caching; metadata is
+  always fresh.
+- **M19 controlled-operation deploy plans (M57):** `Service.Preview`
+  validates the request, checks the target namespace exists, fetches
+  chart metadata, checks no existing HelmRelease with the same name,
+  builds a Flux `HelmRelease` CR manifest
+  (`helm.toolkit.fluxcd.io/v2beta1`, already in the M49 CRD
+  whitelist), runs a server-side dry-run, and persists the plan with
+  a one-time confirmation token (SHA-256 hashed). `Service.Execute`
+  claims the plan via `ClaimPlan` (row-level lock +
+  `subtle.ConstantTimeCompare` for token + idempotency key check),
+  creates the HelmRelease CR via the M49 generic `CreateResource`
+  path, and marks the plan succeeded/failed. A 409 conflict during
+  execute is treated as success (HelmRelease already exists from a
+  previous timed-out attempt). The manifest is built once at preview
+  and applied verbatim at execute — deterministic, no re-rendering.
+  Plan TTL 30 minutes; claim TTL 5 minutes. Mirrors the exact M19
+  state machine from promotion/backup/restore/maintenance.
+- **No Helm SDK dependency (M57):** Chart metadata comes from
+  `index.yaml` HTTP fetch; deployment targets a Flux HelmRelease CR
+  (already in the M49 CRD whitelist). The Flux helm-controller
+  handles reconciliation, retries, and rollbacks — the platform just
+  creates the CR. Binary stays small; attack surface minimal.
+- **Authorization + anti-leakage (M57):** 10 routes under
+  `/api/v1/app-catalog` registered on `v1` (not `resourceRoutes`,
+  mirroring promotion routes — app-catalog endpoints don't take a
+  `:cluster_id` path parameter). Write operations (create repo,
+  delete repo, preview, execute) require `system_ops_admin`; reads
+  are any-auth. All tagged with audit verbs
+  (`app_catalog.repositories.{list,create,read,delete}`,
+  `app_catalog.charts.{list,read}`,
+  `app_catalog.plans.{list,read,preview,execute}`) per ADR 0008.
+  No new roles, no new middleware — the 2D authorization matrix is
+  intact.
+- **Migration 000038 (M57):** 2 new tables — `helm_repositories`
+  (id, name UNIQUE, display_name, url, credentials_json JSONB,
+  created_by, timestamps) and `app_catalog_plans` (id VARCHAR(36)
+  PK, status, repo_id FK, chart snapshot, target cluster/namespace,
+  release_name, values_yaml, chart_metadata JSONB, release_manifest
+  JSONB, deploy_diff JSONB, confirmation_token_hash BYTEA,
+  idempotency_key, locked_at, executed_at, last_error, expires_at,
+  timestamps). Indexes on `helm_repositories(name)`,
+  `app_catalog_plans(status)`, `app_catalog_plans(target_cluster_id,
+  target_namespace)`, `app_catalog_plans(idempotency_key)`.
+- **Tests (M57):** 32 appcatalog service tests (repository CRUD,
+  chart listing/detail, preview success + 4 error paths, execute
+  success + invalid-token + invalid-idempotency + plan-not-found +
+  idempotent-replay, list plans, manifest building, HelmRelease
+  path resolution, validation) + 24 handler tests (each route's
+  success + error path, sentinel error mapping).
+  `TestRegisteredRoutesMatchOpenAPI` covers all 10 new paths.
+
+### M52 Highlights
+
+- **8-rule compile-time inspection catalog (M52):** New `internal/inspection`
+  package with `DefaultCatalog()` returning 8 fixed `RuleDescriptor`
+  entries (node_not_ready, pod_restart_loop, pod_oom_killed, pvc_pending,
+  image_pull_backoff, pod_crash_loop, endpoints_orphan,
+  namespace_quota_high). Each rule carries a stable M39 signal code of
+  the form `inspect.<domain>.<code>.v1`, default severity, per-rule
+  timeout, description, and remediation. No runtime rule injection (no
+  KubeEye operator, no external schema); per-cluster `enabled` and
+  `severity_override` stored in `inspection_rules` SQL table. See ADR
+  0067.
+- **Bounded inspection engine (M52):** `Service.RunInspectOnce` fans out
+  to at most `MaxConcurrentClusters=4` workers; each cluster subject to
+  `PerClusterTimeout=15s` (5s..120s) and each rule subject to the
+  descriptor timeout. When `MaxTaskResults=1000` is reached the task
+  short-circuits to `RESULTS_TRUNCATED` summary state — hard memory and
+  storage cap regardless of fleet size. All reads go exclusively
+  through the ADR 0004 read-only gateway.
+- **Findings normalized to M39 signal model (M52):** Each `Finding` is
+  batch-upserted into `signal_occurrences` via the M39 signal.Service
+  path: `source='inspection'`, `evidence_id → inspection_results.id`,
+  fingerprint `sha256(cluster_id + signal_code + resource_uid +
+  summary_prefix)` with 300s dedup window. M42 correlation and M44
+  automation therefore consume inspection findings as first-class
+  signals with zero new wiring.
+- **Cron-driven plan scheduler (M52):** In-process `Scheduler` ticks
+  every 30s, loads enabled plans from SQL each tick (no in-memory plan
+  cache → no multi-replica split-brain), and elects exactly one runner
+  per plan tick via `UPDATE … SET last_run_at = NOW() WHERE id = ? AND
+  last_run_at < ?` using `clause.OnConflict`. Not a K8s CronJob
+  (single-binary ADR 0002).
+- **Service mesh read-only surface (M52):** New `internal/servicemesh`
+  package provides 4 list/detail views via M49 CustomResource gateway
+  (`networking.istio.io/v1beta1` VirtualService/DestinationRule) —
+  shallow projection (hosts/gateways/http_routes_count; host/subsets_count/
+  traffic_policy_summary) only. Cluster not running Istio → empty list,
+  never 5xx. Raw manifest not returned; operators use M49 generic CRD
+  browser for drilldown.
+- **Traffic metrics from Prometheus history (M52):** `TrafficMetrics`
+  aggregates 6 fixed-template series from M36 history (istio_requests_total
+  by response_code, istio_request_duration_milliseconds quantile
+  approximation) → returns request_count, 2xx/4xx/5xx, error_rate, and
+  latency p50/p95/p99 points arrays. Window capped at 24h; step
+  normalized to `max(window/500, 15s)`. Zero client PromQL injection.
+  Feeds M41 SLO evaluator + M40 topology edges — never an action input.
+- **Authorization + anti-leakage (M52):** `operations_admin` for plan
+  create/delete / override save / run-once; `operations_viewer` for
+  reads; `mesh_admin`/`mesh_viewer` for mesh routes. M35 namespace
+  scope honoured: out-of-scope VirtualService/DestinationRule → 404
+  (not 403); empty scope → empty task-results list + empty metrics.
+- **Migration 000037 (M52):** 4 new tables — `inspection_rules`
+  (UNIQUE(cluster_id, rule_code)), `inspection_plans`
+  (cron_expr CHECK not-empty), `inspection_tasks` (QUEUED → RUNNING →
+  SUCCEEDED/PARTIAL/FAILED + RESULTS_TRUNCATED summary state; trigger
+  snapshot; counts; timestamps), `inspection_results` (task_id FK,
+  resource_ref JSON, labels JSON). Indexes + CHECK constraints as per
+  ADR 0067 §Deployment notes.
+- **Tests (M52):** 27 inspection service tests (~97% coverage); 16
+  servicemesh service tests; 38 handler tests (21 inspection + 17
+  servicemesh). `TestRegisteredRoutesMatchOpenAPI` covers all 13 new
+  paths. verify-fast.ps1 -Scope Backend passes.
+
+### M51 Highlights
+
+- **Bounded SSE event stream (M51):** New `internal/eventstream` package
+  with `Service.Subscribe` opening a per-client poller goroutine over the
+  read-only Kubernetes gateway (ADR 0004). The stream is a bounded poller
+  (default 5s, min 50ms, max 60s), NOT a Kubernetes Watch — no long-lived
+  gateway connection, no informer cache. Events are deduped by UID against
+  a bounded ring (256 entries) and pushed with drop-oldest backpressure
+  (BufferCap 256, min 16, max 1024). The stream emits hello / event /
+  stream-closed SSE messages. See ADR 0066.
+- **M35 namespace scope honoured (M51):** The handler resolves the
+  caller's M35 namespace scope. All-namespaces polls cluster-wide; an
+  authorized namespace set polls each namespace; an empty scope (no
+  grants, not all-namespaces) yields an immediately-closed empty stream
+  so unauthorized namespaces are not leaked (empty stream, not 404 —
+  anti-leakage, ADR 0066 §3). The optional `?namespace=` query param
+  narrows the scope (404 when unauthorized).
+- **State-evaluated alert inhibits (M51):** `GET/POST/DELETE
+  /api/v1/alert-routes/inhibits` manage source_match → target_match
+  suppression rules. An inhibit is NOT time-bounded; suppression depends
+  on the source alert's live firing state (a non-resolved
+  `alert_route_delivery` within the 5m active window), re-checked on
+  every `MatchAndDeliver` call. `MatchAndDeliver` checks `IsInhibited`
+  after `IsSilenced`, before route matching — an inhibited alert produces
+  no delivery record (fully suppressed). This complements the M37B
+  time-bounded silences; the M27 lifecycle remains the single alert
+  system.
+- **Inhibit validation and limits (M51):** `reason` mandatory (1..500
+  chars, mirrors silences). At least one source AND one target matcher
+  required (rejects fully-wildcard inhibits). `MaxInhibitsPerUser = 30`
+  mirrors `MaxSilencesPerUser`. Inhibits are creator-scoped (non-creator
+  deletes return 404 `INHIBIT_NOT_FOUND`, indistinguishable from
+  missing). Migration `000036_alert_inhibits` enforces the matcher
+  constraints with CHECK constraints.
+- **Authorization reused from M35 + M37B (M51):** Event stream registered
+  under `resourceRoutes` (M35 cluster/namespace scope); inhibits
+  registered under `alertrouteRoutes` (auth-required for list;
+  `operations_admin` for create/delete). No new authorization path; the
+  2D matrix is intact.
+- **404 > 403 anti-leakage (M51):** Unauthorized inhibit delete → 404
+  `INHIBIT_NOT_FOUND`; unauthorized namespace on event stream → empty
+  stream (not 404).
+- **Tests (M51):** 38 unit tests (23 service + 15 handler) covering
+  eventstream config/subscribe/dedup/backpressure/poll-error/cancel,
+  inhibit create/list/delete/validation/limit/non-creator, IsInhibited
+  firing semantics, MatchAndDeliver suppression, SSE handler
+  (503/empty scope/delivery/headers/cancel).
+
+### M50 Highlights
+
+- **Fixed-template monitoring dashboard (M50):** New `internal/monitoring`
+  package with 4 compile-time-fixed dashboard templates
+  (`node_overview`, `workload_overview`, `pod_overview`,
+  `workspace_overview`), each carrying 2 `Panel` descriptors (metric,
+  unit, resource_kind). Clients cannot inject PromQL; the dashboard
+  returns panel descriptors that the frontend uses to drive existing
+  `/metrics/history` calls (ADR 0036). Adding a template is a code
+  change — no admin API, no runtime expansion (static-extension hard
+  constraint). See ADR 0065.
+- **Topology-only workspace dashboard (M50):** The workspace dashboard
+  (`GET /api/v1/workspaces/:workspace_id/monitoring/dashboard`) returns
+  the fixed `workspace_overview` template plus the workspace's
+  cross-cluster `(cluster_id, namespaces)` topology. The backend does
+  NOT pre-fetch per-cluster time series; the frontend fans out using
+  the topology. Fan-out bounded by `MaxClusters` (20, matching
+  federation). Cluster IDs sorted ascending for stable rendering.
+- **Bounded Loki log explorer (M50):** `POST /api/v1/clusters/:cluster_id/logs/query`
+  reuses the M37A `capability.LogProvider` (Loki adapter, ADR 0053).
+  Clients cannot inject LogQL. The namespace arrives in the body, so
+  the handler re-checks it against the M35 resolved namespace scope
+  (anti-leakage 404). Provider errors map to 400 (`ErrInvalidLogQuery`)
+  or 500 (runtime); nil provider → 503 `LOG_PROVIDER_UNAVAILABLE`.
+- **Authorization reused from M35 + M46 + M47 (M50):** Cluster
+  dashboard + logs/query registered under `resourceRoutes` (M35
+  cluster/namespace scope + M47 workspace filter); workspace dashboard
+  registered under `workspaceRoutes` with `workspace_viewer` enforced
+  via `workspace.Service.ListMemberships`. No new authorization path;
+  the 2D matrix is intact.
+- **24h window bound (M50):** `MaxDashboardWindow = 24h` matches
+  metricshistory `MaxQueryWindow` (ADR 0034). `validateWindow` rejects
+  zero, inverted, or over-24h windows with `ErrInvalidWindow` (400).
+- **404 > 403 anti-leakage (M50):** Unauthorized/missing workspace →
+  404 `WORKSPACE_NOT_FOUND`; unauthorized namespace in logs/query →
+  404 `RESOURCE_NOT_FOUND`.
+- **Tests (M50):** 28 unit tests (11 service + 17 handler) covering
+  template validation, window validation, panel cloning, workspace
+  topology (sorted + bounded), nil service/provider (503), logs query
+  (200/400/404/500 + scope allowed/denied + default direction +
+  provider error).
+
+### M49 Highlights
+
+- **Read-only CRD browser (M49):** 2 read-only HTTP routes under
+  `/api/v1/clusters/:cluster_id/custom-resources`:
+  `GET /:group/:version/:resource` (list) and
+  `GET /:group/:version/:resource/:name` (detail). Only `GET` is registered —
+  no write routes and no write service methods; the read-only contract is
+  structural. See ADR 0064.
+- **Compile-time-fixed GVR whitelist (M49):** `customResourceWhitelist` in
+  `internal/kubernetes/service.go` covers 22 operator CRD GVRs across Velero
+  (3), Prometheus operator (8), Flux Helm/source (5), and cert-manager (6).
+  One entry (`cert-manager.io/v1/clusterissuers`) is cluster-scoped; the rest
+  are namespaced. Adding an entry is a code change — no admin API, no runtime
+  expansion (static-extension hard constraint).
+- **Manifest redaction reused from M22 (M49):** Both endpoints run the raw
+  CRD manifest through `redactManifest` (M22 Secret/ConfigMap redaction);
+  sensitive fields (`password`, `secret`, `token`, `key`, ...) are recursively
+  redacted to `"<redacted>"`.
+- **Authorization reused from M35 + M47 (M49):** Namespaced CRDs fan out
+  across the caller's `ClusterScope` via `authorizedNamespaceLists`; the
+  `?workspace_id` filter (M47) narrows the namespace set. Cluster-scoped CRDs
+  are listed cluster-wide. No new authorization path; the 2D matrix is intact.
+- **404 > 403 anti-leakage (M49):** A non-whitelisted GVR returns 404
+  `RESOURCE_NOT_FOUND` before the gateway is contacted (indistinguishable from
+  a missing resource). An empty authorized scope yields 200 `items: []`.
+- **Tests (M49):** 34 unit tests (17 service + 17 handler) covering
+  whitelist allow/deny, namespaced vs cluster-scoped path building, list +
+  detail with redaction, name filter + sort, selector forwarding,
+  cluster-disabled (409) and not-found (404) propagation, namespace-grant
+  fan-out, empty-scope empty list, only-GET registered, and the
+  `writeServiceError` whitelisted mapping.
+
+### M48 Highlights
+
+- **Multi-cluster federation (M48):** New `backend/internal/federation`
+  package implementing a KubeSphere-style host/member cluster model as a SQL
+  aggregation view over the existing `clusters` table. No new CRD, no
+  Cluster Agent, no inter-cluster sync controller. Migration `000035`
+  extends `clusters` with `cluster_role` (host/member/standalone) and
+  `federation_status` (registered/healthy/degraded/disconnected) — both
+  CHECK-constrained enums. A partial unique index enforces the single-host
+  invariant at the database level. See ADR 0063.
+- **Append-only federation events (M48):** New `cluster_federation_events`
+  table records every federation state transition (registered/deregistered/
+  heartbeat/status_change/role_change). The repository exposes no UPDATE or
+  DELETE path, mirroring the platform audit pattern (ADR 0008).
+- **Federation routes (M48):** 9 HTTP routes under `/api/v1/federation`:
+  overview (topology + health), events, resource summary, cluster
+  register/deregister/promote/demote/heartbeat/status, and per-cluster
+  events. Write operations require `operations_admin`; reads require
+  authentication only (visible clusters narrowed by authz scope).
+- **Cross-cluster resource summary (M48):** Bounded fan-out (20 clusters,
+  4s per-cluster timeout) over a fixed 9-entry GVR whitelist.
+  Missing/unreachable clusters contribute zero counts with `TIMEOUT` /
+  `QUERY_FAILED` error codes; partial results are always returned.
+- **federation_status orthogonal to clusters.status (M48):** The existing
+  cluster probe updates `clusters.status`; the federation heartbeat updates
+  `federation_status`. A cluster can be `ready` but `degraded`.
+- **Anti-leakage (M48):** `ErrClusterNotFound` surfaces as 404 so a missing
+  cluster is indistinguishable from an unauthorized one.
+- **Tests (M48):** 58 unit tests (38 service + 20 handler) covering
+  register/deregister/promote/demote/heartbeat/status/overview/events/
+  resource-summary, single-host invariant, idempotency, anti-leakage,
+  timeout error mapping, and all HTTP status paths (200/400/404/409/503).
+
+### M47 Highlights
+
+- **CRD discovery preview (M47):** New
+  `GET /api/v1/clusters/:cluster_id/api-resources` endpoint returning the
+  union of a fixed operator-curated GVR whitelist (27 core resource kinds)
+  and the cluster's dynamically discovered API resources. Discovery failures
+  degrade gracefully (whitelist-only fallback); the endpoint never 500s due
+  to discovery unavailability. Subresources are skipped; whitelist entries
+  are deduplicated against discovery. Output is sorted by group/version/
+  resource on all return paths. This is the M47 preview of M49's full CRD
+  browsing. See ADR 0062.
+- **Workspace resource filter (M47):** New optional `workspace_id` query
+  parameter on namespace-scoped resource list endpoints, implemented by the
+  `withWorkspaceNamespaceFilter` middleware + `narrowScopeByWorkspace` pure
+  function. The filter is a **pure visibility narrowing**, NOT an
+  authorization decision — it runs after `requireClusterAccess` +
+  `requireNamespaceQueryAccess` and only narrows the already-authorized
+  scope. The 2D authorization matrix (ADR 0050) and WorkspaceGrant
+  orthogonality (ADR 0061) are unchanged.
+- **Anti-leakage (M47):** Unauthorized cluster returns 404 before the
+  filter; non-existent/empty workspace returns 200 with `items: []` (not
+  404) so workspace existence is not leaked.
+- **Tests (M47):** 23 unit tests (7 discovery + 5 workspace-filter service +
+  11 httpserver-filter) covering whitelist-only fallback, CRD merge/dedup,
+  discovery/credential error fallback, sorted output, zero-ID short-circuit,
+  cross-workspace/cluster isolation, unknown-workspace empty result,
+  AllNamespaces narrowing, namespace-grant intersection, anti-leakage
+  empty-scope collapse, invalid `workspace_id` 400, repository-error 500,
+  and nil-service pass-through.
+
+### M46 Highlights
+
+- **Workspace multi-tenancy (M46):** New `backend/internal/workspace`
+  package with 5 SQL tables (`workspaces`, `workspace_memberships`,
+  `workspace_quotas`, `user_workspace_grants`,
+  `workspace_role_bindings_audit`), 3 fixed workspace roles
+  (`workspace_admin` / `workspace_editor` / `workspace_viewer`), and 14
+  HTTP routes under `/api/v1/workspaces`. WorkspaceGrant is orthogonal to
+  ClusterGrant/NamespaceGrant — it does NOT grant namespace read access.
+  Anti-leakage (404 > 403) is preserved. SystemAdmin bypasses all
+  workspace grant checks. Owner is always `workspace_admin` and cannot be
+  downgraded or revoked. Audit trail is append-only. Quota is display-only.
+- **Tests (M46):** 39 tests (29 service-level + 10 handler-level)
+  covering create/get/list/update/delete, membership, quota, role
+  bindings, anti-leakage, role hierarchy, owner protection and metadata
+  normalization.
+
+### M45 Highlights
+
+- **Golden dataset (M45):** New `backend/internal/golden` package with
+  `DatasetVersion = "1.0"`, `ScenarioVersion = "1.0"`, 10 `StepID`
+  constants, `AllSteps` ordered list, 3 `ScenarioID` constants,
+  `StepOutcome` with expected signal/topology/SLO/correlation/
+  investigation/action plan/verification/alert recovery flags, `Scenario`,
+  `Dataset`, `DefaultDataset()` returning 3 scenarios.
+- **Mandatory 10-step scenario (M45):** Maps each step of the AIOps loop
+  to an expected outcome: establish_healthy_service (M41), publish_bad_image
+  (M23), capture_signals (M39+M41), build_impact_graph (M40),
+  rank_cause_candidate (M42), generate_investigation (M43),
+  preview_approve_rollback (M44 approved), execute_verify (M44
+  verified+effective), recover_alert (M27), cleanup.
+- **Negative companions (M45):** `negative_misattribution` — unrelated
+  change in another Namespace must NOT be attributed to the primary case
+  (no action plan expected). `negative_partial_evidence` — when one
+  provider is stopped, the case must be partial/unknown, not falsely
+  healthy (valid advisory investigation expected, but no alert recovery).
+  Preserves the M41 fail-closed invariant.
+- **Quality report (M45):** `QualityReport` with before/after dataset
+  versions, engine versions (M39-M44), per-scenario `ScenarioQuality`
+  (passed_before/after, delta, steps_passed_before/after, notes),
+  `QualitySummary` aggregation, `ClassifyDelta` (preserved/improved/
+  regressed/unchanged), `Summarize`. JSON-serializable. Generated offline;
+  never self-modifies rules, prompts or policy online.
+- **Tests (M45):** 9 tests (dataset version, integrity, mandatory step
+  coverage, negative misattribution, negative partial evidence, determinism,
+  ClassifyDelta, Summarize, quality report end-to-end).
+- **Production gates (M45, external/deferred):** Hosted CI with Linux race
+  detector and full real-kind matrix, production OIDC/MFA and break-glass
+  evidence, multi-replica deployment with PDB/topology spread/rolling-
+  update evidence, external HA PostgreSQL with WAL/PITR and measured
+  RPO/RTO, multi-instance no-duplicate-business-effect evidence, signed
+  multi-arch release with SBOM/provenance/support matrix, real-kind E2E
+  for the full 10-step scenario, real Prometheus/Loki/AI-provider replay
+  in CI, frontend quality dashboard, CI integration that generates the
+  quality report on every PR.
+
+### M44 Highlights
+
+- **Data model (M44):** New `backend/internal/automation` package with
+  `AutomationVersion = "1.0"`, `VerifierVersion = "1.0"`, 4
+  `AutomationLevel` values (L0/L1/L2/L3; L2 is the default, L3 not
+  enabled in M44), 9 `PlanStatus` values (draft/previewed/approved/
+  executing/succeeded/failed/expired/cancelled/verified), 2
+  `ApprovalType` values (single/four_eyes), 3 `GateStatus` values
+  (passed/failed/skipped), 8 `GateCode` values (uid_rv_recheck/scope/
+  pdb_blast_radius/slo_burn/freeze_window/concurrent_plans/attempt_cap/
+  rollback_point), `ActionPlan` with deterministic `plan_key` (SHA-256
+  over case_id + runbook_id + target_uid + automation_version),
+  `ActionVerification` with deterministic `verification_key` (SHA-256
+  over plan_id + verifier_version + evidence_hash), `EvidenceSnapshot`,
+  `SLOSnapshot`. Bound constants (`MaxAttemptsPerTarget` = 5,
+  `AttemptWindowSeconds` = 3600, `DefaultPlanTTLSeconds` = 600,
+  `DefaultClaimTTLSeconds` = 60, `DefaultCooldownSeconds` = 300,
+  `MinCooldownSeconds` = 60).
+- **Policy gate evaluator (M44):** `GateEvaluator` is stateless and pure.
+  `RequiredGates(actionCode)` returns the action-specific gate set
+  (core: uid_rv_recheck/scope/freeze_window/concurrent_plans/attempt_cap;
+  Pod-affecting add pdb_blast_radius; SLO-bound add slo_burn; rollback
+  adds rollback_point). `Evaluate` runs at preview; `Recheck` runs at
+  execute with `Rechecked = true` and fresh `GateContext`. `AllPassed`
+  treats `skipped` as non-failure. Adding a gate is a contract change
+  (AutomationVersion bump). Stale UID/RV, opened freeze window,
+  exhausted PDB budget, or exceeded attempt cap all fail closed.
+- **Confirmation + idempotency (M44):** `Preview` issues a 32-byte
+  confirmation token (base64; SHA-256 hashed at rest). `Execute` requires
+  the plaintext token plus an operator-supplied idempotency key (UUID).
+  `Claim` atomically transitions `approved → executing` under a row lock
+  and stamps the key; replay returns the recorded outcome; re-execute
+  with a different key after a terminal status yields `ErrAlreadyExecuted`.
+  Stale `executing` rows past `claimTTL` are reclaimable.
+- **Human approval (M44):** `approvalTypeFor(actionCode)` returns
+  `four_eyes` for rollback and image_update, `single` otherwise.
+  Four-eyes requires `approver_user_id != requested_by_user_id`;
+  enforced at the DB layer (CHECK constraint) and re-checked by the
+  service. Self-approval of a four-eyes plan yields
+  `ErrSelfApprovalForbidden` (403).
+- **Post-action verifier (M44):** `Verifier` is pure given (plan, pre,
+  post). `CapturePreSnapshot` at execute time; `CapturePostSnapshot`
+  after cooldown. `compareEvidence` is deterministic: SLO state
+  transitions take precedence (healthy > burning_slow > burning_fast >
+  breached); resource state (replicas/available_replicas/image/
+  suspended) is compared for actions without SLO evidence or when SLO
+  state is unchanged. Missing evidence yields `ComparisonInsufficient`
+  and `VerificationStatusUnknown`. `classifyStatus` maps to
+  effective/ineffective/failed/unknown.
+- **Server-owned rollback contract (M44):** When verification yields
+  ineffective/failed, `evaluateRollbackContract` checks target UID
+  unchanged, no freeze, no concurrent plan, attempt cap not exceeded.
+  If safe, a rollback plan is drafted automatically (status `draft`,
+  `rollback_of_plan_id` set). If unsafe, verification records
+  `reason = "unsafe_rollback_escalated_to_human"`. M44 never
+  auto-executes rollback plans — they require the same preview →
+  approve → execute path.
+- **Repository (M44):** `GormRepository` with `SavePlan`/`GetPlan`/
+  `GetPlanForExecute` (row lock)/`ListPlans`/`CountAttemptsSince`/
+  `CountConcurrentPlans`/`MarkPreviewed`/`Approve`/`Claim`/`Complete`/
+  `Fail`/`MarkVerified`/`Cancel`/`ExpireStale`/`SaveVerification`/
+  `GetVerification`/`GetVerificationByPlan`/`UpdateVerification`.
+  `NopRepository` for testing/disabled mode. 7 lifecycle sentinel
+  errors.
+- **HTTP routes (M44):** 10 routes under `/api/v1/aiops/automation`
+  (runbooks, list/create/get plans, preview/approve/execute/cancel/
+  verify plan, get verification). Write routes require
+  `rolesSystemOpsAdmin`; read routes require only authentication. Actor
+  derived from the authenticated session. Idempotency-Key header read
+  by execute.
+- **Migration 000033 (M44):** `action_plans` and `action_verifications`
+  tables with CHECK constraints on status/approval_type/
+  evidence_comparison/verification_status, the four-eyes distinctness
+  CHECK, the missing-evidence → insufficient+unknown CHECK, partial
+  unique indexes `uq_action_plans_active` (one non-terminal plan per
+  `plan_key`) and `uq_action_verifications_active` (one pending
+  verification per plan), FKs to `correlation_cases(id)` and
+  `ai_investigations(id)` ON DELETE SET NULL.
+- **Tests (M44):** 66 tests (11 gates + 17 verifier + 17 service + 21
+  handler). Fast gate passed in 67.17s (30 backend packages including
+  `automation`, 81 frontend tests/18 files).
+- **Deferred (M44):** background verification worker (cooldown-based
+  scheduling), stale `executing` reclaim worker, `ExpireStale`
+  background worker, real Kubernetes integration tests for the patch
+  path, real Prometheus/SLO integration for the `EvidenceProvider`,
+  real PostgreSQL integration test, real-kind E2E, frontend UI, `L3`
+  pre-authorized automatic execution level, rollback-plan auto-execution
+  path, M42 `ActionCandidate` → M44 plan auto-suggestion.
+
+### M43 Highlights
+
+- **Data model (M43):** New `backend/internal/aiinvestigator` package with
+  `InvestigatorVersion = "1.0"`, 3 `InvestigationStatus` values
+  (completed/failed/stale), 3 `HypothesisConfidence` values
+  (high/medium/low), 7 `EvidenceKind` values, `Investigation` with
+  deterministic `investigation_key` (SHA-256 over case_id +
+  investigator_version + prompt_hash), `Hypothesis`, `Citation`,
+  `EvidenceRef`, `Prompt`, `ProviderResult`. Bound constants
+  (`MaxHypothesesPerInvestigation` = 8, `MaxCitationsPerInvestigation` =
+  64, etc.).
+- **Runbook catalog (M43):** 4 V1 runbooks — `rollback_last_rollout`
+  (`deployment.rollback`), `rollout_restart_pods`
+  (`deployment.rollout_restart`), `inspect_pvc_capacity` (advisory),
+  `inspect_node_maintenance` (advisory). `LookupRunbook` fails closed;
+  advisory runbooks always eligible; adding a runbook is a contract
+  change.
+- **Prompt + validator (M43):** `BuildPrompt` assembles the system prompt
+  (role, output schema, citation rules, runbook rules, prohibitions,
+  prompt-injection defense) and the user prompt (redacted authorized
+  evidence only — no raw logs/events/manifests). `ValidateProviderResult`
+  enforces 8 rules; rejection is total — fabricated, out-of-scope or
+  unauthorized citations discard the entire output. The AI cannot upgrade
+  a candidate to confirmed cause, and cannot recommend a runbook outside
+  the eligible M42 Action Catalog.
+- **Golden fixtures (M43):** 10 validation scenarios (correct,
+  insufficient, conflicting, prompt-injection, hidden-scope,
+  fabricated-citation, ineligible-runbook, confirm-root-claim,
+  empty-summary, no-citations). Each is a deterministic (provider result,
+  authorized evidence, eligible codes, expected valid/invalid) pair.
+- **Service (M43):** `Investigate` (read case + eligible codes, build
+  prompt, call provider, validate, persist completed/failed),
+  `GetInvestigation`, `ListByCase`, `ListRunbooks`. On provider failure →
+  `failed`/`provider_error`; on validation failure →
+  `failed`/`citation_rejected` (provider summary retained for audit).
+- **HTTP routes (M43):** 4 routes under `/api/v1/aiops/investigator`
+  (runbooks, list investigations, get investigation, generate
+  investigation). The POST is the only write; it persists an
+  investigation but never modifies the case/diagnosis/alert. Actor derived
+  from the authenticated session.
+- **Migration 000032 (M43):** `ai_investigations` table with CHECK
+  constraints (status/tokens, completed-summary/completed-citations/
+  failed-reason invariants), partial unique index
+  `uq_ai_investigations_active`, and a FK to `correlation_cases(id)` ON
+  DELETE CASCADE.
+- **Tests (M43):** 44 tests (5 catalog + 4 provider/fixtures/18 subtests
+  + 8 prompt + 15 service + 12 handler). Fast gate passed in 37.47s (31
+  backend packages including `aiinvestigator`, 81 frontend tests/18
+  files).
+- **Deferred (M43):** real AI provider integration (Responses-compatible
+  HTTP provider), provider budget/reservation enforcement, real PostgreSQL
+  integration test, real-kind E2E, frontend UI, M44 safe-automation
+  wiring.
+
+### M42 Highlights
+
+- **Data model (M42):** New `backend/internal/correlation` package with 4
+  `ConfidenceClass` values (confirmed/candidate/contradicted/unknown), 3
+  `CaseStatus` values (active/resolved/stale), `Case` with deterministic
+  `case_key` (SHA-256 over cluster_id+resource_uid+rule_id+correlation_version),
+  `SignalLink`, `ResourceLink`, `ChangeCandidate`, `ActionCandidate` (fixed
+  codes from M19 catalog). `CorrelationVersion = "1.0"`.
+- **Catalog (M42):** 6 V1 rules covering golden replay scenarios
+  (rollout→pod_failure, rollout→unavailable_deployment, rollout→no_endpoints,
+  maintenance→node_failure, pvc_pending→pod_failure, rollout→metric_breach).
+  Fail-closed lookup; adding a rule is a contract change.
+- **Engine (M42):** Pure, stateless `Correlate` — identical inputs + identical
+  rule/correlation versions yield identical results. Explicit factors:
+  `same_uid`, `topology_distance` (bidirectional BFS over M40 edges),
+  `time_distance`, `change_symptom_rule`, `signal_freshness`,
+  `signal_completeness`, `diagnosis_match`, `contradicting_signal`.
+  `classifyConfidence` is a pure function; temporal proximity alone is never
+  causality.
+- **Golden fixtures (M42):** 9 replay scenarios + cold-start, each a
+  deterministic (inputs, expected) pair. Replaying produces byte-identical
+  case_keys and confidence.
+- **Service (M42):** `CorrelateNamespace` (bounded lookback, idempotent
+  persist), `GetCase`, `ListCases`, `ListTimeline`, `GetCaseGraph`,
+  `ListActionCandidates` (derives `deployment.rollback` /
+  `deployment.rollout_restart` — no execute endpoint).
+- **HTTP routes (M42):** 6 read-only routes under
+  `/api/v1/aiops/correlation` (rules, cases, timeline, case detail, graph,
+  actions). Case correlation is internal, not HTTP-triggered.
+- **Migration 000031 (M42):** `correlation_cases`,
+  `correlation_signal_links`, `correlation_resource_links`,
+  `correlation_change_candidates` with CHECK constraints and unique indexes.
+- **Tests (M42):** 36 tests (5 catalog + 3 fixtures/10 subtests + 10 service
+  + 9 handler). Fast gate passed in 63.26s (31 backend packages including
+  `correlation`, 81 frontend tests/18 files).
+- **Deferred (M42):** background correlation worker, signal-ingestion hook,
+  real PostgreSQL integration test, real-kind E2E, frontend UI, M43/M44
+  integration.
+
+### M41 Highlights
+
+- **Data model (M41):** New `backend/internal/slo` package with 3 `SLITemplate`
+  values (`request_success_ratio`, `request_latency_target_ratio`,
+  `workload_readiness`), 2 `MissingDataPolicy` values (`unavailable`,
+  `fail_open`), 5 `EvaluationState` values (`healthy`, `burning_slow`,
+  `burning_fast`, `breached`, `unavailable`), 3 `EvaluationCoverage` values
+  (`complete`, `partial`, `unavailable`), `Definition` (versioned, enabled,
+  bounded burn windows), `Evaluation` (append-only, deterministic). 31
+  slo-package unit tests (14 evaluator + 13 service + 4 catalog).
+- **Catalog:** `TemplateDescriptor` + compiled `catalog` map is the single
+  source of truth for which templates exist, what they require and which
+  missing-data policies they admit. `ValidateDefinition` is the only
+  validation entry point. Adding a template is a contract change.
+- **Evaluator:** `Evaluator.Evaluate` is pure: same Definition + same
+  MetricsSource output → same Evaluation. Counter resets detected as
+  monotonicity violations and handled as "counter went to 0". Sparse data
+  → `CoveragePartial`; no samples → `CoverageUnavailable`. Clock boundaries
+  inclusive `window_start`, exclusive `window_end`. Missing data fail-closed
+  by default; only `workload_readiness` may fail-open with explicit operator
+  opt-in, and even then `Coverage` remains `Unavailable` (auditable).
+  `classifyState` precedence: breached > burning_fast > burning_slow >
+  healthy. Zero error budget (objective == 1.0) handled explicitly.
+- **Repository:** `GormRepository` with `ON CONFLICT DO NOTHING` for
+  idempotent evaluation inserts, partial unique index
+  `uq_slo_definitions_active` for at-most-one-active-definition.
+  `NopRepository` for testing/disabled mode.
+- **Service:** `CreateDefinition` stamps version=1. `PatchDefinition`
+  requires actor and increments Version. `DeleteDefinition` marks
+  `enabled=false` (row retained). `EvaluateSLO` looks up definition first
+  (404 > 503 precedence), runs evaluator, persists even on unavailable
+  (auditable fact), emits `BurnTransition` to `BurnAlertSink` only on state
+  change. Sink is best-effort: failure does not rollback.
+- **HTTP routes:** 8 routes under `/api/v1/aiops/slos`: `GET /templates`,
+  `GET /`, `POST /` (SystemOpsAdmin), `GET /:id`, `PATCH /:id`
+  (SystemOpsAdmin), `DELETE /:id` (SystemOpsAdmin),
+  `POST /:id/evaluate` (SystemOpsAdmin), `GET /:id/evaluations`. Read-only
+  routes open to any authenticated user; M35 scope enforced via cluster_id
+  binding at create time and middleware on underlying Kubernetes resources.
+- **OpenAPI:** Adds `slo` tag, 8 paths, 10 schemas. Enums, bounds and
+  required fields match migration CHECK constraints and `ValidateDefinition`
+  rules. Route contract test verifies bidirectional OpenAPI consistency.
+- **Migration 000030:** `slo_definitions` table with CHECK constraints on
+  template/policy/objective/window/burn bounds, partial unique active index,
+  query indexes; `slo_evaluations` table with CHECK constraints on
+  state/coverage/window/event-count/ratio bounds, query indexes. Paired
+  down migration.
+
+### M40 Highlights
+
+- **Edge model (M40):** New `backend/internal/topology` package with 8
+  `EdgeKind` values (Owns/Selects/RoutesTo/BackedBy/RunsOn/Mounts/Scales/
+  ProtectedBy), 8 `DerivationMethod` values, `ResourceCitation` (cluster_id +
+  kind + UID primary key; name-only marked incomplete), `Edge` with validity
+  interval, `ChangeEvent` with confidence/source. 29 topology-package unit
+  tests (13 collector + 11 normalizer + 5 service).
+- **Collector:** `Snapshot` reads 8 resource types with bounded paging
+  (1000-page safety cap); `DeriveEdges` deterministically derives all 8 edge
+  kinds from exact observed evidence (OwnerReference, label selector,
+  EndpointSlice, Ingress backend, nodeName, PVC mount, HPA scaleTargetRef,
+  PDB selector). Same-name/temporal proximity never creates an edge.
+- **Repository:** `GormRepository` with `ON CONFLICT DO UPDATE` for edge
+  refresh and change-event idempotency. Partial unique index
+  `uq_topology_edges_active` enforces at-most-one-active-edge. `NopRepository`
+  for disabled/testing mode.
+- **Service:** `CollectNamespace` (snapshot → derive → upsert → close stale),
+  `CollectCluster`, `GetTopologyGraph` (nodes from edge endpoints +
+  completeness), `GetChangeTimeline`, `IngestChangeEvent` (validated).
+- **Change normalizer:** Pure mapping from `ChangePlanInput`/`AuditChangeInput`
+  to `ChangeEvent`. Domain statuses normalized (succeeded/failed/expired/
+  partial/awaiting_confirmation/executing → succeeded/failed/failed/partial/
+  pending/pending). Confidence high for platform+audit_id, low otherwise.
+- **Migration 000029:** `topology_edges` (partial unique active index, query
+  indexes, CHECK constraints) + `change_events` (idempotent plan_id index,
+  CHECK constraints). Paired down migration.
+- **HTTP routes:** `GET /api/v1/aiops/topology/graph` and
+  `GET /api/v1/aiops/topology/changes`. Read-only; require authentication;
+  M35 scope filtering by middleware. Bounded limits (graph 500, timeline 200)
+  with truncation disclosed.
+- **ADR:** ADR 0055 records the six temporal-topology decisions.
+- **Deferred:** background collection worker, plan-completion ingestion hook,
+  real PostgreSQL integration test, real-kind E2E, frontend UI, retention
+  worker.
+
+### M39 Highlights
+
+- **Signal model (M39):** New `backend/internal/signal` package with
+  `Occurrence` envelope and `SignalDescriptor` catalog (28 signal codes across
+  7 domains). Primary resource key is cluster_id + kind + UID; name-only is
+  marked Incomplete. Fail-closed for unregistered signals. 22 signal-package
+  unit tests + 9 HTTP handler tests.
+- **Fingerprint dedup:** SHA256 over identity fields (excluding ObservedAt) +
+  unique DB index + ON CONFLICT DO UPDATE ensures duplicate producer delivery
+  yields one row.
+- **Normalizers:** DiagnosisNormalizer (11 rules), AlertNormalizer,
+  MetricBreachNormalizer, PostureNormalizer (4 codes), ChangeNormalizer
+  (promotion/backup/maintenance/restore × succeeded/failed). Pure functions.
+- **Service:** `Ingest`/`IngestBatch`/`List`/`Overview`/`CleanupRetention`.
+  `SourceReader` interface for overview aggregation; `NopSourceReader` default.
+- **Migration 000028:** `signal_occurrences` table with unique fingerprint
+  index, query indexes, CHECK constraints.
+- **HTTP routes:** `GET /api/v1/aiops/overview`, `GET /api/v1/aiops/signals`,
+  `GET /api/v1/aiops/signals/catalog`. M35 scope filtering by middleware.
+- **Configuration:** `SignalConfig` disabled by default.
+- **ADR:** ADR 0054 records the six signal-model decisions.
+- **Deferred:** concrete `SourceReader` adapter (M40), batch ingestion worker,
+  real PostgreSQL integration test, frontend UI.
+
+### M38 Highlights
+
+- **CI (M38A):** `go test -race`, `golangci-lint@v2.12.2` with
+  `.golangci.yml`, `pnpm lint` with the ESLint flat config, 50.0% coverage
+  baseline and `oasdiff breaking --fail-on ERR` are now mandatory on every
+  pull request. The real-kind E2E workflow covers M23-M31 in addition to
+  diagnosis, fleet, search and M21-history.
+- **Helm (M38B):** Official Helm 3 chart at `deploy/helm/aiops-platform/`
+  with `Chart.yaml`, `values.yaml`, `values.schema.json` and nine templates.
+  The chart never renders a Secret; ten Go contract tests guard its structure,
+  values, schema and security baseline.
+- **Supply chain (M38C):** Releases build `linux/amd64` + `linux/arm64` OCI
+  images with `docker buildx`/QEMU, generate SPDX SBOMs with `syft v1.27.0`,
+  and bundle the Helm chart, license allowlist and SHA256 manifest. The
+  license allowlist (`docs/security/license-allowlist.json`) admits
+  `MIT`/`ISC`/`BSD-2-Clause`/`BSD-3-Clause`/`Apache-2.0` only.
+- **Docs:** `SECURITY.md` and `CHANGELOG.md` are tracked delivery assets;
+  ADR 0051 records the seven decisions.
+
+### M37 Highlights
+
+- **Capability providers (M37A):** New `backend/internal/capability` package
+  with `MetricsProvider` and `LogProvider` interfaces, Prometheus and Loki
+  adapters, and `Nop*` defaults. Public APIs accept fixed template/query AST
+  fields only — they never accept PromQL, LogQL or arbitrary labels. Provider
+  endpoints and credentials are server-configured. 18 provider tests + 8
+  HTTP handler tests.
+- **Alert routing (M37B):** New `backend/internal/alertroute` package with
+  route priority (1..100), exact cluster/rule/severity match, dedupe key,
+  group/repeat interval, HTTPS webhook receiver, time-bounded silences
+  (5m..7d, reason required, permanent forbidden), idempotent delivery with
+  retry and dead-letter. Migration `000027` adds four tables. 40 service
+  tests + 27 HTTP handler tests.
+- **Configuration:** `CapabilityConfig` and `AlertRouteConfig` in
+  `backend/internal/config/config.go` with fail-closed validation (HTTPS
+  endpoints, bounded timeouts). Both disabled by default.
+- **HTTP routes:** `GET /api/v1/capability/metrics` and
+  `POST /api/v1/capability/logs` for M37A; 10 alert-route endpoints under
+  `/api/v1/alert-routes/` for M37B. SystemOpsAdmin role required for
+  mutations; deliveries restricted to SystemSecurityAudit.
+- **ADR:** ADR 0053 records the six capability-plane decisions.
+- **Deferred:** M37C (Gateway API evidence) and M37D (delivery metadata)
+  deferred per ADR 0053 §4 until M40 demonstrates concrete need. Real
+  Prometheus/Loki provider integration and real-kind E2E deferred pending
+  external provider access.
+
+### M36 Highlights
+
+- **OIDC provider (M36A-M36C):** Full Authorization Code + PKCE S256 flow
+  with HTTPS discovery validation, JWKS cache with TTL-based refresh and
+  key rotation, ID token verification (signature, issuer, audience, nonce,
+  expiry, MFA evidence), group-to-role mapping and browser-flow leak guard.
+  OIDC remains disabled by default; when disabled, no OIDC route is
+  registered.
+- **Session management (M36D):** `AuthSessionIssuer` adapter delegates to
+  `auth.Service.IssueSessionForUser`, sharing refresh-token rotation,
+  `auth_version` revocation and audit with password login. Provider
+  RP-initiated logout and break-glass drill recording with staleness
+  tracking.
+- **Synthetic IdP E2E (M36E):** `TestSyntheticIdPEndToEndLifecycle` (6
+  ordered subtests) exercises discovery, JWKS, PKCE, ID-token verification,
+  MFA evidence, session issuance and break-glass audit through real
+  implementations against a synthetic HTTPS IdP.
+- **HTTP wiring (M36F):** `GormIdentityResolver` resolves (issuer, subject)
+  to prelinked local user; automatic email linking forbidden. OIDC HTTP
+  handlers (`GET /login`, `GET /callback`, `POST /logout`) with fail-closed
+  error mapping. `OIDC_AUTH_SESSION_SIGNING_KEY` (≥32 bytes) added to
+  configuration. OpenAPI bidirectional parity preserved.
+- **Migration:** `000026_external_identities` adds `external_identities`
+  table with `(issuer, subject)` unique constraint.
+- **ADR:** ADR 0052 records the production OIDC and MFA decisions.
+- **Deferred:** Real organization IdP run, GORM `IdentityResolver`
+  PostgreSQL integration test and frontend OIDC login button (externally
+  gated).
 
 ### Final Gates
 
-- L1 fast gate: `scripts/verify-fast.ps1 -Scope All` passed in 26.17s
+- L1 fast gate: `scripts/verify-fast.ps1 -Scope All` passed in 64s (M45
+  baseline; 31 backend packages including `golden`, 81 frontend
+  tests/18 files, Compose/Kustomize contracts)
 - L2 full gate: `scripts/verify.ps1` passed in 97.68s
   (`.artifacts/verification/verify-20260731-015255.json`)
 - L3 real-kind E2E: M27-M31 all passed with disposable clusters and cleanup;
-  evidence paths are listed in the final archive
+  M38 adds M23-M31 to the hosted real-kind matrix
 - Browser: 390x844 and 1280x720 passed without page overflow or warning/error logs
-- Race: not run because local `gcc` is unavailable; environment blocker, not pass
+- Race: not run locally because `gcc` is unavailable; CI workflow now
+  includes `go test -race` for hosted runs
 - L4 remote CI: deferred (requires user-authorized push)
 
 ### M32 Audit Findings (Fixed)
@@ -50,7 +1036,8 @@ Later historical “Recommended Next Work” and “Next Priorities” sections 
 All M26 external gates are `deferred` with owner/reason/re-entry condition:
 
 - Hosted CI green + tag/release: requires user-authorized push to private remote
-- OIDC/MFA: requires organization-approved identity provider inputs
+- OIDC/MFA production run: requires organization-approved identity provider inputs
+  (M36 implementation is complete; only real IdP validation remains externally gated)
 - PITR: requires physical/WAL PITR infrastructure
 - HA failover/failback: requires HA infrastructure
 
@@ -58,8 +1045,8 @@ See `docs/changes/2026-07-30-m32-formal-closure.md` §M26 External Gate Disposit
 
 ### Migrations Applied
 
-Migrations 000020-000024 are applied in the development PostgreSQL instance.
-There are 24 matching up/down pairs; 000024 is the latest applied migration.
+Migrations 000020-000026 are applied in the development PostgreSQL instance.
+There are 26 matching up/down pairs; 000026 is the latest applied migration.
 
 ### Stable Baseline (M21-M25)
 
@@ -908,10 +1895,12 @@ scrollbar and no warning/error logs. Evidence is archived in
 `.artifacts/e2e-kind/e2e-kind-20260727-180557.json` and
 `docs/changes/2026-07-27-controlled-operations-catalog.md`.
 
-Deployment rollback is explicitly deferred. The gateway does not yet expose
-exact ReplicaSet revision and Pod-template history, so preview cannot bind to
-an immutable selected revision without accepting unsafe client-owned patch
-content. See ADR 0024 for the admission requirements.
+Deployment rollback was explicitly deferred at M19. The gateway did not yet
+expose exact ReplicaSet revision and Pod-template history, so preview could not
+bind to an immutable selected revision without accepting unsafe client-owned
+patch content. M23 (ADR 0040) resolved this by binding preview and confirmation
+to the exact ReplicaSet revision captured at preview time; see ADR 0024 for the
+original admission requirements and ADR 0040 for the accepted implementation.
 
 ## M20 Bounded Fleet Health
 

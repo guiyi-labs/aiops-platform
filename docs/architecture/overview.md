@@ -1,6 +1,6 @@
 # Architecture Overview
 
-状态：Draft
+状态：Accepted（M38 baseline, 2026-07-31）
 
 ```text
 Vue Web Console
@@ -97,20 +97,24 @@ The controlled-operations boundary is a fixed catalog with two origins.
 `deployment.rollout_restart` remains diagnosis-bound: a confirmed Pod diagnosis
 must map by namespace and selector to its current Deployment. Resource detail
 views may originate exactly `deployment.scale`, `cronjob.suspend` and
-`cronjob.resume`; they do not fabricate diagnosis records. Every preview reads
-the target, captures UID/resourceVersion and a typed before/after value, builds
-the complete patch on the server and submits it with Kubernetes `dryRun=All`
-before creating an expiring plan. Execution requires a one-time token and an
-idempotency key, dispatches only by the persisted action and reuses the captured
-preconditions. History is bounded, safe metadata is readable by authenticated
-roles, and write access remains system/operations administrator only.
+`cronjob.resume`; they do not fabricate diagnosis records. M23 extended the
+catalog with `deployment.image_update` and `deployment.rollback`, both bound to
+an exact ReplicaSet revision and Pod-template snapshot captured at preview time
+so confirmation cannot drift to a different revision. M28-M31 added
+Velero Backup creation, Node cordon/uncordon/eviction and isolated restore
+rehearsal under the same preview/confirm/idempotency/audit discipline. Every
+preview reads the target, captures UID/resourceVersion and a typed before/after
+value, builds the complete patch on the server and submits it with Kubernetes
+`dryRun=All` before creating an expiring plan. Execution requires a one-time
+token and an idempotency key, dispatches only by the persisted action and
+reuses the captured preconditions. History is bounded, safe metadata is
+readable by authenticated roles, and write access remains system/operations
+administrator only.
 
 The API accepts no Kubernetes path, verb, YAML, raw patch or arbitrary GVK. The
 target-cluster remediator Role grants namespaced Deployment and CronJob
-`get`/`patch`, while observer permissions remain read-only. Deployment rollback
-is deferred because exact ReplicaSet revision and Pod-template history are not
-yet available to bind preview and confirmation to an immutable revision. See
-ADR 0023, ADR 0024 and `deploy/managed-cluster/`.
+`get`/`patch`, while observer permissions remain read-only. See ADR 0023,
+ADR 0024, ADR 0040 and `deploy/managed-cluster/`.
 
 Fleet health is a separate read-only aggregation boundary. One authenticated
 request lists the currently visible enabled clusters, selects at most 20 in
@@ -152,3 +156,80 @@ record updates the fixed URL state and runs a fresh bounded search; no result or
 raw Kubernetes object is stored. Sharing, schedules, arbitrary selectors,
 GVKs, paths, YAML and bulk operations remain excluded. See ADR 0026 and ADR
 0027.
+
+## M33-M38 Capability Plane and Delivery Hardening
+
+### M33 Restricted client-go migration
+
+The raw HTTP Kubernetes gateway was replaced by an official, bounded
+`client-go` v0.34.x transport layer. A `ClusterClientProvider` caches
+sanitized `rest.Config`, typed clientset, dynamic client (only for code-owned
+CRD GVRs), discovery client and server version keyed by `cluster_id` and
+credential generation. Concurrent first use builds one client only; credential
+rotation, cluster disable and deletion invalidate after the database commit
+and close idle connections. The strict kubeconfig parser, fixed QPS/Burst,
+timeout, User-Agent, response cap and per-cluster concurrency are preserved.
+The public raw `Registry.Patch/Create` surface is no longer reachable. See
+ADR 0048.
+
+### M34 RouteDescriptor contract and RBAC inventory
+
+An immutable `RouteDescriptor` is now the single source of truth for routing,
+authentication, role requirements, audit classification and low-cardinality
+metrics. The same descriptor drives Gin route registration, the OpenAPI
+document, the frontend client/types and the audit middleware. Duplicates,
+missing audit actions and unclassified routes fail closed at startup or in
+contract tests. ADR 0039's promised bounded RBAC read-only inventory exposes
+fixed projections of Role, ClusterRole, RoleBinding and ClusterRoleBinding.
+Public projections include safe metadata, Role rules and Binding
+subjects/roleRef, and never resolve ServiceAccount tokens, Secret values or
+impersonate a subject. See ADR 0049.
+
+### M35 Lightweight cluster and namespace access grants
+
+Two grant tables (`user_cluster_grants`, `user_namespace_grants`, migration
+`000025_access_grants`) introduce the platform's first *resource-scope*
+authorization dimension on top of the four global platform roles. A single
+policy evaluator (`authz.Service`) answers cluster access, namespace access
+and visible-cluster filtering questions; `requireClusterAccess` and
+`requireNamespaceAccess` middleware wire the evaluator into fleet, search and
+resource routes carrying `:cluster_id` or `:namespace` path parameters.
+Authorization failures return 404 (not 403) to avoid leaking the existence
+of hidden clusters or namespaces. SystemAdmin bypasses all grants; other
+roles see only granted scope. Fleet and global search silently omit
+unauthorized clusters from results, counts and errors. See ADR 0050.
+
+### M38 Engineering, delivery and supply-chain hardening
+
+**CI completeness (M38A).** The pull-request gate now runs the race detector
+(`go test -race`), `golangci-lint@v2.12.2` with `.golangci.yml`, `pnpm lint`
+with the ESLint flat config, a 50.0% backend coverage baseline and
+`oasdiff breaking --fail-on ERR` against the base branch OpenAPI. The
+real-kind E2E workflow covers the M23-M31 disposable acceptance suites in
+addition to diagnosis, fleet, search and M21-history. `pull_request_target`
+and `secrets.*` are forbidden in CI workflows.
+
+**Helm chart (M38B).** An official Helm 3 chart under
+`deploy/helm/aiops-platform/` provides a parameterized, schema-validated
+deployment path alongside the existing kustomize baseline. The chart never
+renders a Secret; operators provide an existing Secret named
+`aiops-secrets`. `values.schema.json` enforces required fields, replica
+bounds (1-20) and the `pullPolicy` enum. Templates reproduce the security
+baseline from `deploy/kubernetes`: non-root containers, read-only root
+filesystem, `drop: [ALL]` capabilities, `automountServiceAccountToken: false`,
+`seccompProfile: RuntimeDefault` and the `restricted` pod security namespace
+labels. Ten Go contract tests guard the chart structure, values and security
+baseline.
+
+**Supply chain (M38C).** Releases build multi-architecture OCI images
+(`linux/amd64`, `linux/arm64`) with `docker buildx` and QEMU, generate SPDX
+SBOMs with `syft v1.27.0`, and bundle the Helm chart, license allowlist,
+OpenAPI, dependency licenses and SHA256 manifest. `docker push` remains
+forbidden; the release is package-only per ADR 0028. A license allowlist
+(`docs/security/license-allowlist.json`) admits `MIT`, `ISC`,
+`BSD-2-Clause`, `BSD-3-Clause` and `Apache-2.0` only; reciprocal and unknown
+licenses fail the gate. `SECURITY.md` documents the supported version policy,
+private vulnerability reporting channels, disclosure timeline, threat-model
+boundaries and supply-chain controls. `CHANGELOG.md` follows Keep a Changelog
+1.1.0 / SemVer 2.0.0. Both are enforced as tracked delivery assets. See ADR
+0051.

@@ -100,7 +100,7 @@ func TestCompareBoundsConcurrencyAndPreservesOrder(t *testing.T) {
 	service := NewService(Config{MaxClusters: 3, MaxConcurrentClusters: 2, PerClusterTimeout: time.Second, ResourceSampleLimit: 100}, clusterSourceStub{items: []cluster.Cluster{
 		{ID: 3, Name: "three", Enabled: true}, {ID: 1, Name: "one", Enabled: true}, {ID: 2, Name: "disabled", Enabled: false}, {ID: 4, Name: "four", Enabled: true},
 	}}, resources)
-	response, err := service.Compare(context.Background(), 2)
+	response, err := service.Compare(context.Background(), 2, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestCompareBoundsConcurrencyAndPreservesOrder(t *testing.T) {
 func TestCompareReturnsPartialFailureWithoutFailingFleet(t *testing.T) {
 	resources := &resourceSourceStub{failPods: map[int64]bool{7: true}}
 	service := NewService(Config{MaxClusters: 20, MaxConcurrentClusters: 4, PerClusterTimeout: time.Second, ResourceSampleLimit: 100}, clusterSourceStub{items: []cluster.Cluster{{ID: 7, Name: "partial", Enabled: true}}}, resources)
-	response, err := service.Compare(context.Background(), 20)
+	response, err := service.Compare(context.Background(), 20, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestCompareReturnsPartialFailureWithoutFailingFleet(t *testing.T) {
 
 func TestCompareMarksPerClusterTimeout(t *testing.T) {
 	service := NewService(Config{MaxClusters: 20, MaxConcurrentClusters: 1, PerClusterTimeout: 10 * time.Millisecond, ResourceSampleLimit: 100}, clusterSourceStub{items: []cluster.Cluster{{ID: 9, Name: "slow", Enabled: true}}}, &resourceSourceStub{block: true})
-	response, err := service.Compare(context.Background(), 20)
+	response, err := service.Compare(context.Background(), 20, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,12 +147,12 @@ func TestCompareMarksPerClusterTimeout(t *testing.T) {
 
 func TestCompareRejectsLimitAndDirectoryFailure(t *testing.T) {
 	service := NewService(Config{MaxClusters: 2}, clusterSourceStub{}, &resourceSourceStub{})
-	if _, err := service.Compare(context.Background(), 3); !errors.Is(err, ErrInvalidLimit) {
+	if _, err := service.Compare(context.Background(), 3, nil); !errors.Is(err, ErrInvalidLimit) {
 		t.Fatalf("limit error = %v", err)
 	}
 	directoryErr := errors.New("directory unavailable")
 	service = NewService(Config{MaxClusters: 2}, clusterSourceStub{err: directoryErr}, &resourceSourceStub{})
-	if _, err := service.Compare(context.Background(), 2); !errors.Is(err, directoryErr) {
+	if _, err := service.Compare(context.Background(), 2, nil); !errors.Is(err, directoryErr) {
 		t.Fatalf("directory error = %v", err)
 	}
 }

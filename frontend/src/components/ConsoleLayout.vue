@@ -1,24 +1,34 @@
 <script setup lang="ts">
 import {
+  Activity,
   Bell,
   BellRing,
   Boxes,
   BoxIcon,
+  Brain,
   ChevronRight,
   FileClock,
+  FlaskConical,
   Gauge,
+  GitBranch,
+  Globe,
   Hammer,
   KeyRound,
   LayoutGrid,
   LifeBuoy,
+  Link2,
   LogOut,
   Network,
+  Package,
+  Radar,
   Search,
   Send,
   ShieldCheck,
   Stethoscope,
   Shuffle,
+  Target,
   Users,
+  Workflow,
 } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -45,6 +55,21 @@ const navigationGroups = computed(() => [
       { label: '资源工作台', icon: BoxIcon, route: '/workloads' },
       { label: '资源拓扑', icon: Network, route: '/topology' },
       { label: '事件中心', icon: Bell, route: '/events' },
+      { label: '监控大盘', icon: Gauge, route: '/monitoring' },
+      { label: '事件流与告警', icon: Activity, route: '/event-stream' },
+      { label: '服务网格', icon: Globe, route: '/service-mesh' },
+    ],
+  },
+  {
+    label: '智能运维',
+    items: [
+      { label: 'AIOps 概览', icon: Activity, route: '/aiops/overview' },
+      { label: 'SLO 仪表盘', icon: Target, route: '/aiops/slo' },
+      { label: '关联案例', icon: Link2, route: '/aiops/correlation' },
+      { label: 'AI 调查', icon: Brain, route: '/aiops/investigator' },
+      { label: '自动化控制台', icon: Workflow, route: '/aiops/automation', adminOnly: true },
+      { label: '智能巡检', icon: Radar, route: '/inspection' },
+      { label: '质量仪表盘', icon: FlaskConical, route: '/aiops/quality' },
     ],
   },
   {
@@ -60,6 +85,14 @@ const navigationGroups = computed(() => [
       { label: '通知投递', icon: Send, route: '/notifications', auditOnly: true },
       { label: '审计日志', icon: FileClock, route: '/audit-logs', auditOnly: true },
       { label: '用户管理', icon: Users, route: '/users', adminOnly: true },
+    ],
+  },
+  {
+    label: '交付与运维',
+    items: [
+      { label: 'Helm 应用目录', icon: Package, route: '/app-catalog' },
+      { label: 'GitOps 应用', icon: GitBranch, route: '/gitops' },
+      { label: '跨集群复制', icon: Shuffle, route: '/copyops', adminOnly: true },
     ],
   },
 ].map((group) => ({

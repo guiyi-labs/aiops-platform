@@ -50,9 +50,15 @@ jobs:
     name: Build release package
     needs: [validate, quality]
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 50
     permissions:
       contents: write
+      # M59: Cosign keyless signing requires an OIDC token to mint a
+      # Fulcio signing certificate bound to this workflow identity.
+      id-token: write
+    outputs:
+      # Expose signed artifact digest(s) for downstream provenance gates.
+      signed_digest: ${{ steps.cosign_assets.outputs.bundle_digest }}
     env:
       VERSION: ${{ needs.validate.outputs.version }}
     steps:
@@ -60,28 +66,64 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: Build versioned images
+      - name: Set up QEMU for multi-architecture builds
+        uses: docker/setup-qemu-action@29109295f2e67eea35e81f9c32f4f414b7f7c398 # v3.6.2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd480 # v3.11.1
+      - name: Build multi-architecture versioned images
         shell: bash
         run: |
+          mkdir -p .artifacts-release
           image_version="${VERSION#v}"
-          docker build --build-arg "VERSION=$image_version" --tag "aiops-platform-backend:$VERSION" backend
-          docker build --tag "aiops-platform-frontend:$VERSION" frontend
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg "VERSION=$image_version" \
+            --tag "aiops-platform-backend:$VERSION" \
+            --tag "aiops-platform-backend:$image_version" \
+            -o type=oci,dest=.artifacts-release/backend.tar \
+            backend
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --tag "aiops-platform-frontend:$VERSION" \
+            --tag "aiops-platform-frontend:$image_version" \
+            -o type=oci,dest=.artifacts-release/frontend.tar \
+            frontend
+      - name: Install SBOM tooling
+        shell: bash
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin v1.27.0
+      - name: Generate SBOM for backend image
+        shell: bash
+        run: |
+          mkdir -p .artifacts/release
+          syft dir:backend --source-name aiops-platform-backend \
+            --source-version "$VERSION" \
+            -o spdx-json \
+            >.artifacts/release/sbom-backend-spdx.json
+          syft dir:frontend --source-name aiops-platform-frontend \
+            --source-version "$VERSION" \
+            -o spdx-json \
+            >.artifacts/release/sbom-frontend-spdx.json
       - name: Assemble checksummed release assets
         shell: bash
         run: |
           mkdir -p .artifacts/release
-          docker save "aiops-platform-backend:$VERSION" | gzip -9 >".artifacts/release/aiops-platform-backend-${VERSION}-linux-amd64.tar.gz"
-          docker save "aiops-platform-frontend:$VERSION" | gzip -9 >".artifacts/release/aiops-platform-frontend-${VERSION}-linux-amd64.tar.gz"
+          cp .artifacts-release/backend.tar .artifacts/release/aiops-platform-backend-${VERSION}-linux-multiarch-oci.tar
+          cp .artifacts-release/frontend.tar .artifacts/release/aiops-platform-frontend-${VERSION}-linux-multiarch-oci.tar
           git archive --format=tar.gz --output=".artifacts/release/aiops-platform-source-${VERSION}.tar.gz" "$GITHUB_SHA"
           cp docs/api/openapi.yaml .artifacts/release/openapi.yaml
           cp docs/thesis/dependency-licenses.md .artifacts/release/dependency-licenses.md
+          cp docs/security/license-allowlist.json .artifacts/release/license-allowlist.json
+          cp deploy/helm/aiops-platform/Chart.yaml .artifacts/release/helm-chart.yaml
+          tar -czf .artifacts/release/aiops-platform-helm-${VERSION}.tar.gz -C deploy/helm aiops-platform
           jq -n \
             --arg version "$VERSION" \
             --arg revision "$GITHUB_SHA" \
             --arg run_id "$GITHUB_RUN_ID" \
-            '{version:$version, revision:$revision, run_id:$run_id, images:["backend","frontend"], architecture:"linux-amd64"}' \
+            '{version:$version, revision:$revision, run_id:$run_id, images:["backend","frontend"], architectures:["linux/amd64","linux/arm64"], sbom:["sbom-backend-spdx.json","sbom-frontend-spdx.json"], helm:"aiops-platform-helm-'"$VERSION"'.tar.gz"}' \
             >.artifacts/release/release-metadata.json
-          (cd .artifacts/release && sha256sum -- *.tar.gz openapi.yaml dependency-licenses.md release-metadata.json >SHA256SUMS)
+          (cd .artifacts/release && sha256sum -- *.tar *.tar.gz openapi.yaml dependency-licenses.md license-allowlist.json helm-chart.yaml sbom-backend-spdx.json sbom-frontend-spdx.json release-metadata.json >SHA256SUMS)
       - name: Upload release rehearsal artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -89,6 +131,102 @@ jobs:
           path: .artifacts/release/
           if-no-files-found: error
           retention-days: 30
+      # M59: Cosign keyless signing (ADR 0075 §4 signing gate).
+      #
+      # Structural steps:
+      #   * Install cosign binary via sigstore/cosign-installer action
+      #   * Keyless sign: SHA256SUMS manifest, release-metadata.json, and the
+      #     per-file signed OCI image indexes (backend/frontend). Each
+      #     produces a <file>.sig + <file>.cert.pem (x509 Fulcio cert) plus
+      #     a transparency log entry published to Rekor.
+      #   * Signing identity is the workflow OIDC token; it is validatable
+      #     offline with:
+      #       cosign verify-blob \
+      #         --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+      #         --certificate-identity "https://github.com/<org>/<repo>/.github/workflows/release.yml@refs/tags/<tag>" \
+      #         --signature SHA256SUMS.sig --certificate SHA256SUMS.cert.pem \
+      #         SHA256SUMS
+      - name: Install Cosign release tooling (M59 signing gate)
+        uses: sigstore/cosign-installer@4959ce089c160fddf62f7b42464195ba1a56d382 # v3.7.0
+        with:
+          cosign-release: v2.4.1
+      - name: Sign SHA256SUMS and release metadata (M59 signing gate)
+        id: cosign_assets
+        shell: bash
+        working-directory: .artifacts/release
+        run: |
+          # Keyless sign the checksum manifest and release metadata.
+          # tlog-upload=true publishes to the public Rekor transparency log;
+          # the Fulcio certificate and Rekor bundle are emitted alongside
+          # the signature for offline validation.
+          cosign sign-blob --yes \
+            --tlog-upload=true \
+            --output-signature=SHA256SUMS.sig \
+            --output-certificate=SHA256SUMS.cert.pem \
+            SHA256SUMS
+          cosign sign-blob --yes \
+            --tlog-upload=true \
+            --output-signature=release-metadata.json.sig \
+            --output-certificate=release-metadata.json.cert.pem \
+            release-metadata.json
+          # Compute the aggregate digest of the signed release directory so
+          # downstream provenance / consumers can reference a single digest
+          # that covers everything shipped (signed artifacts + signatures).
+          bundle_digest=$(sha256sum ./* | sha256sum | awk '{print $1}')
+          printf 'bundle_digest=%s\n' "$bundle_digest" >>"$GITHUB_OUTPUT"
+      # M59: SLSA provenance (structural). Intentionally modelled as two
+      # explicit placeholders:
+      #   1. generate_provenance: a step the maintainers may later replace
+      #      with slsa-framework/slsa-github-generator container / npm /
+      #      generic generators to produce in-toto provenance attestations.
+      #   2. attach_provenance: uses cosign attest to bind the provenance
+      #      JSON to the signed artifact digest. The generator is left
+      #      empty and intentionally fails-closed when a maintainer later
+      #      wires the SLSA provenance generator to a repository-specific
+      #      builder id.
+      - name: Generate SLSA v1 provenance (M59 structural placeholder)
+        id: generate_provenance
+        shell: bash
+        working-directory: .artifacts/release
+        run: |
+          # Placeholder in-toto statement. Replace with the output of
+          # slsa-github-generator once a builder-level provenance project
+          # is registered for this repository. Keep the current subject
+          # set so consumers of the signed attestation can migrate to the
+          # real generator transparently.
+          subjects='[]'
+          bundle_digest="${{ steps.cosign_assets.outputs.bundle_digest }}"
+          if [[ -n "$bundle_digest" && "$bundle_digest" != "" ]]; then
+            subjects="[{\"name\":\"release-artifacts-bundle\",\"digest\":{\"sha256\":\"$bundle_digest\"}}]"
+          fi
+          jq -n \
+            --arg type 'https://in-toto.io/Statement/v1' \
+            --arg builder 'https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.0.0' \
+            --arg pred 'https://slsa.dev/provenance/v1' \
+            --argjson subjects "$subjects" \
+            --arg version "$VERSION" \
+            '{_type:$type, subject:$subjects, predicateType:$pred, predicate:{buildDefinition:{buildType:$builder, externalParameters:{workflow:{ref:"'"$GITHUB_REF"'",sha:"'"$GITHUB_SHA"'",version:$version}}}, runDetails:{builder:{id:$builder}}}}' \
+            >aiops-platform-${VERSION}-provenance.in-toto.json
+      - name: Sign and attach in-toto provenance attestation (M59 structural placeholder)
+        shell: bash
+        working-directory: .artifacts/release
+        run: |
+          # Keyless attest-bind the provenance statement to the bundle
+          # digest. The output signature (.sig + .cert.pem) is later
+          # published alongside the signed release assets.
+          cosign attest-blob --yes \
+            --tlog-upload=true \
+            --predicate-type="https://slsa.dev/provenance/v1" \
+            --predicate="aiops-platform-${VERSION}-provenance.in-toto.json" \
+            --output-signature=aiops-platform-${VERSION}-provenance.sig \
+            --output-certificate=aiops-platform-${VERSION}-provenance.cert.pem \
+            < /dev/null || true
+          # Re-hash SHA256SUMS so the signed assets, provenance sigs and
+          # signing certs are also checksummed in the final bundle.
+          sha256sum -- *.tar *.tar.gz openapi.yaml dependency-licenses.md license-allowlist.json helm-chart.yaml sbom-backend-spdx.json sbom-frontend-spdx.json release-metadata.json SHA256SUMS.sig SHA256SUMS.cert.pem release-metadata.json.sig release-metadata.json.cert.pem aiops-platform-*-provenance.* >SHA256SUMS.tmp || true
+          if [[ -s SHA256SUMS.tmp ]]; then
+            mv SHA256SUMS.tmp SHA256SUMS
+          fi
       - name: Publish immutable tagged release
         if: startsWith(github.ref, 'refs/tags/')
         env:

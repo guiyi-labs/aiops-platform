@@ -29,6 +29,7 @@ type repositoryStub struct {
 	revokedSession  int64
 	revokedCurrent  string
 	revokedOthers   string
+	findErr         error
 }
 
 func (r *repositoryStub) CountUsers(context.Context) (int64, error)        { return 1, nil }
@@ -39,7 +40,12 @@ func (r *repositoryStub) FindUserByUsername(context.Context, string) (User, erro
 	}
 	return r.user, nil
 }
-func (r *repositoryStub) FindUserByID(context.Context, int64) (User, error) { return r.user, nil }
+func (r *repositoryStub) FindUserByID(context.Context, int64) (User, error) {
+	if r.findErr != nil {
+		return User{}, r.findErr
+	}
+	return r.user, nil
+}
 func (r *repositoryStub) ListActiveUsers(context.Context) ([]User, error) {
 	if r.users != nil {
 		return r.users, nil
@@ -293,5 +299,49 @@ func TestServiceListsAndRevokesOtherSessionsWithoutExposingHashes(t *testing.T) 
 	}
 	if err := service.RevokeSession(context.Background(), 7, 2, ""); !errors.Is(err, ErrCurrentSessionRequired) {
 		t.Fatalf("RevokeSession() missing current error=%v", err)
+	}
+}
+
+func TestIssueSessionForUserIssuesSessionForActiveUser(t *testing.T) {
+	repository := &repositoryStub{user: User{
+		ID: 42, Username: "oidc-operator", DisplayName: "OIDC Operator",
+		Status: StatusActive, Roles: []Role{{Code: SystemAdmin}},
+	}}
+	service := NewService(repository, NewPasswordHasher(), NewTokenManager("test-signing-key-that-is-long-enough", time.Minute), time.Hour)
+
+	session, err := service.IssueSessionForUser(context.Background(), 42, "oidc-agent", "10.0.0.1")
+	if err != nil {
+		t.Fatalf("IssueSessionForUser() error = %v", err)
+	}
+	if session.User.ID != 42 || session.User.Username != "oidc-operator" {
+		t.Fatalf("session user = %#v, want id=42 username=oidc-operator", session.User)
+	}
+	if session.AccessToken == "" || session.RefreshToken() == "" {
+		t.Fatalf("session missing tokens: %#v", session)
+	}
+	if repository.refresh.UserID != 42 || repository.refresh.UserAgent != "oidc-agent" || repository.refresh.IPAddress != "10.0.0.1" {
+		t.Fatalf("persisted refresh token = %#v, want user=42 agent=oidc-agent ip=10.0.0.1", repository.refresh)
+	}
+	claims, err := service.Authenticate(context.Background(), session.AccessToken)
+	if err != nil || claims.Subject != "42" || len(claims.Roles) != 1 || claims.Roles[0] != SystemAdmin {
+		t.Fatalf("Authenticate() claims=%#v err=%v", claims, err)
+	}
+}
+
+func TestIssueSessionForUserFailsClosedForDisabledUser(t *testing.T) {
+	repository := &repositoryStub{user: User{ID: 7, Username: "disabled", Status: StatusDisabled}}
+	service := NewService(repository, NewPasswordHasher(), NewTokenManager("test-signing-key-that-is-long-enough", time.Minute), time.Hour)
+
+	if _, err := service.IssueSessionForUser(context.Background(), 7, "agent", "ip"); !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("IssueSessionForUser() disabled error = %v, want ErrUserDisabled", err)
+	}
+}
+
+func TestIssueSessionForUserFailsClosedForMissingUser(t *testing.T) {
+	repository := &repositoryStub{user: User{}, findErr: ErrUserNotFound}
+	service := NewService(repository, NewPasswordHasher(), NewTokenManager("test-signing-key-that-is-long-enough", time.Minute), time.Hour)
+
+	if _, err := service.IssueSessionForUser(context.Background(), 99, "agent", "ip"); !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("IssueSessionForUser() missing user error = %v, want ErrUserDisabled", err)
 	}
 }

@@ -154,6 +154,9 @@ if ($runManifests) {
     foreach ($directory in @('deploy/kubernetes', 'deploy/managed-cluster', 'deploy/demo-scenarios', 'deploy/diagnosis-e2e')) {
         Invoke-Native 'kubectl' @('kustomize', $directory) $Root -DiscardOutput
     }
+    if (Get-Command helm -ErrorAction SilentlyContinue) {
+        Invoke-Native 'helm' @('lint', '--strict', 'deploy/helm/aiops-platform') $Root
+    }
 }
 
 $duration = [math]::Round(((Get-Date) - $startedAt).TotalSeconds, 2)

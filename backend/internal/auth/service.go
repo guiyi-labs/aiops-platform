@@ -116,6 +116,25 @@ func (s *Service) Login(ctx context.Context, username, password, userAgent, ipAd
 	return s.newSession(ctx, user, userAgent, ipAddress, now)
 }
 
+// IssueSessionForUser issues a local session for an already-authenticated user
+// identified by userID. It is the entry point for OIDC login: the OIDC session
+// manager resolves the provider subject to a prelinked local user, checks the
+// user's status, and delegates here so the resulting session flows through the
+// same refresh-token rotation, auth_version revocation and audit semantics as
+// password login. The user must be active; a disabled user fails closed with
+// ErrUserDisabled.
+func (s *Service) IssueSessionForUser(ctx context.Context, userID int64, userAgent, ipAddress string) (Session, error) {
+	user, err := s.repository.FindUserByID(ctx, userID)
+	if err != nil {
+		return Session{}, ErrUserDisabled
+	}
+	if user.Status != StatusActive {
+		return Session{}, ErrUserDisabled
+	}
+	now := s.now().UTC()
+	return s.newSession(ctx, user, userAgent, ipAddress, now)
+}
+
 func (s *Service) Refresh(ctx context.Context, rawRefreshToken, userAgent, ipAddress string) (Session, error) {
 	if rawRefreshToken == "" {
 		return Session{}, ErrRefreshTokenInvalid

@@ -165,7 +165,7 @@ func ParseKinds(raw string) ([]Kind, error) {
 	return result, nil
 }
 
-func (s *Service) Search(ctx context.Context, query Query) (Response, error) {
+func (s *Service) Search(ctx context.Context, query Query, visibleClusters []int64) (Response, error) {
 	query.Term = strings.TrimSpace(query.Term)
 	query.Namespace = strings.TrimSpace(query.Namespace)
 	if len(query.Kinds) == 0 {
@@ -179,11 +179,19 @@ func (s *Service) Search(ctx context.Context, query Query) (Response, error) {
 	if err != nil {
 		return Response{}, err
 	}
+	visible := make(map[int64]bool, len(visibleClusters))
+	for _, id := range visibleClusters {
+		visible[id] = true
+	}
 	enabled := make([]cluster.Cluster, 0, len(clusters))
 	for _, item := range clusters {
-		if item.Enabled {
-			enabled = append(enabled, item)
+		if !item.Enabled {
+			continue
 		}
+		if visibleClusters != nil && !visible[item.ID] {
+			continue
+		}
+		enabled = append(enabled, item)
 	}
 	sort.Slice(enabled, func(i, j int) bool { return enabled[i].ID < enabled[j].ID })
 	clustersTotal := len(enabled)

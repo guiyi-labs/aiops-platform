@@ -19,6 +19,7 @@ env:
   NODE_VERSION: 22.13.1
   PNPM_VERSION: 11.7.0
   KUBECTL_VERSION: v1.34.0
+  HELM_VERSION: v3.16.3
 
 jobs:
   changes:
@@ -80,9 +81,19 @@ jobs:
       - name: Vet
         working-directory: backend
         run: go vet ./...
+      - name: golangci-lint
+        working-directory: backend
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+          "$(go env GOPATH)/bin/golangci-lint" run --config ../.golangci.yml ./...
       - name: Test
         working-directory: backend
         run: go test -p=1 -count=1 ./...
+      - name: Coverage baseline
+        working-directory: backend
+        run: |
+          go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 50.0) { print "Coverage " a[1] "% is below 50.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 50.0% baseline" }}'
       - name: Build server
         working-directory: backend
         run: |
@@ -91,6 +102,34 @@ jobs:
           go build -trimpath -ldflags "-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${GITHUB_SHA}" -o /tmp/audit-archive ./cmd/audit-archive
           go build -trimpath -ldflags "-s -w" -o /tmp/identity-readiness ./cmd/identity-readiness
           go build -trimpath -ldflags "-s -w" -o /tmp/recovery-readiness ./cmd/recovery-readiness
+      - name: Verify clean working tree
+        run: git diff --exit-code
+      - name: OpenAPI breaking-change check
+        if: github.event_name == 'pull_request'
+        working-directory: backend
+        run: |
+          go install github.com/oasdiff/oasdiff@v1.27.0
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          git show "origin/${{ github.base_ref }}:docs/api/openapi.yaml" > /tmp/openapi-base.yaml
+          "$(go env GOPATH)/bin/oasdiff" breaking /tmp/openapi-base.yaml ../docs/api/openapi.yaml --fail-on ERR
+
+  race:
+    name: Backend race
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ${{ env.GO_VERSION_FILE }}
+          cache-dependency-path: backend/go.sum
+      - name: Race detector
+        working-directory: backend
+        run: go test -race -p=1 -count=1 ./...
 
   frontend:
     name: Frontend
@@ -114,6 +153,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+      - name: Lint
+        working-directory: frontend
+        run: pnpm lint
       - name: Typecheck
         working-directory: frontend
         run: pnpm typecheck
@@ -140,6 +182,16 @@ jobs:
           curl --fail --silent --show-error --location --output .tools-ci/kubectl.sha256 "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256"
           printf '%s  %s\n' "$(cat .tools-ci/kubectl.sha256)" .tools-ci/kubectl | sha256sum --check
           chmod +x .tools-ci/kubectl
+      - name: Install checksum-verified helm
+        run: |
+          mkdir -p .tools-ci
+          archive="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl --fail --silent --show-error --location --output ".tools-ci/${archive}" "https://get.helm.sh/${archive}"
+          curl --fail --silent --show-error --location --output ".tools-ci/${archive}.sha256" "https://get.helm.sh/${archive}.sha256"
+          printf '%s  %s\n' "$(cat ".tools-ci/${archive}.sha256")" ".tools-ci/${archive}" | sha256sum --check
+          tar -xzf ".tools-ci/${archive}" -C .tools-ci
+          mv .tools-ci/linux-amd64/helm .tools-ci/helm
+          chmod +x .tools-ci/helm
       - name: Render fixed Kustomize roots
         run: |
           for directory in deploy/kubernetes deploy/managed-cluster deploy/demo-scenarios deploy/diagnosis-e2e; do
@@ -147,6 +199,8 @@ jobs:
           done
       - name: Validate Compose model
         run: docker compose config --quiet
+      - name: Helm lint --strict on aiops-platform chart
+        run: .tools-ci/helm lint --strict deploy/helm/aiops-platform
 
   credential-drill:
     name: Credential drill
@@ -317,13 +371,14 @@ jobs:
   result:
     name: CI result
     if: always()
-    needs: [changes, backend, frontend, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
+    needs: [changes, backend, race, frontend, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       RUNTIME_REQUIRED: ${{ needs.changes.outputs.runtime_required }}
       CHANGE_SCOPE_RESULT: ${{ needs.changes.result }}
       BACKEND_RESULT: ${{ needs.backend.result }}
+      RACE_RESULT: ${{ needs.race.result }}
       FRONTEND_RESULT: ${{ needs.frontend.result }}
       MANIFESTS_RESULT: ${{ needs.manifests.result }}
       CREDENTIAL_RESULT: ${{ needs.credential-drill.result }}
@@ -339,7 +394,7 @@ jobs:
             exit 1
           fi
           if [ "$RUNTIME_REQUIRED" = true ]; then
-            for result in "$FRONTEND_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
+            for result in "$RACE_RESULT" "$FRONTEND_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
               if [ "$result" != success ]; then
                 exit 1
               fi

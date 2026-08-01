@@ -13,17 +13,39 @@ const (
 	ConditionReachable       = "Reachable"
 )
 
+// M48 federation roles and statuses. These are orthogonal to the existing
+// Status* cluster-probe statuses: cluster_role describes the cluster's role in
+// the federation topology (host/member/standalone), while federation_status
+// describes federation-level health. See ADR 0063.
+const (
+	ClusterRoleHost       = "host"
+	ClusterRoleMember     = "member"
+	ClusterRoleStandalone = "standalone"
+
+	FederationStatusRegistered   = "registered"
+	FederationStatusHealthy      = "healthy"
+	FederationStatusDegraded     = "degraded"
+	FederationStatusDisconnected = "disconnected"
+)
+
 type Cluster struct {
-	ID                int64       `gorm:"primaryKey" json:"id"`
-	Name              string      `gorm:"size:128;uniqueIndex;not null" json:"name"`
-	APIServer         string      `gorm:"size:512;not null" json:"api_server"`
-	Enabled           bool        `gorm:"not null" json:"enabled"`
-	Status            string      `gorm:"size:32;not null" json:"status"`
-	KubernetesVersion string      `gorm:"size:64" json:"kubernetes_version,omitempty"`
-	LastProbedAt      *time.Time  `json:"last_probed_at,omitempty"`
-	CreatedAt         time.Time   `json:"created_at"`
-	UpdatedAt         time.Time   `json:"updated_at"`
-	Conditions        []Condition `gorm:"foreignKey:ClusterID" json:"conditions"`
+	ID                int64      `gorm:"primaryKey" json:"id"`
+	Name              string     `gorm:"size:128;uniqueIndex;not null" json:"name"`
+	APIServer         string     `gorm:"size:512;not null" json:"api_server"`
+	Enabled           bool       `gorm:"not null" json:"enabled"`
+	Status            string     `gorm:"size:32;not null" json:"status"`
+	KubernetesVersion string     `gorm:"size:64" json:"kubernetes_version,omitempty"`
+	LastProbedAt      *time.Time `json:"last_probed_at,omitempty"`
+	// M48 federation fields. ClusterRole is host/member/standalone (default
+	// standalone). FederationStatus is the federation-level health dimension
+	// (registered/healthy/degraded/disconnected), orthogonal to Status.
+	ClusterRole      string      `gorm:"size:16;not null;default:standalone" json:"cluster_role"`
+	FederationStatus string      `gorm:"size:16;not null;default:registered" json:"federation_status"`
+	RegisteredAt     *time.Time  `json:"registered_at,omitempty"`
+	LastHeartbeatAt  *time.Time  `json:"last_heartbeat_at,omitempty"`
+	CreatedAt        time.Time   `json:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+	Conditions       []Condition `gorm:"foreignKey:ClusterID" json:"conditions"`
 }
 
 func (Cluster) TableName() string { return "clusters" }

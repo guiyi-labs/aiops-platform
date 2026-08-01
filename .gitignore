@@ -17,6 +17,7 @@ backend/bin/
 backend/*.exe
 backend/coverage.out
 backend/coverage.html
+backend/coverage
 
 # Node.js
 frontend/node_modules/

@@ -1,10 +1,14 @@
 # Product Optimization Roadmap
 
-- Updated: 2026-07-31
+- Updated: 2026-07-31 (M35, M36, M37, M38, M39, M40 and M41 closure recorded)
 - Baseline: M1-M32 local development is archived by
   `baseline-m32-20260731`. M27-M31 have disposable real-environment evidence;
   the fresh full gate is
   `.artifacts/verification/verify-20260731-015255.json`.
+  M33-M41 are development complete on local `main`; only hosted
+  CI/release, organization OIDC/MFA production run, PITR and HA remain
+  external gates. Next development targets are M42 (multi-signal correlation
+  and deterministic RCA) or M43-M44 (AIOps differentiation).
 - Principle: close high-frequency operator workflows with fixed, evidence-based contracts; do not chase generic Kubernetes CRUD parity
 
 ## Baseline Closure Audit (2026-07-30)
@@ -475,6 +479,677 @@ The route below is complete and retained only as planning history. Current post-
   sites are untouched. Satisfies ADR 0004's requirement to use `client-go`.
 - Real-kind E2E deferred; transport-level contract verified by unit tests
   (Probe, Patch method/body/dryRun, no-redirect invariant).
+
+## M34: Route Descriptor Contract and RBAC Inventory
+
+- Status: ✅ Development Complete on 2026-07-31. Fast gate passed in 26.64s
+  (3 backend packages vet+test, 73 frontend tests, Compose/Kustomize contracts).
+- Closure change log: `docs/changes/2026-07-31-m34-route-descriptor-and-rbac-inventory.md`
+- ADR: [0049](adr/0049-route-descriptor-contract-and-rbac-inventory.md)
+- **M34A — Route Descriptor Contract.** Replaced the scattered Gin route
+  registration, hardcoded audit map, and inline role checks with a single
+  `RouteDescriptor` source of truth. The same descriptor drives route
+  registration, authentication/role enforcement, and audit classification.
+  Five table-driven invariants (`TestRouteTableCoversAllGinRoutes`,
+  `TestDescriptorMetadataWellFormed`, `TestDescriptorHTTPMethodsValid`,
+  `TestDescriptorFullPathStartsWithAPIV1`, `TestDescriptorNoDuplicateRoutes`)
+  guard the contract.
+- **M34B — RBAC Inventory.** Delivered the ADR 0039-promised fixed read-only
+  contract for `Role`, `ClusterRole`, `RoleBinding`, `ClusterRoleBinding`:
+  bounded projections, manifest redaction extension, observer RBAC grant,
+  OpenAPI documentation, eight descriptor-registered GET routes, and the
+  `TestRegisteredRoutesMatchOpenAPI` bidirectional parity check.
+- Real-kind E2E deferred; contract verified by the descriptor parity suite,
+  OpenAPI parity test, and RBAC unit tests over the `roundTrip` harness.
+
+## M35: Lightweight Cluster And Namespace Access Grants
+
+- Status: ✅ Development Complete on 2026-07-31. Fast gate passed in 39.44s
+  (backend, frontend and manifests all green; 21 `authz/service_test.go`
+  cases, 11 `authz_middleware_test.go` cases and 13 `grants_test.go` cases
+  added; OpenAPI route parity test extended for grant-management routes).
+- Closure change log: `docs/changes/2026-07-31-m35-lightweight-cluster-and-namespace-access-grants.md`
+- ADR: [0050](adr/0050-lightweight-cluster-and-namespace-access-grants.md)
+- Introduced the platform's first *resource-scope* authorization dimension on
+  top of the four global platform roles. Migration `000025_access_grants`
+  creates `user_cluster_grants` and `user_namespace_grants`. A single policy
+  evaluator (`authz.Service`) answers cluster access, namespace access and
+  visible-cluster filtering; `requireClusterAccess` and
+  `requireNamespaceAccess` middleware wire the evaluator into fleet, search
+  and resource routes carrying `:cluster_id` or `:namespace` path parameters.
+- Authorization failures return 404 (not 403) to avoid leaking the existence
+  of hidden clusters or namespaces. SystemAdmin bypasses all grants; other
+  roles see only granted scope. Fleet and global search silently omit
+  unauthorized clusters from results, counts and errors.
+- Real-kind E2E and frontend UI deferred; namespace query-param filtering
+  outside fleet/search routes deferred. Backend contract, parity and unit
+  tests are authoritative.
+
+## M36: Production OIDC And MFA
+
+- Status: ✅ Development Complete on 2026-07-31. All six phases (A–F)
+  passed local implementation and fast gate verification. OIDC remains
+  disabled by default; when disabled, no OIDC route is registered and the
+  server behaves as a local-only deployment. No public API contract changed
+  beyond the three new OIDC routes documented in OpenAPI.
+- Closure change logs:
+  - `docs/changes/2026-07-31-m36a-oidc-config-and-external-identities.md`
+  - `docs/changes/2026-07-31-m36b-oidc-discovery-and-jwks-cache.md`
+  - `docs/changes/2026-07-31-m36c-oidc-authorization-code-and-pkce-flow.md`
+  - `docs/changes/2026-07-31-m36d-oidc-session-logout-and-breakglass.md`
+  - `docs/changes/2026-07-31-m36e-synthetic-idp-end-to-end-gate.md`
+  - `docs/changes/2026-07-31-m36f-oidc-http-wiring-and-gorm-resolver.md`
+- ADR: [0052](adr/0052-production-oidc-and-mfa.md)
+- **M36A — Configuration and external identities.** OIDC configuration with
+  fail-closed validation (HTTPS issuer, PKCE S256, MFA evidence, claim
+  mapping, group-to-role deduplication). Migration `000026` adds
+  `external_identities` table with `(issuer, subject)` unique constraint.
+  21 invalid-configuration cases rejected in unit tests.
+- **M36B — Discovery and JWKS cache.** Automatic OIDC discovery document
+  fetch and validation, cached JWKS with TTL-based refresh, key rotation
+  (retired keys fail closed), single-flight coalescing, duplicate-kid
+  rejection and too-many-keys rejection. 10 discovery + 10 JWKS contract
+  tests.
+- **M36C — Authorization Code + PKCE flow.** Full Authorization Code flow
+  with PKCE S256, state/nonce validation, ID token verification (signature,
+  issuer, audience, nonce, expiry, MFA evidence, `amr` claim), group-to-role
+  mapping and browser-flow leak guard. 15 provider tests + 21 subtests
+  including synthetic HTTPS IdP.
+- **M36D — Session management, logout and break-glass.** Session issuance
+  through `AuthSessionIssuer` adapter (shares refresh-token rotation,
+  `auth_version` revocation and audit with password login), provider
+  RP-initiated logout, and break-glass drill recording with staleness
+  tracking. 6 session + 3 logout + 7 break-glass tests.
+- **M36E — Synthetic IdP end-to-end gate.** `TestSyntheticIdPEndToEndLifecycle`
+  (6 ordered subtests: Login, Authorization, Rotation, Disable, Logout,
+  BreakGlass) and `TestSyntheticIdPEndToEndBreakGlassStaleness` exercising
+  discovery, JWKS, PKCE, ID-token verification, MFA evidence, session
+  issuance and break-glass audit through their real implementations against
+  a synthetic HTTPS IdP.
+- **M36F — HTTP wiring and GORM identity resolver.** `GormIdentityResolver`
+  resolves (issuer, subject) to prelinked local user via
+  `external_identities` JOIN `users`; automatic email linking forbidden.
+  `AuthSessionIssuer` adapts `auth.Service.IssueSessionForUser`. OIDC HTTP
+  handlers (`GET /login`, `GET /callback`, `POST /logout`) with fail-closed
+  error mapping. `OIDC_AUTH_SESSION_SIGNING_KEY` (≥32 bytes) added to
+  configuration. Server bootstrap wires provider when enabled; registers no
+  OIDC route when disabled. OpenAPI bidirectional parity preserved.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 46.71s (26
+  backend packages, 81 frontend tests/18 files, Compose/Kustomize contracts).
+- Real organization IdP run, GORM `IdentityResolver` PostgreSQL integration
+  test and frontend OIDC login button are deferred (externally gated).
+
+## M37: Capability Plane Adapters
+
+- Status: ✅ Development Complete on 2026-07-31. M37A (capability providers)
+  and M37B (alert routing and silences) passed local implementation and fast
+  gate verification. M37C (Gateway API evidence) and M37D (delivery metadata)
+  are deferred per ADR 0053 §4 until M40 demonstrates concrete need. All
+  adapters are disabled by default; the server runs identically to the
+  current deployment when no provider is configured. No public API contract
+  changed beyond the new `capability` and `alert-routes` routes documented in
+  OpenAPI.
+- Closure change log: `docs/changes/2026-07-31-m37-capability-plane-adapters.md`
+- ADR: [0053](adr/0053-capability-plane-adapters.md)
+- **M37A — MetricsProvider and LogProvider.** New
+  `backend/internal/capability` package with `MetricsProvider` and
+  `LogProvider` interfaces, Prometheus and Loki adapters, and `Nop*` defaults.
+  Public APIs accept fixed template/query AST fields only (service/resource,
+  cluster/Namespace/Pod/container, bounded text, start/end, direction, limit);
+  they never accept PromQL, LogQL or arbitrary labels. Provider endpoints and
+  credentials are server-configured. 18 provider tests + 8 HTTP handler
+  tests.
+- **M37B — Alert routing and bounded silences.** New
+  `backend/internal/alertroute` package with route priority (1..100), exact
+  cluster/rule/severity match, dedupe key, group/repeat interval, HTTPS
+  webhook receiver, time-bounded silences (5m..7d, reason required, permanent
+  forbidden), idempotent delivery with retry and dead-letter. Migration
+  `000027` adds four tables. 40 service tests + 27 HTTP handler tests.
+- **Configuration.** `CapabilityConfig` and `AlertRouteConfig` in
+  `backend/internal/config/config.go` with fail-closed validation (HTTPS
+  endpoints, bounded timeouts, webhook URL scheme). Both disabled by default.
+- **HTTP routes.** `GET /api/v1/capability/metrics` and
+  `POST /api/v1/capability/logs` for M37A; `GET/POST/DELETE
+  /api/v1/alert-routes/receivers[/:id]`, `GET/POST/PATCH/DELETE
+  /api/v1/alert-routes[/:id]`, `GET/POST/DELETE
+  /api/v1/alert-routes/silences[/:id]` and `GET /api/v1/alert-routes/deliveries`
+  for M37B. SystemOpsAdmin role required for mutations; deliveries restricted
+  to SystemSecurityAudit.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 51.06s (27
+  backend packages, 81 frontend tests/18 files, Compose/Kustomize contracts).
+- M37C (Gateway API evidence) and M37D (delivery metadata) deferred per
+  ADR 0053 §4. Real Prometheus/Loki provider integration and real-kind E2E
+  are deferred pending external provider access.
+
+## M38: Engineering, Delivery And Supply-Chain Hardening
+
+- Status: ✅ Development Complete on 2026-07-31. Fast gate passed in 36.5s
+  (backend) and 2.47s (manifests); all 25 deployment-package tests green,
+  including 10 Helm chart contract tests and 2 license allowlist tests.
+- Closure change log: `docs/changes/2026-07-31-m38-engineering-delivery-and-supply-chain-hardening.md`
+- ADR: [0051](adr/0051-engineering-delivery-and-supply-chain-hardening.md)
+- **M38A — CI completeness.** The pull-request gate now runs
+  `go test -race -p=1 -count=1 ./...`, `golangci-lint@v2.12.2` with
+  `.golangci.yml`, `pnpm lint` with the ESLint flat config, a 50.0%
+  coverage baseline and `oasdiff breaking --fail-on ERR`. The real-kind E2E
+  workflow covers M23-M31 in addition to diagnosis, fleet, search and
+  M21-history.
+- **M38B — Helm chart.** Official Helm 3 chart at
+  `deploy/helm/aiops-platform/` with `Chart.yaml`, `values.yaml`,
+  `values.schema.json` and nine templates. The chart never renders a Secret;
+  ten Go contract tests guard its structure, values, schema and security
+  baseline.
+- **M38C — Supply chain.** Releases build `linux/amd64` + `linux/arm64`
+  OCI images with `docker buildx`/QEMU, generate SPDX SBOMs with
+  `syft v1.27.0`, and bundle the Helm chart, license allowlist and SHA256
+  manifest. The license allowlist (`docs/security/license-allowlist.json`)
+  admits `MIT`/`ISC`/`BSD-2-Clause`/`BSD-3-Clause`/`Apache-2.0` only.
+  `SECURITY.md` and `CHANGELOG.md` are tracked delivery assets.
+- Cosign image signing, `helm lint` in CI and real-kind E2E for the Helm
+  upgrade/rollback matrix are deferred pending authorized hosted CI.
+
+## M39: Unified Service Identity and Signal Model
+
+- Status: ✅ Development Complete on 2026-07-31. M39 normalizes existing M21-M31
+  outputs into a unified `signal_occurrences` table with fingerprint-based
+  deduplication. The native M21-M31 signal path is unchanged; M39 is an evidence
+  normalizer, not a second alert/diagnosis/workflow system. Native signals work
+  even when every optional M37 provider is disabled. No public API contract
+  changed beyond the new `aiops` routes documented in OpenAPI.
+- Closure change log: `docs/changes/2026-07-31-m39-unified-signal-model.md`
+- ADR: [0054](adr/0054-unified-service-identity-and-signal-model.md)
+- **Signal model.** New `backend/internal/signal` package with `Occurrence`
+  envelope, `SignalDescriptor` catalog (28 signal codes across 7 domains),
+  `ResourceCitation` (cluster_id + kind + UID primary key; name-only marked
+  incomplete), `EvidenceRef` (stable, redacted evidence pointers).
+- **Fingerprint dedup.** SHA256 over identity fields (signal_id + cluster_id +
+  resource kind/namespace/name/uid + window_start + window_end), excluding
+  ObservedAt. Database unique index + ON CONFLICT DO UPDATE ensures duplicate
+  producer delivery yields one row.
+- **Normalizers.** DiagnosisNormalizer (11 rules), AlertNormalizer (firing/
+  resolved), MetricBreachNormalizer (sustained window), PostureNormalizer (4
+  finding codes), ChangeNormalizer (promotion/backup/maintenance/restore ×
+  succeeded/failed). Pure functions, no DB/K8s access.
+- **Service.** `Service.Ingest` (fail-closed for unregistered signals),
+  `IngestBatch`, `List` (bounded), `Overview` (source completeness + top
+  signals + recent changes + action outcomes), `CleanupRetention` (TTL-bound).
+  `SourceReader` interface for overview aggregation; `NopSourceReader` default.
+- **Migration 000028.** `signal_occurrences` table with unique fingerprint
+  index, query indexes, CHECK constraints. Paired down migration.
+- **HTTP routes.** `GET /api/v1/aiops/overview`,
+  `GET /api/v1/aiops/signals`, `GET /api/v1/aiops/signals/catalog`.
+  All require authentication; M35 scope filtering applied by middleware.
+- **Configuration.** `SignalConfig` in `config.go` (Enabled, RetentionBatch,
+  ListLimit, OverviewTopN, OverviewWindow, CleanupInterval). Disabled by
+  default.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 59.59s (28 backend
+  packages including `signal`, 81 frontend tests/18 files, Compose/Kustomize
+  contracts).
+- Deferred: concrete `SourceReader` adapter (M40), batch ingestion worker,
+  real PostgreSQL integration test, frontend UI.
+
+## M40: Temporal Topology And Change Intelligence
+
+- Status: ✅ Development Complete on 2026-07-31. M40 introduces a persisted
+  temporal topology graph (8 reviewed edge kinds with validity intervals) and
+  a unified change timeline that normalizes M23-M31 platform-operation
+  outcomes. The native M21-M31 signal path is unchanged; M40 is an
+  evidence-graph and change-timeline normalizer. No public API contract
+  changed beyond the two new `aiops/topology` routes documented in OpenAPI.
+- Closure change log: `docs/changes/2026-07-31-m40-temporal-topology-and-change-intelligence.md`
+- ADR: [0055](adr/0055-temporal-topology-and-change-intelligence.md)
+- **Edge model.** New `backend/internal/topology` package with 8 `EdgeKind`
+  values (Owns/Selects/RoutesTo/BackedBy/RunsOn/Mounts/Scales/ProtectedBy),
+  8 `DerivationMethod` values, `ResourceCitation` (cluster_id + kind + UID
+  primary key; name-only marked incomplete), `Edge` with validity interval,
+  `ChangeEvent` with confidence/source.
+- **Collector.** `Collector.Snapshot` reads 8 resource types with bounded
+  paging (1000-page safety cap); `DeriveEdges` deterministically derives all
+  edge kinds from exact observed evidence (OwnerReference, label selector,
+  EndpointSlice, Ingress backend, nodeName, PVC mount, HPA scaleTargetRef,
+  PDB selector). Same-name/temporal proximity never creates an edge.
+- **Repository.** `GormRepository` with `ON CONFLICT DO UPDATE` for edge
+  refresh and change-event idempotency. Partial unique index
+  `uq_topology_edges_active` enforces at-most-one-active-edge. `NopRepository`
+  for disabled/testing mode.
+- **Service.** `CollectNamespace` (snapshot → derive → upsert → close stale),
+  `CollectCluster` (iterate visible namespaces), `GetTopologyGraph` (nodes
+  from edge endpoints, completeness indicator), `GetChangeTimeline`,
+  `IngestChangeEvent` (validated persistence).
+- **Change normalizer.** Pure mapping function from `ChangePlanInput`/
+  `AuditChangeInput` to `ChangeEvent`. Domain statuses normalized:
+  succeeded/failed/expired/partial/awaiting_confirmation/executing →
+  succeeded/failed/failed/partial/pending/pending. Confidence high for
+  platform+audit_id, low otherwise.
+- **Migration 000029.** `topology_edges` table with partial unique active
+  index, query indexes, CHECK constraints; `change_events` table with
+  idempotent plan_id index, CHECK constraints. Paired down migration.
+- **HTTP routes.** `GET /api/v1/aiops/topology/graph` and
+  `GET /api/v1/aiops/topology/changes`. Read-only; require authentication;
+  M35 scope filtering by middleware. Bounded limits (graph 500, timeline 200)
+  with truncation disclosed.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 73.46s (29 backend
+  packages including `topology`, 81 frontend tests/18 files, Compose/Kustomize
+  contracts).
+- Deferred: background collection worker, plan-completion ingestion hook,
+  real PostgreSQL integration test, real-kind E2E, frontend UI, retention
+  worker.
+
+## M41: SLO, Error Budget And Impact
+
+- Status: ✅ Development Complete on 2026-07-31. M41 introduces server-owned
+  SLI templates, versioned SLO definitions, deterministic evaluation with
+  explicit missing-data handling, and burn-alert transitions that feed the
+  existing M27 alert lifecycle. The native M21-M31 signal path is unchanged;
+  M41 is a deterministic evaluator that reads from the M37 capability
+  providers. No public API contract changed beyond the eight new
+  `aiops/slos` routes documented in OpenAPI.
+- Closure change log: `docs/changes/2026-07-31-m41-slo-error-budget-and-impact.md`
+- ADR: [0056](adr/0056-slo-error-budget-and-impact.md)
+- **Data model.** New `backend/internal/slo` package with 3 `SLITemplate`
+  values (`request_success_ratio`, `request_latency_target_ratio`,
+  `workload_readiness`), 2 `MissingDataPolicy` values (`unavailable`,
+  `fail_open`), 5 `EvaluationState` values (`healthy`, `burning_slow`,
+  `burning_fast`, `breached`, `unavailable`), 3 `EvaluationCoverage` values
+  (`complete`, `partial`, `unavailable`), `Definition` (versioned, enabled,
+  bounded burn windows), `Evaluation` (append-only, deterministic).
+- **Catalog.** `TemplateDescriptor` + compiled `catalog` map is the single
+  source of truth for which templates exist, what they require and which
+  missing-data policies they admit. `ValidateDefinition` is the only
+  validation entry point. Adding a template is a contract change.
+- **Evaluator.** `Evaluator.Evaluate` is pure: same Definition + same
+  MetricsSource output → same Evaluation. Counter resets detected as
+  monotonicity violations and handled as "counter went to 0". Sparse data
+  → `CoveragePartial`; no samples → `CoverageUnavailable`. Clock boundaries
+  inclusive `window_start`, exclusive `window_end`. Missing data fail-closed
+  by default; only `workload_readiness` may fail-open with explicit operator
+  opt-in, and even then `Coverage` remains `Unavailable` (auditable).
+  `classifyState` precedence: breached > burning_fast > burning_slow >
+  healthy. Zero error budget (objective == 1.0) handled explicitly.
+- **Repository.** `GormRepository` with `ON CONFLICT DO NOTHING` for
+  idempotent evaluation inserts, partial unique index
+  `uq_slo_definitions_active` for at-most-one-active-definition.
+  `NopRepository` for testing/disabled mode.
+- **Service.** `CreateDefinition` stamps version=1. `PatchDefinition`
+  requires actor and increments Version. `DeleteDefinition` marks
+  `enabled=false` (row retained). `EvaluateSLO` looks up definition first
+  (404 > 503 precedence), runs evaluator, persists even on unavailable
+  (auditable fact), emits `BurnTransition` to sink only on state change.
+  Sink is best-effort: failure does not rollback.
+- **Migration 000030.** `slo_definitions` table with CHECK constraints on
+  template/policy/objective/window/burn bounds, partial unique active index,
+  query indexes; `slo_evaluations` table with CHECK constraints on
+  state/coverage/window/event-count/ratio bounds, query indexes. Paired
+  down migration.
+- **HTTP routes.** 8 routes under `/api/v1/aiops/slos`: `GET /templates`,
+  `GET /`, `POST /` (SystemOpsAdmin), `GET /:id`, `PATCH /:id`
+  (SystemOpsAdmin), `DELETE /:id` (SystemOpsAdmin),
+  `POST /:id/evaluate` (SystemOpsAdmin), `GET /:id/evaluations`. Read-only
+  routes open to any authenticated user; M35 scope enforced via cluster_id
+  binding at create time and middleware on underlying Kubernetes resources.
+- **OpenAPI.** Adds `slo` tag, 8 paths, 10 schemas
+  (`SLITemplateCatalog`, `SLITemplateDescriptor`, `SLOServiceRef`,
+  `SLOActorRef`, `SLODefinition`, `SLODefinitionCreate`,
+  `SLODefinitionPatch`, `SLODefinitionList`, `SLOEvaluation`,
+  `SLOEvaluationList`). Enums, bounds and required fields match migration
+  CHECK constraints and `ValidateDefinition` rules.
+- **Tests.** 31 backend tests in `internal/slo` (14 evaluator + 13 service +
+  4 catalog) and 11 backend tests in `internal/httpserver` (handler smoke
+  tests). Route contract test verifies bidirectional OpenAPI consistency.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 67.02s (30 backend
+  packages including `slo`, 81 frontend tests/18 files, Compose/Kustomize
+  contracts).
+- Deferred: real Prometheus/Loki integration tests, real-kind E2E for
+  burn-transition-to-M27, frontend SLO management UI, background evaluation
+  worker, multi-window burn rate, production wiring in `cmd/server/main.go`.
+
+## M42: Multi-Signal Correlation And Deterministic RCA
+
+- Status: ✅ Development Complete on 2026-07-31. M42 introduces a
+  deterministic, replayable multi-signal correlation engine that links M39
+  signal occurrences, M40 topology edges/change events and existing diagnosis
+  records into bounded cases. The diagnosis record remains the human
+  status/SLA/feedback source of truth; correlation cases are candidates, not
+  incidents. No public API contract changed beyond the six new
+  `aiops/correlation` routes documented in OpenAPI.
+- Closure change log: `docs/changes/2026-07-31-m42-multi-signal-correlation-and-deterministic-rca.md`
+- ADR: [0057](adr/0057-multi-signal-correlation-and-deterministic-rca.md)
+- **Data model.** New `backend/internal/correlation` package with 4
+  `ConfidenceClass` values (`confirmed`, `candidate`, `contradicted`,
+  `unknown`), 3 `CaseStatus` values (`active`, `resolved`, `stale`), 4
+  `SignalRelation` values, 4 `ResourceRelation` values, `Case` (deterministic
+  case_key via SHA-256), `SignalLink`, `ResourceLink`, `ChangeCandidate`,
+  `ActionCandidate` (fixed codes from M19 catalog), `CorrelationResult`.
+  `CorrelationVersion = "1.0"`.
+- **Catalog.** `RuleDescriptor` + compiled `catalog` map with 6 V1 rules
+  covering golden replay scenarios. `LookupRule`, `AllRules`,
+  `RulesForTriggerSignal` fail closed for unlisted rules. Adding a rule is a
+  contract change.
+- **Engine.** `Engine.Correlate` is pure and stateless: identical inputs +
+  identical rule/correlation versions yield identical results. Computes
+  explicit factors (`same_uid`, `topology_distance`, `time_distance`,
+  `change_symptom_rule`, `signal_freshness`, `signal_completeness`,
+  `diagnosis_match`, `contradicting_signal`). `edgeIndex` implements
+  bidirectional BFS for topology path search. `classifyConfidence` is a pure
+  function over (rule, factors, contradicting refs).
+- **Golden fixtures.** 9 replay scenarios (ImagePull, CrashLoop, OOM,
+  PVC-Pending, NoEndpoints, ReplicasUnavailable, NodeNotReady, MetricBreach,
+  BadRollout-contradicted) plus a cold-start scenario. Each fixture is a
+  deterministic (inputs, expected) pair.
+- **Repository.** `GormRepository` with idempotent `UpsertResult` (ON
+  CONFLICT DO NOTHING), unique indexes on case_key (active),
+  (case_id, signal_occurrence_id, relation), (case_id, uid, relation),
+  (case_id, change_event_id). `NopRepository` for testing/disabled mode.
+- **Service.** `CorrelateNamespace` gathers bounded inputs, runs the engine,
+  persists results idempotently. `ListActionCandidates` derives fixed action
+  candidates (`deployment.rollback`, `deployment.rollout_restart`) — no
+  execute endpoint.
+- **Migration 000031.** `correlation_cases`, `correlation_signal_links`,
+  `correlation_resource_links`, `correlation_change_candidates` tables with
+  CHECK constraints and unique indexes.
+- **HTTP routes.** 6 read-only routes under
+  `/api/v1/aiops/correlation`: `GET /rules`, `GET /cases`,
+  `GET /cases/timeline`, `GET /cases/:id`, `GET /cases/:id/graph`,
+  `GET /cases/:id/actions`. Case correlation is an internal operation, not
+  HTTP-triggered.
+- **OpenAPI.** Adds `correlation` tag, 6 paths, schemas for cases, timeline,
+  graph, actions, rules.
+- **Tests.** 36 tests total: 5 catalog + 3 fixtures (10 subtests) + 10
+  service + 9 handler. Route contract test verifies bidirectional OpenAPI
+  consistency.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 63.26s (31 backend
+  packages including `correlation`, 81 frontend tests/18 files,
+  Compose/Kustomize contracts).
+- Deferred: background correlation worker, signal-ingestion hook, real
+  PostgreSQL integration test, real-kind E2E, frontend UI, M43 AI
+  investigator integration, M44 safe automation integration.
+
+## M43: Cited And Evaluated AI Investigator
+
+- Status: ✅ Development Complete on 2026-07-31. M43 introduces a cited
+  and evaluated AI investigator bound to M42 correlation cases. The
+  investigation is a read-only advisory: it never modifies the case,
+  diagnosis or alert. Every factual claim cites an authorized evidence ID;
+  fabricated, out-of-scope or unauthorized citations reject the entire
+  output. The model cannot upgrade a candidate to confirmed cause, and
+  cannot recommend a runbook outside the eligible M42 Action Catalog. On
+  provider failure, budget exhaustion or citation rejection, a failed
+  investigation is persisted with `failure_reason` set so deterministic
+  investigation remains available. No public API contract changed beyond
+  the four new `aiops/investigator` routes documented in OpenAPI.
+- Closure change log: `docs/changes/2026-07-31-m43-cited-and-evaluated-ai-investigator.md`
+- ADR: [0058](adr/0058-cited-and-evaluated-ai-investigator.md)
+- **Data model.** New `backend/internal/aiinvestigator` package with
+  `InvestigatorVersion = "1.0"`, 3 `InvestigationStatus` values
+  (`completed`, `failed`, `stale`), 3 `HypothesisConfidence` values
+  (`high`, `medium`, `low`), 7 `EvidenceKind` values, `Investigation`
+  (deterministic `investigation_key` via SHA-256 over case_id +
+  investigator_version + prompt_hash), `Hypothesis`, `Citation`,
+  `EvidenceRef`, `Prompt`, `ProviderResult`. Bound constants
+  (`MaxHypothesesPerInvestigation` = 8, `MaxCitationsPerInvestigation` =
+  64, etc.).
+- **Runbook catalog.** `RunbookDescriptor` + compiled `catalog` map with
+  4 V1 runbooks: `rollback_last_rollout` (`deployment.rollback`),
+  `rollout_restart_pods` (`deployment.rollout_restart`),
+  `inspect_pvc_capacity` (advisory), `inspect_node_maintenance`
+  (advisory). `LookupRunbook` fails closed; advisory runbooks are always
+  eligible; adding a runbook is a contract change.
+- **Prompt + validator.** `BuildPrompt` assembles the system prompt
+  (role, output schema, citation rules, runbook rules, prohibitions,
+  prompt-injection defense) and the user prompt (redacted authorized
+  evidence only — no raw logs/events/manifests). `ValidateProviderResult`
+  enforces 8 rules: non-empty summary/impact, 1..8 hypotheses, authorized
+  citations, authorized hypothesis/disconfirming evidence, 1..64
+  citations, eligible runbook, no "confirm root cause" claims, bounded
+  next_checks/uncertainties. Rejection is total — the entire output is
+  discarded.
+- **Golden fixtures.** 10 validation scenarios (correct, insufficient,
+  conflicting, prompt-injection, hidden-scope, fabricated-citation,
+  ineligible-runbook, confirm-root-claim, empty-summary, no-citations).
+  Each fixture is a deterministic (provider result, authorized evidence,
+  eligible codes, expected valid/invalid + failure substring) pair.
+- **Repository.** `GormRepository` with `Save` (insert + `MarkStale`),
+  `Get`, `ListByCase`, `ListByFilter`, `MarkStale`. Partial unique index
+  `uq_ai_investigations_active` on `(case_id, investigation_key) WHERE
+  status != 'stale'`. `NopRepository` for testing/disabled mode.
+- **Service.** `Investigate` reads the case + eligible action codes,
+  builds the prompt, calls the provider, validates, and persists
+  (completed or failed). `GetInvestigation`, `ListByCase`, `ListRunbooks`.
+  On provider failure → `failed`/`provider_error`; on validation failure
+  → `failed`/`citation_rejected` (provider summary retained for audit).
+- **Migration 000032.** `ai_investigations` table with CHECK constraints
+  on status/tokens, completed-summary/completed-citations/failed-reason
+  invariants, and a FK to `correlation_cases(id)` ON DELETE CASCADE.
+- **HTTP routes.** 4 routes under `/api/v1/aiops/investigator`:
+  `GET /runbooks`, `GET /cases/:case_id/investigations`,
+  `GET /investigations/:id`, `POST /cases/:case_id/investigations`. The
+  POST is the only write; it persists an investigation but never modifies
+  the case. Actor derived from the authenticated session.
+- **OpenAPI.** Adds `aiinvestigator` tag, 4 paths, 8 schemas
+  (InvestigatorRunbookList, InvestigatorRunbook, InvestigationListResponse,
+  Investigation, InvestigationActor, InvestigationHypothesis,
+  InvestigationCitation, EvidenceRef).
+- **Tests.** 44 tests total: 5 catalog + 4 provider/fixtures (18 subtests)
+  + 8 prompt + 15 service + 12 handler. Route contract test verifies
+  bidirectional OpenAPI consistency.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 37.47s (31
+  backend packages including `aiinvestigator`, 81 frontend tests/18 files,
+  Compose/Kustomize contracts).
+- Deferred: real AI provider integration (Responses-compatible HTTP
+  provider), provider budget/reservation enforcement, real PostgreSQL
+  integration test, real-kind E2E, frontend UI, M44 safe-automation
+  wiring.
+
+## M44: Policy-Constrained Automation And Post-Action Verification
+
+- Status: ✅ Development Complete on 2026-07-31. M44 closes the AIOps
+  loop: an eligible M43 runbook is materialized into an action plan,
+  gated through deterministic policy checks, approved by a human (L2
+  default; four-eyes for rollback/image_update), executed idempotently
+  against the Kubernetes source, and verified against captured
+  pre/post evidence. The action plan lifecycle is `draft → previewed →
+  approved → executing → succeeded/failed → verified` (plus terminal
+  `expired`/`cancelled`). Every transition is a repository method that
+  re-checks state under a row lock and stamps audit metadata. Policy
+  gates are rechecked immediately before execute — a stale target
+  UID/RV, an opened freeze window, an exhausted PDB budget, or an
+  exceeded attempt cap all fail closed. Post-action verification
+  compares SLO and resource state deterministically; missing evidence
+  never resolves a diagnosis automatically (yields `unknown`). When
+  verification yields ineffective/failed, a server-owned rollback
+  contract drafts a rollback plan when safe, or escalates to a human.
+  No public API contract changed beyond the ten new `aiops/automation`
+  routes documented in OpenAPI.
+- Closure change log: `docs/changes/2026-07-31-m44-policy-constrained-automation-and-post-action-verification.md`
+- ADR: [0059](adr/0059-policy-constrained-automation-and-post-action-verification.md)
+- **Data model.** New `backend/internal/automation` package with
+  `AutomationVersion = "1.0"`, `VerifierVersion = "1.0"`, 4
+  `AutomationLevel` values (L0/L1/L2/L3; L2 is the default, L3 not
+  enabled), 9 `PlanStatus` values, 2 `ApprovalType` values (single,
+  four_eyes), 3 `GateStatus` values, 8 `GateCode` values
+  (uid_rv_recheck/scope/pdb_blast_radius/slo_burn/freeze_window/
+  concurrent_plans/attempt_cap/rollback_point), `ActionPlan`
+  (deterministic `plan_key` via SHA-256 over case_id + runbook_id +
+  target_uid + automation_version), `ActionVerification`
+  (deterministic `verification_key` via SHA-256 over plan_id +
+  verifier_version + evidence_hash), `EvidenceSnapshot`, `SLOSnapshot`.
+  Bound constants (`MaxAttemptsPerTarget` = 5, `AttemptWindowSeconds`
+  = 3600, `DefaultPlanTTLSeconds` = 600, `DefaultClaimTTLSeconds` =
+  60, `DefaultCooldownSeconds` = 300, `MinCooldownSeconds` = 60).
+- **Policy gate evaluator.** `GateEvaluator` is stateless and pure.
+  `RequiredGates(actionCode)` returns the action-specific gate set
+  (core: uid_rv_recheck/scope/freeze_window/concurrent_plans/
+  attempt_cap; Pod-affecting add pdb_blast_radius; SLO-bound add
+  slo_burn; rollback adds rollback_point). `Evaluate` runs at preview;
+  `Recheck` runs at execute with `Rechecked = true` and fresh
+  `GateContext`. `AllPassed` treats `skipped` as non-failure. Adding
+  a gate is a contract change (AutomationVersion bump).
+- **Confirmation + idempotency.** `Preview` issues a 32-byte
+  confirmation token (base64; SHA-256 hashed at rest). `Execute`
+  requires the plaintext token plus an operator-supplied idempotency
+  key (UUID). `Claim` atomically transitions `approved → executing`
+  under a row lock and stamps the key; replay returns the recorded
+  outcome; re-execute with a different key after a terminal status
+  yields `ErrAlreadyExecuted`. Stale `executing` rows past `claimTTL`
+  are reclaimable.
+- **Human approval.** `approvalTypeFor(actionCode)` returns `four_eyes`
+  for rollback and image_update, `single` otherwise. Four-eyes requires
+  `approver_user_id != requested_by_user_id`; enforced at the DB layer
+  (CHECK constraint) and re-checked by the service. Self-approval of a
+  four-eyes plan yields `ErrSelfApprovalForbidden` (403).
+- **Post-action verifier.** `Verifier` is pure given (plan, pre, post).
+  `CapturePreSnapshot` at execute time; `CapturePostSnapshot` after
+  cooldown. `compareEvidence` is deterministic: SLO state transitions
+  take precedence (healthy > burning_slow > burning_fast > breached);
+  resource state (replicas/available_replicas/image/suspended) is
+  compared for actions without SLO evidence or when SLO state is
+  unchanged. Missing evidence yields `ComparisonInsufficient` and
+  `VerificationStatusUnknown`. `classifyStatus` maps to
+  effective/ineffective/failed/unknown.
+- **Server-owned rollback contract.** When verification yields
+  ineffective/failed, `evaluateRollbackContract` checks target UID
+  unchanged, no freeze, no concurrent plan, attempt cap not exceeded.
+  If safe, a rollback plan is drafted automatically (status `draft`,
+  `rollback_of_plan_id` set). If unsafe, verification records
+  `reason = "unsafe_rollback_escalated_to_human"`. M44 never
+  auto-executes rollback plans — they require the same preview →
+  approve → execute path.
+- **Repository.** `GormRepository` with `SavePlan`/`GetPlan`/
+  `GetPlanForExecute` (row lock)/`ListPlans`/`CountAttemptsSince`/
+  `CountConcurrentPlans`/`MarkPreviewed`/`Approve`/`Claim`/`Complete`/
+  `Fail`/`MarkVerified`/`Cancel`/`ExpireStale`/`SaveVerification`/
+  `GetVerification`/`GetVerificationByPlan`/`UpdateVerification`.
+  `NopRepository` for testing/disabled mode. 7 lifecycle sentinel
+  errors.
+- **Migration 000033.** `action_plans` and `action_verifications`
+  tables with CHECK constraints on status/approval_type/
+  evidence_comparison/verification_status, the four-eyes distinctness
+  CHECK, the missing-evidence → insufficient+unknown CHECK, partial
+  unique indexes `uq_action_plans_active` (one non-terminal plan per
+  `plan_key`) and `uq_action_verifications_active` (one pending
+  verification per plan), FKs to `correlation_cases(id)` and
+  `ai_investigations(id)` ON DELETE SET NULL.
+- **HTTP routes.** 10 routes under `/api/v1/aiops/automation`:
+  `GET /runbooks`, `GET /plans`, `POST /plans`, `GET /plans/:plan_id`,
+  `POST /plans/:plan_id/preview`, `POST /plans/:plan_id/approve`,
+  `POST /plans/:plan_id/execute`, `POST /plans/:plan_id/cancel`,
+  `POST /plans/:plan_id/verify`,
+  `GET /plans/:plan_id/verification`. Write routes require
+  `rolesSystemOpsAdmin`; read routes require only authentication.
+  Actor derived from the authenticated session. Idempotency-Key
+  header read by execute.
+- **OpenAPI.** Adds `automation` tag, 9 paths, 9 schemas
+  (AutomationRunbookList, AutomationRunbook, CreateActionPlanRequest,
+  ApproveActionPlanRequest, ExecuteActionPlanRequest,
+  ActionPlanListResponse, ActionPlanResponse, ActionVerification,
+  PolicyGate).
+- **Tests.** 66 tests total: 11 gates + 17 verifier + 17 service + 21
+  handler. Route contract test verifies bidirectional OpenAPI
+  consistency.
+- Fast gate `scripts/verify-fast.ps1 -Scope All` passed in 67.17s (30
+  backend packages including `automation`, 81 frontend tests/18 files,
+  Compose/Kustomize contracts).
+- Deferred: background verification worker (cooldown-based
+  scheduling), stale `executing` reclaim worker, `ExpireStale`
+  background worker, real Kubernetes integration tests for the patch
+  path, real Prometheus/SLO integration for the `EvidenceProvider`,
+  real PostgreSQL integration test, real-kind E2E, frontend UI, `L3`
+  pre-authorized automatic execution level, rollback-plan
+  auto-execution path, M42 `ActionCandidate` → M44 plan auto-suggestion.
+
+## M45: Versioned AIOps Golden Dataset And Quality Report
+
+- Status: ✅ Development-side deliverable complete on 2026-07-31. M45
+  introduces the versioned AIOps golden dataset and quality report as
+  the replayable contract for the full AIOps loop (M39-M44). The dataset
+  contains 3 scenarios: the mandatory 10-step end-to-end golden scenario
+  (healthy service → bad image → signals → impact graph → cause
+  candidate → AI investigation → preview/approve rollback → execute/
+  verify → recover alert → cleanup) plus 2 negative companions
+  (misattribution prevention, partial/unknown fail-closed). The quality
+  report structure records before/after comparison per scenario,
+  aggregated summary metrics, changed components, and human review state.
+  It is JSON-serializable so CI can diff before/after and block
+  regressions. M45 production gates (hosted CI, production OIDC/MFA, HA
+  PostgreSQL, signed releases, real-kind E2E) remain external.
+- Closure change log: `docs/changes/2026-07-31-m45-versioned-aiops-golden-dataset-and-quality-report.md`
+- ADR: [0060](adr/0060-versioned-aiops-golden-dataset-and-quality-report.md)
+- **Golden dataset.** New `backend/internal/golden` package with
+  `DatasetVersion = "1.0"`, `ScenarioVersion = "1.0"`, 10 `StepID`
+  constants, `AllSteps` ordered list, 3 `ScenarioID` constants,
+  `StepOutcome` (with expected signal/topology/SLO/correlation/
+  investigation/action plan/verification/alert recovery flags),
+  `Scenario`, `Dataset`, `DefaultDataset()`, and 3 scenario constructors.
+- **Mandatory 10-step scenario.** Maps each step of the AIOps loop to
+  an expected outcome: establish_healthy_service (M41), publish_bad_image
+  (M23), capture_signals (M39, M41), build_impact_graph (M40),
+  rank_cause_candidate (M42), generate_investigation (M43),
+  preview_approve_rollback (M44), execute_verify (M44), recover_alert
+  (M27), cleanup.
+- **Negative companions.** `negative_misattribution`: unrelated change
+  in another Namespace must NOT be attributed to the primary case (no
+  action plan expected). `negative_partial_evidence`: when one provider
+  is stopped, the case must be partial/unknown, not falsely healthy
+  (valid advisory investigation expected, but no alert recovery).
+- **Quality report.** `QualityReport` with before/after dataset versions,
+  engine versions (M39-M44), per-scenario `ScenarioQuality`
+  (passed_before/after, delta, steps_passed_before/after, notes),
+  `QualitySummary` aggregation, `ClassifyDelta` (preserved/improved/
+  regressed/unchanged), `Summarize`. Machine-readable, JSON-serializable.
+  Generated offline; never self-modifies rules, prompts or policy online.
+- **Tests.** 9 tests: dataset version, integrity, mandatory step
+  coverage, negative misattribution invariants, negative partial
+  evidence invariants, determinism, ClassifyDelta, Summarize, quality
+  report end-to-end.
+- **Production gates (external, deferred).** Hosted CI with Linux race
+  detector and full real-kind matrix, production OIDC/MFA and break-glass
+  evidence, multi-replica deployment with PDB/topology spread/rolling-
+  update evidence, external HA PostgreSQL with WAL/PITR and measured
+  RPO/RTO, multi-instance no-duplicate-business-effect evidence, signed
+  multi-arch release with SBOM/provenance/support matrix, real-kind E2E
+  for the full 10-step scenario, real Prometheus/Loki/AI-provider replay
+  in CI, frontend quality dashboard, CI integration that generates the
+  quality report on every PR.
+
+## M46: Workspace Multi-Tenancy
+
+- Status: ✅ Development-side deliverable complete on 2026-07-31. M46
+  introduces the lightweight KubeSphere-style Workspace multi-tenancy layer
+  as an aggregation dimension that groups cluster namespaces across the
+  fleet for UI grouping, quota display and cross-cluster namespace
+  attribution. The workspace layer carries its own three-role model
+  (`workspace_admin` / `workspace_editor` / `workspace_viewer`) that is
+  independent of the four platform roles. The defining invariant:
+  WorkspaceGrant does NOT grant namespace read access — the 2D authorization
+  matrix from M35 (ADR 0050) is unchanged; WorkspaceGrant is a third,
+  orthogonal grant type that only authorizes workspace metadata / membership
+  / quota / role-binding edits. Anti-leakage (404 > 403) is preserved.
+  SystemAdmin bypasses all workspace grant checks. Workspace creation and
+  deletion are SystemAdmin-only. The owner is always `workspace_admin` and
+  cannot be downgraded or revoked while the workspace exists. The audit
+  trail is append-only. M46 production gates (hosted CI, production
+  OIDC/MFA, HA PostgreSQL, signed releases, real-kind E2E) remain external.
+- Closure change log: `docs/changes/2026-07-31-m46-workspace-multi-tenancy.md`
+- ADR: [0061](adr/0061-workspace-multi-tenancy.md)
+- **Data model.** Migration `000034_workspaces_and_grants` adds 5 tables:
+  `workspaces`, `workspace_memberships`, `workspace_quotas`,
+  `user_workspace_grants`, `workspace_role_bindings_audit`. CHECK
+  constraints enforce the three fixed roles, three audit actions, DNS-
+  subdomain workspace names and DNS-1123 namespace labels. Unique
+  constraints enforce one workspace per name and one workspace per
+  (cluster_id, namespace) tuple.
+- **Service layer.** `backend/internal/workspace/service.go` enforces all
+  authorization invariants: SystemAdmin bypass, 404 > 403 anti-leakage,
+  owner role fixed, append-only audit, role validation, quota validation.
+  The owner grant is seeded atomically on workspace creation.
+- **HTTP API.** 14 routes under `/api/v1/workspaces` covering workspace
+  CRUD, memberships, quota, role bindings and audit trail. Authorization is
+  enforced inside the service layer; the handler only parses inputs and
+  maps errors.
+- **Tests.** 39 tests: 29 service-level (create/get/list/update/delete,
+  membership, quota, role bindings, anti-leakage, role hierarchy, owner
+  protection, metadata normalization) + 10 handler-level (HTTP status
+  codes, anti-leakage at HTTP layer, path/query validation).
 
 Detailed execution requirements, phase boundaries, verification commands and
 Agent handoff rules are authoritative in `docs/next-development-plan.md`.

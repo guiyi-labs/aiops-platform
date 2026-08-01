@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 // --- mock repository ---
 
 type mockRepo struct {
+	mu         sync.Mutex
 	rules      map[int64]*Rule
 	instances  map[int64]*Instance
 	nextRuleID int64
@@ -32,6 +34,8 @@ func newMockRepo() *mockRepo {
 }
 
 func (m *mockRepo) CreateRule(_ context.Context, rule *Rule, _ time.Duration) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	activeCount := 0
 	for _, r := range m.rules {
 		if r.ClusterID == rule.ClusterID && !r.Deleted {
@@ -55,6 +59,8 @@ func (m *mockRepo) CreateRule(_ context.Context, rule *Rule, _ time.Duration) er
 }
 
 func (m *mockRepo) GetRule(_ context.Context, id int64) (Rule, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	r, ok := m.rules[id]
 	if !ok {
 		return Rule{}, ErrRuleNotFound
@@ -63,6 +69,8 @@ func (m *mockRepo) GetRule(_ context.Context, id int64) (Rule, error) {
 }
 
 func (m *mockRepo) ListRules(_ context.Context, filter RuleListFilter) ([]Rule, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var result []Rule
 	for _, r := range m.rules {
 		if r.ClusterID != filter.ClusterID {
@@ -77,6 +85,8 @@ func (m *mockRepo) ListRules(_ context.Context, filter RuleListFilter) ([]Rule, 
 }
 
 func (m *mockRepo) PatchRule(_ context.Context, id int64, input PatchRuleInput, _ ActorRef) (Rule, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	r, ok := m.rules[id]
 	if !ok {
 		return Rule{}, ErrRuleNotFound
@@ -100,6 +110,8 @@ func (m *mockRepo) PatchRule(_ context.Context, id int64, input PatchRuleInput, 
 }
 
 func (m *mockRepo) DeleteRule(_ context.Context, id int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	r, ok := m.rules[id]
 	if !ok {
 		return ErrRuleNotFound
@@ -119,6 +131,8 @@ func (m *mockRepo) DeleteRule(_ context.Context, id int64) error {
 }
 
 func (m *mockRepo) GetUnresolvedInstance(_ context.Context, ruleID int64) (*Instance, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, inst := range m.instances {
 		if inst.RuleID == ruleID && inst.State == StateFiring {
 			return inst, nil
@@ -128,6 +142,8 @@ func (m *mockRepo) GetUnresolvedInstance(_ context.Context, ruleID int64) (*Inst
 }
 
 func (m *mockRepo) CreateInstance(_ context.Context, instance *Instance) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	instance.ID = m.nextInstID
 	m.nextInstID++
 	instance.CreatedAt = time.Now()
@@ -137,14 +153,24 @@ func (m *mockRepo) CreateInstance(_ context.Context, instance *Instance) error {
 	return nil
 }
 
-func (m *mockRepo) CreateFiring(ctx context.Context, record *diagnosis.Record, instance *Instance) error {
+func (m *mockRepo) CreateFiring(_ context.Context, record *diagnosis.Record, instance *Instance) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	record.ID = m.nextDiagID
 	m.nextDiagID++
 	instance.DiagnosisID = record.ID
-	return m.CreateInstance(ctx, instance)
+	instance.ID = m.nextInstID
+	m.nextInstID++
+	instance.CreatedAt = time.Now()
+	instance.UpdatedAt = time.Now()
+	instance.State = StateFiring
+	m.instances[instance.ID] = instance
+	return nil
 }
 
 func (m *mockRepo) TouchInstance(_ context.Context, ruleID int64, lastFiredAt time.Time, evidenceAnchor string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, inst := range m.instances {
 		if inst.RuleID == ruleID && inst.State == StateFiring {
 			inst.LastFiredAt = lastFiredAt
@@ -157,6 +183,8 @@ func (m *mockRepo) TouchInstance(_ context.Context, ruleID int64, lastFiredAt ti
 }
 
 func (m *mockRepo) ResolveInstance(_ context.Context, ruleID int64, resolvedAt time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, inst := range m.instances {
 		if inst.RuleID == ruleID && inst.State == StateFiring {
 			inst.State = StateResolved
@@ -169,6 +197,8 @@ func (m *mockRepo) ResolveInstance(_ context.Context, ruleID int64, resolvedAt t
 }
 
 func (m *mockRepo) ListInstances(_ context.Context, filter InstanceListFilter) ([]Instance, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var result []Instance
 	for _, inst := range m.instances {
 		r, ok := m.rules[inst.RuleID]
@@ -187,6 +217,8 @@ func (m *mockRepo) ListInstances(_ context.Context, filter InstanceListFilter) (
 }
 
 func (m *mockRepo) GetInstance(_ context.Context, id int64) (Instance, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	inst, ok := m.instances[id]
 	if !ok {
 		return Instance{}, ErrAlertNotFound
@@ -195,6 +227,8 @@ func (m *mockRepo) GetInstance(_ context.Context, id int64) (Instance, error) {
 }
 
 func (m *mockRepo) ClaimDueRules(_ context.Context, now time.Time, batchSize int, claimLease time.Duration) ([]Rule, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var due []Rule
 	for _, r := range m.rules {
 		if !r.Deleted && r.Enabled && !r.NextDueAt.After(now) {
@@ -208,6 +242,8 @@ func (m *mockRepo) ClaimDueRules(_ context.Context, now time.Time, batchSize int
 }
 
 func (m *mockRepo) ReleaseClaim(_ context.Context, ruleID int64, nextDueAt time.Time, evalState string, evalAt time.Time, errCode string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	r, ok := m.rules[ruleID]
 	if !ok {
 		return ErrRuleNotFound
@@ -222,6 +258,8 @@ func (m *mockRepo) ReleaseClaim(_ context.Context, ruleID int64, nextDueAt time.
 }
 
 func (m *mockRepo) UpdateRuleHealth(_ context.Context, ruleID int64, evalState string, evalAt time.Time, errCode string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	r, ok := m.rules[ruleID]
 	if !ok {
 		return ErrRuleNotFound
@@ -249,6 +287,7 @@ func (m *mockEvaluator) Evaluate(_ context.Context, query metricshistory.Evaluat
 // --- mock diagnosis repository ---
 
 type mockDiagnosisRepo struct {
+	mu      sync.Mutex
 	records []*diagnosis.Record
 	nextID  int64
 }
@@ -258,6 +297,8 @@ func newMockDiagnosisRepo() *mockDiagnosisRepo {
 }
 
 func (m *mockDiagnosisRepo) Save(_ context.Context, record *diagnosis.Record) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	record.ID = m.nextID
 	m.nextID++
 	m.records = append(m.records, record)

@@ -42,8 +42,8 @@ func newFakeExecutor() *fakeExecutor {
 
 func (f *fakeExecutor) Execute(_ context.Context, clusterID int64, rule RuleDescriptor) ([]Finding, error) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.calls = append(f.calls, []interface{}{clusterID, rule.Code})
-	f.mu.Unlock()
 	key := rule.Code
 	if err, ok := f.errors[key]; ok {
 		return nil, err
@@ -226,12 +226,13 @@ func TestResultEvidenceRoundsTrip(t *testing.T) {
 // --- in-memory repository for isolated service tests ---
 
 type inMemRepo struct {
-	rules     map[string]*RuleOverride
-	plans     map[int64]*Plan
-	tasks     map[int64]*Task
-	results   []Result
-	planSeq   int64
-	taskSeq   int64
+	mu       sync.Mutex
+	rules    map[string]*RuleOverride
+	plans    map[int64]*Plan
+	tasks    map[int64]*Task
+	results  []Result
+	planSeq  int64
+	taskSeq  int64
 	resultSeq int64
 }
 
@@ -306,6 +307,8 @@ func (m *inMemRepo) DeletePlan(_ context.Context, id, _ int64) error {
 func (m *inMemRepo) TouchPlanRun(_ context.Context, _ int64, _, _ *gorm.DeletedAt) error { return nil }
 
 func (m *inMemRepo) CreateTask(_ context.Context, task *Task) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.taskSeq++
 	task.ID = m.taskSeq
 	m.tasks[task.ID] = task
@@ -313,6 +316,8 @@ func (m *inMemRepo) CreateTask(_ context.Context, task *Task) error {
 }
 
 func (m *inMemRepo) GetTask(_ context.Context, id int64) (Task, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	t, ok := m.tasks[id]
 	if !ok {
 		return Task{}, ErrTaskNotFound
@@ -321,6 +326,8 @@ func (m *inMemRepo) GetTask(_ context.Context, id int64) (Task, error) {
 }
 
 func (m *inMemRepo) ListTasks(_ context.Context, filter TaskListFilter) (ListResponse[Task], error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	out := make([]Task, 0, len(m.tasks))
 	for _, t := range m.tasks {
 		if filter.Status != "" && t.Status != filter.Status {
@@ -332,6 +339,8 @@ func (m *inMemRepo) ListTasks(_ context.Context, filter TaskListFilter) (ListRes
 }
 
 func (m *inMemRepo) UpdateTaskStatus(_ context.Context, id int64, patch PatchTaskInput) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	t, ok := m.tasks[id]
 	if !ok {
 		return ErrTaskNotFound
@@ -358,6 +367,8 @@ func (m *inMemRepo) UpdateTaskStatus(_ context.Context, id int64, patch PatchTas
 }
 
 func (m *inMemRepo) CreateResults(_ context.Context, results []Result) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for i := range results {
 		m.resultSeq++
 		results[i].ID = m.resultSeq
@@ -367,6 +378,8 @@ func (m *inMemRepo) CreateResults(_ context.Context, results []Result) error {
 }
 
 func (m *inMemRepo) ListResults(_ context.Context, filter ListFilter) (ListResponse[Result], error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	out := make([]Result, 0, len(m.results))
 	for _, r := range m.results {
 		if filter.TaskID != nil && r.TaskID != *filter.TaskID {

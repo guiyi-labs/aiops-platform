@@ -103,6 +103,40 @@ Detailed change records for each milestone live under `docs/changes/`.
   match test.
 - Reference: [ADR 0075 §1–3](docs/adr/0075-m59-signing-provenance-m60-provider-registry.md).
 
+### Added — M61/M62/M63 Optimization Analyzers (FinOps Right-sizing, CIS Posture, Deprecated API)
+
+- **M61 FinOps Right-sizing Advisor** (`backend/internal/finops`): read-only
+  right-sizing + cost-waste advisor that turns already-collected M21 metrics
+  (CPU/memory in nanocores/bytes) into suggested requests/limits (p95 × headroom,
+  rounded) and a monthly dollar waste estimate. Pure `Recommend` function,
+  configurable `CostRate`, in-memory `Repository`, `QuantityFromResourceMap`
+  bridge for Kubernetes resource strings. See ADR 0077.
+- **M62 CIS Kubernetes Compliance Posture** (`backend/internal/cis`): read-only
+  CIS Kubernetes Benchmark posture check (kube-bench / Kubescape style) over a
+  compiled-in control catalog across four domains — component flag controls (26:
+  kube-apiserver / scheduler / controller-manager / etcd / kubelet, CIS
+  1.2/1.3/1.4/1.5/4.2), workload security (6: privileged, privilege escalation,
+  run-as-non-root, host namespace, hostPath, CAP_NET_RAW), RBAC (2: cluster-admin
+  to non-system subject, wildcard role), namespace Pod Security Admission (1:
+  enforce not privileged/unset). Pure `Evaluate(clusterID, Inputs, observedAt)`
+  function emits `internal/finding`-shaped findings with rationale + remediation
+  references. See ADR 0078.
+- **M63 Deprecated / Removed API Check** (`backend/internal/deprecatedapi`):
+  read-only analyzer flagging objects using deprecated or removed `apiVersion`s
+  relative to a target Kubernetes minor version. Compiled-in catalog
+  (pluto/kubent-style), severity `removed` (critical) / `deprecated` (warning),
+  emits `internal/finding`-shaped findings for uniform rendering. See ADR 0076.
+- **`internal/finding`**: dependency-free canonical read-only finding contract
+  (mirrors `namespaceposture.Finding` JSON shape) so all analyzers render
+  uniformly without pulling in the heavier `cluster`/`kubernetes` graph.
+- All three analyzers are pure functions over already-fetched data and mutate
+  nothing, per the read-only posture of ADR 0004. The service layer that builds
+  the input structs from the live Kubernetes API / `metricshistory` store is
+  intentionally deferred to the API route to avoid colliding with the M46–M60
+  frontend work; unit tests cover every control shape today.
+- ADRs: 0076 (deprecated API check), 0077 (FinOps right-sizing), 0078 (CIS
+  compliance posture).
+
 ### Added — M58 DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI Backend
 
 - **GitOps (ArgoCD Application) read-only** (`backend/internal/gitops/*`):

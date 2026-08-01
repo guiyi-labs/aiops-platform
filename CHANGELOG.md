@@ -137,6 +137,33 @@ Detailed change records for each milestone live under `docs/changes/`.
 - ADRs: 0076 (deprecated API check), 0077 (FinOps right-sizing), 0078 (CIS
   compliance posture).
 
+### Added — M64 Optimization Analyzers HTTP API (wire M61–M63 into the server)
+
+- **`POST /api/v1/optimization/cis/analyze`**: runs the M62 CIS posture check
+  over a supplied observation bundle (`components`, `workloads`, `bindings`,
+  `namespaces`) and returns the `cis.Status` rollup (totals, by-severity,
+  by-family, findings with rationale + remediation).
+- **`POST /api/v1/optimization/finops/analyze`**: runs the M61 FinOps
+  right-sizing advisor over a per-container request/limit/usage bundle and
+  returns the `finops.WasteSummary` (waste USD, idle cores/GB, per-container
+  recommendations). An optional `rate` override replaces the configured default
+  cost rate.
+- **`POST /api/v1/optimization/deprecated-api/analyze`**: runs the M63
+  deprecated/removed API check over a supplied object list against a target
+  Kubernetes minor version and returns the `deprecatedapi.Status` rollup.
+- All three endpoints are **read-only** and accept the already-collected
+  observation bundle in the request body; the server never reaches into a
+  cluster (ADR 0004). They are gated behind `httpserver.Options.Optimization`
+  and registered only when the optimization service is configured, matching the
+  per-milestone route pattern. The OpenAPI contract (`docs/api/openapi.yaml`)
+  and the route-parity test were updated to cover the new routes.
+- A new thin `internal/optimization` package carries the shared service config
+  (default `finops.CostRate`); the analyzers themselves remain pure functions.
+- The earlier "deferred service layer" is now the API surface above. Server-side
+  auto-collection of the observation bundles from the live Kubernetes API /
+  `metricshistory` store remains a follow-up (it requires control-plane flag
+  access and the metrics pipeline) and is tracked as a P1 item.
+
 ### Added — M58 DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI Backend
 
 - **GitOps (ArgoCD Application) read-only** (`backend/internal/gitops/*`):

@@ -14,9 +14,9 @@ func TestEvaluateComponentCriticalFail(t *testing.T) {
 			{
 				Component: "kube-apiserver",
 				Flags: map[string]string{
-					"anonymous-auth":     "true", // fails 1.2.1 (critical)
+					"anonymous-auth":     "true",        // fails 1.2.1 (critical)
 					"authorization-mode": "AlwaysAllow", // fails 1.2.6/1.2.7
-					"profiling":          "false", // passes 1.2.12
+					"profiling":          "false",       // passes 1.2.12
 				},
 			},
 		},
@@ -208,11 +208,11 @@ func TestEvaluateEmptyInput(t *testing.T) {
 
 func TestFlagFailsCombinations(t *testing.T) {
 	cases := []struct {
-		name   string
-		ctrl   ComponentControl
+		name    string
+		ctrl    ComponentControl
 		present bool
-		val    string
-		want   bool
+		val     string
+		want    bool
 	}{
 		{"should_be_false-unset", ComponentControl{Kind: FlagShouldBeFalse}, false, "", false},
 		{"should_be_false-true", ComponentControl{Kind: FlagShouldBeFalse}, true, "true", true},

@@ -36,6 +36,7 @@ import (
 	"k8s-aiops.local/backend/internal/namespaceposture"
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/oidc"
+	"k8s-aiops.local/backend/internal/optimization"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/requestctx"
@@ -148,6 +149,12 @@ type Options struct {
 	// provider catalog, per-provider lifecycle state and health probes.
 	// Nil disables the provider surface — safe for tests and minimal builds.
 	CapabilityRegistry *capability.Registry
+	// M64 optimization analyzers (M61 FinOps, M62 CIS, M63 deprecated-API).
+	// When non-nil, the /optimization analyze endpoints are registered. The
+	// analyzers are read-only pure functions over a caller-supplied
+	// observation bundle (ADR 0004); the server never reaches into a cluster.
+	// Nil disables the optimization routes — safe for tests and minimal builds.
+	Optimization *optimization.Service
 }
 
 func New(logger *zap.Logger, options Options) http.Handler {
@@ -514,6 +521,19 @@ func New(logger *zap.Logger, options Options) http.Handler {
 			reg.register(capabilityRoutes, RouteDescriptor{Method: "GET", Path: "/providers", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: capabilityAPI.listProviders, AuditAction: "capability.providers.list", AuditResource: "Provider"})
 			reg.register(capabilityRoutes, RouteDescriptor{Method: "GET", Path: "/providers/:name", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: capabilityAPI.getProvider, AuditAction: "capability.providers.get", AuditResource: "Provider"})
 		}
+	}
+
+	// M64 optimization analyzers (M61 FinOps right-sizing, M62 CIS posture,
+	// M63 deprecated-API check). The endpoints are read-only: the caller
+	// supplies an already-collected observation bundle and the server returns
+	// findings (ADR 0004). Routes are registered only when the optimization
+	// service is configured.
+	if options.Optimization != nil {
+		optAPI := optimizationHandler{svc: options.Optimization}
+		optRoutes := v1.Group("/optimization")
+		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/cis/analyze", AuthRequired: true, Handler: optAPI.cisAnalyze, AuditAction: "optimization.cis.analyze", AuditResource: "Cluster"})
+		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/finops/analyze", AuthRequired: true, Handler: optAPI.finopsAnalyze, AuditAction: "optimization.finops.analyze", AuditResource: "Cluster"})
+		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/deprecated-api/analyze", AuthRequired: true, Handler: optAPI.deprecatedAPIAnalyze, AuditAction: "optimization.deprecated_api.analyze", AuditResource: "Cluster"})
 	}
 
 	// M37B alert routes: webhook receivers, exact-match routes, bounded

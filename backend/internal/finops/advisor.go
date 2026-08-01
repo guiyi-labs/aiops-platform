@@ -12,11 +12,11 @@ const (
 	cpuLimitFactor     = 1.50 // suggested limit when none is set
 	memLimitFactor     = 1.30
 
-	warningRatio = 2.0 // request >= 2x p95 -> warning
+	warningRatio  = 2.0 // request >= 2x p95 -> warning
 	criticalRatio = 4.0 // request >= 4x p95 -> critical
 
 	// rounding steps for human-friendly recommendations
-	cpuRoundStep = 50_000_000  // 50 millicores
+	cpuRoundStep = 50_000_000       // 50 millicores
 	memRoundStep = 64 * 1024 * 1024 // 64 MiB
 )
 
@@ -52,11 +52,11 @@ func Recommend(clusterID int64, inputs []ContainerInput, rate CostRate) WasteSum
 		// --- CPU ---
 		if in.CPUUsageP95 > 0 {
 			sugCPU := roundUp(scaleUp(in.CPUUsageP95, cpuRequestHeadroom), cpuRoundStep)
-		if in.Limits.CPULimit > 0 && sugCPU > in.Limits.CPULimit {
-			sugCPU = in.Limits.CPULimit
-		}
-		rec.SuggestedRequests.CPURequest = sugCPU
-		if in.Limits.CPULimit > 0 {
+			if in.Limits.CPULimit > 0 && sugCPU > in.Limits.CPULimit {
+				sugCPU = in.Limits.CPULimit
+			}
+			rec.SuggestedRequests.CPURequest = sugCPU
+			if in.Limits.CPULimit > 0 {
 				rec.SuggestedLimits.CPULimit = in.Limits.CPULimit
 			} else {
 				rec.SuggestedLimits.CPULimit = roundUp(scaleUp(in.CPUUsageP95, cpuLimitFactor), cpuRoundStep)
@@ -81,11 +81,11 @@ func Recommend(clusterID int64, inputs []ContainerInput, rate CostRate) WasteSum
 		// --- Memory ---
 		if in.MemUsageP95 > 0 {
 			sugMem := roundUp(scaleUp(in.MemUsageP95, memRequestHeadroom), memRoundStep)
-		if in.Limits.MemLimit > 0 && sugMem > in.Limits.MemLimit {
-			sugMem = in.Limits.MemLimit
-		}
-		rec.SuggestedRequests.MemRequest = sugMem
-		if in.Limits.MemLimit > 0 {
+			if in.Limits.MemLimit > 0 && sugMem > in.Limits.MemLimit {
+				sugMem = in.Limits.MemLimit
+			}
+			rec.SuggestedRequests.MemRequest = sugMem
+			if in.Limits.MemLimit > 0 {
 				rec.SuggestedLimits.MemLimit = in.Limits.MemLimit
 			} else {
 				rec.SuggestedLimits.MemLimit = roundUp(scaleUp(in.MemUsageP95, memLimitFactor), memRoundStep)

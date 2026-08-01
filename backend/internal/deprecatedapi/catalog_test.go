@@ -4,9 +4,9 @@ import "testing"
 
 func TestParseAPIVersion(t *testing.T) {
 	cases := []struct {
-		in      string
-		wantG   string
-		wantV   string
+		in    string
+		wantG string
+		wantV string
 	}{
 		{"apps/v1", "apps", "v1"},
 		{"networking.k8s.io/v1beta1", "networking.k8s.io", "v1beta1"},

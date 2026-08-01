@@ -41,7 +41,7 @@ M1 基础运行、M2 多集群资源读取、M3 确定性诊断、M4 AI/审计/�
 - 交接入口：`docs/development-handoff.md`
 - 论文材料索引：`docs/thesis/README.md`
 - 阶段变更索引：`docs/README.md`
-- 总体开发计划：`E:\k8s\毕设\development-plan.md`
+- 总体开发计划：`docs/development-handoff.md`
 - 答辩截图：`docs/thesis/screenshots/`
 
 ## 待人工确认事项

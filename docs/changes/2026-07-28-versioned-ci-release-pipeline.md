@@ -52,7 +52,7 @@ pushed.
 After human review of the file scope and Git identity, local `main` received
 the human-approved initial commit
 `2d46588f8c15ab626703e92eccc35b4de8b53ab2` with author and committer
-`zjw <3342773648@qq.com>`. The commit contains 368 files; ignored secrets,
+`guiyi-labs <277616126+guiyi-labs@users.noreply.github.com>`. The commit contains 368 files; ignored secrets,
 tools, evidence, dependencies and build output remain outside Git. Its
 commit-bound full gate passed at 2026-07-28 10:21:10 +08:00 in 177.39 seconds
 with evidence at `.artifacts/verification/verify-20260728-102110.json`.

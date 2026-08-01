@@ -9,8 +9,8 @@
 | 操作系统 | Microsoft Windows 11 Pro 64-bit，10.0.26200 |
 | CPU | 12th Gen Intel Core i5-1240P，12 核 / 16 逻辑处理器 |
 | 内存 | 15.7 GB |
-| 项目目录 | `E:\k8s\毕设\aiops-platform` |
-| Docker Desktop 数据目录 | `E:\DockerData\wsl\disk` |
+| 项目目录 | `<repo-root>/aiops-platform` |
+| Docker Desktop 数据目录 | `<docker-data>/wsl/disk` |
 
 ## 工具链
 

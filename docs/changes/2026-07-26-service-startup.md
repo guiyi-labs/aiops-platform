@@ -5,7 +5,7 @@
 
 ## Runtime result
 
-- Docker Desktop WSL2 storage on `E:\DockerData` started normally.
+- Docker Desktop WSL2 storage on `<docker-data>` started normally.
 - PostgreSQL, backend and frontend images were started from the current Compose project.
 - Frontend is available at `http://localhost:18080`.
 - Backend is available at `http://localhost:8080`.

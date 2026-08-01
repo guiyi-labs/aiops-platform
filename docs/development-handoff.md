@@ -1084,7 +1084,7 @@ and acceptance scripts are aligned. Generated `.artifacts` and
 and evidence ledger.
 
 - Last updated: 2026-07-29
-- Repository: `E:\k8s\毕设\aiops-platform`
+- Repository: `<repo-root>/aiops-platform`
 - Git state: local `main` tracks private remote `https://github.com/guiyi-labs/aiops-platform.git`; M21 Phase 3 is accepted at `cf20c66c588e35b9a29d492661bc99a8e1cb498b` with hosted CI run `30411146049`; Phases 1 and 2 plus M20 Phase 12 remain accepted and archived
 - Current milestone: M21 bounded historical observability and alert evidence is in progress; Phase 3 exposes the accepted sparse PostgreSQL history contract through one authenticated exact-series route, while provider-specific identity/recovery work remains organization-gated
 
@@ -1296,7 +1296,7 @@ Kustomize 16/5/22/3 and backend/frontend/proxy health all passed.
 
 The reviewed local root baseline was then created on `main` as
 `2d46588f8c15ab626703e92eccc35b4de8b53ab2` with author and committer
-`zjw <3342773648@qq.com>`. It contains 368 files and excludes `.env`, local
+`guiyi-labs <277616126+guiyi-labs@users.noreply.github.com>`. It contains 368 files and excludes `.env`, local
 tools, evidence, dependency/build output, `backend/server.exe` and frontend
 TypeScript build metadata. The commit-bound full gate passed at 2026-07-28
 10:21:10 +08:00 in 177.39 seconds with evidence at

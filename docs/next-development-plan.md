@@ -41,7 +41,7 @@
 
 - Docker Desktop 使用 Linux containers 和 cgroup v2；cgroup v1 会触发 kind 内
   `runc ... unable to freeze` 的已知失败。
-- WSL 为 2.7.11，Linux 内核为 6.18.33.2；`C:\Users\33427\.wslconfig` 固定
+- WSL 为 2.7.11，Linux 内核为 6.18.33.2；`~/.wslconfig` 固定
   `kernelCommandLine=cgroup_no_v1=all`。
 - Docker registry mirror 保存在用户级 Docker 配置，不得向 daemon 配置重新加入固定
   `dns`，否则 `host.docker.internal` 解析和 kind API 探测会失败。

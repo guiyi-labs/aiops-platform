@@ -167,7 +167,7 @@ func TestRegisteredRoutesMatchOpenAPI(t *testing.T) {
 		CapabilityRegistry: mustProviderRegistryForContract(t),
 		// M64 optimization analyzers: non-nil so the /optimization analyze
 		// routes are registered and covered by the route contract test.
-		Optimization: optimization.NewService(finops.DefaultCostRate()),
+		Optimization: optimization.NewService(finops.DefaultCostRate(), nil),
 		Version:      "route-contract-test",
 	}).(*gin.Engine)
 	if !ok {

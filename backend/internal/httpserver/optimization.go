@@ -38,11 +38,25 @@ func (h optimizationHandler) cisAnalyze(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
 		return
 	}
-	status := cis.Evaluate(req.ClusterID, req.Inputs, time.Now())
+	inputs := req.Inputs
+	if len(inputs.Workloads) == 0 && len(inputs.Bindings) == 0 && len(inputs.Namespaces) == 0 {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectCIS(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := cis.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }
 
 type finopsAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
 	// Rate overrides the configured default cost rate when supplied.
 	Rate *finops.CostRate `json:"rate,omitempty"`
 	// Inputs is the per-container request/limit/usage bundle.
@@ -56,8 +70,16 @@ func (h optimizationHandler) finopsAnalyze(c *gin.Context) {
 		return
 	}
 	if len(req.Inputs) == 0 {
-		writeError(c, http.StatusBadRequest, "NO_INPUTS", "at least one container input is required")
-		return
+		if req.ClusterID == 0 || !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "at least one container input is required (or supply cluster_id with auto-collection configured)")
+			return
+		}
+		collected, err := h.svc.CollectFinOps(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		req.Inputs = collected
 	}
 	rate := h.svc.DefaultCostRate()
 	if req.Rate != nil {
@@ -90,6 +112,19 @@ func (h optimizationHandler) deprecatedAPIAnalyze(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_TARGET", "target_version is required (e.g. \"1.29\")")
 		return
 	}
-	status := deprecatedapi.Check(req.ClusterID, req.TargetVersion, req.Objects, time.Now())
+	objects := req.Objects
+	if len(objects) == 0 {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no objects supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectDeprecatedAPI(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		objects = collected
+	}
+	status := deprecatedapi.Check(req.ClusterID, req.TargetVersion, objects, time.Now())
 	c.JSON(http.StatusOK, status)
 }

@@ -569,9 +569,7 @@ func scrubManifest(src map[string]any, stripLabelPrefixes, stripAnnotationPrefix
 			if _, ok := obj["data"]; ok {
 				obj["data"] = map[string]any{}
 			}
-			if _, ok := obj["stringData"]; ok {
-				delete(obj, "stringData")
-			}
+			delete(obj, "stringData")
 		}
 	}
 	return obj

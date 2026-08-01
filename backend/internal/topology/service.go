@@ -185,10 +185,6 @@ func (s *Service) GetTopologyGraph(ctx context.Context, clusterID int64, namespa
 
 	// Completeness: truncated when total exceeds the returned edge count.
 	graph.Completeness = GraphCompleteness{State: "complete"}
-	maxEdges := limit
-	if maxEdges <= 0 {
-		maxEdges = 200
-	}
 	if int(total) > len(edges) {
 		graph.Completeness.State = "truncated"
 		graph.Completeness.Truncated = true
@@ -208,10 +204,6 @@ func (s *Service) GetChangeTimeline(ctx context.Context, filter ChangeTimelineFi
 		return ChangeTimelineResponse{}, err
 	}
 	resp := ChangeTimelineResponse{Items: events, Total: total}
-	maxEvents := filter.Limit
-	if maxEvents <= 0 {
-		maxEvents = 100
-	}
 	if int(total) > len(events) {
 		resp.Truncated = true
 	}

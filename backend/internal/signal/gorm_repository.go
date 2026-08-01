@@ -283,4 +283,6 @@ func rowToOccurrence(row *signalRow) (Occurrence, error) {
 
 // errSignalNotFound is returned by helpers that need a sentinel; kept for
 // future Get-by-id operations.
+//
+//nolint:unused // reserved for future Get-by-id operations
 var errSignalNotFound = errors.New("signal occurrence not found")

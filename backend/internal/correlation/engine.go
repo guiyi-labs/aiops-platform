@@ -196,7 +196,7 @@ func (e *Engine) evaluateRule(
 	// Evaluate factors for each candidate change.
 	var changeCandidates []ChangeCandidate
 	var allFactors []Factor
-	var bestConfidence ConfidenceClass = ConfidenceUnknown
+	var bestConfidence = ConfidenceUnknown
 	var topCandidateID *int64
 
 	for i, change := range candidates {
@@ -647,6 +647,8 @@ func sortResultsByFirstObserved(results []CorrelationResult) {
 
 // sortCasesByFirstObserved sorts cases by FirstObservedAt for deterministic
 // output.
+//
+//nolint:unused // reserved for future deterministic output ordering
 func sortCasesByFirstObserved(cases []Case) {
 	sort.SliceStable(cases, func(i, j int) bool {
 		return cases[i].FirstObservedAt.Before(cases[j].FirstObservedAt)

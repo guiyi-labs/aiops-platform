@@ -2655,6 +2655,7 @@ func namespacedAPIPath(group, version, resource, namespace, name string) string 
 	return "/apis/" + group + "/" + version + "/namespaces/" + url.PathEscape(namespace) + "/" + resource + "/" + url.PathEscape(name)
 }
 
+//nolint:unused // reserved for future raw resource collection operations
 func namespacedCollectionPath(group, version, resource, namespace string) string {
 	if group == "" {
 		return "/api/" + version + "/namespaces/" + url.PathEscape(namespace) + "/" + resource

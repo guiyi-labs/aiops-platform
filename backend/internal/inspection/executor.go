@@ -444,7 +444,7 @@ func summarizeNodeConditions(conds any) []map[string]string {
 	keys := []string{"Type", "Status", "Reason", "Message", "LastTransitionTime"}
 	for i := 0; i < v.Len(); i++ {
 		elem := v.Index(i)
-		if elem.Kind() == reflect.Ptr {
+		if elem.Kind() == reflect.Pointer {
 			elem = elem.Elem()
 		}
 		if elem.Kind() != reflect.Struct {

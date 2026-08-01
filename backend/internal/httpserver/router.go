@@ -179,11 +179,6 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(v1, RouteDescriptor{Method: "GET", Path: "/health/live", Handler: health.live})
 		reg.register(v1, RouteDescriptor{Method: "GET", Path: "/health/ready", Handler: health.ready})
 		if options.Auth != nil {
-			if options.MetricsHistory != nil {
-				historyAPI := metricsHistoryHandler{service: options.MetricsHistory}
-				reg.register(v1, RouteDescriptor{Method: "GET", Path: "/clusters/:cluster_id/metrics/history", AuthRequired: true, Handler: historyAPI.series})
-				reg.register(v1, RouteDescriptor{Method: "GET", Path: "/clusters/:cluster_id/metrics/history/evaluate", AuthRequired: true, Handler: historyAPI.evaluate})
-			}
 			if options.Fleet != nil {
 				fleetAPI := fleetHandler{service: options.Fleet, authz: options.Authz}
 				reg.register(v1, RouteDescriptor{Method: "GET", Path: "/fleet/health", AuthRequired: true, Handler: fleetAPI.health})
@@ -252,6 +247,18 @@ func New(logger *zap.Logger, options Options) http.Handler {
 				reg.register(clusterRoutes, RouteDescriptor{Method: "PUT", Path: "/:cluster_id/credentials", RequiredRoles: rolesSystemAdmin, Handler: clustersAPI.updateCredential, AuditAction: "cluster.credentials.rotate", AuditResource: "ClusterCredential"})
 				reg.register(clusterRoutes, RouteDescriptor{Method: "POST", Path: "/:cluster_id/probe", RequiredRoles: rolesSystemOpsAdmin, Handler: clustersAPI.probe, AuditAction: "cluster.probe", AuditResource: "Cluster"})
 				reg.register(clusterRoutes, RouteDescriptor{Method: "DELETE", Path: "/:cluster_id", RequiredRoles: rolesSystemAdmin, Handler: clustersAPI.delete, AuditAction: "cluster.delete", AuditResource: "Cluster"})
+			}
+			// Metrics history is cluster-scoped and depends on withClusterContext
+			// to populate currentClusterID. Without it the ClusterID would be 0
+			// and normalizeQuery would reject every request with INVALID_QUERY.
+			// Registered independently of options.Kubernetes so the surface stays
+			// available even when the Kubernetes gateway is nil (tests, minimal
+			// builds).
+			if options.MetricsHistory != nil {
+				historyAPI := metricsHistoryHandler{service: options.MetricsHistory}
+				metricsHistoryRoutes := v1.Group("/clusters/:cluster_id", withAuthentication(options.Auth), withClusterContext(), requireClusterAccess(options.Authz))
+				reg.register(metricsHistoryRoutes, RouteDescriptor{Method: "GET", Path: "/metrics/history", AuthRequired: true, Handler: historyAPI.series})
+				reg.register(metricsHistoryRoutes, RouteDescriptor{Method: "GET", Path: "/metrics/history/evaluate", AuthRequired: true, Handler: historyAPI.evaluate})
 			}
 			if options.Kubernetes != nil {
 				resourcesAPI := kubernetesHandler{service: options.Kubernetes}

@@ -226,13 +226,13 @@ func TestResultEvidenceRoundsTrip(t *testing.T) {
 // --- in-memory repository for isolated service tests ---
 
 type inMemRepo struct {
-	mu       sync.Mutex
-	rules    map[string]*RuleOverride
-	plans    map[int64]*Plan
-	tasks    map[int64]*Task
-	results  []Result
-	planSeq  int64
-	taskSeq  int64
+	mu        sync.Mutex
+	rules     map[string]*RuleOverride
+	plans     map[int64]*Plan
+	tasks     map[int64]*Task
+	results   []Result
+	planSeq   int64
+	taskSeq   int64
 	resultSeq int64
 }
 

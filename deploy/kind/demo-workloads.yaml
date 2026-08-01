@@ -1,0 +1,390 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: prod
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: prod
+  labels:
+    app: api-gateway
+    tier: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        tier: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: prod
+spec:
+  selector:
+    app: api-gateway
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: prod
+  labels:
+    app: payment-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        tier: backend
+    spec:
+      containers:
+      - name: payment
+        image: hashicorp/http-echo:1.0
+        args:
+        - "-text=payment-service-ok"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: prod
+spec:
+  selector:
+    app: payment-service
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-center
+  namespace: prod
+  labels:
+    app: user-center
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-center
+  template:
+    metadata:
+      labels:
+        app: user-center
+        tier: backend
+    spec:
+      containers:
+      - name: user-center
+        image: hashicorp/http-echo:1.0
+        args:
+        - "-text=user-center-ok"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-center
+  namespace: prod
+spec:
+  selector:
+    app: user-center
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-processor
+  namespace: prod
+  labels:
+    app: order-processor
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: order-processor
+  template:
+    metadata:
+      labels:
+        app: order-processor
+        tier: backend
+    spec:
+      containers:
+      - name: order-processor
+        image: hashicorp/http-echo:1.0
+        args:
+        - "-text=order-processor-ok"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-processor
+  namespace: prod
+spec:
+  selector:
+    app: order-processor
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-sync
+  namespace: staging
+  labels:
+    app: inventory-sync
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inventory-sync
+  template:
+    metadata:
+      labels:
+        app: inventory-sync
+        tier: backend
+    spec:
+      containers:
+      - name: inventory-sync
+        image: hashicorp/http-echo:1.0
+        args:
+        - "-text=inventory-sync-ok"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-sync
+  namespace: staging
+spec:
+  selector:
+    app: inventory-sync
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-worker
+  namespace: staging
+  labels:
+    app: notification-worker
+    tier: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-worker
+  template:
+    metadata:
+      labels:
+        app: notification-worker
+        tier: worker
+    spec:
+      containers:
+      - name: notification-worker
+        image: hashicorp/http-echo:1.0
+        args:
+        - "-text=notification-worker-ok"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 25m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-worker
+  namespace: staging
+spec:
+  selector:
+    app: notification-worker
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+# A CrashLoopBackOff pod for diagnosis demo
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broken-service
+  namespace: prod
+  labels:
+    app: broken-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: broken-service
+  template:
+    metadata:
+      labels:
+        app: broken-service
+    spec:
+      containers:
+      - name: broken
+        image: busybox:1.36
+        command: ["sh", "-c", "echo 'crash demo'; exit 1"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+---
+# An OOMKilled pod for diagnosis demo
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memory-hog
+  namespace: prod
+  labels:
+    app: memory-hog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memory-hog
+  template:
+    metadata:
+      labels:
+        app: memory-hog
+    spec:
+      containers:
+      - name: hog
+        image: polinux/stress:1.0.4
+        command: ["stress", "--vm", "1", "--vm-bytes", "256M", "--vm-hang", "1"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+---
+# An Ingress for the api-gateway
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway-ingress
+  namespace: prod
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+---
+# A CronJob for demo
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: data-cleanup
+  namespace: staging
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: cleanup
+            image: busybox:1.36
+            command: ["sh", "-c", "echo 'cleanup job running'; sleep 5"]
+          restartPolicy: OnFailure

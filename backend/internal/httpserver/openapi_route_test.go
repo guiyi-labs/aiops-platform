@@ -32,6 +32,7 @@ import (
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/eventstream"
 	"k8s-aiops.local/backend/internal/federation"
+	"k8s-aiops.local/backend/internal/finops"
 	"k8s-aiops.local/backend/internal/fleet"
 	"k8s-aiops.local/backend/internal/gitops"
 	"k8s-aiops.local/backend/internal/globalsearch"
@@ -43,6 +44,7 @@ import (
 	"k8s-aiops.local/backend/internal/namespaceposture"
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/oidc"
+	"k8s-aiops.local/backend/internal/optimization"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/restore"
@@ -163,7 +165,10 @@ func TestRegisteredRoutesMatchOpenAPI(t *testing.T) {
 		// contract test does not call into registry state, only checks route
 		// presence, so an empty registry with the full role set is enough.
 		CapabilityRegistry: mustProviderRegistryForContract(t),
-		Version:            "route-contract-test",
+		// M64 optimization analyzers: non-nil so the /optimization analyze
+		// routes are registered and covered by the route contract test.
+		Optimization: optimization.NewService(finops.DefaultCostRate()),
+		Version:      "route-contract-test",
 	}).(*gin.Engine)
 	if !ok {
 		t.Fatal("http server is not a gin engine")

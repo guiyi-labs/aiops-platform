@@ -85,9 +85,9 @@ type Recommendation struct {
 	SuggestedRequests Quantity `json:"suggested_requests"`
 	SuggestedLimits   Quantity `json:"suggested_limits"`
 
-	Severity  string  `json:"severity"`
-	Rationale string  `json:"rationale"`
-	Code      string  `json:"code"`
+	Severity  string `json:"severity"`
+	Rationale string `json:"rationale"`
+	Code      string `json:"code"`
 
 	// MonthlyWasteUSD is the estimated monthly cost of idle requested
 	// resources for this container across all replicas.
@@ -97,14 +97,14 @@ type Recommendation struct {
 
 // WasteSummary is the rollup across all evaluated containers in a cluster.
 type WasteSummary struct {
-	ClusterID               int64            `json:"cluster_id"`
-	ContainersEvaluated     int              `json:"containers_evaluated"`
-	ContainersOverProvisioned int          `json:"containers_over_provisioned"`
-	MonthlyWasteUSD         float64          `json:"monthly_waste_usd"`
-	CPUIdleCores            float64          `json:"cpu_idle_cores"`
-	MemIdleGB               float64          `json:"mem_idle_gb"`
-	Recommendations         []Recommendation `json:"recommendations"`
-	EvaluatedAt             time.Time        `json:"evaluated_at"`
+	ClusterID                 int64            `json:"cluster_id"`
+	ContainersEvaluated       int              `json:"containers_evaluated"`
+	ContainersOverProvisioned int              `json:"containers_over_provisioned"`
+	MonthlyWasteUSD           float64          `json:"monthly_waste_usd"`
+	CPUIdleCores              float64          `json:"cpu_idle_cores"`
+	MemIdleGB                 float64          `json:"mem_idle_gb"`
+	Recommendations           []Recommendation `json:"recommendations"`
+	EvaluatedAt               time.Time        `json:"evaluated_at"`
 }
 
 // ToFindings converts the over-provisioned recommendations into the canonical

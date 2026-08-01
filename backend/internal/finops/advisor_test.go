@@ -9,9 +9,9 @@ func gibiBytes(n int64) int64  { return n * 1024 * 1024 * 1024 }
 func TestRecommendCPUOverProvisioned(t *testing.T) {
 	inputs := []ContainerInput{{
 		ClusterID: 7, Namespace: "app", WorkloadKind: "Deployment", WorkloadName: "api", ContainerName: "main",
-		Requests:  Quantity{CPURequest: milliCores(1000)},
+		Requests:    Quantity{CPURequest: milliCores(1000)},
 		CPUUsageP95: milliCores(100),
-		Replicas:  3,
+		Replicas:    3,
 	}}
 	s := Recommend(7, inputs, DefaultCostRate())
 	if len(s.Recommendations) != 1 {
@@ -42,9 +42,9 @@ func TestRecommendCPUOverProvisioned(t *testing.T) {
 func TestRecommendMemoryOverProvisioned(t *testing.T) {
 	inputs := []ContainerInput{{
 		ClusterID: 7, Namespace: "app", WorkloadKind: "StatefulSet", WorkloadName: "db", ContainerName: "pg",
-		Requests:  Quantity{MemRequest: gibiBytes(1)},
+		Requests:    Quantity{MemRequest: gibiBytes(1)},
 		MemUsageP95: mebiBytes(256),
-		Replicas:  2,
+		Replicas:    2,
 	}}
 	s := Recommend(7, inputs, DefaultCostRate())
 	if len(s.Recommendations) != 1 {
@@ -66,9 +66,9 @@ func TestRecommendMemoryOverProvisioned(t *testing.T) {
 func TestRecommendMissingRequest(t *testing.T) {
 	inputs := []ContainerInput{{
 		ClusterID: 7, Namespace: "app", WorkloadKind: "Deployment", WorkloadName: "api", ContainerName: "main",
-		Requests:  Quantity{CPURequest: Unset},
+		Requests:    Quantity{CPURequest: Unset},
 		CPUUsageP95: milliCores(200),
-		Replicas:  1,
+		Replicas:    1,
 	}}
 	s := Recommend(7, inputs, DefaultCostRate())
 	if len(s.Recommendations) != 1 {
@@ -92,9 +92,9 @@ func TestRecommendMissingRequest(t *testing.T) {
 func TestRecommendRightSizedNotFlagged(t *testing.T) {
 	inputs := []ContainerInput{{
 		ClusterID: 7, Namespace: "app", WorkloadKind: "Deployment", WorkloadName: "api", ContainerName: "main",
-		Requests:  Quantity{CPURequest: milliCores(120)},
+		Requests:    Quantity{CPURequest: milliCores(120)},
 		CPUUsageP95: milliCores(100),
-		Replicas:  1,
+		Replicas:    1,
 	}}
 	s := Recommend(7, inputs, DefaultCostRate())
 	if len(s.Recommendations) != 0 {
@@ -108,8 +108,8 @@ func TestRecommendRightSizedNotFlagged(t *testing.T) {
 func TestRecommendNoUsageSkipped(t *testing.T) {
 	inputs := []ContainerInput{{
 		ClusterID: 7, Namespace: "app", WorkloadKind: "Deployment", WorkloadName: "api", ContainerName: "main",
-		Requests:  Quantity{CPURequest: milliCores(500)},
-		Replicas:  1,
+		Requests: Quantity{CPURequest: milliCores(500)},
+		Replicas: 1,
 	}}
 	s := Recommend(7, inputs, DefaultCostRate())
 	if len(s.Recommendations) != 0 {
@@ -123,9 +123,9 @@ func TestRecommendNoUsageSkipped(t *testing.T) {
 func TestWasteSummaryToFindings(t *testing.T) {
 	inputs := []ContainerInput{{
 		ClusterID: 7, Namespace: "app", WorkloadKind: "Deployment", WorkloadName: "api", ContainerName: "main",
-		Requests: Quantity{CPURequest: milliCores(1000)},
+		Requests:    Quantity{CPURequest: milliCores(1000)},
 		CPUUsageP95: milliCores(100),
-		Replicas:  1,
+		Replicas:    1,
 	}}
 	s := Recommend(7, inputs, DefaultCostRate())
 	findings := s.ToFindings()

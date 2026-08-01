@@ -72,8 +72,8 @@ func TestCheckCleanWhenTargetBeforeDeprecation(t *testing.T) {
 func TestCheckMixedRollup(t *testing.T) {
 	objects := []ResourceObject{
 		obj("apps/v1", "Deployment", "app", "ok"),          // clean
-		obj("extensions/v1beta1", "Ingress", "web", "bad"),  // removed at 1.22
-		obj("batch/v1beta1", "CronJob", "jobs", "old"),      // removed at 1.25 -> deprecated at 1.22
+		obj("extensions/v1beta1", "Ingress", "web", "bad"), // removed at 1.22
+		obj("batch/v1beta1", "CronJob", "jobs", "old"),     // removed at 1.25 -> deprecated at 1.22
 	}
 	status := Check(7, "1.22", objects, time.Now())
 	if status.Total != 3 || status.Clean != 1 || status.Removed != 1 || status.Deprecated != 1 {

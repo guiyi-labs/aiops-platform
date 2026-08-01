@@ -26,11 +26,11 @@ func TestFindingJSONTags(t *testing.T) {
 	// The struct must serialize with the same JSON keys the frontend expects
 	// from namespaceposture.Finding so rendering stays uniform.
 	f := Finding{
-		Code:     "X",
-		Severity: SeverityWarning,
-		Summary:  "y",
-		Resource: ResourceCitation{Kind: "Pod", Namespace: "ns", Name: "p"},
-		Details:  map[string]string{"k": "v"},
+		Code:       "X",
+		Severity:   SeverityWarning,
+		Summary:    "y",
+		Resource:   ResourceCitation{Kind: "Pod", Namespace: "ns", Name: "p"},
+		Details:    map[string]string{"k": "v"},
 		ObservedAt: RFC3339(time.Now()),
 	}
 	if f.Resource.Kind != "Pod" || f.Code != "X" {

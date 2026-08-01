@@ -16,10 +16,10 @@ import (
 // against partial observations.
 func Evaluate(clusterID int64, in Inputs, observedAt time.Time) Status {
 	status := Status{
-		ClusterID:  clusterID,
+		ClusterID:   clusterID,
 		EvaluatedAt: observedAt.UTC(),
-		BySeverity: map[string]int{},
-		ByFamily:   map[string]int{},
+		BySeverity:  map[string]int{},
+		ByFamily:    map[string]int{},
 	}
 
 	status = evalComponents(status, in.Components, observedAt)

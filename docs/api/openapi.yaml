@@ -28,7 +28,59 @@ tags:
   - name: alert-routes
   - name: aiops
   - name: slo
+  - name: optimization
 paths:
+  /api/v1/optimization/cis/analyze:
+    post:
+      tags: [optimization]
+      summary: Run the CIS Kubernetes Benchmark posture check over a supplied observation bundle
+      operationId: analyzeCISPosture
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: CIS observation bundle (components, workloads, bindings, namespaces) for one cluster
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/optimization/finops/analyze:
+    post:
+      tags: [optimization]
+      summary: Produce FinOps right-sizing recommendations and cost-waste estimates over supplied container usage
+      operationId: analyzeFinOps
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Per-container request/limit/usage bundle plus optional cost rate override
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/optimization/deprecated-api/analyze:
+    post:
+      tags: [optimization]
+      summary: Check supplied Kubernetes objects for deprecated or removed apiVersions against a target version
+      operationId: analyzeDeprecatedAPI
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Target Kubernetes minor version plus the object list (apiVersion, kind, name, namespace)
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/fleet/health:
     get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
   /api/v1/fleet/resources/search:

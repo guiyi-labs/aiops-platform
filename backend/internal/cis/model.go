@@ -42,25 +42,25 @@ type ComponentConfig struct {
 
 // ContainerSecurity is the security-relevant subset of a container spec.
 type ContainerSecurity struct {
-	Name                 string   `json:"name"`
-	Privileged           *bool    `json:"privileged,omitempty"`
-	AllowPrivilegeEscalation *bool `json:"allow_privilege_escalation,omitempty"`
-	RunAsNonRoot         *bool    `json:"run_as_non_root,omitempty"`
-	RunAsUser            *int64   `json:"run_as_user,omitempty"`
-	ReadOnlyRootFilesystem *bool  `json:"read_only_root_filesystem,omitempty"`
-	CapabilitiesDrop     []string `json:"capabilities_drop,omitempty"`
-	HostNetwork          bool     `json:"host_network"`
-	HostPID              bool     `json:"host_pid"`
-	HostIPC              bool     `json:"host_ipc"`
-	HostPathVolumes      int      `json:"host_path_volumes"`
+	Name                     string   `json:"name"`
+	Privileged               *bool    `json:"privileged,omitempty"`
+	AllowPrivilegeEscalation *bool    `json:"allow_privilege_escalation,omitempty"`
+	RunAsNonRoot             *bool    `json:"run_as_non_root,omitempty"`
+	RunAsUser                *int64   `json:"run_as_user,omitempty"`
+	ReadOnlyRootFilesystem   *bool    `json:"read_only_root_filesystem,omitempty"`
+	CapabilitiesDrop         []string `json:"capabilities_drop,omitempty"`
+	HostNetwork              bool     `json:"host_network"`
+	HostPID                  bool     `json:"host_pid"`
+	HostIPC                  bool     `json:"host_ipc"`
+	HostPathVolumes          int      `json:"host_path_volumes"`
 }
 
 // WorkloadSecurity is the security-relevant subset of a Pod / workload spec.
 type WorkloadSecurity struct {
-	Kind      string             `json:"kind"`
-	Namespace string             `json:"namespace"`
-	Name      string             `json:"name"`
-	UID       string             `json:"uid,omitempty"`
+	Kind       string              `json:"kind"`
+	Namespace  string              `json:"namespace"`
+	Name       string              `json:"name"`
+	UID        string              `json:"uid,omitempty"`
 	Containers []ContainerSecurity `json:"containers"`
 }
 
@@ -74,13 +74,13 @@ type PolicyRule struct {
 // RBACBinding is the security-relevant subset of a RoleBinding /
 // ClusterRoleBinding, including the resolved rules of the referenced Role.
 type RBACBinding struct {
-	Kind      string       `json:"kind"`
-	Namespace string       `json:"namespace"`
-	Name      string       `json:"name"`
-	UID       string       `json:"uid,omitempty"`
-	RoleName  string       `json:"role_name"`
-	RoleKind  string       `json:"role_kind"`
-	RoleRules []PolicyRule `json:"role_rules,omitempty"`
+	Kind      string        `json:"kind"`
+	Namespace string        `json:"namespace"`
+	Name      string        `json:"name"`
+	UID       string        `json:"uid,omitempty"`
+	RoleName  string        `json:"role_name"`
+	RoleKind  string        `json:"role_kind"`
+	RoleRules []PolicyRule  `json:"role_rules,omitempty"`
 	Subjects  []RBACSubject `json:"subjects,omitempty"`
 }
 
@@ -93,8 +93,8 @@ type RBACSubject struct {
 
 // NamespacePodSecurity is the Pod Security Admission label state of a namespace.
 type NamespacePodSecurity struct {
-	Name   string `json:"name"`
-	UID    string `json:"uid,omitempty"`
+	Name    string `json:"name"`
+	UID     string `json:"uid,omitempty"`
 	Enforce string `json:"enforce,omitempty"`
 	Audit   string `json:"audit,omitempty"`
 	Warn    string `json:"warn,omitempty"`
@@ -103,20 +103,20 @@ type NamespacePodSecurity struct {
 // Inputs is the full read-only observation bundle for one cluster evaluation.
 // Every field is optional; the evaluator only checks what is supplied.
 type Inputs struct {
-	Components []ComponentConfig     `json:"components,omitempty"`
-	Workloads  []WorkloadSecurity    `json:"workloads,omitempty"`
-	Bindings   []RBACBinding         `json:"bindings,omitempty"`
+	Components []ComponentConfig      `json:"components,omitempty"`
+	Workloads  []WorkloadSecurity     `json:"workloads,omitempty"`
+	Bindings   []RBACBinding          `json:"bindings,omitempty"`
 	Namespaces []NamespacePodSecurity `json:"namespaces,omitempty"`
 }
 
 // Status is the rollup returned for one cluster evaluation.
 type Status struct {
-	ClusterID  int64            `json:"cluster_id"`
-	EvaluatedAt time.Time       `json:"evaluated_at"`
-	Total      int              `json:"total"`
-	Failed     int              `json:"failed"`
-	Passed     int              `json:"passed"`
-	BySeverity map[string]int   `json:"by_severity"`
-	ByFamily   map[string]int   `json:"by_family"`
-	Findings   []Finding        `json:"findings"`
+	ClusterID   int64          `json:"cluster_id"`
+	EvaluatedAt time.Time      `json:"evaluated_at"`
+	Total       int            `json:"total"`
+	Failed      int            `json:"failed"`
+	Passed      int            `json:"passed"`
+	BySeverity  map[string]int `json:"by_severity"`
+	ByFamily    map[string]int `json:"by_family"`
+	Findings    []Finding      `json:"findings"`
 }

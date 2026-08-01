@@ -43,10 +43,10 @@ func TestServiceEvaluateEndToEnd(t *testing.T) {
 	svc := NewService(DefaultCostRate(), repo)
 
 	inputs := []ContainerInput{{
-		ClusterID:    7,
-		Namespace:    "app",
-		WorkloadKind: "Deployment",
-		WorkloadName: "api",
+		ClusterID:     7,
+		Namespace:     "app",
+		WorkloadKind:  "Deployment",
+		WorkloadName:  "api",
 		ContainerName: "main",
 		Requests:      QuantityFromResourceMap(map[string]string{"cpu": "1000m"}, nil),
 		CPUUsageP95:   100_000_000, // 100m

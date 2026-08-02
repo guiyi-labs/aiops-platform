@@ -3,9 +3,12 @@ package topology
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"k8s-aiops.local/backend/internal/apiquery"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 )
 
@@ -173,4 +176,196 @@ func (r *countingRepository) UpsertChangeEvent(ctx context.Context, event *Chang
 }
 func (r *countingRepository) ListChangeEvents(ctx context.Context, filter ChangeTimelineFilter) ([]ChangeEvent, int64, error) {
 	return r.changeEvents, r.changeTotal, nil
+}
+
+// stubNamespaceLister returns the canned namespace list.
+type stubNamespaceLister struct{ namespaces []string }
+
+func (l stubNamespaceLister) VisibleNamespaces(context.Context, int64) ([]string, error) {
+	return l.namespaces, nil
+}
+
+// TestServiceCollectCluster_ConcurrentAggregates verifies that CollectCluster
+// processes every namespace and aggregates edge counts without losing updates
+// under concurrency. The counting repository is mutex-guarded so the parallel
+// workers cannot corrupt the counters.
+func TestServiceCollectCluster_ConcurrentAggregates(t *testing.T) {
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	namespaces := []string{"ns-1", "ns-2", "ns-3", "ns-4", "ns-5", "ns-6"}
+
+	// Each namespace yields exactly one Owns edge (RS → Pod).
+	var rs k8sgateway.ReplicaSet
+	mustDecodeJSON(t, `{"metadata":{"name":"web-abc","uid":"rs-uid-1","namespace":"default"}}`, &rs)
+	var pod k8sgateway.Pod
+	mustDecodeJSON(t, `{"metadata":{"name":"web-abc-xyz","uid":"pod-uid-1","namespace":"default","ownerReferences":[{"kind":"ReplicaSet","name":"web-abc","uid":"rs-uid-1","controller":true}]}}`, &pod)
+
+	reader := &stubReader{replicaSets: []k8sgateway.ReplicaSet{rs}, pods: []k8sgateway.Pod{pod}}
+	collector := NewCollector(reader, 100)
+	repo := &countingRepository{}
+	svc := NewService(collector, repo, stubNamespaceLister{namespaces: namespaces}, WithNamespaceConcurrency(2))
+
+	result, err := svc.CollectCluster(context.Background(), 1, now)
+	if err != nil {
+		t.Fatalf("CollectCluster failed: %v", err)
+	}
+	if result.Namespaces != len(namespaces) {
+		t.Errorf("namespaces = %d, want %d", result.Namespaces, len(namespaces))
+	}
+	if result.TotalSeen != len(namespaces) {
+		t.Errorf("total_seen = %d, want %d (one edge per namespace)", result.TotalSeen, len(namespaces))
+	}
+	if result.TotalUpserted != len(namespaces) {
+		t.Errorf("total_upserted = %d, want %d", result.TotalUpserted, len(namespaces))
+	}
+	if repo.upsertCount != len(namespaces) {
+		t.Errorf("repository upsert calls = %d, want %d", repo.upsertCount, len(namespaces))
+	}
+	if result.Partial || len(result.Errors) != 0 {
+		t.Errorf("unexpected partial result: partial=%v errors=%v", result.Partial, result.Errors)
+	}
+}
+
+// TestServiceCollectCluster_PartialFailure verifies namespace-level failures
+// are aggregated and flagged partial while the remaining namespaces still run.
+func TestServiceCollectCluster_PartialFailure(t *testing.T) {
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	namespaces := []string{"good", "bad"}
+
+	// The stub fails every resource read, so "bad" namespace collection errors.
+	reader := &stubReader{err: errors.New("cluster unreachable")}
+	collector := NewCollector(reader, 100)
+	svc := NewService(collector, &countingRepository{}, stubNamespaceLister{namespaces: namespaces}, WithNamespaceConcurrency(2))
+
+	result, err := svc.CollectCluster(context.Background(), 1, now)
+	if err != nil {
+		t.Fatalf("CollectCluster returned error: %v", err)
+	}
+	if !result.Partial {
+		t.Error("expected partial=true when a namespace fails")
+	}
+	if len(result.Errors) != 2 {
+		t.Errorf("errors = %d, want 2 (one per namespace)", len(result.Errors))
+	}
+	if result.TotalSeen != 0 {
+		t.Errorf("total_seen = %d, want 0 (all reads failed)", result.TotalSeen)
+	}
+}
+
+// TestCollectorSnapshot_Concurrent verifies the snapshot fetch is safe under
+// the race detector and returns all eight kinds.
+func TestCollectorSnapshot_Concurrent(t *testing.T) {
+	var dep k8sgateway.Deployment
+	mustDecodeJSON(t, `{"metadata":{"name":"web","uid":"dep-uid-1","namespace":"default"}}`, &dep)
+	reader := &stubReader{
+		deployments:    []k8sgateway.Deployment{dep},
+		replicaSets:    []k8sgateway.ReplicaSet{{}},
+		pods:           []k8sgateway.Pod{{}},
+		services:       []k8sgateway.ServiceResource{{}},
+		ingresses:      []k8sgateway.Ingress{{}},
+		endpointSlices: []k8sgateway.EndpointSlice{{}},
+		hpas:           []k8sgateway.HorizontalPodAutoscaler{{}},
+		pdbs:           []k8sgateway.PodDisruptionBudget{{}},
+	}
+	collector := NewCollector(reader, 100)
+	snap, err := collector.Snapshot(context.Background(), 1, "default")
+	if err != nil {
+		t.Fatalf("snapshot failed: %v", err)
+	}
+	if len(snap.Deployments) != 1 || len(snap.ReplicaSets) != 1 || len(snap.Pods) != 1 ||
+		len(snap.Services) != 1 || len(snap.Ingresses) != 1 || len(snap.EndpointSlices) != 1 ||
+		len(snap.HPAs) != 1 || len(snap.PDBs) != 1 {
+		t.Errorf("snapshot did not capture every kind: %+v", snap)
+	}
+}
+
+// gateReader wraps a stubReader and gates every Pods call so a test can
+// observe how many namespace collections run in flight. It is used to verify
+// the worker-pool concurrency bound.
+type gateReader struct {
+	inner     *stubReader
+	entered   chan struct{}
+	release   chan struct{}
+	inFlight  *atomic.Int64
+	maxFlight *atomic.Int64
+}
+
+func (g *gateReader) Deployments(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Deployment], error) {
+	return g.inner.Deployments(ctx, clusterID, namespace, q)
+}
+func (g *gateReader) ReplicaSets(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.ReplicaSet], error) {
+	return g.inner.ReplicaSets(ctx, clusterID, namespace, q)
+}
+func (g *gateReader) Pods(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Pod], error) {
+	in := g.inFlight.Add(1)
+	for {
+		cur := g.maxFlight.Load()
+		if in <= cur || g.maxFlight.CompareAndSwap(cur, in) {
+			break
+		}
+	}
+	select {
+	case g.entered <- struct{}{}:
+	default:
+	}
+	<-g.release
+	defer g.inFlight.Add(-1)
+	return g.inner.Pods(ctx, clusterID, namespace, q)
+}
+func (g *gateReader) Services(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.ServiceResource], error) {
+	return g.inner.Services(ctx, clusterID, namespace, q)
+}
+func (g *gateReader) Ingresses(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Ingress], error) {
+	return g.inner.Ingresses(ctx, clusterID, namespace, q)
+}
+func (g *gateReader) EndpointSlices(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.EndpointSlice], error) {
+	return g.inner.EndpointSlices(ctx, clusterID, namespace, q)
+}
+func (g *gateReader) HorizontalPodAutoscalers(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.HorizontalPodAutoscaler], error) {
+	return g.inner.HorizontalPodAutoscalers(ctx, clusterID, namespace, q)
+}
+func (g *gateReader) PodDisruptionBudgets(ctx context.Context, clusterID int64, namespace string, q apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.PodDisruptionBudget], error) {
+	return g.inner.PodDisruptionBudgets(ctx, clusterID, namespace, q)
+}
+
+// TestServiceCollectCluster_ConcurrencyBounded verifies that at most the
+// configured number of namespace collections run at the same time.
+func TestServiceCollectCluster_ConcurrencyBounded(t *testing.T) {
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	namespaces := []string{"ns-1", "ns-2", "ns-3", "ns-4", "ns-5", "ns-6", "ns-7", "ns-8"}
+	reader := &gateReader{
+		inner:     &stubReader{},
+		entered:   make(chan struct{}, 8),
+		release:   make(chan struct{}),
+		inFlight:  &atomic.Int64{},
+		maxFlight: &atomic.Int64{},
+	}
+	collector := NewCollector(reader, 100)
+	svc := NewService(collector, &countingRepository{}, stubNamespaceLister{namespaces: namespaces}, WithNamespaceConcurrency(3))
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = svc.CollectCluster(context.Background(), 1, now)
+	}()
+
+	// Wait until the pool is saturated: with concurrency 3 the max in-flight
+	// must never exceed 3.
+	deadline := time.After(5 * time.Second)
+	for {
+		if reader.maxFlight.Load() >= 3 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("worker pool never saturated")
+		default:
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if got := reader.maxFlight.Load(); got > 3 {
+		t.Errorf("max in-flight = %d, want <= 3", got)
+	}
+	close(reader.release)
+	<-done
 }

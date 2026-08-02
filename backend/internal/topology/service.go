@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -18,7 +19,27 @@ type Service struct {
 	// closeStaleTimeout bounds how long the service waits when closing stale
 	// edges. Zero means no explicit timeout beyond the context.
 	closeStaleTimeout time.Duration
+	// namespaceConcurrency bounds how many namespaces are collected in
+	// parallel during CollectCluster. Zero means no limit (goroutine per
+	// namespace); the default when unset is 4.
+	namespaceConcurrency int
 }
+
+// Option configures a Service at construction time.
+type Option func(*Service)
+
+// WithNamespaceConcurrency bounds how many namespaces CollectCluster
+// processes in parallel. Values <= 0 fall back to the default of 4.
+func WithNamespaceConcurrency(n int) Option {
+	return func(s *Service) {
+		if n > 0 {
+			s.namespaceConcurrency = n
+		}
+	}
+}
+
+// defaultNamespaceConcurrency is used when no option sets a value.
+const defaultNamespaceConcurrency = 4
 
 // NamespaceLister returns the namespace names visible to the caller in a
 // cluster. The service uses it only for cluster-wide collection; per-namespace
@@ -50,14 +71,20 @@ type ClusterCollectionResult struct {
 }
 
 // NewService creates a Service. repository must be non-nil; collector may be
-// nil when collection is disabled (query-only mode).
-func NewService(collector *Collector, repository Repository, namespaceLister NamespaceLister) *Service {
-	return &Service{
-		collector:         collector,
-		repository:        repository,
-		namespaceLister:   namespaceLister,
-		closeStaleTimeout: 30 * time.Second,
+// nil when collection is disabled (query-only mode). Options may set the
+// namespace-level collection concurrency (default 4).
+func NewService(collector *Collector, repository Repository, namespaceLister NamespaceLister, opts ...Option) *Service {
+	s := &Service{
+		collector:            collector,
+		repository:           repository,
+		namespaceLister:      namespaceLister,
+		closeStaleTimeout:    30 * time.Second,
+		namespaceConcurrency: defaultNamespaceConcurrency,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // CollectNamespace snapshots one namespace, derives edges and persists them.
@@ -115,9 +142,10 @@ func (s *Service) CollectNamespace(ctx context.Context, clusterID int64, namespa
 }
 
 // CollectCluster collects edges for every visible namespace in a cluster.
-// Namespace-level errors are aggregated; the result is marked Partial when any
-// namespace fails. The caller controls concurrency by invoking this method
-// serially per cluster.
+// Namespaces are processed concurrently up to the configured concurrency
+// (default 4) so large clusters do not serialize dozens of paged list
+// round-trips. Namespace-level errors are aggregated; the result is marked
+// Partial when any namespace fails.
 func (s *Service) CollectCluster(ctx context.Context, clusterID int64, now time.Time) (ClusterCollectionResult, error) {
 	if s.collector == nil {
 		return ClusterCollectionResult{}, errors.New("topology collector is disabled")
@@ -134,19 +162,52 @@ func (s *Service) CollectCluster(ctx context.Context, clusterID int64, now time.
 		return ClusterCollectionResult{ClusterID: clusterID, Partial: true, Errors: []error{err}}, err
 	}
 
+	concurrency := s.namespaceConcurrency
+	if concurrency <= 0 {
+		concurrency = defaultNamespaceConcurrency
+	}
+	if concurrency > len(namespaces) {
+		concurrency = len(namespaces)
+	}
+	if concurrency <= 0 {
+		concurrency = 1 // no namespaces: nothing to do, but avoid a dead channel
+	}
+
 	clusterResult := ClusterCollectionResult{ClusterID: clusterID, Namespaces: len(namespaces)}
-	for _, ns := range namespaces {
-		nsResult, _ := s.CollectNamespace(ctx, clusterID, ns, now)
-		clusterResult.TotalSeen += nsResult.EdgesSeen
-		clusterResult.TotalUpserted += nsResult.EdgesUpserted
-		clusterResult.TotalClosed += nsResult.EdgesClosed
-		if nsResult.Partial || nsResult.Error != nil {
-			clusterResult.Partial = true
-			if nsResult.Error != nil {
-				clusterResult.Errors = append(clusterResult.Errors, fmt.Errorf("namespace %s: %w", ns, nsResult.Error))
+	var (
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		nsChan = make(chan string)
+	)
+
+	worker := func() {
+		defer wg.Done()
+		for ns := range nsChan {
+			nsResult, _ := s.CollectNamespace(ctx, clusterID, ns, now)
+			mu.Lock()
+			clusterResult.TotalSeen += nsResult.EdgesSeen
+			clusterResult.TotalUpserted += nsResult.EdgesUpserted
+			clusterResult.TotalClosed += nsResult.EdgesClosed
+			if nsResult.Partial || nsResult.Error != nil {
+				clusterResult.Partial = true
+				if nsResult.Error != nil {
+					clusterResult.Errors = append(clusterResult.Errors, fmt.Errorf("namespace %s: %w", ns, nsResult.Error))
+				}
 			}
+			mu.Unlock()
 		}
 	}
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go worker()
+	}
+	for _, ns := range namespaces {
+		nsChan <- ns
+	}
+	close(nsChan)
+	wg.Wait()
+
 	return clusterResult, nil
 }
 

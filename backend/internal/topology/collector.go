@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,61 +64,79 @@ func NewCollector(reader ResourceReader, maxPerPage int) *Collector {
 	return &Collector{reader: reader, maxPerPage: maxPerPage}
 }
 
-// Snapshot reads all supported resources from one namespace. Partial failures
-// are recorded: the snapshot returns whatever was read and a non-nil error
-// only when every resource type fails. Callers should treat a partial snapshot
-// as partial completeness in the resulting graph.
+// Snapshot reads all supported resources from one namespace. The eight
+// resource kinds are fetched concurrently (bounded by the collector's
+// concurrency setting), which matters on large clusters where each list
+// involves several paged round-trips. Partial failures are recorded: the
+// snapshot returns whatever was read and a non-nil error only when every
+// resource type fails. Callers should treat a partial snapshot as partial
+// completeness in the resulting graph.
 func (c *Collector) Snapshot(ctx context.Context, clusterID int64, namespace string) (CollectorSnapshot, error) {
 	snap := CollectorSnapshot{ClusterID: clusterID, Namespace: namespace}
 	query := apiquery.ListQuery{Page: 1, Limit: c.maxPerPage, Ascending: true}
 
-	var firstErr error
-	collect := func(fetch func() (int, error)) {
-		if _, err := fetch(); err != nil && firstErr == nil {
-			firstErr = err
-		}
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		firstErr error
+	)
+	// run starts one fetch in a goroutine; the first error is retained so the
+	// snapshot semantics (partial data + first failure) are unchanged.
+	run := func(fetch func() error) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := fetch(); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+			}
+		}()
 	}
 
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllDeployments(ctx, clusterID, namespace, query)
 		snap.Deployments = items
-		return len(items), err
+		return err
 	})
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllReplicaSets(ctx, clusterID, namespace, query)
 		snap.ReplicaSets = items
-		return len(items), err
+		return err
 	})
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllPods(ctx, clusterID, namespace, query)
 		snap.Pods = items
-		return len(items), err
+		return err
 	})
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllServices(ctx, clusterID, namespace, query)
 		snap.Services = items
-		return len(items), err
+		return err
 	})
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllIngresses(ctx, clusterID, namespace, query)
 		snap.Ingresses = items
-		return len(items), err
+		return err
 	})
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllEndpointSlices(ctx, clusterID, namespace, query)
 		snap.EndpointSlices = items
-		return len(items), err
+		return err
 	})
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllHPAs(ctx, clusterID, namespace, query)
 		snap.HPAs = items
-		return len(items), err
+		return err
 	})
-	collect(func() (int, error) {
+	run(func() error {
 		items, err := c.listAllPDBs(ctx, clusterID, namespace, query)
 		snap.PDBs = items
-		return len(items), err
+		return err
 	})
+	wg.Wait()
 
 	// Return the snapshot even on partial failure so callers can persist
 	// partial edges. The error lets callers mark completeness as partial.

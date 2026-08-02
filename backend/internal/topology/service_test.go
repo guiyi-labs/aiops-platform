@@ -58,7 +58,7 @@ func TestServiceCollectNamespace_Success(t *testing.T) {
 	if result.EdgesUpserted != result.EdgesSeen {
 		t.Errorf("expected all edges upserted, seen=%d upserted=%d", result.EdgesSeen, result.EdgesUpserted)
 	}
-	if repo.upsertCount == 0 {
+	if repo.upsertCount.Load() == 0 {
 		t.Error("repository should have received upsert calls")
 	}
 }
@@ -150,22 +150,23 @@ func TestServiceGetChangeTimeline(t *testing.T) {
 }
 
 // countingRepository is a test Repository that counts calls and returns
-// canned data.
+// canned data. The counters are atomics because CollectCluster now runs
+// namespaces concurrently and the workers share this repository.
 type countingRepository struct {
 	edges        []Edge
 	edgeTotal    int64
 	changeEvents []ChangeEvent
 	changeTotal  int64
-	upsertCount  int
-	closeCount   int
+	upsertCount  atomic.Int64
+	closeCount   atomic.Int64
 }
 
 func (r *countingRepository) UpsertEdge(ctx context.Context, edge *Edge) error {
-	r.upsertCount++
+	r.upsertCount.Add(1)
 	return nil
 }
 func (r *countingRepository) CloseEdge(ctx context.Context, clusterID int64, kind EdgeKind, sourceUID, targetUID string, derivation DerivationMethod, validTo time.Time) error {
-	r.closeCount++
+	r.closeCount.Add(1)
 	return nil
 }
 func (r *countingRepository) ListEdges(ctx context.Context, filter EdgeFilter) ([]Edge, int64, error) {
@@ -217,8 +218,8 @@ func TestServiceCollectCluster_ConcurrentAggregates(t *testing.T) {
 	if result.TotalUpserted != len(namespaces) {
 		t.Errorf("total_upserted = %d, want %d", result.TotalUpserted, len(namespaces))
 	}
-	if repo.upsertCount != len(namespaces) {
-		t.Errorf("repository upsert calls = %d, want %d", repo.upsertCount, len(namespaces))
+	if repo.upsertCount.Load() != int64(len(namespaces)) {
+		t.Errorf("repository upsert calls = %d, want %d", repo.upsertCount.Load(), len(namespaces))
 	}
 	if result.Partial || len(result.Errors) != 0 {
 		t.Errorf("unexpected partial result: partial=%v errors=%v", result.Partial, result.Errors)

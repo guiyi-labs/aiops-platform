@@ -889,3 +889,57 @@ func TestCollectPDB_PropagatesListFailure(t *testing.T) {
 		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 	}
 }
+
+// TestCollectIngress_MapsExposure extracts hosts, TLS, ingress class and
+// backend Service references, plus the Services for resolution.
+func TestCollectIngress_MapsExposure(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/networking.k8s.io/v1/ingresses": {
+			raw(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web"},"spec":{
+				"ingressClassName":"nginx",
+				"tls":[{"hosts":["web.example.com"],"secretName":"web-tls"}],
+				"rules":[{"host":"web.example.com","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"web-svc"}}}]}}]
+			}}`),
+		},
+		"/api/v1/services": {
+			raw(`{"metadata":{"namespace":"prod","name":"web-svc"}}`),
+		},
+	}}
+
+	in, err := NewCollector(lister, nil, nil).CollectIngress(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectIngress: %v", err)
+	}
+	if len(in.Ingresses) != 1 {
+		t.Fatalf("ingresses = %d, want 1", len(in.Ingresses))
+	}
+	ig := in.Ingresses[0]
+	if ig.Namespace != "prod" || ig.Name != "web" || ig.IngressClassName != "nginx" {
+		t.Fatalf("ingress = %+v, want prod/web nginx", ig)
+	}
+	if !ig.HasTLS {
+		t.Fatal("has_tls = false, want true")
+	}
+	if len(ig.Hosts) != 1 || ig.Hosts[0] != "web.example.com" {
+		t.Fatalf("hosts = %+v, want ['web.example.com']", ig.Hosts)
+	}
+	if len(ig.Backends) != 1 || ig.Backends[0].Name != "web-svc" {
+		t.Fatalf("backends = %+v, want ['web-svc']", ig.Backends)
+	}
+	if len(in.Services) != 1 || in.Services[0].Name != "web-svc" {
+		t.Fatalf("services = %+v, want ['web-svc']", in.Services)
+	}
+}
+
+// TestCollectIngress_PropagatesListFailure ensures a broken Ingress List
+// surfaces as an error rather than a partial bundle.
+func TestCollectIngress_PropagatesListFailure(t *testing.T) {
+	lister := failingLister{failOn: "/apis/networking.k8s.io/v1/ingresses"}
+	in, err := NewCollector(lister, nil, nil).CollectIngress(context.Background(), 7)
+	if err == nil {
+		t.Fatalf("expected the ingress list failure to propagate")
+	}
+	if len(in.Ingresses) != 0 {
+		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
+	}
+}

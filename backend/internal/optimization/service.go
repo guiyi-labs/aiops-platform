@@ -20,6 +20,7 @@ import (
 	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/hpa"
 	"k8s-aiops.local/backend/internal/imagepolicy"
+	"k8s-aiops.local/backend/internal/ingressposture"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/pdb"
 	"k8s-aiops.local/backend/internal/policy"
@@ -117,4 +118,10 @@ func (s *Service) CollectHPA(ctx context.Context, clusterID int64) (hpa.Inputs, 
 // cluster.
 func (s *Service) CollectPDB(ctx context.Context, clusterID int64) (pdb.Inputs, error) {
 	return s.collector.CollectPDB(ctx, clusterID)
+}
+
+// CollectIngress auto-collects the Ingress exposure audit bundle (each
+// Ingress with hosts/TLS/backends plus the existing Services) for a cluster.
+func (s *Service) CollectIngress(ctx context.Context, clusterID int64) (ingressposture.Inputs, error) {
+	return s.collector.CollectIngress(ctx, clusterID)
 }

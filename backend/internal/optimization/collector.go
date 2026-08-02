@@ -15,6 +15,7 @@ import (
 	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/hpa"
 	"k8s-aiops.local/backend/internal/imagepolicy"
+	"k8s-aiops.local/backend/internal/ingressposture"
 	"k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/netpolicy"
@@ -1129,6 +1130,128 @@ func rawToText(raw json.RawMessage) string {
 		return strconv.FormatInt(n, 10)
 	}
 	return ""
+}
+
+// CollectIngress builds the Ingress exposure audit bundle: every Ingress with
+// its hosts, TLS config and backend Service references, plus the set of
+// Services that exist for backend resolution. This is what the
+// ingressposture analyzer evaluates for exposure hygiene.
+//
+// Everything is a read-only List against the API server. Nothing is mutated
+// and no routing is changed.
+func (c *Collector) CollectIngress(ctx context.Context, clusterID int64) (ingressposture.Inputs, error) {
+	in := ingressposture.Inputs{}
+
+	ingItems, err := c.lister.List(ctx, clusterID, "/apis/networking.k8s.io/v1/ingresses")
+	if err != nil {
+		return ingressposture.Inputs{}, err
+	}
+	for _, raw := range ingItems {
+		var ig ingressRaw
+		if json.Unmarshal(raw, &ig) != nil {
+			continue
+		}
+		if ig.Metadata.Name == "" {
+			continue
+		}
+		info := ingressposture.IngressInfo{
+			Namespace: ig.Metadata.Namespace,
+			Name:      ig.Metadata.Name,
+			UID:       ig.Metadata.UID,
+			HasTLS:    len(ig.Spec.TLS) > 0,
+		}
+		if ig.Spec.IngressClassName != nil {
+			info.IngressClassName = *ig.Spec.IngressClassName
+		}
+		// Collect hosts from rules and backends from default + path backends.
+		for _, rule := range ig.Spec.Rules {
+			if rule.Host != "" {
+				info.Hosts = append(info.Hosts, rule.Host)
+			}
+			if rule.HTTP != nil {
+				for _, path := range rule.HTTP.Paths {
+					if path.Backend.Service != nil && path.Backend.Service.Name != "" {
+						info.Backends = append(info.Backends, ingressposture.ServiceRef{
+							Namespace: ig.Metadata.Namespace,
+							Name:      path.Backend.Service.Name,
+						})
+					}
+				}
+			}
+		}
+		if ig.Spec.DefaultBackend != nil && ig.Spec.DefaultBackend.Service != nil && ig.Spec.DefaultBackend.Service.Name != "" {
+			info.Backends = append(info.Backends, ingressposture.ServiceRef{
+				Namespace: ig.Metadata.Namespace,
+				Name:      ig.Spec.DefaultBackend.Service.Name,
+			})
+		}
+		in.Ingresses = append(in.Ingresses, info)
+	}
+
+	// Services: names for backend resolution.
+	svcItems, err := c.lister.List(ctx, clusterID, "/api/v1/services")
+	if err != nil {
+		// Non-fatal: backend resolution just becomes unknown.
+		return in, nil
+	}
+	for _, raw := range svcItems {
+		var s ingressServiceRaw
+		if json.Unmarshal(raw, &s) != nil {
+			continue
+		}
+		if s.Metadata.Name == "" {
+			continue
+		}
+		in.Services = append(in.Services, ingressposture.ServiceRef{
+			Namespace: s.Metadata.Namespace,
+			Name:      s.Metadata.Name,
+		})
+	}
+
+	return in, nil
+}
+
+// ingressRaw decodes the ingress-relevant subset of a networking.k8s.io/v1
+// Ingress.
+type ingressRaw struct {
+	Metadata struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+		UID       string `json:"uid"`
+	} `json:"metadata"`
+	Spec struct {
+		IngressClassName *string `json:"ingressClassName"`
+		TLS              []struct {
+			Hosts      []string `json:"hosts,omitempty"`
+			SecretName string   `json:"secretName,omitempty"`
+		} `json:"tls"`
+		DefaultBackend *struct {
+			Service *struct {
+				Name string `json:"name"`
+			} `json:"service"`
+		} `json:"defaultBackend"`
+		Rules []struct {
+			Host string `json:"host,omitempty"`
+			HTTP *struct {
+				Paths []struct {
+					Path    string `json:"path,omitempty"`
+					Backend struct {
+						Service *struct {
+							Name string `json:"name"`
+						} `json:"service"`
+					} `json:"backend"`
+				} `json:"paths"`
+			} `json:"http,omitempty"`
+		} `json:"rules,omitempty"`
+	} `json:"spec"`
+}
+
+// ingressServiceRaw decodes the identity of a Service for backend resolution.
+type ingressServiceRaw struct {
+	Metadata struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+	} `json:"metadata"`
 }
 
 // namespaceManagedByGitOps reports whether a namespace is managed by a GitOps

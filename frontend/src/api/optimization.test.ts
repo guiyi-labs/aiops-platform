@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeHPA, analyzeImage, analyzeNetwork, analyzePDB, analyzePolicy } from './optimization'
+import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeHPA, analyzeImage, analyzeIngress, analyzeNetwork, analyzePDB, analyzePolicy } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -305,6 +305,40 @@ describe('optimization API client', () => {
 
     await expect(analyzePDB('token', 30)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 30 is unreachable',
+    })
+  })
+
+  it('asks the server to auto-collect the Ingress bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 31, evaluated_at: '2026-08-02T13:00:00Z', total: 4, failed: 2, passed: 2,
+      ingresses_total: 3, no_tls_count: 1, dead_backend_count: 1,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzeIngress('token', 31)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/ingress/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 31 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.ingresses_total).toBe(3)
+    expect(status.no_tls_count).toBe(1)
+    expect(status.dead_backend_count).toBe(1)
+  })
+
+  it('surfaces a failed Ingress collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 31 is unreachable' }, 502,
+    )))
+
+    await expect(analyzeIngress('token', 31)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 31 is unreachable',
     })
   })
 })

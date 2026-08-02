@@ -927,3 +927,85 @@ func TestOptimizationPDBAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
 		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
 	}
 }
+
+func TestOptimizationIngressAnalyzeExplicitBundle(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/ingress/analyze", map[string]any{
+		"cluster_id": 7,
+		"ingresses": []map[string]any{{
+			"namespace": "prod", "name": "api", "hosts": []string{"api.example.com"},
+			"has_tls": false, "backends": []map[string]any{{"namespace": "prod", "name": "ghost"}},
+		}},
+		"services": []map[string]any{},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		IngressesTotal   int `json:"ingresses_total"`
+		NoTLSCount       int `json:"no_tls_count"`
+		DeadBackendCount int `json:"dead_backend_count"`
+		Failed           int `json:"failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode ingress status: %v", err)
+	}
+	if status.IngressesTotal != 1 || status.NoTLSCount != 1 || status.DeadBackendCount != 1 {
+		t.Fatalf("counters = %+v, want 1/1/1", status)
+	}
+	if status.Failed != 3 { // NO_TLS, NO_INGRESS_CLASS, BACKEND_SERVICE_MISSING
+		t.Fatalf("failed = %d, want 3", status.Failed)
+	}
+}
+
+func TestOptimizationIngressAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/apis/networking.k8s.io/v1/ingresses": {
+			json.RawMessage(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web"},"spec":{"ingressClassName":"nginx","tls":[{"hosts":["web.example.com"]}],"rules":[{"host":"web.example.com","http":{"paths":[{"path":"/","pathType":"Prefix","backend":{"service":{"name":"web-svc"}}}]}}]}}`),
+		},
+		"/api/v1/services": {
+			json.RawMessage(`{"metadata":{"namespace":"prod","name":"web-svc"}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/ingress/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		IngressesTotal int `json:"ingresses_total"`
+		Failed         int `json:"failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode ingress status: %v", err)
+	}
+	if status.IngressesTotal != 1 {
+		t.Fatalf("ingresses_total = %d, want 1", status.IngressesTotal)
+	}
+	if status.Failed != 0 { // healthy: TLS, class pinned, backend resolves
+		t.Fatalf("failed = %d, want 0", status.Failed)
+	}
+}
+
+func TestOptimizationIngressAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/ingress/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = postJSON(t, engine, "/api/v1/optimization/ingress/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}

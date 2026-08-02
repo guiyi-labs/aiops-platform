@@ -8,6 +8,7 @@ import type {
   GitOpsStatus,
   HPAStatus,
   ImageStatus,
+  IngressStatus,
   NetworkStatus,
   PDBStatus,
   PolicyStatus,
@@ -98,6 +99,14 @@ export async function analyzeHPA(token: string, clusterId: number): Promise<HPAS
 
 export async function analyzePDB(token: string, clusterId: number): Promise<PDBStatus> {
   const status = await authorizedRequest<PDBStatus>('/api/v1/optimization/pdb/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+export async function analyzeIngress(token: string, clusterId: number): Promise<IngressStatus> {
+  const status = await authorizedRequest<IngressStatus>('/api/v1/optimization/ingress/analyze', token, {
     method: 'POST',
     body: JSON.stringify({ cluster_id: clusterId }),
   })

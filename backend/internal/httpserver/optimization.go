@@ -13,6 +13,7 @@ import (
 	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/hpa"
 	"k8s-aiops.local/backend/internal/imagepolicy"
+	"k8s-aiops.local/backend/internal/ingressposture"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/optimization"
 	"k8s-aiops.local/backend/internal/pdb"
@@ -380,5 +381,40 @@ func (h optimizationHandler) pdbAnalyze(c *gin.Context) {
 		inputs = collected
 	}
 	status := pdb.Evaluate(req.ClusterID, inputs, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// ingressAnalyzeRequest carries the cluster identity plus the Ingress
+// observation bundle. ingressposture.Inputs is embedded so its "ingresses"
+// and "services" fields are accepted at the top level of the JSON body.
+type ingressAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	ingressposture.Inputs
+}
+
+func (h optimizationHandler) ingressAnalyze(c *gin.Context) {
+	var req ingressAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectIngress(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := ingressposture.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

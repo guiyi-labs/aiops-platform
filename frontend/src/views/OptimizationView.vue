@@ -10,6 +10,7 @@ import {
   Container,
   Gauge,
   GitBranch,
+  Globe,
   History,
   MemoryStick,
   Network,
@@ -34,6 +35,7 @@ import type {
   GitOpsStatus,
   HPAStatus,
   ImageStatus,
+  IngressStatus,
   NetworkStatus,
   OptimizationFinding,
   PDBStatus,
@@ -46,7 +48,7 @@ import type {
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity' | 'policy' | 'hpa' | 'pdb'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity' | 'policy' | 'hpa' | 'pdb' | 'ingress'
 
 const auth = useAuthStore()
 
@@ -66,9 +68,10 @@ const capacity = ref<CapacityStatus | null>(null)
 const policy = ref<PolicyStatus | null>(null)
 const hpa = ref<HPAStatus | null>(null)
 const pdb = ref<PDBStatus | null>(null)
+const ingress = ref<IngressStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false, policy: false, hpa: false, pdb: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '', pdb: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false, policy: false, hpa: false, pdb: false, ingress: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '', pdb: '', ingress: '' })
 
 const targetVersion = ref('1.29')
 
@@ -86,6 +89,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'policy', label: '策略合规', icon: ClipboardCheck },
   { key: 'hpa', label: 'HPA 扩缩容', icon: Gauge },
   { key: 'pdb', label: 'PDB 保护', icon: ShieldAlert },
+  { key: 'ingress', label: 'Ingress 暴露面', icon: Globe },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -271,6 +275,14 @@ const pdbFindings = computed<OptimizationFinding[]>(() => {
   )
 })
 
+/** Ingress findings ordered critical → warning → info so the worst surface first. */
+const ingressFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(ingress.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
 const cisFamilies = computed(() => Object.entries(cis.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
 
 /** CIS pass rate, used as the headline compliance score. */
@@ -294,7 +306,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value, policy: policy.value, hpa: hpa.value, pdb: pdb.value }[tab]
+  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value, policy: policy.value, hpa: hpa.value, pdb: pdb.value, ingress: ingress.value }[tab]
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -328,9 +340,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'hpa') {
       const result = await optimizationAPI.analyzeHPA(auth.accessToken, clusterId)
       if (sequence === requestSequence) hpa.value = result
-    } else {
+    } else if (tab === 'pdb') {
       const result = await optimizationAPI.analyzePDB(auth.accessToken, clusterId)
       if (sequence === requestSequence) pdb.value = result
+    } else {
+      const result = await optimizationAPI.analyzeIngress(auth.accessToken, clusterId)
+      if (sequence === requestSequence) ingress.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -350,7 +365,8 @@ function resetResults() {
   policy.value = null
   hpa.value = null
   pdb.value = null
-  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '', pdb: '' }
+  ingress.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '', pdb: '', ingress: '' }
 }
 
 async function loadClusters() {
@@ -1148,7 +1164,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ----------------------------------------------- PDB 保护 -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'pdb'" class="optimization-tab">
         <div v-if="loading.pdb" class="panel-empty">正在采集工作负载与 PodDisruptionBudget 并检查保护覆盖与预算可达性…</div>
         <div v-else-if="errors.pdb" class="panel-empty error">{{ errors.pdb }}</div>
         <template v-else-if="pdb">
@@ -1215,6 +1231,86 @@ onMounted(() => void loadClusters())
                       <div class="cell-sub muted">
                         {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
                         <template v-if="item.details?.replicas"> · {{ item.details.replicas }} 副本</template>
+                      </div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
+      </section>
+
+      <!-- ----------------------------------------------- Ingress 暴露面 -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.ingress" class="panel-empty">正在采集 Ingress 并检查 TLS 覆盖、通配符 host、ingress class 与后端 Service 可达性…</div>
+        <div v-else-if="errors.ingress" class="panel-empty error">{{ errors.ingress }}</div>
+        <template v-else-if="ingress">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><Globe :size="16" />评估 Ingress</p>
+              <strong>{{ ingress.ingresses_total }}</strong>
+              <span>Ingress 总数</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><AlertTriangle :size="16" />明文暴露</p>
+              <strong>{{ ingress.no_tls_count }}</strong>
+              <span>含 host 规则但无 TLS</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><AlertTriangle :size="16" />死后端</p>
+              <strong>{{ ingress.dead_backend_count }}</strong>
+              <span>引用了不存在的 Service</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><CheckCircle2 :size="16" />预警数</p>
+              <strong>{{ ingress.failed }}</strong>
+              <span>严重 {{ ingress.by_severity.critical ?? 0 }} · 警告 {{ ingress.by_severity.warning ?? 0 }} · 提示 {{ ingress.by_severity.info ?? 0 }} · 分析时间 {{ formatTimestamp(ingress.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <p class="view-intro muted">
+            本视图只读审计集群对外暴露面：检查每个 Ingress 是否终止 TLS、host
+            是否使用通配符扩大暴露、是否显式钉住 ingress class，以及后端 Service
+            是否真实存在。不修改任何 Ingress/Service、不触发任何发布；是上线前的只读暴露面体检。
+          </p>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <Globe :size="18" />
+                <strong>Ingress 暴露发现</strong>
+                <span class="muted">{{ ingressFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="ingressFindings.length === 0" class="panel-empty muted">
+              所有 Ingress 均终止 TLS、无通配符 host、钉住 ingress class 且后端可达
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>资源</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in ingressFindings" :key="`${item.code}-${item.resource.namespace ?? ''}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">
+                        {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
+                        <template v-if="item.details?.host"> · {{ item.details.host }}</template>
+                        <template v-if="item.details?.backend"> → {{ item.details.backend }}</template>
                       </div>
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>

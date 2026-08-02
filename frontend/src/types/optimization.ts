@@ -271,3 +271,23 @@ export interface PDBStatus {
   by_family: Record<string, number>
   findings: OptimizationFinding[]
 }
+
+/**
+ * M78 Ingress exposure audit: TLS coverage, wildcard hosts, ingress class and
+ * backend Service resolution.
+ */
+export interface IngressStatus {
+  cluster_id: number
+  evaluated_at: string
+  total: number
+  failed: number
+  passed: number
+  ingresses_total: number
+  /** Ingresses with host rules but no TLS. */
+  no_tls_count: number
+  /** Backend Service references that do not exist. */
+  dead_backend_count: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
+}

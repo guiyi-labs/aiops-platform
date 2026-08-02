@@ -15,6 +15,7 @@ import {
   Network,
   PackageX,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   TrendingUp,
   Wallet,
@@ -35,6 +36,7 @@ import type {
   ImageStatus,
   NetworkStatus,
   OptimizationFinding,
+  PDBStatus,
   PolicyStatus,
 } from '../types/optimization'
 
@@ -44,7 +46,7 @@ import type {
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity' | 'policy' | 'hpa'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity' | 'policy' | 'hpa' | 'pdb'
 
 const auth = useAuthStore()
 
@@ -63,9 +65,10 @@ const gitops = ref<GitOpsStatus | null>(null)
 const capacity = ref<CapacityStatus | null>(null)
 const policy = ref<PolicyStatus | null>(null)
 const hpa = ref<HPAStatus | null>(null)
+const pdb = ref<PDBStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false, policy: false, hpa: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false, policy: false, hpa: false, pdb: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '', pdb: '' })
 
 const targetVersion = ref('1.29')
 
@@ -82,6 +85,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'capacity', label: '容量预测', icon: TrendingUp },
   { key: 'policy', label: '策略合规', icon: ClipboardCheck },
   { key: 'hpa', label: 'HPA 扩缩容', icon: Gauge },
+  { key: 'pdb', label: 'PDB 保护', icon: ShieldAlert },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -259,6 +263,14 @@ const hpaFindings = computed<OptimizationFinding[]>(() => {
   )
 })
 
+/** PDB findings ordered critical → warning → info so the worst surface first. */
+const pdbFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(pdb.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
 const cisFamilies = computed(() => Object.entries(cis.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
 
 /** CIS pass rate, used as the headline compliance score. */
@@ -282,7 +294,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value, policy: policy.value, hpa: hpa.value }[tab]
+  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value, policy: policy.value, hpa: hpa.value, pdb: pdb.value }[tab]
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -313,9 +325,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'policy') {
       const result = await optimizationAPI.analyzePolicy(auth.accessToken, clusterId)
       if (sequence === requestSequence) policy.value = result
-    } else {
+    } else if (tab === 'hpa') {
       const result = await optimizationAPI.analyzeHPA(auth.accessToken, clusterId)
       if (sequence === requestSequence) hpa.value = result
+    } else {
+      const result = await optimizationAPI.analyzePDB(auth.accessToken, clusterId)
+      if (sequence === requestSequence) pdb.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -334,7 +349,8 @@ function resetResults() {
   capacity.value = null
   policy.value = null
   hpa.value = null
-  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '' }
+  pdb.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '', pdb: '' }
 }
 
 async function loadClusters() {
@@ -1053,7 +1069,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ----------------------------------------------- HPA 扩缩容 -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'hpa'" class="optimization-tab">
         <div v-if="loading.hpa" class="panel-empty">正在采集 HorizontalPodAutoscaler 并检查扩缩容目标、上限余量与利用率…</div>
         <div v-else-if="errors.hpa" class="panel-empty error">{{ errors.hpa }}</div>
         <template v-else-if="hpa">
@@ -1119,6 +1135,86 @@ onMounted(() => void loadClusters())
                       <div class="cell-sub muted">
                         {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
                         <template v-if="item.details?.max_replicas"> · maxReplicas {{ item.details.max_replicas }}</template>
+                      </div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
+      </section>
+
+      <!-- ----------------------------------------------- PDB 保护 -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.pdb" class="panel-empty">正在采集工作负载与 PodDisruptionBudget 并检查保护覆盖与预算可达性…</div>
+        <div v-else-if="errors.pdb" class="panel-empty error">{{ errors.pdb }}</div>
+        <template v-else-if="pdb">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><Container :size="16" />评估工作负载</p>
+              <strong>{{ pdb.workloads_total }}</strong>
+              <span>Deployment / StatefulSet / DaemonSet</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><ShieldAlert :size="16" />未保护工作负载</p>
+              <strong>{{ pdb.unprotected_workloads }}</strong>
+              <span>无匹配 PDB 的多副本工作负载</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><ShieldCheck :size="16" />PDB 数量</p>
+              <strong>{{ pdb.pdbs_total }}</strong>
+              <span>评估的 PodDisruptionBudget</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><CheckCircle2 :size="16" />预警数</p>
+              <strong>{{ pdb.failed }}</strong>
+              <span>严重 {{ pdb.by_severity.critical ?? 0 }} · 警告 {{ pdb.by_severity.warning ?? 0 }} · 提示 {{ pdb.by_severity.info ?? 0 }} · 分析时间 {{ formatTimestamp(pdb.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <p class="view-intro muted">
+            本视图只读检查可多副本工作负载是否有 PodDisruptionBudget 保护、预算是否可达
+            （minAvailable 不小于期望副本数会阻塞一切驱逐）、当前是否允许驱逐（disruptionsAllowed=0
+            会阻塞节点排空），以及 selector 是否实际匹配到 Pod。不触发任何驱逐、不修改任何对象；
+            是维护窗口与节点排空前的只读预检。
+          </p>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <ShieldAlert :size="18" />
+                <strong>PDB 保护发现</strong>
+                <span class="muted">{{ pdbFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="pdbFindings.length === 0" class="panel-empty muted">
+              所有多副本工作负载均有可达且未被阻塞的 PDB 保护
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>资源</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in pdbFindings" :key="`${item.code}-${item.resource.namespace ?? ''}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">
+                        {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
+                        <template v-if="item.details?.replicas"> · {{ item.details.replicas }} 副本</template>
                       </div>
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>

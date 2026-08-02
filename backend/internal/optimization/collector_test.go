@@ -836,3 +836,56 @@ func TestCollectHPA_PropagatesListFailure(t *testing.T) {
 		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 	}
 }
+
+// TestCollectPDB_MapsWorkloadsAndBudgets extracts workload replicas/labels and
+// PDB budget/status fields.
+func TestCollectPDB_MapsWorkloadsAndBudgets(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {
+			raw(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web","labels":{"app":"web"}},"spec":{"replicas":3}}`),
+		},
+		"/apis/apps/v1/statefulsets": {},
+		"/apis/apps/v1/daemonsets":   {},
+		"/apis/policy/v1/poddisruptionbudgets": {
+			raw(`{"metadata":{"namespace":"prod","name":"web-pdb","uid":"u-pdb"},"spec":{"minAvailable":1,"selector":{"matchLabels":{"app":"web"}}},"status":{"expectedPods":3,"disruptionsAllowed":2}}`),
+		},
+	}}
+
+	in, err := NewCollector(lister, nil, nil).CollectPDB(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectPDB: %v", err)
+	}
+	if len(in.Workloads) != 1 {
+		t.Fatalf("workloads = %d, want 1", len(in.Workloads))
+	}
+	w := in.Workloads[0]
+	if w.Kind != "Deployment" || w.Namespace != "prod" || w.Name != "web" || w.Replicas != 3 {
+		t.Fatalf("workload = %+v, want Deployment prod/web replicas=3", w)
+	}
+	if w.Labels["app"] != "web" {
+		t.Fatalf("workload labels = %+v, want app=web", w.Labels)
+	}
+	if len(in.PDBs) != 1 {
+		t.Fatalf("pdbs = %d, want 1", len(in.PDBs))
+	}
+	p := in.PDBs[0]
+	if p.MinAvailable != "1" || p.SelectorLabels["app"] != "web" {
+		t.Fatalf("pdb spec = %+v, want minAvailable=1 selector app=web", p)
+	}
+	if p.ExpectedPods != 3 || p.DisruptionsAllowed != 2 {
+		t.Fatalf("pdb status = %d/%d, want 3/2", p.ExpectedPods, p.DisruptionsAllowed)
+	}
+}
+
+// TestCollectPDB_PropagatesListFailure ensures a broken PDB List surfaces as
+// an error rather than a partial bundle.
+func TestCollectPDB_PropagatesListFailure(t *testing.T) {
+	lister := failingLister{failOn: "/apis/policy/v1/poddisruptionbudgets"}
+	in, err := NewCollector(lister, nil, nil).CollectPDB(context.Background(), 7)
+	if err == nil {
+		t.Fatalf("expected the pdb list failure to propagate")
+	}
+	if len(in.Workloads) != 0 || len(in.PDBs) != 0 {
+		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
+	}
+}

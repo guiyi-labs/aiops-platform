@@ -21,6 +21,7 @@ import (
 	"k8s-aiops.local/backend/internal/hpa"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
+	"k8s-aiops.local/backend/internal/pdb"
 	"k8s-aiops.local/backend/internal/policy"
 )
 
@@ -109,4 +110,11 @@ func (s *Service) CollectPolicy(ctx context.Context, clusterID int64) (policy.In
 // bounds, current replicas and utilization) for a cluster.
 func (s *Service) CollectHPA(ctx context.Context, clusterID int64) (hpa.Inputs, error) {
 	return s.collector.CollectHPA(ctx, clusterID)
+}
+
+// CollectPDB auto-collects the PDB posture observation bundle (replicable
+// workloads plus PodDisruptionBudgets with budget and disruption state) for a
+// cluster.
+func (s *Service) CollectPDB(ctx context.Context, clusterID int64) (pdb.Inputs, error) {
+	return s.collector.CollectPDB(ctx, clusterID)
 }

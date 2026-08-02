@@ -252,3 +252,22 @@ export interface HPAStatus {
   by_family: Record<string, number>
   findings: OptimizationFinding[]
 }
+
+/**
+ * M77 PDB protection posture: PodDisruptionBudget coverage of replicable
+ * workloads, budget achievability and current disruption state.
+ */
+export interface PDBStatus {
+  cluster_id: number
+  evaluated_at: string
+  total: number
+  failed: number
+  passed: number
+  workloads_total: number
+  pdbs_total: number
+  /** Replicable workloads with no matching PDB. */
+  unprotected_workloads: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
+}

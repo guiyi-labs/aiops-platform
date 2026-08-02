@@ -15,6 +15,7 @@ import (
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/optimization"
+	"k8s-aiops.local/backend/internal/pdb"
 	"k8s-aiops.local/backend/internal/policy"
 )
 
@@ -344,5 +345,40 @@ func (h optimizationHandler) hpaAnalyze(c *gin.Context) {
 		inputs = collected
 	}
 	status := hpa.Evaluate(req.ClusterID, inputs, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// pdbAnalyzeRequest carries the cluster identity plus the PDB observation
+// bundle. pdb.Inputs is embedded so its "workloads" and "pdbs" fields are
+// accepted at the top level of the JSON body.
+type pdbAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	pdb.Inputs
+}
+
+func (h optimizationHandler) pdbAnalyze(c *gin.Context) {
+	var req pdbAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectPDB(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := pdb.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

@@ -9,6 +9,7 @@ import type {
   HPAStatus,
   ImageStatus,
   NetworkStatus,
+  PDBStatus,
   PolicyStatus,
 } from '../types/optimization'
 
@@ -89,6 +90,14 @@ export async function analyzePolicy(token: string, clusterId: number): Promise<P
 
 export async function analyzeHPA(token: string, clusterId: number): Promise<HPAStatus> {
   const status = await authorizedRequest<HPAStatus>('/api/v1/optimization/hpa/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+export async function analyzePDB(token: string, clusterId: number): Promise<PDBStatus> {
+  const status = await authorizedRequest<PDBStatus>('/api/v1/optimization/pdb/analyze', token, {
     method: 'POST',
     body: JSON.stringify({ cluster_id: clusterId }),
   })

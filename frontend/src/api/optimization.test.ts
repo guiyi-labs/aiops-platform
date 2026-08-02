@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeHPA, analyzeImage, analyzeNetwork, analyzePolicy } from './optimization'
+import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeHPA, analyzeImage, analyzeNetwork, analyzePDB, analyzePolicy } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -272,6 +272,39 @@ describe('optimization API client', () => {
 
     await expect(analyzeHPA('token', 27)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 27 is unreachable',
+    })
+  })
+
+  it('asks the server to auto-collect the PDB bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 30, evaluated_at: '2026-08-02T13:00:00Z', total: 3, failed: 1, passed: 2,
+      workloads_total: 2, pdbs_total: 1, unprotected_workloads: 1,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzePDB('token', 30)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/pdb/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 30 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.workloads_total).toBe(2)
+    expect(status.unprotected_workloads).toBe(1)
+  })
+
+  it('surfaces a failed PDB collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 30 is unreachable' }, 502,
+    )))
+
+    await expect(analyzePDB('token', 30)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 30 is unreachable',
     })
   })
 })

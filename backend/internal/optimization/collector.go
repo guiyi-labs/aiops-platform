@@ -18,6 +18,7 @@ import (
 	"k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/netpolicy"
+	"k8s-aiops.local/backend/internal/pdb"
 	"k8s-aiops.local/backend/internal/policy"
 )
 
@@ -1004,6 +1005,130 @@ type hpaRaw struct {
 			} `json:"resource"`
 		} `json:"currentMetrics"`
 	} `json:"status"`
+}
+
+// CollectPDB builds the PDB posture observation bundle: every replicable
+// workload (with labels, for selector matching) plus every PodDisruptionBudget
+// with its availability budget and current disruption state. This is what the
+// pdb analyzer evaluates for maintenance-readiness.
+//
+// Everything is a read-only List against the API server. Nothing is mutated
+// and no eviction is triggered.
+func (c *Collector) CollectPDB(ctx context.Context, clusterID int64) (pdb.Inputs, error) {
+	in := pdb.Inputs{}
+
+	// Workloads: Deployments/StatefulSets/DaemonSets with labels and replicas.
+	for _, src := range policyWorkloadSources {
+		items, err := c.lister.List(ctx, clusterID, src.path)
+		if err != nil {
+			return pdb.Inputs{}, err
+		}
+		for _, raw := range items {
+			var w pdbWorkloadRaw
+			if json.Unmarshal(raw, &w) != nil {
+				continue
+			}
+			if w.Metadata.Name == "" {
+				continue
+			}
+			replicas := int32(1)
+			if w.Spec.Replicas != nil {
+				replicas = *w.Spec.Replicas
+			}
+			in.Workloads = append(in.Workloads, pdb.WorkloadRef{
+				Kind:      src.kind,
+				Namespace: w.Metadata.Namespace,
+				Name:      w.Metadata.Name,
+				UID:       w.Metadata.UID,
+				Replicas:  replicas,
+				Labels:    w.Metadata.Labels,
+			})
+		}
+	}
+
+	// PDBs.
+	pdbItems, err := c.lister.List(ctx, clusterID, "/apis/policy/v1/poddisruptionbudgets")
+	if err != nil {
+		return pdb.Inputs{}, err
+	}
+	for _, raw := range pdbItems {
+		var p pdbRaw
+		if json.Unmarshal(raw, &p) != nil {
+			continue
+		}
+		if p.Metadata.Name == "" {
+			continue
+		}
+		info := pdb.PDBInfo{
+			Namespace:          p.Metadata.Namespace,
+			Name:               p.Metadata.Name,
+			UID:                p.Metadata.UID,
+			MinAvailable:       rawToText(p.Spec.MinAvailable),
+			MaxUnavailable:     rawToText(p.Spec.MaxUnavailable),
+			ExpectedPods:       p.Status.ExpectedPods,
+			DisruptionsAllowed: p.Status.DisruptionsAllowed,
+		}
+		if p.Spec.Selector != nil {
+			info.SelectorLabels = p.Spec.Selector.MatchLabels
+		}
+		in.PDBs = append(in.PDBs, info)
+	}
+
+	return in, nil
+}
+
+// pdbWorkloadRaw decodes the identity, labels and replica count of a workload
+// controller.
+type pdbWorkloadRaw struct {
+	Metadata struct {
+		Namespace string            `json:"namespace"`
+		Name      string            `json:"name"`
+		UID       string            `json:"uid"`
+		Labels    map[string]string `json:"labels"`
+	} `json:"metadata"`
+	Spec struct {
+		Replicas *int32 `json:"replicas"`
+	} `json:"spec"`
+}
+
+// pdbRaw decodes the availability budget and status of a PodDisruptionBudget
+// (policy/v1). minAvailable / maxUnavailable are IntOrString values that the
+// API serializes as either a JSON number or a string ("50%"), so they are
+// captured as raw JSON and normalized by rawToText.
+type pdbRaw struct {
+	Metadata struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+		UID       string `json:"uid"`
+	} `json:"metadata"`
+	Spec struct {
+		MinAvailable   json.RawMessage `json:"minAvailable"`
+		MaxUnavailable json.RawMessage `json:"maxUnavailable"`
+		Selector       *struct {
+			MatchLabels map[string]string `json:"matchLabels"`
+		} `json:"selector"`
+	} `json:"spec"`
+	Status struct {
+		ExpectedPods       int32 `json:"expectedPods"`
+		DisruptionsAllowed int32 `json:"disruptionsAllowed"`
+	} `json:"status"`
+}
+
+// rawToText normalizes a JSON IntOrString (number or quoted string) to its
+// plain text form ("1" or "50%").
+func rawToText(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var n int64
+	if json.Unmarshal(raw, &n) == nil {
+		return strconv.FormatInt(n, 10)
+	}
+	return ""
 }
 
 // namespaceManagedByGitOps reports whether a namespace is managed by a GitOps

@@ -834,3 +834,96 @@ func TestOptimizationHPAAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
 		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
 	}
 }
+
+func TestOptimizationPDBAnalyzeExplicitBundle(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/pdb/analyze", map[string]any{
+		"cluster_id": 7,
+		"workloads": []map[string]any{{
+			"kind": "Deployment", "namespace": "prod", "name": "web", "replicas": 3, "labels": map[string]any{"app": "web"},
+		}},
+		"pdbs": []map[string]any{},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		WorkloadsTotal       int `json:"workloads_total"`
+		PDBsTotal            int `json:"pdbs_total"`
+		UnprotectedWorkloads int `json:"unprotected_workloads"`
+		Failed               int `json:"failed"`
+		Findings             []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode pdb status: %v", err)
+	}
+	if status.WorkloadsTotal != 1 || status.PDBsTotal != 0 {
+		t.Fatalf("counters = %d/%d, want 1/0", status.WorkloadsTotal, status.PDBsTotal)
+	}
+	if status.UnprotectedWorkloads != 1 {
+		t.Fatalf("unprotected_workloads = %d, want 1", status.UnprotectedWorkloads)
+	}
+	if status.Failed != 1 {
+		t.Fatalf("failed = %d, want 1", status.Failed)
+	}
+	if len(status.Findings) == 0 || status.Findings[0].Code != "PDB_WORKLOAD_UNPROTECTED" {
+		t.Fatalf("findings = %+v, want unprotected finding", status.Findings)
+	}
+}
+
+func TestOptimizationPDBAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {
+			json.RawMessage(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web","labels":{"app":"web"}},"spec":{"replicas":3}}`),
+		},
+		"/apis/apps/v1/statefulsets": {},
+		"/apis/apps/v1/daemonsets":   {},
+		"/apis/policy/v1/poddisruptionbudgets": {
+			json.RawMessage(`{"metadata":{"namespace":"prod","name":"web-pdb","uid":"u-pdb"},"spec":{"minAvailable":1,"selector":{"matchLabels":{"app":"web"}}},"status":{"expectedPods":3,"disruptionsAllowed":2}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/pdb/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		WorkloadsTotal int `json:"workloads_total"`
+		PDBsTotal      int `json:"pdbs_total"`
+		Failed         int `json:"failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode pdb status: %v", err)
+	}
+	if status.WorkloadsTotal != 1 || status.PDBsTotal != 1 {
+		t.Fatalf("counters = %d/%d, want 1/1", status.WorkloadsTotal, status.PDBsTotal)
+	}
+	if status.Failed != 0 { // covered by a healthy PDB
+		t.Fatalf("failed = %d, want 0", status.Failed)
+	}
+}
+
+func TestOptimizationPDBAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/pdb/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = postJSON(t, engine, "/api/v1/optimization/pdb/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}

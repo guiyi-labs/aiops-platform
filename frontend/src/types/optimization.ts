@@ -1,10 +1,11 @@
-// Types for the read-only optimization analyzers (M61-M65).
+// Types for the read-only optimization analyzers (M61-M67).
 //
 // These mirror the backend contracts exactly:
 //   - cis.Status            (internal/cis/model.go)
 //   - finops.WasteSummary   (internal/finops/advisor.go)
 //   - deprecatedapi.Status  (internal/deprecatedapi/model.go)
-//   - finding.Finding       (internal/finding) — shared by CIS and deprecated-API
+//   - netpolicy.Status      (internal/netpolicy/model.go)
+//   - finding.Finding       (internal/finding) — shared by every analyzer
 //
 // Every endpoint is read-only: the server collects an observation bundle and
 // runs a pure analyzer. Nothing in this module mutates cluster state (ADR 0004).
@@ -102,4 +103,34 @@ export interface DeprecatedAPIStatus {
   clean: number
   findings: OptimizationFinding[]
   evaluated_at: string
+}
+
+/* ------------------------------------------------------------- Network ---- */
+
+/**
+ * Result of the static network reachability / NetworkPolicy posture analysis.
+ * `total` counts evaluated checks (not objects); the inventory counters below
+ * describe the scope the checks ran over.
+ */
+export interface NetworkStatus {
+  cluster_id: number
+  evaluated_at: string
+  total: number
+  failed: number
+  passed: number
+  namespaces_total: number
+  pods_total: number
+  policies_total: number
+  services_total: number
+  /** Pods selected by at least one ingress policy. */
+  ingress_covered_pods: number
+  /** Pods selected by at least one egress policy. */
+  egress_covered_pods: number
+  /** Namespaces with a default-deny ingress baseline. */
+  isolated_namespaces: number
+  /** NodePort / LoadBalancer services. */
+  exposed_services: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
 }

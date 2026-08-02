@@ -524,16 +524,18 @@ func New(logger *zap.Logger, options Options) http.Handler {
 	}
 
 	// M64 optimization analyzers (M61 FinOps right-sizing, M62 CIS posture,
-	// M63 deprecated-API check). The endpoints are read-only: the caller
-	// supplies an already-collected observation bundle and the server returns
-	// findings (ADR 0004). Routes are registered only when the optimization
-	// service is configured.
+	// M63 deprecated-API check, M67 network reachability). The endpoints are
+	// read-only: the caller supplies an already-collected observation bundle
+	// — or lets the M65 collector gather one — and the server returns findings
+	// (ADR 0004). Routes are registered only when the optimization service is
+	// configured.
 	if options.Optimization != nil {
 		optAPI := optimizationHandler{svc: options.Optimization}
 		optRoutes := v1.Group("/optimization")
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/cis/analyze", AuthRequired: true, Handler: optAPI.cisAnalyze, AuditAction: "optimization.cis.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/finops/analyze", AuthRequired: true, Handler: optAPI.finopsAnalyze, AuditAction: "optimization.finops.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/deprecated-api/analyze", AuthRequired: true, Handler: optAPI.deprecatedAPIAnalyze, AuditAction: "optimization.deprecated_api.analyze", AuditResource: "Cluster"})
+		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/network/analyze", AuthRequired: true, Handler: optAPI.networkAnalyze, AuditAction: "optimization.network.analyze", AuditResource: "Cluster"})
 	}
 
 	// M37B alert routes: webhook receivers, exact-match routes, bounded

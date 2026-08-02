@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps } from './optimization'
+import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeNetwork } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -70,6 +70,40 @@ describe('optimization API client', () => {
 
     await expect(analyzeCIS('token', 7)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 7 is unreachable',
+    })
+  })
+
+  it('asks the server to auto-collect the network bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 12, evaluated_at: '2026-08-01T10:00:00Z', total: 4, failed: 2, passed: 2,
+      namespaces_total: 3, pods_total: 9, policies_total: 2, services_total: 4,
+      ingress_covered_pods: 6, egress_covered_pods: 0, isolated_namespaces: 1, exposed_services: 1,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzeNetwork('token', 12)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/network/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 12 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.failed).toBe(2)
+    expect(status.exposed_services).toBe(1)
+  })
+
+  it('surfaces a failed network collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 12 is unreachable' }, 502,
+    )))
+
+    await expect(analyzeNetwork('token', 12)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 12 is unreachable',
     })
   })
 })

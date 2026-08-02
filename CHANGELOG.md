@@ -274,6 +274,70 @@ operator. M66 closes that gap with a single read-only "优化中心" view.
 - Frontend `eslint`, `vue-tsc -b`, `vitest run` (19 files / 85 tests) and
   `vite build` are green.
 
+### Added — M67 Read-Only Network Connectivity / NetworkPolicy Posture Analyzer (P1-②)
+
+P1-② adds a fourth read-only analyzer to the 优化中心: a *static* network
+reachability / NetworkPolicy posture check. It never sends a probe packet —
+consistent with ADR 0004 it reasons purely from the cluster's declared state
+(Service selectors, targetPorts, and the NetworkPolicy whitelist overlay), so
+it cannot perturb traffic.
+
+- **`backend/internal/netpolicy/model.go`** (new) — analyzer contract reusing
+  `type Finding = k8sfinding.Finding`; family constants `FamilyCoverage` /
+  `FamilyPolicyHygiene` / `FamilyReachability` / `FamilyExposure`; finding
+  codes `CodeNamespaceNoDefaultDeny`, `CodePodIngressUnrestricted`,
+  `CodeServiceNoBackends`, `CodeServicePortBlocked`, `CodeExposedUnrestricted`,
+  `CodePolicyDeadSelector`, `CodePolicyAllowAllIngress`, `CodePolicyFromAllNs`,
+  `CodePolicyWideIngress`, `CodePolicyWideEgress`, etc. `systemNamespaces`
+  (kube-system / kube-public / kube-node-lease) downgrade to `info`. `Selector`
+  keeps the empty-vs-missing distinction (`SelectsAll` / `Matches` /
+  `coversConservatively`) so a selector with `matchExpressions` is treated
+  conservatively (never flagged as uncovered or dead). `Status` carries
+  inventory counters (`namespaces_total`, `pods_total`, `policies_total`,
+  `services_total`, `ingress_covered_pods`, `egress_covered_pods`,
+  `isolated_namespaces`, `exposed_services`) in addition to `by_severity` /
+  `by_family` / `findings`.
+- **`backend/internal/netpolicy/service.go`** (new) — pure `Evaluate(clusterID,
+  Inputs, observedAt) Status`: builds a per-namespace index then runs
+  `evalNamespaceBaseline` (default-deny only matters where Pods exist),
+  `evalPodCoverage` (in a partially-covered namespace, only Pods matched by no
+  ingress policy are warned), `evalPolicyHygiene` (dead selector → warning,
+  allow-all / from-all-ns / wide ipBlock / world-egress rules), and
+  `evalServices` (no backends → critical; named targetPort unresolved →
+  critical, numeric targetPort undeclared → info; default-deny blocking a
+  required port → warning; exposed NodePort/LoadBalancer service with no
+  backing ingress policy → critical). Findings are sorted stably by
+  severity → code → namespace → name.
+- **`backend/internal/optimization/collector.go`** — new `CollectNetPolicy(ctx,
+  clusterID)` reads namespaces / pods / services and *optionally* NetworkPolicies
+  (a missing networking API is tolerated, not fatal). `IntOrString` is preserved
+  as a string; empty vs missing `namespaceSelector` is preserved through
+  `toSelector`; ingress `From` / egress `To` are mapped by `toRules`.
+- **`backend/internal/optimization/service.go`** — `Service` delegates
+  `CollectNetPolicy`, reusing the existing `HasCollector()` gate.
+- **`backend/internal/httpserver/optimization.go`** — new `POST /network/analyze`
+  handler: when the body is empty it auto-collects via the collector (502
+  `COLLECT_FAILED` on failure); otherwise it evaluates a supplied bundle.
+- **`backend/internal/httpserver/router.go`** — registers
+  `POST /api/v1/optimization/network/analyze`
+  (`AuditAction: optimization.network.analyze`).
+- **`docs/api/openapi.yaml`** — documents `POST /api/v1/optimization/network/analyze`
+  (`analyzeNetworkPosture`) with the `NetworkStatus` schema and 200/400/502
+  responses.
+- **Coverage**: `internal/netpolicy` at 95.2% (22+ tests); collector + http tests
+  cover IntOrString spellings, empty-vs-missing namespaceSelector, missing
+  networking API tolerance, and pod-list failure propagation.
+- **Frontend** — `types/optimization.ts` gains `NetworkStatus`; `api/optimization.ts`
+  gains `analyzeNetwork` (null → `[]`/`{}` normalised); `OptimizationView.vue`
+  gains a 4th *网络连通* tab reusing the shared cluster selector, request-sequence
+  guard, and findings table, with headline cards for default-deny namespaces,
+  ingress-covered Pods, exposed services, and the policy baseline. `api/
+  optimization.test.ts` adds the `analyzeNetwork` suite (auto-collect shape,
+  null normalisation, 502 `COLLECT_FAILED`).
+- Backend `gofmt` / `go vet` / `go build ./...` / `golangci-lint` / `go test
+  -cover` and frontend `eslint` / `vue-tsc -b` / `vitest` / `vite build` are
+  green.
+
 ### Added — M58 DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI Backend
 
 - **GitOps (ArgoCD Application) read-only** (`backend/internal/gitops/*`):

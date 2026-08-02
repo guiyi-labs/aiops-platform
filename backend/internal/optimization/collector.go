@@ -3,11 +3,13 @@ package optimization
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
 	"k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/netpolicy"
 )
 
 // ClusterLister fetches one Kubernetes List resource and returns its items as
@@ -300,6 +302,113 @@ func (c *Collector) CollectDeprecatedAPI(ctx context.Context, clusterID int64) (
 	return objects, nil
 }
 
+// CollectNetPolicy builds the network posture observation bundle: namespaces,
+// pods (labels plus declared container ports), Services and NetworkPolicies.
+// Everything is a read-only List; no probe traffic is ever generated.
+func (c *Collector) CollectNetPolicy(ctx context.Context, clusterID int64) (netpolicy.Inputs, error) {
+	in := netpolicy.Inputs{}
+
+	nsItems, err := c.lister.List(ctx, clusterID, "/api/v1/namespaces")
+	if err != nil {
+		return in, err
+	}
+	for _, raw := range nsItems {
+		var n kubernetes.Namespace
+		if json.Unmarshal(raw, &n) != nil {
+			continue
+		}
+		in.Namespaces = append(in.Namespaces, netpolicy.NamespaceInfo{
+			Name:   n.Metadata.Name,
+			UID:    n.Metadata.UID,
+			Labels: n.Metadata.Labels,
+		})
+	}
+
+	podItems, err := c.lister.List(ctx, clusterID, "/api/v1/pods")
+	if err != nil {
+		return in, err
+	}
+	for _, raw := range podItems {
+		var p podRaw
+		if json.Unmarshal(raw, &p) != nil {
+			continue
+		}
+		info := netpolicy.PodInfo{
+			Namespace:   p.Metadata.Namespace,
+			Name:        p.Metadata.Name,
+			UID:         p.Metadata.UID,
+			Labels:      p.Metadata.Labels,
+			HostNetwork: p.Spec.HostNetwork,
+		}
+		for _, ctr := range p.Spec.Containers {
+			for _, port := range ctr.Ports {
+				info.Ports = append(info.Ports, netpolicy.ContainerPort{
+					Name:          port.Name,
+					ContainerPort: port.ContainerPort,
+					Protocol:      port.Protocol,
+				})
+			}
+		}
+		in.Pods = append(in.Pods, info)
+	}
+
+	svcItems, err := c.lister.List(ctx, clusterID, "/api/v1/services")
+	if err != nil {
+		return in, err
+	}
+	for _, raw := range svcItems {
+		var s serviceRaw
+		if json.Unmarshal(raw, &s) != nil {
+			continue
+		}
+		svc := netpolicy.ServiceInfo{
+			Namespace:    s.Metadata.Namespace,
+			Name:         s.Metadata.Name,
+			UID:          s.Metadata.UID,
+			Type:         s.Spec.Type,
+			Selector:     s.Spec.Selector,
+			ClusterIP:    s.Spec.ClusterIP,
+			ExternalName: s.Spec.ExternalName,
+		}
+		for _, port := range s.Spec.Ports {
+			svc.Ports = append(svc.Ports, netpolicy.ServicePort{
+				Name:       port.Name,
+				Port:       port.Port,
+				TargetPort: intOrString(port.TargetPort),
+				Protocol:   port.Protocol,
+				NodePort:   port.NodePort,
+			})
+		}
+		in.Services = append(in.Services, svc)
+	}
+
+	// NetworkPolicy support is optional: a cluster without the networking API
+	// (or without permission to list it) still yields a useful reachability
+	// report, so a failure here is not fatal.
+	if npItems, npErr := c.lister.List(ctx, clusterID, "/apis/networking.k8s.io/v1/networkpolicies"); npErr == nil {
+		for _, raw := range npItems {
+			var np networkPolicyRaw
+			if json.Unmarshal(raw, &np) != nil {
+				continue
+			}
+			policy := netpolicy.Policy{
+				Namespace:   np.Metadata.Namespace,
+				Name:        np.Metadata.Name,
+				UID:         np.Metadata.UID,
+				PolicyTypes: np.Spec.PolicyTypes,
+			}
+			if sel := toSelector(np.Spec.PodSelector); sel != nil {
+				policy.PodSelector = *sel
+			}
+			policy.Ingress = toRules(np.Spec.Ingress, true)
+			policy.Egress = toRules(np.Spec.Egress, false)
+			in.Policies = append(in.Policies, policy)
+		}
+	}
+
+	return in, nil
+}
+
 // CollectFinOps builds the FinOps container-input bundle from live workload
 // specs (requests/limits/replicas) plus observed p95 usage when a MetricsSource
 // is configured.
@@ -461,6 +570,11 @@ type podRaw struct {
 			VolumeMounts []struct {
 				Name string `json:"name"`
 			} `json:"volumeMounts"`
+			Ports []struct {
+				Name          string `json:"name"`
+				ContainerPort int32  `json:"containerPort"`
+				Protocol      string `json:"protocol"`
+			} `json:"ports"`
 		} `json:"containers"`
 		Volumes []struct {
 			Name     string `json:"name"`
@@ -537,6 +651,131 @@ func toSubjects(subjects []struct {
 		out = append(out, cis.RBACSubject{Kind: s.Kind, Name: s.Name, Namespace: s.Namespace})
 	}
 	return out
+}
+
+// --- network posture raw decode helpers ---
+
+type serviceRaw struct {
+	Metadata struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+		UID       string `json:"uid"`
+	} `json:"metadata"`
+	Spec struct {
+		Type         string            `json:"type"`
+		Selector     map[string]string `json:"selector"`
+		ClusterIP    string            `json:"clusterIP"`
+		ExternalName string            `json:"externalName"`
+		Ports        []struct {
+			Name       string          `json:"name"`
+			Port       int32           `json:"port"`
+			TargetPort json.RawMessage `json:"targetPort"`
+			Protocol   string          `json:"protocol"`
+			NodePort   int32           `json:"nodePort"`
+		} `json:"ports"`
+	} `json:"spec"`
+}
+
+type selectorRaw struct {
+	MatchLabels      map[string]string `json:"matchLabels"`
+	MatchExpressions []json.RawMessage `json:"matchExpressions"`
+}
+
+type peerRaw struct {
+	NamespaceSelector *selectorRaw `json:"namespaceSelector"`
+	PodSelector       *selectorRaw `json:"podSelector"`
+	IPBlock           *struct {
+		CIDR   string   `json:"cidr"`
+		Except []string `json:"except"`
+	} `json:"ipBlock"`
+}
+
+type netRuleRaw struct {
+	From  []peerRaw `json:"from"`
+	To    []peerRaw `json:"to"`
+	Ports []struct {
+		Protocol string          `json:"protocol"`
+		Port     json.RawMessage `json:"port"`
+		EndPort  int32           `json:"endPort"`
+	} `json:"ports"`
+}
+
+type networkPolicyRaw struct {
+	Metadata struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+		UID       string `json:"uid"`
+	} `json:"metadata"`
+	Spec struct {
+		PodSelector *selectorRaw `json:"podSelector"`
+		PolicyTypes []string     `json:"policyTypes"`
+		Ingress     []netRuleRaw `json:"ingress"`
+		Egress      []netRuleRaw `json:"egress"`
+	} `json:"spec"`
+}
+
+// intOrString renders a Kubernetes IntOrString value as the string form the
+// analyzer expects: "8080" for a number, "http" for a named port, "" when the
+// field is absent.
+func intOrString(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var n int32
+	if json.Unmarshal(raw, &n) == nil {
+		return strconv.Itoa(int(n))
+	}
+	return ""
+}
+
+// toSelector maps a raw LabelSelector, preserving the load-bearing difference
+// between an absent selector (nil) and a present-but-empty one (select all).
+func toSelector(raw *selectorRaw) *netpolicy.Selector {
+	if raw == nil {
+		return nil
+	}
+	return &netpolicy.Selector{
+		MatchLabels:    raw.MatchLabels,
+		HasExpressions: len(raw.MatchExpressions) > 0,
+	}
+}
+
+func toRules(raw []netRuleRaw, ingress bool) []netpolicy.Rule {
+	if len(raw) == 0 {
+		return nil
+	}
+	rules := make([]netpolicy.Rule, 0, len(raw))
+	for _, r := range raw {
+		rule := netpolicy.Rule{}
+		peers := r.To
+		if ingress {
+			peers = r.From
+		}
+		for _, p := range peers {
+			peer := netpolicy.Peer{
+				NamespaceSelector: toSelector(p.NamespaceSelector),
+				PodSelector:       toSelector(p.PodSelector),
+			}
+			if p.IPBlock != nil {
+				peer.IPBlockCIDR = p.IPBlock.CIDR
+				peer.IPBlockExcept = p.IPBlock.Except
+			}
+			rule.Peers = append(rule.Peers, peer)
+		}
+		for _, port := range r.Ports {
+			rule.Ports = append(rule.Ports, netpolicy.PortRule{
+				Protocol: port.Protocol,
+				Port:     intOrString(port.Port),
+				EndPort:  port.EndPort,
+			})
+		}
+		rules = append(rules, rule)
+	}
+	return rules
 }
 
 // matchLabels reports whether all selector key/value pairs are present in the

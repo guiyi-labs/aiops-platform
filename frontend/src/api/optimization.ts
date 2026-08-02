@@ -1,7 +1,13 @@
 import { authorizedRequest } from './client'
-import type { CISStatus, CostRate, DeprecatedAPIStatus, FinOpsWasteSummary } from '../types/optimization'
+import type {
+  CISStatus,
+  CostRate,
+  DeprecatedAPIStatus,
+  FinOpsWasteSummary,
+  NetworkStatus,
+} from '../types/optimization'
 
-// Client for the read-only optimization analyzers (M61-M65).
+// Client for the read-only optimization analyzers (M61-M67).
 //
 // Each request sends only `cluster_id` (plus the target version for the
 // deprecated-API check), which makes the server auto-collect the observation
@@ -34,4 +40,12 @@ export async function analyzeDeprecatedAPI(token: string, clusterId: number, tar
     body: JSON.stringify({ cluster_id: clusterId, target_version: targetVersion }),
   })
   return { ...status, findings: status.findings ?? [] }
+}
+
+export async function analyzeNetwork(token: string, clusterId: number): Promise<NetworkStatus> {
+  const status = await authorizedRequest<NetworkStatus>('/api/v1/optimization/network/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
 }

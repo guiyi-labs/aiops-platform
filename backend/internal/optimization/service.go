@@ -16,6 +16,7 @@ import (
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
+	"k8s-aiops.local/backend/internal/netpolicy"
 )
 
 // Service carries the shared configuration and the collector for the
@@ -65,4 +66,10 @@ func (s *Service) CollectFinOps(ctx context.Context, clusterID int64) ([]finops.
 // cluster.
 func (s *Service) CollectDeprecatedAPI(ctx context.Context, clusterID int64) ([]deprecatedapi.ResourceObject, error) {
 	return s.collector.CollectDeprecatedAPI(ctx, clusterID)
+}
+
+// CollectNetPolicy auto-collects the network posture observation bundle
+// (namespaces, pods, services, network policies) for a cluster.
+func (s *Service) CollectNetPolicy(ctx context.Context, clusterID int64) (netpolicy.Inputs, error) {
+	return s.collector.CollectNetPolicy(ctx, clusterID)
 }

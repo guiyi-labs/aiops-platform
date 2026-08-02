@@ -9,6 +9,7 @@ import (
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
+	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/optimization"
 )
 
@@ -126,5 +127,40 @@ func (h optimizationHandler) deprecatedAPIAnalyze(c *gin.Context) {
 		objects = collected
 	}
 	status := deprecatedapi.Check(req.ClusterID, req.TargetVersion, objects, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// networkAnalyzeRequest carries the cluster identity plus the network posture
+// observation bundle. netpolicy.Inputs is embedded so its fields (namespaces,
+// pods, policies, services) are accepted at the top level of the JSON body.
+type networkAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	netpolicy.Inputs
+}
+
+func (h optimizationHandler) networkAnalyze(c *gin.Context) {
+	var req networkAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectNetPolicy(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := netpolicy.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

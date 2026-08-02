@@ -236,3 +236,113 @@ func TestOptimizationDeprecatedAPIAnalyzeAutoCollect(t *testing.T) {
 		t.Fatalf("expected at least one removed-api finding from auto-collected apps/v1beta1 Deployment, got %d", status.Removed)
 	}
 }
+
+// TestOptimizationNetworkAnalyzeWithSuppliedBundle exercises the M67 network
+// endpoint with a caller-supplied observation bundle and no collector wired.
+func TestOptimizationNetworkAnalyzeWithSuppliedBundle(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/network/analyze", map[string]any{
+		"cluster_id": 7,
+		"pods": []map[string]any{
+			{"namespace": "shop", "name": "web-1", "labels": map[string]string{"app": "web"}},
+		},
+		"services": []map[string]any{
+			{"namespace": "shop", "name": "web", "selector": map[string]string{"app": "gone"}, "ports": []map[string]any{{"port": 80}}},
+		},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		Failed     int            `json:"failed"`
+		BySeverity map[string]int `json:"by_severity"`
+		Findings   []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode network status: %v", err)
+	}
+	if status.Failed < 1 {
+		t.Fatalf("expected findings for the backend-less service, got %d", status.Failed)
+	}
+	var sawNoBackends bool
+	for _, f := range status.Findings {
+		if f.Code == "NETPOL_SERVICE_NO_BACKENDS" {
+			sawNoBackends = true
+		}
+	}
+	if !sawNoBackends {
+		t.Fatalf("expected NETPOL_SERVICE_NO_BACKENDS, got %+v", status.Findings)
+	}
+	if status.BySeverity["critical"] < 1 {
+		t.Fatalf("severity rollup missing the critical finding: %v", status.BySeverity)
+	}
+}
+
+// TestOptimizationNetworkAnalyzeAutoCollect verifies the M65 auto-collection
+// path for the network endpoint: an empty bundle triggers a read-only scan and
+// the exposed NodePort service without any policy is reported.
+func TestOptimizationNetworkAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/api/v1/namespaces": {json.RawMessage(`{"metadata":{"name":"shop"}}`)},
+		"/api/v1/pods": {
+			json.RawMessage(`{"metadata":{"namespace":"shop","name":"web-1","labels":{"app":"web"}},"spec":{"containers":[{"name":"c","ports":[{"containerPort":8080}]}]}}`),
+		},
+		"/api/v1/services": {
+			json.RawMessage(`{"metadata":{"namespace":"shop","name":"web"},"spec":{"type":"NodePort","selector":{"app":"web"},"ports":[{"port":80,"targetPort":8080,"nodePort":31080}]}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/network/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		PodsTotal       int `json:"pods_total"`
+		ExposedServices int `json:"exposed_services"`
+		Findings        []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode network status: %v", err)
+	}
+	if status.PodsTotal != 1 || status.ExposedServices != 1 {
+		t.Fatalf("auto-collected inventory wrong: pods=%d exposed=%d", status.PodsTotal, status.ExposedServices)
+	}
+	var sawExposure bool
+	for _, f := range status.Findings {
+		if f.Code == "NETPOL_EXPOSED_SERVICE_UNRESTRICTED" {
+			sawExposure = true
+		}
+	}
+	if !sawExposure {
+		t.Fatalf("expected NETPOL_EXPOSED_SERVICE_UNRESTRICTED from the auto-collected NodePort service, got %+v", status.Findings)
+	}
+}
+
+func TestOptimizationNetworkAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/network/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Without a collector an empty bundle is unanalysable and must be
+	// rejected explicitly rather than returning a misleading clean report.
+	rec = postJSON(t, engine, "/api/v1/optimization/network/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}

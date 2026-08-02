@@ -8,6 +8,7 @@ import {
   Cpu,
   History,
   MemoryStick,
+  Network,
   PackageX,
   RefreshCw,
   ShieldCheck,
@@ -19,7 +20,7 @@ import * as optimizationAPI from '../api/optimization'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { CISStatus, DeprecatedAPIStatus, FinOpsWasteSummary, OptimizationFinding } from '../types/optimization'
+import type { CISStatus, DeprecatedAPIStatus, FinOpsWasteSummary, NetworkStatus, OptimizationFinding } from '../types/optimization'
 
 // Read-only optimization console (M66) over the M61-M65 analyzers.
 //
@@ -27,7 +28,7 @@ import type { CISStatus, DeprecatedAPIStatus, FinOpsWasteSummary, OptimizationFi
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network'
 
 const auth = useAuthStore()
 
@@ -40,9 +41,10 @@ const clustersError = ref('')
 const finops = ref<FinOpsWasteSummary | null>(null)
 const cis = ref<CISStatus | null>(null)
 const deprecated = ref<DeprecatedAPIStatus | null>(null)
+const network = ref<NetworkStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '' })
 
 const targetVersion = ref('1.29')
 
@@ -53,6 +55,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'finops', label: '成本优化', icon: Wallet },
   { key: 'cis', label: 'CIS 合规', icon: ShieldCheck },
   { key: 'deprecated', label: '废弃 API', icon: PackageX },
+  { key: 'network', label: '网络连通', icon: Network },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -116,6 +119,17 @@ const deprecatedFindings = computed<OptimizationFinding[]>(() => {
   )
 })
 
+/** Network findings ordered critical → warning → info so the worst surface first. */
+const networkFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(network.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
+/** Network policy families, ranked high → low for the chip strip. */
+const networkFamilies = computed(() => Object.entries(network.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
+
 /** Highest monthly waste first — the recommendations worth acting on. */
 const finopsRecommendations = computed(() =>
   [...(finops.value?.recommendations ?? [])].sort((a, b) => b.monthly_waste_usd - a.monthly_waste_usd),
@@ -144,7 +158,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = tab === 'finops' ? finops.value : tab === 'cis' ? cis.value : deprecated.value
+  const cached = tab === 'finops' ? finops.value : tab === 'cis' ? cis.value : tab === 'deprecated' ? deprecated.value : network.value
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -157,9 +171,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'cis') {
       const result = await optimizationAPI.analyzeCIS(auth.accessToken, clusterId)
       if (sequence === requestSequence) cis.value = result
-    } else {
+    } else if (tab === 'deprecated') {
       const result = await optimizationAPI.analyzeDeprecatedAPI(auth.accessToken, clusterId, targetVersion.value)
       if (sequence === requestSequence) deprecated.value = result
+    } else {
+      const result = await optimizationAPI.analyzeNetwork(auth.accessToken, clusterId)
+      if (sequence === requestSequence) network.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -172,7 +189,8 @@ function resetResults() {
   finops.value = null
   cis.value = null
   deprecated.value = null
-  errors.value = { finops: '', cis: '', deprecated: '' }
+  network.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '' }
 }
 
 async function loadClusters() {
@@ -399,7 +417,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ------------------------------------------------- 废弃 API 检查 -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'deprecated'" class="optimization-tab">
         <section class="deprecated-toolbar">
           <label class="toolbar-field">
             <span class="muted">目标 Kubernetes 版本</span>
@@ -490,6 +508,84 @@ onMounted(() => void loadClusters())
           </section>
         </template>
         <div v-else class="panel-empty muted">输入目标版本后开始检查</div>
+      </section>
+
+      <!-- ----------------------------------------------- 网络连通性 / NetworkPolicy -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.network" class="panel-empty">正在采集命名空间、Pod、Service 与 NetworkPolicy 并做静态可达性推理…</div>
+        <div v-else-if="errors.network" class="panel-empty error">{{ errors.network }}</div>
+        <template v-else-if="network">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><ShieldCheck :size="16" />默认拒绝命名空间</p>
+              <strong>{{ network.isolated_namespaces }}</strong>
+              <span>共 {{ network.namespaces_total }} 个命名空间</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><Network :size="16" />入向受保护 Pod</p>
+              <strong>{{ network.ingress_covered_pods }}</strong>
+              <span>共 {{ network.pods_total }} 个 Pod</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><AlertTriangle :size="16" />对外暴露服务</p>
+              <strong>{{ network.exposed_services }}</strong>
+              <span>NodePort / LoadBalancer，共 {{ network.services_total }} 个</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><CheckCircle2 :size="16" />覆盖检查</p>
+              <strong>{{ network.isolated_namespaces > 0 ? '已设基线' : '未设基线' }}</strong>
+              <span>{{ network.policies_total }} 条 NetworkPolicy · 分析时间 {{ formatTimestamp(network.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <div v-if="networkFamilies.length > 0" class="family-chips">
+            <span v-for="[family, count] in networkFamilies" :key="family" class="family-chip">
+              {{ family }}<em>{{ count }}</em>
+            </span>
+          </div>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <Network :size="18" />
+                <strong>网络态势发现</strong>
+                <span class="muted">{{ networkFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="networkFindings.length === 0" class="panel-empty muted">
+              未发现在命名空间隔离、Pod 覆盖、Service 后端或对外暴露方面的异常
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>资源</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in networkFindings" :key="`${item.code}-${item.resource.namespace ?? ''}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">
+                        {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
+                      </div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
       </section>
     </template>
   </ConsoleLayout>

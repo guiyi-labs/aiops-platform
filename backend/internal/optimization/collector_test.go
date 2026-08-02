@@ -3,6 +3,7 @@ package optimization
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"testing"
 
@@ -218,3 +219,144 @@ func TestKubernetesLister_AdaptsGateway(t *testing.T) {
 
 var _ kubernetes.Gateway = stubGateway{}
 var _ kubernetes.CredentialSource = stubCreds{}
+
+func TestCollectNetPolicy_MapsNamespacesPodsServicesAndPolicies(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/api/v1/namespaces": {raw(`{"metadata":{"name":"shop","uid":"ns1","labels":{"tier":"app"}}}`)},
+		"/api/v1/pods": {raw(`{
+			"metadata":{"namespace":"shop","name":"web-1","uid":"p1","labels":{"app":"web"}},
+			"spec":{"hostNetwork":true,"containers":[
+				{"name":"c1","ports":[{"name":"http","containerPort":8080,"protocol":"TCP"}]},
+				{"name":"c2","ports":[{"containerPort":9090}]}
+			]}}`)},
+		"/api/v1/services": {raw(`{
+			"metadata":{"namespace":"shop","name":"web","uid":"s1"},
+			"spec":{"type":"NodePort","selector":{"app":"web"},"clusterIP":"10.0.0.7",
+				"ports":[
+					{"name":"http","port":80,"targetPort":"http","protocol":"TCP","nodePort":31080},
+					{"name":"metrics","port":9090,"targetPort":9090}
+				]}}`)},
+		"/apis/networking.k8s.io/v1/networkpolicies": {raw(`{
+			"metadata":{"namespace":"shop","name":"allow-gw","uid":"np1"},
+			"spec":{
+				"podSelector":{"matchLabels":{"app":"web"}},
+				"policyTypes":["Ingress","Egress"],
+				"ingress":[{
+					"from":[
+						{"namespaceSelector":{},"podSelector":{"matchLabels":{"app":"gw"}}},
+						{"ipBlock":{"cidr":"0.0.0.0/0","except":["10.0.0.0/8"]}}
+					],
+					"ports":[{"protocol":"TCP","port":"http"},{"port":8000,"endPort":8100}]
+				}],
+				"egress":[{"to":[{"ipBlock":{"cidr":"0.0.0.0/0"}}]}]
+			}}`)},
+	}}
+
+	in, err := NewCollector(lister, nil).CollectNetPolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectNetPolicy: %v", err)
+	}
+
+	if len(in.Namespaces) != 1 || in.Namespaces[0].Labels["tier"] != "app" {
+		t.Fatalf("namespaces = %+v", in.Namespaces)
+	}
+	if len(in.Pods) != 1 {
+		t.Fatalf("pods = %d, want 1", len(in.Pods))
+	}
+	pod := in.Pods[0]
+	if !pod.HostNetwork || pod.Labels["app"] != "web" {
+		t.Fatalf("pod identity not mapped: %+v", pod)
+	}
+	if len(pod.Ports) != 2 || pod.Ports[0].Name != "http" || pod.Ports[0].ContainerPort != 8080 || pod.Ports[1].ContainerPort != 9090 {
+		t.Fatalf("container ports across containers not flattened: %+v", pod.Ports)
+	}
+
+	if len(in.Services) != 1 {
+		t.Fatalf("services = %d, want 1", len(in.Services))
+	}
+	svc := in.Services[0]
+	if svc.Type != "NodePort" || svc.Selector["app"] != "web" || svc.ClusterIP != "10.0.0.7" {
+		t.Fatalf("service not mapped: %+v", svc)
+	}
+	// targetPort is an IntOrString: both spellings must survive as strings.
+	if svc.Ports[0].TargetPort != "http" || svc.Ports[0].NodePort != 31080 {
+		t.Fatalf("named targetPort not mapped: %+v", svc.Ports[0])
+	}
+	if svc.Ports[1].TargetPort != "9090" {
+		t.Fatalf("numeric targetPort = %q, want 9090", svc.Ports[1].TargetPort)
+	}
+
+	if len(in.Policies) != 1 {
+		t.Fatalf("policies = %d, want 1", len(in.Policies))
+	}
+	policy := in.Policies[0]
+	if policy.PodSelector.MatchLabels["app"] != "web" || policy.PodSelector.HasExpressions {
+		t.Fatalf("policy podSelector not mapped: %+v", policy.PodSelector)
+	}
+	if len(policy.Ingress) != 1 || len(policy.Ingress[0].Peers) != 2 {
+		t.Fatalf("ingress rule not mapped: %+v", policy.Ingress)
+	}
+	peer := policy.Ingress[0].Peers[0]
+	// An empty namespaceSelector must stay distinguishable from an absent one.
+	if peer.NamespaceSelector == nil || !peer.NamespaceSelector.SelectsAll() {
+		t.Fatalf("empty namespaceSelector lost: %+v", peer.NamespaceSelector)
+	}
+	if peer.PodSelector == nil || peer.PodSelector.MatchLabels["app"] != "gw" {
+		t.Fatalf("peer podSelector not mapped: %+v", peer.PodSelector)
+	}
+	if cidr := policy.Ingress[0].Peers[1]; cidr.IPBlockCIDR != "0.0.0.0/0" || len(cidr.IPBlockExcept) != 1 {
+		t.Fatalf("ipBlock not mapped: %+v", cidr)
+	}
+	if ports := policy.Ingress[0].Ports; len(ports) != 2 || ports[0].Port != "http" || ports[1].Port != "8000" || ports[1].EndPort != 8100 {
+		t.Fatalf("policy ports not mapped: %+v", ports)
+	}
+	if len(policy.Egress) != 1 || policy.Egress[0].Peers[0].IPBlockCIDR != "0.0.0.0/0" {
+		t.Fatalf("egress rule not mapped: %+v", policy.Egress)
+	}
+}
+
+// TestCollectNetPolicy_ToleratesMissingNetworkingAPI verifies that a cluster
+// without the NetworkPolicy API (or without list permission on it) still
+// produces a usable reachability bundle instead of failing the whole scan.
+func TestCollectNetPolicy_ToleratesMissingNetworkingAPI(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/api/v1/namespaces": {raw(`{"metadata":{"name":"shop"}}`)},
+		"/api/v1/pods":       {raw(`{"metadata":{"namespace":"shop","name":"web-1","labels":{"app":"web"}}}`)},
+		"/api/v1/services":   {raw(`{"metadata":{"namespace":"shop","name":"web"},"spec":{"selector":{"app":"web"},"ports":[{"port":80}]}}`)},
+	}}
+
+	in, err := NewCollector(lister, nil).CollectNetPolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectNetPolicy: %v", err)
+	}
+	if len(in.Policies) != 0 {
+		t.Fatalf("policies = %d, want 0", len(in.Policies))
+	}
+	if len(in.Pods) != 1 || len(in.Services) != 1 {
+		t.Fatalf("bundle should still carry pods and services: %+v", in)
+	}
+	// An absent targetPort must stay empty so the analyzer defaults it to the
+	// service port rather than treating "" as a named port.
+	if in.Services[0].Ports[0].TargetPort != "" {
+		t.Fatalf("absent targetPort = %q, want empty", in.Services[0].Ports[0].TargetPort)
+	}
+}
+
+// TestCollectNetPolicy_PropagatesPodListFailure ensures a broken cluster
+// connection surfaces as an error (the handler turns it into 502
+// COLLECT_FAILED) rather than being reported as a clean, empty cluster.
+func TestCollectNetPolicy_PropagatesPodListFailure(t *testing.T) {
+	lister := failingLister{failOn: "/api/v1/pods"}
+	if _, err := NewCollector(lister, nil).CollectNetPolicy(context.Background(), 7); err == nil {
+		t.Fatal("expected the pod list failure to propagate")
+	}
+}
+
+type failingLister struct{ failOn string }
+
+func (f failingLister) List(_ context.Context, _ int64, path string) ([]json.RawMessage, error) {
+	if path == f.failOn {
+		return nil, errors.New("connection refused")
+	}
+	return nil, nil
+}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeNetwork } from './optimization'
+import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeImage, analyzeNetwork } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -104,6 +104,39 @@ describe('optimization API client', () => {
 
     await expect(analyzeNetwork('token', 12)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 12 is unreachable',
+    })
+  })
+
+  it('asks the server to auto-collect the image bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 15, evaluated_at: '2026-08-02T10:00:00Z', total: 6, failed: 3, passed: 3,
+      images_total: 5, containers_total: 11, mutable_tag_images: 2, unpinned_images: 3,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzeImage('token', 15)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/image/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 15 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.mutable_tag_images).toBe(2)
+    expect(status.unpinned_images).toBe(3)
+  })
+
+  it('surfaces a failed image collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 15 is unreachable' }, 502,
+    )))
+
+    await expect(analyzeImage('token', 15)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 15 is unreachable',
     })
   })
 })

@@ -4,10 +4,11 @@ import type {
   CostRate,
   DeprecatedAPIStatus,
   FinOpsWasteSummary,
+  ImageStatus,
   NetworkStatus,
 } from '../types/optimization'
 
-// Client for the read-only optimization analyzers (M61-M67).
+// Client for the read-only optimization analyzers (M61-M68).
 //
 // Each request sends only `cluster_id` (plus the target version for the
 // deprecated-API check), which makes the server auto-collect the observation
@@ -44,6 +45,14 @@ export async function analyzeDeprecatedAPI(token: string, clusterId: number, tar
 
 export async function analyzeNetwork(token: string, clusterId: number): Promise<NetworkStatus> {
   const status = await authorizedRequest<NetworkStatus>('/api/v1/optimization/network/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+export async function analyzeImage(token: string, clusterId: number): Promise<ImageStatus> {
+  const status = await authorizedRequest<ImageStatus>('/api/v1/optimization/image/analyze', token, {
     method: 'POST',
     body: JSON.stringify({ cluster_id: clusterId }),
   })

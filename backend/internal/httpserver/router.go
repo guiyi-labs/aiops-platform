@@ -536,6 +536,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/finops/analyze", AuthRequired: true, Handler: optAPI.finopsAnalyze, AuditAction: "optimization.finops.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/deprecated-api/analyze", AuthRequired: true, Handler: optAPI.deprecatedAPIAnalyze, AuditAction: "optimization.deprecated_api.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/network/analyze", AuthRequired: true, Handler: optAPI.networkAnalyze, AuditAction: "optimization.network.analyze", AuditResource: "Cluster"})
+		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/image/analyze", AuthRequired: true, Handler: optAPI.imageAnalyze, AuditAction: "optimization.image.analyze", AuditResource: "Cluster"})
 	}
 
 	// M37B alert routes: webhook receivers, exact-match routes, bounded

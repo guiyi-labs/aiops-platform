@@ -338,6 +338,73 @@ it cannot perturb traffic.
   -cover` and frontend `eslint` / `vue-tsc -b` / `vitest` / `vite build` are
   green.
 
+### Added — M68 Read-Only Image Supply-Chain / Reproducibility Analyzer (P1-③)
+
+P1-③ adds a fifth read-only analyzer to the 优化中心: a *static* container
+image supply-chain and reproducibility check. It never contacts a registry and
+never pulls a manifest — consistent with ADR 0004 it reasons purely from the
+image references the workloads declare.
+
+Scope note: real CVE scoring needs a vulnerability source (Trivy / Grype / an
+advisory API) and is a deliberate follow-up. This milestone delivers the
+inventory and reproducibility findings such a source would consume, because an
+image pinned only by a mutable tag cannot be reasoned about after the fact —
+a "fixed" version may never actually reach production.
+
+- **`backend/internal/imagepolicy/model.go`** (new) — analyzer contract reusing
+  `type Finding = k8sfinding.Finding`; family constant `FamilySupplyChain`;
+  finding codes `CodeMutableTag`, `CodeNoDigestPin`, `CodePullAlwaysLatest`,
+  `CodeSharedAcrossNamespaces`, `CodeMultipleTags`. `ImageInfo` decomposes a
+  reference into repository / tag / digest / pullPolicy; `ImageUsage` links one
+  container (`ContainerRef`: namespace, workload kind/name, container) to one
+  image. `Status` carries inventory counters (`images_total`,
+  `containers_total`, `mutable_tag_images`, `unpinned_images`) alongside
+  `by_severity` / `by_family` / `findings`.
+- **`backend/internal/imagepolicy/service.go`** (new) — pure `Evaluate(clusterID,
+  Inputs, observedAt) Status`: groups usages by `repository|tag|digest`, then
+  per image checks a mutable tag (`:latest` or omitted → warning), a missing
+  digest pin (fixed tag but no digest → info), `imagePullPolicy: Always`
+  combined with a mutable tag (info), and cross-namespace sharing (info);
+  finally a per-repository tag-skew check (one repo under several tags → info).
+  A digest pin short-circuits the mutable/unpinned checks: it is the fully
+  reproducible case regardless of the tag. Exported `ParseImage` splits a
+  reference without mistaking a registry port (`registry.io:5000/team/api`)
+  for a tag. Findings are sorted stably by severity → code → name → namespace.
+- **`backend/internal/optimization/collector.go`** — new `CollectImagePolicy(ctx,
+  clusterID)` reads Deployments / StatefulSets / DaemonSets / Jobs plus
+  *ownerless* Pods. Controller-owned Pods are skipped so an image is counted
+  once per workload instead of once per replica; CronJobs are omitted because
+  the Jobs they create are already listed. Init containers are included — they
+  carry the same supply-chain risk. New raw types `containerImageRaw` /
+  `podSpecImageRaw` / `workloadImageRaw` decode both `.spec.template.spec`
+  (controllers) and `.spec` (bare Pods) via an embedded struct, and pick up
+  `imagePullPolicy`, which `kubernetes.WorkloadContainer` does not carry.
+- **`backend/internal/optimization/service.go`** — `Service` delegates
+  `CollectImagePolicy`, reusing the existing `HasCollector()` gate.
+- **`backend/internal/httpserver/optimization.go`** — new `POST /image/analyze`
+  handler: when the body is empty it auto-collects via the collector (502
+  `COLLECT_FAILED` on failure); otherwise it evaluates a supplied bundle.
+- **`backend/internal/httpserver/router.go`** — registers
+  `POST /api/v1/optimization/image/analyze`
+  (`AuditAction: optimization.image.analyze`).
+- **`docs/api/openapi.yaml`** — documents `POST /api/v1/optimization/image/analyze`
+  (`analyzeImagePosture`) with 200/400/502 responses.
+- **Coverage**: `internal/imagepolicy` at 96.9%; collector tests cover init
+  containers, the registry-port parse trap, owned-pod de-duplication,
+  image-less containers, absent collections, and list-failure propagation;
+  http tests cover the supplied bundle, auto-collection, and the
+  missing-cluster / empty-bundle rejections.
+- **Frontend** — `types/optimization.ts` gains `ImageStatus`;
+  `api/optimization.ts` gains `analyzeImage` (null → `[]`/`{}` normalised);
+  `OptimizationView.vue` gains a 5th *镜像供应链* tab reusing the shared cluster
+  selector, request-sequence guard, and findings table, with headline cards for
+  images in use, mutable-tag images, unpinned images, and a derived
+  reproducibility rate. `api/optimization.test.ts` adds the `analyzeImage`
+  suite (auto-collect shape, null normalisation, 502 `COLLECT_FAILED`).
+- Backend `gofmt` / `go vet` / `go build ./...` / `golangci-lint` / `go test
+  -cover` and frontend `eslint` / `vue-tsc -b` / `vitest` / `vite build` are
+  green.
+
 ### Added — M58 DevOps Read-Only + Cross-Cluster Copy + Backup/Restore GUI Backend
 
 - **GitOps (ArgoCD Application) read-only** (`backend/internal/gitops/*`):

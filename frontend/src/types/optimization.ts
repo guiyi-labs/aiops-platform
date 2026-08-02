@@ -1,10 +1,11 @@
-// Types for the read-only optimization analyzers (M61-M67).
+// Types for the read-only optimization analyzers (M61-M68).
 //
 // These mirror the backend contracts exactly:
 //   - cis.Status            (internal/cis/model.go)
 //   - finops.WasteSummary   (internal/finops/advisor.go)
 //   - deprecatedapi.Status  (internal/deprecatedapi/model.go)
 //   - netpolicy.Status      (internal/netpolicy/model.go)
+//   - imagepolicy.Status    (internal/imagepolicy/model.go)
 //   - finding.Finding       (internal/finding) — shared by every analyzer
 //
 // Every endpoint is read-only: the server collects an observation bundle and
@@ -130,6 +131,33 @@ export interface NetworkStatus {
   isolated_namespaces: number
   /** NodePort / LoadBalancer services. */
   exposed_services: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
+}
+
+/**
+ * Image supply-chain and reproducibility rollup (imagepolicy.Status).
+ *
+ * The analyzer never contacts a registry: it reasons statically over the image
+ * references the workloads declare, which is what makes a later CVE response
+ * possible at all — an image pinned only by a mutable tag cannot be reasoned
+ * about after the fact.
+ */
+export interface ImageStatus {
+  cluster_id: number
+  evaluated_at: string
+  total: number
+  failed: number
+  passed: number
+  /** Distinct image references (repository + tag + digest) in use. */
+  images_total: number
+  /** Containers referencing an image, including init containers. */
+  containers_total: number
+  /** Distinct images referenced by :latest or with no tag at all. */
+  mutable_tag_images: number
+  /** Distinct images referenced by tag only, without a digest pin. */
+  unpinned_images: number
   by_severity: Record<string, number>
   by_family: Record<string, number>
   findings: OptimizationFinding[]

@@ -9,6 +9,7 @@ import (
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
+	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/optimization"
 )
@@ -162,5 +163,40 @@ func (h optimizationHandler) networkAnalyze(c *gin.Context) {
 		inputs = collected
 	}
 	status := netpolicy.Evaluate(req.ClusterID, inputs, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// imageAnalyzeRequest carries the cluster identity plus the image supply-chain
+// observation bundle. imagepolicy.Inputs is embedded so its "usages" field is
+// accepted at the top level of the JSON body.
+type imageAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	imagepolicy.Inputs
+}
+
+func (h optimizationHandler) imageAnalyze(c *gin.Context) {
+	var req imageAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectImagePolicy(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := imagepolicy.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

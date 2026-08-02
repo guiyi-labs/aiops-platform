@@ -346,3 +346,114 @@ func TestOptimizationNetworkAnalyzeRejectsMissingClusterAndInputs(t *testing.T) 
 		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
 	}
 }
+
+// TestOptimizationImageAnalyzeWithSuppliedBundle exercises the M68 image
+// endpoint with a caller-supplied observation bundle and no collector wired.
+func TestOptimizationImageAnalyzeWithSuppliedBundle(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/image/analyze", map[string]any{
+		"cluster_id": 7,
+		"usages": []map[string]any{
+			{
+				"image":     map[string]any{"repository": "registry.io/team/api", "tag": "latest", "pull_policy": "Always"},
+				"container": map[string]any{"namespace": "shop", "workload_kind": "Deployment", "workload_name": "api", "container": "app"},
+			},
+		},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		Failed           int            `json:"failed"`
+		ImagesTotal      int            `json:"images_total"`
+		MutableTagImages int            `json:"mutable_tag_images"`
+		BySeverity       map[string]int `json:"by_severity"`
+		Findings         []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode image status: %v", err)
+	}
+	if status.ImagesTotal != 1 || status.MutableTagImages != 1 {
+		t.Fatalf("inventory wrong: images=%d mutable=%d", status.ImagesTotal, status.MutableTagImages)
+	}
+	var sawMutableTag bool
+	for _, f := range status.Findings {
+		if f.Code == "IMG_MUTABLE_TAG" {
+			sawMutableTag = true
+		}
+	}
+	if !sawMutableTag {
+		t.Fatalf("expected IMG_MUTABLE_TAG, got %+v", status.Findings)
+	}
+	if status.BySeverity["warning"] < 1 {
+		t.Fatalf("severity rollup missing the warning finding: %v", status.BySeverity)
+	}
+}
+
+// TestOptimizationImageAnalyzeAutoCollect verifies the M65 auto-collection
+// path for the image endpoint: an empty bundle triggers a read-only workload
+// scan and the :latest reference is reported.
+func TestOptimizationImageAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {
+			json.RawMessage(`{"metadata":{"namespace":"shop","name":"api"},"spec":{"template":{"spec":{"containers":[{"name":"app","image":"registry.io/team/api:latest","imagePullPolicy":"Always"}]}}}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/image/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		ImagesTotal     int `json:"images_total"`
+		ContainersTotal int `json:"containers_total"`
+		Findings        []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode image status: %v", err)
+	}
+	if status.ImagesTotal != 1 || status.ContainersTotal != 1 {
+		t.Fatalf("auto-collected inventory wrong: images=%d containers=%d", status.ImagesTotal, status.ContainersTotal)
+	}
+	var sawMutableTag, sawPullAlways bool
+	for _, f := range status.Findings {
+		switch f.Code {
+		case "IMG_MUTABLE_TAG":
+			sawMutableTag = true
+		case "IMG_PULL_ALWAYS_LATEST":
+			sawPullAlways = true
+		}
+	}
+	if !sawMutableTag || !sawPullAlways {
+		t.Fatalf("expected mutable-tag and pull-always findings from the auto-collected deployment, got %+v", status.Findings)
+	}
+}
+
+func TestOptimizationImageAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/image/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Without a collector an empty bundle is unanalysable and must be
+	// rejected explicitly rather than returning a misleading clean report.
+	rec = postJSON(t, engine, "/api/v1/optimization/image/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}

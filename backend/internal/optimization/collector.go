@@ -8,6 +8,7 @@ import (
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
+	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/netpolicy"
 )
@@ -409,6 +410,94 @@ func (c *Collector) CollectNetPolicy(ctx context.Context, clusterID int64) (netp
 	return in, nil
 }
 
+// imagePolicySources are the workload collections scanned for container image
+// references. Controllers are read instead of their Pods so one image is
+// counted once per workload rather than once per replica; bare Pods are picked
+// up separately (see CollectImagePolicy) only when they have no owner.
+//
+// CronJobs are deliberately omitted: the Jobs they create are listed here
+// already, so including both would double-count the same image.
+var imagePolicySources = []struct {
+	kind string
+	path string
+}{
+	{"Deployment", "/apis/apps/v1/deployments"},
+	{"StatefulSet", "/apis/apps/v1/statefulsets"},
+	{"DaemonSet", "/apis/apps/v1/daemonsets"},
+	{"Job", "/apis/batch/v1/jobs"},
+}
+
+// CollectImagePolicy builds the image supply-chain observation bundle: every
+// container image referenced by a workload controller, plus the images of
+// standalone Pods. Init containers are included because they ship the same
+// supply-chain risk as app containers.
+//
+// Everything is a read-only List against the API server. No registry is ever
+// contacted and no manifest is pulled.
+func (c *Collector) CollectImagePolicy(ctx context.Context, clusterID int64) (imagepolicy.Inputs, error) {
+	in := imagepolicy.Inputs{}
+
+	for _, src := range imagePolicySources {
+		items, err := c.lister.List(ctx, clusterID, src.path)
+		if err != nil {
+			return imagepolicy.Inputs{}, err
+		}
+		for _, raw := range items {
+			var w workloadImageRaw
+			if json.Unmarshal(raw, &w) != nil {
+				continue
+			}
+			in.Usages = append(in.Usages, imageUsages(src.kind, w.Metadata.Namespace, w.Metadata.Name, w.Spec.Template.Spec)...)
+		}
+	}
+
+	podItems, err := c.lister.List(ctx, clusterID, "/api/v1/pods")
+	if err != nil {
+		return imagepolicy.Inputs{}, err
+	}
+	for _, raw := range podItems {
+		var p workloadImageRaw
+		if json.Unmarshal(raw, &p) != nil {
+			continue
+		}
+		// Pods created by a controller are skipped; their images were already
+		// collected from the controller's pod template above.
+		if len(p.Metadata.OwnerReferences) > 0 {
+			continue
+		}
+		in.Usages = append(in.Usages, imageUsages("Pod", p.Metadata.Namespace, p.Metadata.Name, p.Spec.podSpecImageRaw)...)
+	}
+
+	return in, nil
+}
+
+// imageUsages flattens one pod spec into the per-container usage records the
+// analyzer consumes.
+func imageUsages(kind, namespace, name string, spec podSpecImageRaw) []imagepolicy.ImageUsage {
+	containers := make([]containerImageRaw, 0, len(spec.InitContainers)+len(spec.Containers))
+	containers = append(containers, spec.InitContainers...)
+	containers = append(containers, spec.Containers...)
+
+	usages := make([]imagepolicy.ImageUsage, 0, len(containers))
+	for _, ctr := range containers {
+		if ctr.Image == "" {
+			continue
+		}
+		img := imagepolicy.ParseImage(ctr.Image)
+		img.PullPolicy = ctr.ImagePullPolicy
+		usages = append(usages, imagepolicy.ImageUsage{
+			Image: img,
+			Container: imagepolicy.ContainerRef{
+				Namespace:    namespace,
+				WorkloadKind: kind,
+				WorkloadName: name,
+				Container:    ctr.Name,
+			},
+		})
+	}
+	return usages
+}
+
 // CollectFinOps builds the FinOps container-input bundle from live workload
 // specs (requests/limits/replicas) plus observed p95 usage when a MetricsSource
 // is configured.
@@ -543,6 +632,40 @@ func (c *Collector) listPodLite(ctx context.Context, clusterID int64) []podLite 
 }
 
 // --- raw decode helpers (fields the typed kubernetes structs omit) ---
+
+// containerImageRaw is the image-bearing subset of a container spec.
+type containerImageRaw struct {
+	Name            string `json:"name"`
+	Image           string `json:"image"`
+	ImagePullPolicy string `json:"imagePullPolicy"`
+}
+
+// podSpecImageRaw is the image-bearing subset of a PodSpec.
+type podSpecImageRaw struct {
+	Containers     []containerImageRaw `json:"containers"`
+	InitContainers []containerImageRaw `json:"initContainers"`
+}
+
+// workloadImageRaw decodes both controller objects, where the containers live
+// under .spec.template.spec, and bare Pods, where they live directly under
+// .spec. The embedded podSpecImageRaw covers the latter: encoding/json
+// promotes the exported fields of an embedded struct, so "spec.containers"
+// decodes into Spec.Containers.
+type workloadImageRaw struct {
+	Metadata struct {
+		Namespace       string `json:"namespace"`
+		Name            string `json:"name"`
+		OwnerReferences []struct {
+			Kind string `json:"kind"`
+		} `json:"ownerReferences"`
+	} `json:"metadata"`
+	Spec struct {
+		podSpecImageRaw
+		Template struct {
+			Spec podSpecImageRaw `json:"spec"`
+		} `json:"template"`
+	} `json:"spec"`
+}
 
 type podRaw struct {
 	Metadata struct {

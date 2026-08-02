@@ -16,6 +16,7 @@ import (
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
+	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 )
 
@@ -72,4 +73,10 @@ func (s *Service) CollectDeprecatedAPI(ctx context.Context, clusterID int64) ([]
 // (namespaces, pods, services, network policies) for a cluster.
 func (s *Service) CollectNetPolicy(ctx context.Context, clusterID int64) (netpolicy.Inputs, error) {
 	return s.collector.CollectNetPolicy(ctx, clusterID)
+}
+
+// CollectImagePolicy auto-collects the image supply-chain observation bundle
+// (every container image referenced by a workload) for a cluster.
+func (s *Service) CollectImagePolicy(ctx context.Context, clusterID int64) (imagepolicy.Inputs, error) {
+	return s.collector.CollectImagePolicy(ctx, clusterID)
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"k8s-aiops.local/backend/internal/cluster"
+	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/kubernetes"
 )
 
@@ -359,4 +360,147 @@ func (f failingLister) List(_ context.Context, _ int64, path string) ([]json.Raw
 		return nil, errors.New("connection refused")
 	}
 	return nil, nil
+}
+
+// TestCollectImagePolicy_MapsControllersAndInitContainers checks the mapping
+// from live workload specs to image usages, including init containers and the
+// decomposition of the image reference.
+func TestCollectImagePolicy_MapsControllersAndInitContainers(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {raw(`{"metadata":{"namespace":"shop","name":"api"},"spec":{"template":{"spec":{
+			"initContainers":[{"name":"migrate","image":"registry.io/team/migrate:v1.4.2"}],
+			"containers":[{"name":"app","image":"registry.io/team/api:latest","imagePullPolicy":"Always"}]}}}}`)},
+		"/apis/apps/v1/statefulsets": {raw(`{"metadata":{"namespace":"shop","name":"db"},"spec":{"template":{"spec":{
+			"containers":[{"name":"pg","image":"registry.io:5000/team/pg:16"}]}}}}`)},
+		"/apis/apps/v1/daemonsets": {raw(`{"metadata":{"namespace":"kube-system","name":"agent"},"spec":{"template":{"spec":{
+			"containers":[{"name":"agent","image":"registry.io/team/agent@sha256:abc"}]}}}}`)},
+		"/apis/batch/v1/jobs": {raw(`{"metadata":{"namespace":"shop","name":"backup"},"spec":{"template":{"spec":{
+			"containers":[{"name":"backup","image":"registry.io/team/backup:v2"}]}}}}`)},
+	}}
+
+	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectImagePolicy: %v", err)
+	}
+	if len(in.Usages) != 5 {
+		t.Fatalf("usages = %d, want 5: %+v", len(in.Usages), in.Usages)
+	}
+
+	byContainer := map[string]imagepolicy.ImageUsage{}
+	for _, u := range in.Usages {
+		byContainer[u.Container.WorkloadKind+"/"+u.Container.WorkloadName+"/"+u.Container.Container] = u
+	}
+
+	app, ok := byContainer["Deployment/api/app"]
+	if !ok {
+		t.Fatalf("deployment container missing: %+v", in.Usages)
+	}
+	if app.Image.Repository != "registry.io/team/api" || app.Image.Tag != "latest" {
+		t.Fatalf("app image = %+v, want repo/tag split", app.Image)
+	}
+	if app.Image.PullPolicy != "Always" {
+		t.Fatalf("pull policy = %q, want Always", app.Image.PullPolicy)
+	}
+	if app.Container.Namespace != "shop" {
+		t.Fatalf("namespace = %q, want shop", app.Container.Namespace)
+	}
+
+	// Init containers carry the same supply-chain risk and must be collected.
+	if _, ok := byContainer["Deployment/api/migrate"]; !ok {
+		t.Fatalf("init container missing: %+v", in.Usages)
+	}
+
+	// A registry port must not be mistaken for a tag.
+	pg := byContainer["StatefulSet/db/pg"]
+	if pg.Image.Repository != "registry.io:5000/team/pg" || pg.Image.Tag != "16" {
+		t.Fatalf("registry-port image parsed as %+v", pg.Image)
+	}
+
+	agent := byContainer["DaemonSet/agent/agent"]
+	if agent.Image.Digest != "sha256:abc" {
+		t.Fatalf("digest = %q, want sha256:abc", agent.Image.Digest)
+	}
+
+	if _, ok := byContainer["Job/backup/backup"]; !ok {
+		t.Fatalf("job container missing: %+v", in.Usages)
+	}
+}
+
+// TestCollectImagePolicy_SkipsOwnedPods is the double-counting guard: Pods
+// created by a controller are already represented by that controller's pod
+// template, so only standalone Pods may be added.
+func TestCollectImagePolicy_SkipsOwnedPods(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {raw(`{"metadata":{"namespace":"shop","name":"api"},"spec":{"template":{"spec":{
+			"containers":[{"name":"app","image":"registry.io/team/api:v1"}]}}}}`)},
+		"/api/v1/pods": {
+			raw(`{"metadata":{"namespace":"shop","name":"api-abc123","ownerReferences":[{"kind":"ReplicaSet"}]},"spec":{
+				"containers":[{"name":"app","image":"registry.io/team/api:v1"}]}}`),
+			raw(`{"metadata":{"namespace":"ops","name":"debug"},"spec":{
+				"containers":[{"name":"shell","image":"registry.io/team/debug:latest"}]}}`),
+		},
+	}}
+
+	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectImagePolicy: %v", err)
+	}
+	if len(in.Usages) != 2 {
+		t.Fatalf("usages = %d, want 2 (controller + standalone pod only): %+v", len(in.Usages), in.Usages)
+	}
+	for _, u := range in.Usages {
+		if u.Container.WorkloadKind == "Pod" && u.Container.WorkloadName != "debug" {
+			t.Fatalf("controller-owned pod was collected: %+v", u.Container)
+		}
+	}
+}
+
+// TestCollectImagePolicy_SkipsContainersWithoutImage keeps malformed objects
+// from producing empty-repository findings.
+func TestCollectImagePolicy_SkipsContainersWithoutImage(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {raw(`{"metadata":{"namespace":"shop","name":"api"},"spec":{"template":{"spec":{
+			"containers":[{"name":"app"},{"name":"sidecar","image":"registry.io/team/proxy:v1"}]}}}}`)},
+	}}
+
+	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectImagePolicy: %v", err)
+	}
+	if len(in.Usages) != 1 || in.Usages[0].Container.Container != "sidecar" {
+		t.Fatalf("usages = %+v, want only the sidecar", in.Usages)
+	}
+}
+
+// TestCollectImagePolicy_ToleratesMissingCollections mirrors a cluster with no
+// Jobs or standalone Pods: absent collections are not an error.
+func TestCollectImagePolicy_ToleratesMissingCollections(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {raw(`{"metadata":{"namespace":"shop","name":"api"},"spec":{"template":{"spec":{
+			"containers":[{"name":"app","image":"registry.io/team/api:v1"}]}}}}`)},
+	}}
+
+	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectImagePolicy: %v", err)
+	}
+	if len(in.Usages) != 1 {
+		t.Fatalf("usages = %d, want 1", len(in.Usages))
+	}
+}
+
+// TestCollectImagePolicy_PropagatesListFailure ensures a broken cluster
+// connection surfaces as an error (502 COLLECT_FAILED) instead of being
+// reported as a clean, image-free cluster.
+func TestCollectImagePolicy_PropagatesListFailure(t *testing.T) {
+	for _, path := range []string{"/apis/apps/v1/deployments", "/api/v1/pods"} {
+		lister := failingLister{failOn: path}
+		in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+		if err == nil {
+			t.Fatalf("expected the %s failure to propagate", path)
+		}
+		if len(in.Usages) != 0 {
+			t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
+		}
+	}
 }

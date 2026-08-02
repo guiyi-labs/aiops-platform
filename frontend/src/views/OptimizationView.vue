@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Cpu,
+  Container,
   History,
   MemoryStick,
   Network,
@@ -20,15 +21,22 @@ import * as optimizationAPI from '../api/optimization'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { CISStatus, DeprecatedAPIStatus, FinOpsWasteSummary, NetworkStatus, OptimizationFinding } from '../types/optimization'
+import type {
+  CISStatus,
+  DeprecatedAPIStatus,
+  FinOpsWasteSummary,
+  ImageStatus,
+  NetworkStatus,
+  OptimizationFinding,
+} from '../types/optimization'
 
-// Read-only optimization console (M66) over the M61-M65 analyzers.
+// Read-only optimization console (M66) over the M61-M68 analyzers.
 //
 // Each tab posts only the cluster id, which makes the server auto-collect the
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated' | 'network'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image'
 
 const auth = useAuthStore()
 
@@ -42,9 +50,10 @@ const finops = ref<FinOpsWasteSummary | null>(null)
 const cis = ref<CISStatus | null>(null)
 const deprecated = ref<DeprecatedAPIStatus | null>(null)
 const network = ref<NetworkStatus | null>(null)
+const image = ref<ImageStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '' })
 
 const targetVersion = ref('1.29')
 
@@ -56,6 +65,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'cis', label: 'CIS 合规', icon: ShieldCheck },
   { key: 'deprecated', label: '废弃 API', icon: PackageX },
   { key: 'network', label: '网络连通', icon: Network },
+  { key: 'image', label: '镜像供应链', icon: Container },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -130,6 +140,25 @@ const networkFindings = computed<OptimizationFinding[]>(() => {
 /** Network policy families, ranked high → low for the chip strip. */
 const networkFamilies = computed(() => Object.entries(network.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
 
+/** Image findings ordered critical → warning → info so the worst surface first. */
+const imageFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(image.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
+/**
+ * Share of distinct images that are fully reproducible (digest-pinned).
+ * Images with a mutable tag or no digest pin are both counted as unpinned.
+ */
+const imagePinnedRate = computed(() => {
+  const total = image.value?.images_total ?? 0
+  if (total === 0) return 0
+  const risky = (image.value?.mutable_tag_images ?? 0) + (image.value?.unpinned_images ?? 0)
+  return Math.round(((total - risky) / total) * 100)
+})
+
 /** Highest monthly waste first — the recommendations worth acting on. */
 const finopsRecommendations = computed(() =>
   [...(finops.value?.recommendations ?? [])].sort((a, b) => b.monthly_waste_usd - a.monthly_waste_usd),
@@ -158,7 +187,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = tab === 'finops' ? finops.value : tab === 'cis' ? cis.value : tab === 'deprecated' ? deprecated.value : network.value
+  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value }[tab]
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -174,9 +203,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'deprecated') {
       const result = await optimizationAPI.analyzeDeprecatedAPI(auth.accessToken, clusterId, targetVersion.value)
       if (sequence === requestSequence) deprecated.value = result
-    } else {
+    } else if (tab === 'network') {
       const result = await optimizationAPI.analyzeNetwork(auth.accessToken, clusterId)
       if (sequence === requestSequence) network.value = result
+    } else {
+      const result = await optimizationAPI.analyzeImage(auth.accessToken, clusterId)
+      if (sequence === requestSequence) image.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -190,7 +222,8 @@ function resetResults() {
   cis.value = null
   deprecated.value = null
   network.value = null
-  errors.value = { finops: '', cis: '', deprecated: '', network: '' }
+  image.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '' }
 }
 
 async function loadClusters() {
@@ -511,7 +544,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ----------------------------------------------- 网络连通性 / NetworkPolicy -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'network'" class="optimization-tab">
         <div v-if="loading.network" class="panel-empty">正在采集命名空间、Pod、Service 与 NetworkPolicy 并做静态可达性推理…</div>
         <div v-else-if="errors.network" class="panel-empty error">{{ errors.network }}</div>
         <template v-else-if="network">
@@ -576,6 +609,85 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.resource.name }}</div>
                       <div class="cell-sub muted">
                         {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
+                      </div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
+      </section>
+
+      <!-- ----------------------------------------------- 镜像供应链 / 可复现性 -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.image" class="panel-empty">正在采集工作负载镜像引用并做静态可复现性分析…</div>
+        <div v-else-if="errors.image" class="panel-empty error">{{ errors.image }}</div>
+        <template v-else-if="image">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><Container :size="16" />在用镜像</p>
+              <strong>{{ image.images_total }}</strong>
+              <span>被 {{ image.containers_total }} 个容器引用</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><AlertTriangle :size="16" />可变 tag 镜像</p>
+              <strong>{{ image.mutable_tag_images }}</strong>
+              <span>使用 :latest 或缺省 tag，重新部署可能换成不同构建</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><History :size="16" />未钉 digest</p>
+              <strong>{{ image.unpinned_images }}</strong>
+              <span>仅按 tag 引用，tag 可被仓库重新指向</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><CheckCircle2 :size="16" />可复现率</p>
+              <strong>{{ imagePinnedRate }}%</strong>
+              <span>已用 digest 钉住 · 分析时间 {{ formatTimestamp(image.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <p class="view-intro muted">
+            本视图不访问任何镜像仓库，也不拉取 manifest，仅基于工作负载声明的镜像引用做静态推理。
+            可复现性是 CVE 响应的前提：镜像若只由可变 tag 引用，修复版本能否真正落到线上是无法验证的。
+          </p>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <Container :size="18" />
+                <strong>镜像供应链发现</strong>
+                <span class="muted">{{ imageFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="imageFindings.length === 0" class="panel-empty muted">
+              未发现可变 tag、未钉 digest、跨命名空间共享或版本漂移问题
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>镜像</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in imageFindings" :key="`${item.code}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">
+                        <template v-if="item.details?.tag">tag {{ item.details.tag }}</template>
+                        <template v-else-if="item.details?.tags">tags {{ item.details.tags }}</template>
+                        <template v-if="item.details?.containers"> · {{ item.details.containers }} 个容器</template>
                       </div>
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>

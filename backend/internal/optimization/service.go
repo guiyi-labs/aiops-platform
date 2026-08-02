@@ -13,6 +13,7 @@ package optimization
 import (
 	"context"
 
+	"k8s-aiops.local/backend/internal/capacity"
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
@@ -87,4 +88,10 @@ func (s *Service) CollectImagePolicy(ctx context.Context, clusterID int64) (imag
 // GitOps-managed namespaces) for a cluster.
 func (s *Service) CollectGitOpsDrift(ctx context.Context, clusterID int64) (gitopsdrift.Inputs, error) {
 	return s.collector.CollectGitOpsDrift(ctx, clusterID)
+}
+
+// CollectCapacity auto-collects the capacity-trend observation bundle (node
+// allocatable capacity plus the aggregate node usage time series) for a cluster.
+func (s *Service) CollectCapacity(ctx context.Context, clusterID int64) (capacity.Inputs, error) {
+	return s.collector.CollectCapacity(ctx, clusterID)
 }

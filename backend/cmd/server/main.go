@@ -457,6 +457,7 @@ func main() {
 				optimization.NewCollector(
 					optimization.NewKubernetesLister(clusterRegistry, clusterService),
 					optimization.NewMetricsHistorySource(metricsHistoryService, 24*time.Hour),
+					optimization.NewNodeUsageSource(metricsHistoryService, 24*time.Hour),
 				)),
 			OIDC:           oidcSessionManager,
 			OIDCPostLogout: oidcPostLogoutURI,

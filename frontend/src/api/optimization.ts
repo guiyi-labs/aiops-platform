@@ -1,5 +1,6 @@
 import { authorizedRequest } from './client'
 import type {
+  CapacityStatus,
   CISStatus,
   CostRate,
   DeprecatedAPIStatus,
@@ -62,6 +63,14 @@ export async function analyzeImage(token: string, clusterId: number): Promise<Im
 
 export async function analyzeGitOps(token: string, clusterId: number): Promise<GitOpsStatus> {
   const status = await authorizedRequest<GitOpsStatus>('/api/v1/optimization/gitops/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+export async function analyzeCapacity(token: string, clusterId: number): Promise<CapacityStatus> {
+  const status = await authorizedRequest<CapacityStatus>('/api/v1/optimization/capacity/analyze', token, {
     method: 'POST',
     body: JSON.stringify({ cluster_id: clusterId }),
   })

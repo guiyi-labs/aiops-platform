@@ -14,6 +14,7 @@ import {
   PackageX,
   RefreshCw,
   ShieldCheck,
+  TrendingUp,
   Wallet,
 } from 'lucide-vue-next'
 
@@ -23,6 +24,7 @@ import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type {
+  CapacityStatus,
   CISStatus,
   DeprecatedAPIStatus,
   FinOpsWasteSummary,
@@ -38,7 +40,7 @@ import type {
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity'
 
 const auth = useAuthStore()
 
@@ -54,9 +56,10 @@ const deprecated = ref<DeprecatedAPIStatus | null>(null)
 const network = ref<NetworkStatus | null>(null)
 const image = ref<ImageStatus | null>(null)
 const gitops = ref<GitOpsStatus | null>(null)
+const capacity = ref<CapacityStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '' })
 
 const targetVersion = ref('1.29')
 
@@ -70,6 +73,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'network', label: '网络连通', icon: Network },
   { key: 'image', label: '镜像供应链', icon: Container },
   { key: 'gitops', label: 'GitOps 漂移', icon: GitBranch },
+  { key: 'capacity', label: '容量预测', icon: TrendingUp },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -188,6 +192,42 @@ const gitopsDriftRate = computed(() => {
   return Math.round((drifted / total) * 100)
 })
 
+/** Capacity findings ordered critical → warning → info so the worst surface first. */
+const capacityFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(capacity.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
+/** CPU allocatable in whole cores. */
+const cpuCores = computed(() => (capacity.value?.cpu_capacity_nanocores ?? 0) / 1e9)
+
+/** Memory allocatable in GiB. */
+const memGiB = computed(() => (capacity.value?.mem_capacity_bytes ?? 0) / 1024 ** 3)
+
+/** Days until CPU saturates, or "—" when the trend is not growing. */
+const cpuSaturationDays = computed(() => {
+  const days = capacity.value?.cpu_saturation_in_days
+  if (days == null || days < 0) return '—'
+  return Math.round(days).toString()
+})
+
+/** Days until memory saturates, or "—" when the trend is not growing. */
+const memSaturationDays = computed(() => {
+  const days = capacity.value?.mem_saturation_in_days
+  if (days == null || days < 0) return '—'
+  return Math.round(days).toString()
+})
+
+/** Utilization ratio rendered as a percentage with one decimal place. */
+function pct(value: number | string | undefined): string {
+  if (value == null || value === '') return '—'
+  const ratio = typeof value === 'string' ? Number.parseFloat(value) : value
+  if (Number.isNaN(ratio)) return '—'
+  return `${(ratio * 100).toFixed(1)}%`
+}
+
 const cisFamilies = computed(() => Object.entries(cis.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
 
 /** CIS pass rate, used as the headline compliance score. */
@@ -211,7 +251,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value }[tab]
+  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value }[tab]
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -233,9 +273,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'image') {
       const result = await optimizationAPI.analyzeImage(auth.accessToken, clusterId)
       if (sequence === requestSequence) image.value = result
-    } else {
+    } else if (tab === 'gitops') {
       const result = await optimizationAPI.analyzeGitOps(auth.accessToken, clusterId)
       if (sequence === requestSequence) gitops.value = result
+    } else {
+      const result = await optimizationAPI.analyzeCapacity(auth.accessToken, clusterId)
+      if (sequence === requestSequence) capacity.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -251,7 +294,8 @@ function resetResults() {
   network.value = null
   image.value = null
   gitops.value = null
-  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '' }
+  capacity.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '' }
 }
 
 async function loadClusters() {
@@ -729,7 +773,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ----------------------------------------------- GitOps 漂移检测 -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'gitops'" class="optimization-tab">
         <div v-if="loading.gitops" class="panel-empty">正在采集工作负载、ConfigMap、Secret 与命名空间注解并比对 last-applied…</div>
         <div v-else-if="errors.gitops" class="panel-empty error">{{ errors.gitops }}</div>
         <template v-else-if="gitops">
@@ -797,6 +841,87 @@ onMounted(() => void loadClusters())
                         {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
                         <template v-if="item.details?.manager"> · {{ item.details.manager }}</template>
                       </div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
+      </section>
+
+      <!-- ----------------------------------------------- 容量预测 -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.capacity" class="panel-empty">正在汇总节点可分配容量与近 24 小时用量并拟合趋势…</div>
+        <div v-else-if="errors.capacity" class="panel-empty error">{{ errors.capacity }}</div>
+        <template v-else-if="capacity">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><Cpu :size="16" />CPU 容量</p>
+              <strong>{{ cpuCores.toFixed(1) }} 核</strong>
+              <span>全部节点可分配量合计</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><MemoryStick :size="16" />内存容量</p>
+              <strong>{{ memGiB.toFixed(1) }} GiB</strong>
+              <span>全部节点可分配量合计</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><TrendingUp :size="16" />当前利用率</p>
+              <strong>CPU {{ pct(capacity.cpu_current_pct) }}</strong>
+              <span>内存 {{ pct(capacity.mem_current_pct) }}（按拟合曲线）</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><AlertTriangle :size="16" />预计耗尽天数</p>
+              <strong>CPU {{ cpuSaturationDays }} 天</strong>
+              <span>内存 {{ memSaturationDays }} 天 · 严重 {{ capacity.by_severity.critical ?? 0 }} · 警告 {{ capacity.by_severity.warning ?? 0 }} · 分析时间 {{ formatTimestamp(capacity.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <p class="view-intro muted">
+            本视图只读汇总节点的 <code>status.allocatable</code> 与指标历史中的近 24 小时节点用量，
+            对 CPU / 内存分别做最小二乘线性拟合，再投影到 30 天预测窗口。
+            预计 7 天内耗尽或当前已超 100% 判为严重，30 天内达到 80% 判为警告。
+            不执行任何变更、不调度 Pod、不触发扩缩容。
+          </p>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <TrendingUp :size="18" />
+                <strong>容量饱和预警</strong>
+                <span class="muted">{{ capacityFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="capacityFindings.length === 0" class="panel-empty muted">
+              在预测窗口内未发现 CPU / 内存的饱和风险
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>资源</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in capacityFindings" :key="`${item.code}-${item.resource.namespace ?? ''}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <div v-if="item.details?.projected_pct != null" class="cell-sub muted">
+                        当前 {{ pct(item.details.current_pct) }} → 预计 {{ pct(item.details.projected_pct) }}
+                        <template v-if="item.details.days_to_saturation !== 'inf'"> · {{ item.details.days_to_saturation }} 天后耗尽</template>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">{{ item.resource.kind }}</div>
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
                   </tr>

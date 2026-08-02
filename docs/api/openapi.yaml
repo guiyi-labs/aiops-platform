@@ -132,6 +132,23 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/optimization/capacity/analyze:
+    post:
+      tags: [optimization]
+      summary: Predict cluster CPU/memory saturation from observed capacity and usage trend
+      operationId: analyzeCapacityPosture
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Capacity trend observation bundle (per-resource allocatable capacity plus a usage sample series, with an optional projection horizon in days); omit the bundle to auto-collect node capacity and metrics history from the cluster
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/fleet/health:
     get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
   /api/v1/fleet/resources/search:

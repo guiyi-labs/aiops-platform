@@ -6,7 +6,9 @@ import (
 	"errors"
 	"net/url"
 	"testing"
+	"time"
 
+	"k8s-aiops.local/backend/internal/capacity"
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/imagepolicy"
@@ -60,7 +62,7 @@ func TestCollectCIS_MapsWorkloadRBACNamespace(t *testing.T) {
 		"/api/v1/namespaces": {raw(`{"apiVersion":"v1","kind":"Namespace","metadata":{"name":"default","uid":"ns1"}}`)},
 	}}
 
-	col := NewCollector(lister, nil)
+	col := NewCollector(lister, nil, nil)
 	in, err := col.CollectCIS(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectCIS: %v", err)
@@ -110,7 +112,7 @@ func TestCollectFinOps_CollectsRequestsLimitsAndP95(t *testing.T) {
 		},
 	}}
 
-	col := NewCollector(lister, fakeMetrics{cpu: 50_000_000, mem: 33_554_432}) // 50m / 32Mi
+	col := NewCollector(lister, fakeMetrics{cpu: 50_000_000, mem: 33_554_432}, nil) // 50m / 32Mi
 	inputs, err := col.CollectFinOps(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectFinOps: %v", err)
@@ -147,7 +149,7 @@ func TestCollectFinOps_NoMetrics_NoUsage(t *testing.T) {
 			"spec":{"replicas":1,"selector":{"matchLabels":{"app":"web"}},
 				"template":{"spec":{"containers":[{"name":"c1","resources":{"requests":{"cpu":"100m"}}}]}}}}`)},
 	}}
-	col := NewCollector(lister, nil) // no metrics source
+	col := NewCollector(lister, nil, nil) // no metrics source
 	inputs, err := col.CollectFinOps(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectFinOps: %v", err)
@@ -170,7 +172,7 @@ func TestCollectDeprecatedAPI_ScansObjects(t *testing.T) {
 		// apiVersion in its own body — the collector reads the item's apiVersion.
 		"/apis/apps/v1/deployments": {raw(`{"apiVersion":"apps/v1beta1","kind":"Deployment","metadata":{"namespace":"default","name":"legacy","uid":"u2"}}`)},
 	}}
-	col := NewCollector(lister, nil)
+	col := NewCollector(lister, nil, nil)
 	objs, err := col.CollectDeprecatedAPI(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectDeprecatedAPI: %v", err)
@@ -254,7 +256,7 @@ func TestCollectNetPolicy_MapsNamespacesPodsServicesAndPolicies(t *testing.T) {
 			}}`)},
 	}}
 
-	in, err := NewCollector(lister, nil).CollectNetPolicy(context.Background(), 7)
+	in, err := NewCollector(lister, nil, nil).CollectNetPolicy(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectNetPolicy: %v", err)
 	}
@@ -327,7 +329,7 @@ func TestCollectNetPolicy_ToleratesMissingNetworkingAPI(t *testing.T) {
 		"/api/v1/services":   {raw(`{"metadata":{"namespace":"shop","name":"web"},"spec":{"selector":{"app":"web"},"ports":[{"port":80}]}}`)},
 	}}
 
-	in, err := NewCollector(lister, nil).CollectNetPolicy(context.Background(), 7)
+	in, err := NewCollector(lister, nil, nil).CollectNetPolicy(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectNetPolicy: %v", err)
 	}
@@ -349,7 +351,7 @@ func TestCollectNetPolicy_ToleratesMissingNetworkingAPI(t *testing.T) {
 // COLLECT_FAILED) rather than being reported as a clean, empty cluster.
 func TestCollectNetPolicy_PropagatesPodListFailure(t *testing.T) {
 	lister := failingLister{failOn: "/api/v1/pods"}
-	if _, err := NewCollector(lister, nil).CollectNetPolicy(context.Background(), 7); err == nil {
+	if _, err := NewCollector(lister, nil, nil).CollectNetPolicy(context.Background(), 7); err == nil {
 		t.Fatal("expected the pod list failure to propagate")
 	}
 }
@@ -379,7 +381,7 @@ func TestCollectImagePolicy_MapsControllersAndInitContainers(t *testing.T) {
 			"containers":[{"name":"backup","image":"registry.io/team/backup:v2"}]}}}}`)},
 	}}
 
-	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	in, err := NewCollector(lister, nil, nil).CollectImagePolicy(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectImagePolicy: %v", err)
 	}
@@ -442,7 +444,7 @@ func TestCollectImagePolicy_SkipsOwnedPods(t *testing.T) {
 		},
 	}}
 
-	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	in, err := NewCollector(lister, nil, nil).CollectImagePolicy(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectImagePolicy: %v", err)
 	}
@@ -464,7 +466,7 @@ func TestCollectImagePolicy_SkipsContainersWithoutImage(t *testing.T) {
 			"containers":[{"name":"app"},{"name":"sidecar","image":"registry.io/team/proxy:v1"}]}}}}`)},
 	}}
 
-	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	in, err := NewCollector(lister, nil, nil).CollectImagePolicy(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectImagePolicy: %v", err)
 	}
@@ -481,7 +483,7 @@ func TestCollectImagePolicy_ToleratesMissingCollections(t *testing.T) {
 			"containers":[{"name":"app","image":"registry.io/team/api:v1"}]}}}}`)},
 	}}
 
-	in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+	in, err := NewCollector(lister, nil, nil).CollectImagePolicy(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectImagePolicy: %v", err)
 	}
@@ -496,7 +498,7 @@ func TestCollectImagePolicy_ToleratesMissingCollections(t *testing.T) {
 func TestCollectImagePolicy_PropagatesListFailure(t *testing.T) {
 	for _, path := range []string{"/apis/apps/v1/deployments", "/api/v1/pods"} {
 		lister := failingLister{failOn: path}
-		in, err := NewCollector(lister, nil).CollectImagePolicy(context.Background(), 7)
+		in, err := NewCollector(lister, nil, nil).CollectImagePolicy(context.Background(), 7)
 		if err == nil {
 			t.Fatalf("expected the %s failure to propagate", path)
 		}
@@ -532,7 +534,7 @@ func TestCollectGitOpsDrift_MapsResourcesAndManagers(t *testing.T) {
 			"namespace":"shop","name":"sec","uid":"u5"},"data":{}}`)},
 	}}
 
-	in, err := NewCollector(lister, nil).CollectGitOpsDrift(context.Background(), 7)
+	in, err := NewCollector(lister, nil, nil).CollectGitOpsDrift(context.Background(), 7)
 	if err != nil {
 		t.Fatalf("CollectGitOpsDrift: %v", err)
 	}
@@ -588,12 +590,109 @@ func TestCollectGitOpsDrift_MapsResourcesAndManagers(t *testing.T) {
 func TestCollectGitOpsDrift_PropagatesListFailure(t *testing.T) {
 	for _, path := range []string{"/api/v1/namespaces", "/apis/apps/v1/deployments"} {
 		lister := failingLister{failOn: path}
-		in, err := NewCollector(lister, nil).CollectGitOpsDrift(context.Background(), 7)
+		in, err := NewCollector(lister, nil, nil).CollectGitOpsDrift(context.Background(), 7)
 		if err == nil {
 			t.Fatalf("expected the %s failure to propagate", path)
 		}
 		if len(in.Resources) != 0 {
 			t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 		}
+	}
+}
+
+// fakeUsage is a test UsageSeriesSource keyed by "<node>:<metric>".
+type fakeUsage struct {
+	series map[string][]capacity.Sample
+}
+
+func (f fakeUsage) NodeUsageSeries(_ context.Context, _ int64, node, metric string, _, _ time.Time) ([]capacity.Sample, error) {
+	return f.series[node+":"+metric], nil
+}
+
+// TestCollectCapacity_AggregatesNodeCapacityAndUsage verifies the collector
+// sums node allocatable capacity and point-wise aggregates per-node usage into
+// a single cluster series.
+func TestCollectCapacity_AggregatesNodeCapacityAndUsage(t *testing.T) {
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/api/v1/nodes": {
+			raw(`{"metadata":{"name":"n1","uid":"n1"},"status":{"allocatable":{"cpu":"4","memory":"8Gi"}}}`),
+			raw(`{"metadata":{"name":"n2","uid":"n2"},"status":{"allocatable":{"cpu":"4","memory":"8Gi"}}}`),
+		},
+	}}
+	usage := fakeUsage{series: map[string][]capacity.Sample{
+		"n1:cpu": {
+			{Timestamp: now.Add(-2 * time.Hour), Value: 1_000_000_000},
+			{Timestamp: now.Add(-1 * time.Hour), Value: 2_000_000_000},
+		},
+		"n2:cpu": {
+			{Timestamp: now.Add(-2 * time.Hour), Value: 1_000_000_000},
+			{Timestamp: now.Add(-1 * time.Hour), Value: 2_000_000_000},
+		},
+		"n1:memory": {
+			{Timestamp: now.Add(-2 * time.Hour), Value: 4 * 1024 * 1024 * 1024},
+			{Timestamp: now.Add(-1 * time.Hour), Value: 6 * 1024 * 1024 * 1024},
+		},
+		"n2:memory": {
+			{Timestamp: now.Add(-2 * time.Hour), Value: 4 * 1024 * 1024 * 1024},
+			{Timestamp: now.Add(-1 * time.Hour), Value: 6 * 1024 * 1024 * 1024},
+		},
+	}}
+
+	in, err := NewCollector(lister, nil, usage).CollectCapacity(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectCapacity: %v", err)
+	}
+	// 2 nodes x 4 cores = 8 cores = 8e9 nanocores.
+	if in.CPU.Capacity != 8_000_000_000 {
+		t.Errorf("cpu capacity = %d, want 8e9", in.CPU.Capacity)
+	}
+	// 2 nodes x 8Gi = 16Gi bytes.
+	if in.Memory.Capacity != 16*1024*1024*1024 {
+		t.Errorf("mem capacity = %d, want 16Gi", in.Memory.Capacity)
+	}
+	// n1 and n2 share timestamps, so they sum into one cluster point per tick.
+	if len(in.CPU.Samples) != 2 {
+		t.Fatalf("cpu samples = %d, want 2 (aggregated)", len(in.CPU.Samples))
+	}
+	if in.CPU.Samples[1].Value != 4_000_000_000 {
+		t.Errorf("latest aggregated cpu = %v, want 4e9", in.CPU.Samples[1].Value)
+	}
+	if len(in.Memory.Samples) != 2 {
+		t.Fatalf("mem samples = %d, want 2 (aggregated)", len(in.Memory.Samples))
+	}
+}
+
+// TestCollectCapacity_NoUsageSource_CapacityOnly verifies that without a
+// metrics history source the collector still reports capacity but no series.
+func TestCollectCapacity_NoUsageSource_CapacityOnly(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/api/v1/nodes": {
+			raw(`{"metadata":{"name":"n1","uid":"n1"},"status":{"allocatable":{"cpu":"2","memory":"4Gi"}}}`),
+		},
+	}}
+
+	in, err := NewCollector(lister, nil, nil).CollectCapacity(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectCapacity: %v", err)
+	}
+	if in.CPU.Capacity != 2_000_000_000 {
+		t.Errorf("cpu capacity = %d, want 2e9", in.CPU.Capacity)
+	}
+	if len(in.CPU.Samples) != 0 || len(in.Memory.Samples) != 0 {
+		t.Errorf("expected no samples without a usage source")
+	}
+}
+
+// TestCollectCapacity_PropagatesListFailure ensures a broken node List surfaces
+// as an error rather than a partial bundle.
+func TestCollectCapacity_PropagatesListFailure(t *testing.T) {
+	lister := failingLister{failOn: "/api/v1/nodes"}
+	in, err := NewCollector(lister, nil, nil).CollectCapacity(context.Background(), 7)
+	if err == nil {
+		t.Fatalf("expected the /api/v1/nodes failure to propagate")
+	}
+	if in.CPU.Capacity != 0 || len(in.CPU.Samples) != 0 {
+		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 	}
 }

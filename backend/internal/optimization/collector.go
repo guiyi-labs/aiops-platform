@@ -3,15 +3,19 @@ package optimization
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
+	"k8s-aiops.local/backend/internal/capacity"
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
 	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/netpolicy"
 )
 
@@ -31,20 +35,33 @@ type MetricsSource interface {
 	PodContainerP95(ctx context.Context, clusterID int64, namespace, pod, container string) (cpuNanocores, memBytes int64, ok bool)
 }
 
+// UsageSeriesSource returns a node's CPU or memory usage time series (raw
+// units: nanocores for cpu, bytes for memory) over [from,to]. The capacity
+// collector aggregates per-node series into a cluster capacity-trend input. A
+// nil source means no usage history: capacity collection degrades to
+// capacity-only (the analyzer reports no trend, only current utilization when a
+// sample happens to be supplied out-of-band).
+type UsageSeriesSource interface {
+	NodeUsageSeries(ctx context.Context, clusterID int64, node, metric string, from, to time.Time) ([]capacity.Sample, error)
+}
+
 // Collector turns live cluster data into the observation bundles the M61-M63
-// analyzers consume. It never mutates cluster state (ADR 0004): it only reads
-// and maps. The control-plane component flags checked by CIS are NOT reachable
-// through the Kubernetes API, so CollectCIS leaves that domain empty by design;
-// callers that can supply component flags (node/manifest access) may populate
-// cis.Inputs.Components directly and pass the bundle to cis.Evaluate.
+// (and M70) analyzers consume. It never mutates cluster state (ADR 0004): it
+// only reads and maps. The control-plane component flags checked by CIS are
+// NOT reachable through the Kubernetes API, so CollectCIS leaves that domain
+// empty by design; callers that can supply component flags (node/manifest
+// access) may populate cis.Inputs.Components directly and pass the bundle to
+// cis.Evaluate.
 type Collector struct {
 	lister  ClusterLister
 	metrics MetricsSource
+	usage   UsageSeriesSource
 }
 
-// NewCollector builds a Collector. lister is required; metrics may be nil.
-func NewCollector(lister ClusterLister, metrics MetricsSource) *Collector {
-	return &Collector{lister: lister, metrics: metrics}
+// NewCollector builds a Collector. lister is required; metrics and usage may be
+// nil (FinOps right-sizing and capacity trend respectively degrade gracefully).
+func NewCollector(lister ClusterLister, metrics MetricsSource, usage UsageSeriesSource) *Collector {
+	return &Collector{lister: lister, metrics: metrics, usage: usage}
 }
 
 // kubernetesLister is the production ClusterLister: it talks to the read-only
@@ -571,6 +588,161 @@ func (c *Collector) CollectGitOpsDrift(ctx context.Context, clusterID int64) (gi
 // gitopsdriftLastApplied is the annotation key whose value is the manifest a
 // GitOps tool last applied.
 const gitopsdriftLastApplied = "kubectl.kubernetes.io/last-applied-configuration"
+
+// CollectCapacity builds the capacity-trend observation bundle: the sum of
+// node allocatable CPU/memory capacity, plus the aggregate node usage time
+// series over the last 24h (when a UsageSeriesSource is configured). The usage
+// series are point-wise summed per minute across nodes into a single cluster
+// series, so the analyzer projects total-cluster saturation rather than any
+// single node.
+//
+// Everything is a read-only List against the API server plus read-only metrics
+// history queries. Nothing is mutated and no metrics backend is written to.
+func (c *Collector) CollectCapacity(ctx context.Context, clusterID int64) (capacity.Inputs, error) {
+	in := capacity.Inputs{HorizonDays: capacity.DefaultHorizonDays}
+
+	nodeItems, err := c.lister.List(ctx, clusterID, "/api/v1/nodes")
+	if err != nil {
+		return in, err
+	}
+	var cpuCap, memCap int64
+	nodeNames := make([]string, 0, len(nodeItems))
+	for _, raw := range nodeItems {
+		var n nodeRaw
+		if json.Unmarshal(raw, &n) != nil {
+			continue
+		}
+		nodeNames = append(nodeNames, n.Metadata.Name)
+		cpuCap += parseCPU(n.Status.Allocatable["cpu"])
+		memCap += parseMem(n.Status.Allocatable["memory"])
+	}
+	in.CPU.Capacity = cpuCap
+	in.Memory.Capacity = memCap
+
+	if c.usage == nil {
+		// No usage history: the analyzer reports current utilization only
+		// when a sample is supplied out-of-band; with none it reports capacity.
+		return in, nil
+	}
+
+	from := time.Now().Add(-24 * time.Hour)
+	to := time.Now()
+	cpuAgg := map[int64]float64{} // minute bucket -> sum nanocores
+	memAgg := map[int64]float64{}
+	for _, name := range nodeNames {
+		if cpuPts, cpuErr := c.usage.NodeUsageSeries(ctx, clusterID, name, metricshistory.MetricCPU, from, to); cpuErr == nil {
+			for _, s := range cpuPts {
+				cpuAgg[bucket(s.Timestamp)] += s.Value
+			}
+		}
+		if memPts, memErr := c.usage.NodeUsageSeries(ctx, clusterID, name, metricshistory.MetricMemory, from, to); memErr == nil {
+			for _, s := range memPts {
+				memAgg[bucket(s.Timestamp)] += s.Value
+			}
+		}
+	}
+	in.CPU.Samples = toSamples(cpuAgg)
+	in.Memory.Samples = toSamples(memAgg)
+	return in, nil
+}
+
+// metricsHistoryUsageSource is the production UsageSeriesSource. It reads node
+// usage samples from the metrics history store (populated by the M30
+// metricshistory collector) and maps them to capacity.Sample values.
+type metricsHistoryUsageSource struct {
+	svc    *metricshistory.Service
+	window time.Duration
+}
+
+// NewNodeUsageSource builds a UsageSeriesSource over the metrics history
+// service. window is how far back to look for samples (the metricshistory
+// default retention is 7d; 24h is a sensible capacity-trend window).
+func NewNodeUsageSource(svc *metricshistory.Service, window time.Duration) UsageSeriesSource {
+	if window <= 0 {
+		window = 24 * time.Hour
+	}
+	return metricsHistoryUsageSource{svc: svc, window: window}
+}
+
+func (m metricsHistoryUsageSource) NodeUsageSeries(ctx context.Context, clusterID int64, node, metric string, from, to time.Time) ([]capacity.Sample, error) {
+	resp, err := m.svc.Query(ctx, metricshistory.SeriesQuery{
+		ClusterID:    clusterID,
+		ResourceKind: metricshistory.ResourceNode,
+		ResourceName: node,
+		MetricName:   metric,
+		From:         from,
+		To:           to,
+		Limit:        1440,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]capacity.Sample, 0, len(resp.Points))
+	for _, p := range resp.Points {
+		out = append(out, capacity.Sample{Timestamp: p.SourceTimestamp, Value: float64(p.Value)})
+	}
+	return out, nil
+}
+
+// nodeRaw decodes the identity and allocatable capacity of a Node.
+type nodeRaw struct {
+	Metadata struct {
+		Name string `json:"name"`
+		UID  string `json:"uid"`
+	} `json:"metadata"`
+	Status struct {
+		Allocatable map[string]string `json:"allocatable"`
+	} `json:"status"`
+}
+
+// parseCPU parses a Kubernetes CPU quantity (e.g. "4" cores, "4000m") into
+// nanocores, returning 0 when empty or unparseable.
+func parseCPU(raw string) int64 {
+	if raw == "" {
+		return 0
+	}
+	q := finops.QuantityFromResourceMap(map[string]string{"cpu": raw}, nil)
+	if q.CPURequest != finops.Unset {
+		return q.CPURequest
+	}
+	return 0
+}
+
+// parseMem parses a Kubernetes memory quantity (e.g. "16Gi") into bytes,
+// returning 0 when empty or unparseable.
+func parseMem(raw string) int64 {
+	if raw == "" {
+		return 0
+	}
+	q := finops.QuantityFromResourceMap(map[string]string{"memory": raw}, nil)
+	if q.MemRequest != finops.Unset {
+		return q.MemRequest
+	}
+	return 0
+}
+
+// bucket rounds a timestamp down to the minute so per-node samples that share
+// a collection tick align into a single cluster aggregate point.
+func bucket(t time.Time) int64 {
+	return t.Truncate(time.Minute).Unix()
+}
+
+// toSamples turns a minute-bucketed aggregate map into a time-ordered slice.
+func toSamples(agg map[int64]float64) []capacity.Sample {
+	if len(agg) == 0 {
+		return nil
+	}
+	keys := make([]int64, 0, len(agg))
+	for k := range agg {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	out := make([]capacity.Sample, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, capacity.Sample{Timestamp: time.Unix(k, 0).UTC(), Value: agg[k]})
+	}
+	return out
+}
 
 // namespaceManagedByGitOps reports whether a namespace is managed by a GitOps
 // controller, detected from Flux or Argo CD annotations.

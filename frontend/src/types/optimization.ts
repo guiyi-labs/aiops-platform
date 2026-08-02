@@ -190,3 +190,27 @@ export interface GitOpsStatus {
   by_family: Record<string, number>
   findings: OptimizationFinding[]
 }
+
+/**
+ * M70 capacity-trend prediction: cluster CPU/memory allocatable capacity plus
+ * the linear projection fitted over the observed usage window.
+ */
+export interface CapacityStatus {
+  cluster_id: number
+  evaluated_at: string
+  /** Resources evaluated (CPU + memory), how many are at risk, and the rest. */
+  total: number
+  failed: number
+  passed: number
+  cpu_capacity_nanocores: number
+  mem_capacity_bytes: number
+  /** Current fitted utilization ratio (0-1). */
+  cpu_current_pct: number
+  mem_current_pct: number
+  /** Days until 100% utilization at the fitted growth rate; -1 when not growing. */
+  cpu_saturation_in_days: number
+  mem_saturation_in_days: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
+}

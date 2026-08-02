@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"k8s-aiops.local/backend/internal/capacity"
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
@@ -234,5 +235,42 @@ func (h optimizationHandler) gitopsAnalyze(c *gin.Context) {
 		inputs = collected
 	}
 	status := gitopsdrift.Evaluate(req.ClusterID, inputs, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// capacityAnalyzeRequest carries the cluster identity plus the capacity trend
+// observation bundle. capacity.Inputs is embedded so its "cpu", "memory" and
+// "horizon_days" fields are accepted at the top level of the JSON body.
+type capacityAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	capacity.Inputs
+}
+
+func (h optimizationHandler) capacityAnalyze(c *gin.Context) {
+	var req capacityAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectCapacity(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		// The caller's horizon preference survives auto-collection.
+		collected.HorizonDays = req.Inputs.HorizonDays
+		inputs = collected
+	}
+	status := capacity.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

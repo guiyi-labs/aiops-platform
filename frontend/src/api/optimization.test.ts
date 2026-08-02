@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeImage, analyzeNetwork } from './optimization'
+import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeImage, analyzeNetwork } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -170,6 +170,42 @@ describe('optimization API client', () => {
 
     await expect(analyzeGitOps('token', 18)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 18 is unreachable',
+    })
+  })
+
+  it('asks the server to auto-collect the capacity bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 21, evaluated_at: '2026-08-02T10:00:00Z', total: 2, failed: 1, passed: 1,
+      cpu_capacity_nanocores: 8_000_000_000, mem_capacity_bytes: 17_179_869_184,
+      cpu_current_pct: 0.8, mem_current_pct: 0.45,
+      cpu_saturation_in_days: 4, mem_saturation_in_days: -1,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzeCapacity('token', 21)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/capacity/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 21 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.cpu_capacity_nanocores).toBe(8_000_000_000)
+    expect(status.cpu_saturation_in_days).toBe(4)
+    expect(status.mem_saturation_in_days).toBe(-1)
+  })
+
+  it('surfaces a failed capacity collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 21 is unreachable' }, 502,
+    )))
+
+    await expect(analyzeCapacity('token', 21)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 21 is unreachable',
     })
   })
 })

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap/zaptest"
@@ -169,7 +170,7 @@ func (f fakeClusterLister) List(_ context.Context, _ int64, path string) ([]json
 // source, so FinOps degrades to request/limit-only collection).
 func newOptimizationEngineWithCollector(t *testing.T, lister optimization.ClusterLister) *gin.Engine {
 	t.Helper()
-	collector := optimization.NewCollector(lister, nil)
+	collector := optimization.NewCollector(lister, nil, nil)
 	engine, ok := New(zaptest.NewLogger(t), Options{
 		Probe:        probeStub{},
 		Optimization: optimization.NewService(finops.DefaultCostRate(), collector),
@@ -444,6 +445,127 @@ func TestOptimizationImageAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
 	// Without a collector an empty bundle is unanalysable and must be
 	// rejected explicitly rather than returning a misleading clean report.
 	rec = postJSON(t, engine, "/api/v1/optimization/image/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}
+
+// TestOptimizationCapacityAnalyzeExplicitBundle feeds a rising CPU utilization
+// series (50% -> 80% over six days) and expects the handler to project
+// saturation inside the critical window.
+func TestOptimizationCapacityAnalyzeExplicitBundle(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	now := time.Now().UTC()
+	sample := func(daysAgo int, value float64) map[string]any {
+		return map[string]any{
+			"timestamp": now.Add(-time.Duration(daysAgo) * 24 * time.Hour).Format(time.RFC3339Nano),
+			"value":     value,
+		}
+	}
+	rec := postJSON(t, engine, "/api/v1/optimization/capacity/analyze", map[string]any{
+		"cluster_id": 7,
+		"cpu": map[string]any{
+			"capacity": 1000,
+			"samples":  []map[string]any{sample(6, 500), sample(3, 650), sample(0, 800)},
+		},
+		"memory": map[string]any{"capacity": 2000},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		Total                int     `json:"total"`
+		Failed               int     `json:"failed"`
+		CPUCapacityNanocores int64   `json:"cpu_capacity_nanocores"`
+		CPUCurrentPct        float64 `json:"cpu_current_pct"`
+		CPUSaturationInDays  float64 `json:"cpu_saturation_in_days"`
+		Findings             []struct {
+			Code     string `json:"code"`
+			Severity string `json:"severity"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode capacity status: %v", err)
+	}
+	if status.Total != 2 {
+		t.Fatalf("total = %d, want 2 (cpu + memory)", status.Total)
+	}
+	if status.CPUCapacityNanocores != 1000 {
+		t.Fatalf("cpu_capacity_nanocores = %d, want 1000", status.CPUCapacityNanocores)
+	}
+	if status.CPUCurrentPct < 0.79 || status.CPUCurrentPct > 0.81 {
+		t.Fatalf("cpu_current_pct = %v, want ~0.80", status.CPUCurrentPct)
+	}
+	if status.CPUSaturationInDays < 3.5 || status.CPUSaturationInDays > 4.5 {
+		t.Fatalf("cpu_saturation_in_days = %v, want ~4", status.CPUSaturationInDays)
+	}
+	if status.Failed != 1 {
+		t.Fatalf("failed = %d, want 1 (cpu only)", status.Failed)
+	}
+	if len(status.Findings) != 1 || status.Findings[0].Code != "CAPACITY_SATURATION_RISK" {
+		t.Fatalf("findings = %+v, want one CAPACITY_SATURATION_RISK", status.Findings)
+	}
+	if status.Findings[0].Severity != "critical" {
+		t.Fatalf("severity = %q, want critical (saturates within 7 days)", status.Findings[0].Severity)
+	}
+}
+
+// TestOptimizationCapacityAnalyzeAutoCollect verifies the collector path sums
+// node allocatable capacity. With no usage source wired the bundle carries no
+// samples, so no trend can be fitted and no finding is produced.
+func TestOptimizationCapacityAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/api/v1/nodes": {
+			json.RawMessage(`{"metadata":{"name":"node-a","uid":"n1"},"status":{"allocatable":{"cpu":"4","memory":"8Gi"}}}`),
+			json.RawMessage(`{"metadata":{"name":"node-b","uid":"n2"},"status":{"allocatable":{"cpu":"4","memory":"8Gi"}}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/capacity/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		CPUCapacityNanocores int64                    `json:"cpu_capacity_nanocores"`
+		MemCapacityBytes     int64                    `json:"mem_capacity_bytes"`
+		Failed               int                      `json:"failed"`
+		Findings             []map[string]interface{} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode capacity status: %v", err)
+	}
+	if status.CPUCapacityNanocores != 8_000_000_000 {
+		t.Fatalf("cpu_capacity_nanocores = %d, want 8000000000 (2 x 4 cores)", status.CPUCapacityNanocores)
+	}
+	if status.MemCapacityBytes != 17_179_869_184 {
+		t.Fatalf("mem_capacity_bytes = %d, want 17179869184 (2 x 8Gi)", status.MemCapacityBytes)
+	}
+	if status.Failed != 0 {
+		t.Fatalf("failed = %d, want 0 without a usage series", status.Failed)
+	}
+	if status.Findings == nil {
+		t.Fatal("findings must serialize as [] rather than null")
+	}
+}
+
+func TestOptimizationCapacityAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/capacity/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = postJSON(t, engine, "/api/v1/optimization/capacity/analyze", map[string]any{"cluster_id": 7})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
 	}

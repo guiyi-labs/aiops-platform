@@ -141,6 +141,34 @@ func TestGolden_RunQualityReplay_202Accepted(t *testing.T) {
 	if !ok || taskID == "" {
 		t.Errorf("task_id missing or empty: %v", body["task_id"])
 	}
+
+	// The replay runs in a background goroutine that writes the report to
+	// the TempDir-backed storage. Wait for it to finish before returning,
+	// otherwise t.TempDir() cleanup can race with the still-running
+	// goroutine and fail with "directory not empty".
+	if ok && taskID != "" {
+		waitForReplay(t, svc, taskID)
+	}
+}
+
+// waitForReplay polls the golden service until the async replay task
+// reaches a terminal status, so callers that share a t.TempDir()-backed
+// storage do not race with the background writer during test cleanup.
+func waitForReplay(t *testing.T, svc *golden.Service, taskID string) {
+	t.Helper()
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("replay did not complete within 10s")
+		default:
+		}
+		view, found := svc.GetTask(taskID)
+		if found && (view.Status == golden.ReplayTaskSucceeded || view.Status == golden.ReplayTaskFailed) {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func TestGolden_RunQualityReplay_503WhenServiceNil(t *testing.T) {

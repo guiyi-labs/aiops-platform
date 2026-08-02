@@ -156,10 +156,10 @@ func (r *GormRepository) UpdatePlan(ctx context.Context, id int64, patch PatchPl
 		updates["name"] = *patch.Name
 	}
 	if patch.ClusterIDs != nil {
-		updates["cluster_ids"] = *patch.ClusterIDs
+		updates["cluster_ids"] = Int64Array(*patch.ClusterIDs)
 	}
 	if patch.RuleCodes != nil {
-		updates["rule_codes"] = *patch.RuleCodes
+		updates["rule_codes"] = StringArray(*patch.RuleCodes)
 	}
 	if patch.CronSpec != nil {
 		updates["cron_spec"] = *patch.CronSpec

@@ -572,13 +572,21 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(alertrouteRoutes, RouteDescriptor{Method: "GET", Path: "/deliveries", AuthRequired: true, RequiredRoles: rolesSystemSecurityAudit, Handler: alertrouteAPI.listDeliveries})
 	}
 
+	// M39–M56 AIOps routes. The /aiops group is always created; each
+	// sub-service gates its own routes via options.XxxService (see the
+	// per-service if blocks below). Previously the entire group was nested
+	// under `if options.SignalService != nil`, which silently dropped
+	// inspection/golden/automation/etc. whenever the signal service was
+	// unwired.
+	aiopsRoutes := v1.Group("/aiops", withAuthentication(options.Auth))
+
 	// M39 AIOps signal model
 	if options.SignalService != nil {
 		signalAPI := signalHandler{service: options.SignalService, sources: options.SignalSourceReader}
-		aiopsRoutes := v1.Group("/aiops", withAuthentication(options.Auth))
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/overview", AuthRequired: true, Handler: signalAPI.overview, AuditAction: "aiops.overview.read", AuditResource: "AIOpsOverview"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/signals", AuthRequired: true, Handler: signalAPI.listSignals, AuditAction: "aiops.signals.list", AuditResource: "Signal"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/signals/catalog", AuthRequired: true, Handler: signalAPI.listSignalCatalog})
+	}
 
 		// M40 temporal topology and change timeline
 		if options.TopologyService != nil {
@@ -668,7 +676,6 @@ func New(logger *zap.Logger, options Options) http.Handler {
 			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/quality-report", AuthRequired: true, Handler: goldenAPI.getQualityReport, AuditAction: "aiops.quality_report.read", AuditResource: "QualityReport"})
 			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/quality-report/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: goldenAPI.runQualityReplay, AuditAction: "aiops.quality_report.run", AuditResource: "QualityReport"})
 		}
-	}
 
 	// M57 Helm application catalog. Repository CRUD (SystemOpsAdmin for
 	// write), chart listing/detail (any-auth, read-only index.yaml fetch),

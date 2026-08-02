@@ -73,7 +73,7 @@ try {
     # Workspace multi-tenancy is platform-level and needs no cluster, so it
     # runs before the kind cluster is created.
     $wsName = "e2e-ws-$($RunID.Substring($RunID.Length - 8))"
-    $ws = Invoke-RestMethod -Method Post -Uri "$ApiBase/api/v1/workspaces" -Headers $Headers -ContentType 'application/json' -Body (@{ name = $wsName; display_name = 'M46 E2E workspace'; metadata = '{}' } | ConvertTo-Json -Compress)
+    $ws = Invoke-RestMethod -Method Post -Uri "$ApiBase/api/v1/workspaces" -Headers $Headers -ContentType 'application/json' -Body (@{ name = $wsName; display_name = 'M46 E2E workspace'; metadata = @{} } | ConvertTo-Json -Compress)
     Assert-Condition ([int64]$ws.id -gt 0) 'workspace create did not return an id'
     $wsList = Invoke-RestMethod -Uri "$ApiBase/api/v1/workspaces" -Headers $Headers
     $wsInList = @($wsList.items | Where-Object { $_.name -eq $wsName })

@@ -1,8 +1,11 @@
 package inspection
 
 import (
+	"database/sql/driver"
 	"errors"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Constants for M52 inspection.
@@ -49,6 +52,36 @@ var (
 	ErrRuleExecutionFailed = errors.New("inspection rule execution failed")
 )
 
+// Int64Array is a []int64 stored as Postgres bigint[].
+type Int64Array []int64
+
+func (a Int64Array) Value() (driver.Value, error) {
+	return pq.Int64Array(a).Value()
+}
+
+func (a *Int64Array) Scan(value any) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+	return (*pq.Int64Array)(a).Scan(value)
+}
+
+// StringArray is a []string stored as Postgres varchar[].
+type StringArray []string
+
+func (a StringArray) Value() (driver.Value, error) {
+	return pq.StringArray(a).Value()
+}
+
+func (a *StringArray) Scan(value any) error {
+	if value == nil {
+		*a = nil
+		return nil
+	}
+	return (*pq.StringArray)(a).Scan(value)
+}
+
 // RuleDescriptor is the compile-time catalog entry for an inspection rule.
 // Unregistered rule codes fail closed at runtime (RunInspectOnce returns
 // ErrRuleNotFound); the catalog is append-only across versions.
@@ -81,8 +114,8 @@ type Plan struct {
 	ID         int64
 	Name       string
 	CreatorID  int64
-	ClusterIDs []int64  // empty = all reachable clusters
-	RuleCodes  []string // empty = all enabled rules
+	ClusterIDs Int64Array  `gorm:"type:bigint[]"`      // empty = all reachable clusters
+	RuleCodes  StringArray `gorm:"type:varchar(128)[]"` // empty = all enabled rules
 	CronSpec   string   // empty = manual only
 	Enabled    bool
 	LastRunAt  *time.Time
@@ -113,8 +146,8 @@ type Task struct {
 	PlanNameSnapshot  string
 	TriggeredBy       *int64
 	TriggerReason     string // manual | schedule
-	ClusterIDs        []int64
-	RuleCodes         []string
+	ClusterIDs        Int64Array  `gorm:"type:bigint[]"`
+	RuleCodes         StringArray `gorm:"type:varchar(128)[]"`
 	Status            string
 	StartedAt         *time.Time
 	FinishedAt        *time.Time

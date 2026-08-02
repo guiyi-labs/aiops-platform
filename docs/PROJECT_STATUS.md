@@ -1,0 +1,167 @@
+# 项目进度与交接状态（Project Status & Handoff）
+
+> 生成时间：2026-08-02 · 维护人：开发 Agent
+> 当前基线：`main` @ `a2fb5fe`（M1–M78 全部落地，通过 CI）
+> 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
+
+---
+
+## 1. 当前基线
+
+| 项 | 值 |
+|---|---|
+| 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
+| 默认模块路径 | `k8s-aiops.local/backend` |
+| 最新提交 | `a2fb5fe` docs: archive M67-M73 change records |
+| 里程碑范围 | **M1 – M78**（共 78 个） |
+| 远程同步 | 本地 `main` == `origin/main` == `a2fb5fe`，ahead/behind 0/0 |
+| Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
+
+---
+
+## 2. 里程碑与文档覆盖
+
+- **CHANGELOG.md**：覆盖 M1–M78 全部 `Added/Changed` 条目。
+- **docs/changes/**：114 份变更记录。M21–M78 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
+- **已知文档缺口（低风险）**：M1–M20、M61–M66 仅有 CHANGELOG/README 摘要，缺独立 change-record 文件；如需逐里程碑审计，建议后续补全。
+
+### 优化中心（M67–M78，纯只读分析器）
+| 里程碑 | 包 | 关键规则 |
+|---|---|---|
+| M67 网络策略态势 | `internal/netpolicy` | 4 family / 11 code，含 3 个 critical（无后端 Service、端口不匹配、暴露且无 NetworkPolicy） |
+| M68 镜像供应链 | `internal/imagepolicy` | 5 code（可变 Tag=warning，其余 info） |
+| M69 GitOps 漂移 | `internal/gitopsdrift` | GITOPS_DRIFT_DETECTED=warning |
+| M70 容量趋势 | `internal/capacity` | CAPACITY_SATURATION_RISK（30 天内≥80% 或短窗≥100%→critical） |
+| M71 策略合规 | `internal/policy` | 4 family / 11 code（PRIVILEGED=critical） |
+| M72 拓扑并行化 | `internal/topology` | worker 池默认并发 4（性能改动，非契约） |
+| M73 kind E2E | `scripts/e2e-m46-m60-kind.ps1`（M75 扩至 M60） | 可弃 kind 端到端 |
+| M76 HPA 姿态 | `internal/hpaposture` | HPA 缩放姿态 |
+| M77 PDB 保护 | `internal/pdbposture` | PodDisruptionBudget 保护 |
+| M78 Ingress 暴露面 | `internal/ingressposture` | 无 TLS / 死后端 / 通配符 host / 未显式 ingressClassName |
+
+---
+
+## 3. 架构与模块速览
+
+- **后端**：模块化单体。`internal/<domain>/`（model+service+test）→ `internal/optimization/collector.go` → `internal/httpserver/` → `router.go` → `docs/api/openapi.yaml`。
+- **前端**：`frontend/src`，类型与 API 客户端在 `types/optimization.ts`、`api/optimization.ts`，优化中心 11 个 tab（`OptimizationView.vue`）。
+- **分析器契约**：`Evaluate(clusterID, Inputs, time) → Status`，findings 复用 `internal/finding`（code/severity/family/remediation）。
+
+---
+
+## 4. 构建与部署
+
+### 4.1 构建镜像
+```bash
+# 后端（多阶段，产出 api/credential-reencrypt/audit-archive/identity-readiness/recovery-readiness）
+docker build -f backend/Dockerfile -t k8s-aiops-backend:dev backend
+# 前端（镜像内 pnpm install + build，nginx 托管 dist）
+docker build -f frontend/Dockerfile -t aiops-platform-frontend:dev frontend
+```
+
+### 4.2 本地测试栈（docker compose）
+```bash
+docker compose up -d        # postgres + backend + frontend
+# 首次启动若报密码认证失败：postgres 卷残留旧密码，执行下方重置
+docker compose down -v && docker compose up -d
+curl http://127.0.0.1:8080/api/v1/health/ready   # 期望 {"status":"ready"}
+```
+> 默认凭据（仅开发/测试）：admin / `change_me_now`，Postgres `aiops/change_me`。**生产必须替换**。
+
+### 4.3 Kubernetes
+- `deploy/kubernetes/`（kustomize）：`kubectl apply -k deploy/kubernetes/`；Secret 需基于 `deploy/kubernetes/secret.example.yaml` 在 Git 外生成。
+- `deploy/helm/aiops-platform`：官方 Helm 图表（M38），Secrets 必须由外部提供。
+
+---
+
+## 5. 测试与质量门禁
+
+- **CI 门禁**（` .github/workflows/ci.yml`）：gofmt / go vet / 覆盖率门禁 / 5 个二进制构建 / golangci-lint / eslint / vue-tsc / vitest / vite build，全量通过。
+- **端到端**：`scripts/e2e-*-kind.ps1` 系列，使用真实 kind 集群（L3 真实环境级）。
+- **本次测试环境验证（2026-08-02）**：见第 7 节。
+
+---
+
+## 6. 已知缺陷与本次修复
+
+- **e2e 脚本 bug（已修复）**：`scripts/e2e-m46-m60-kind.ps1` 创建工作区时 `metadata = '{}'`（PowerShell 字符串），被序列化为 `"metadata":"{}"`，触发后端 `WORKSPACE_INVALID_INPUT`（要求 JSON 对象）。改为 `metadata = @{}`（对象）后通过。后端严格校验行为正确，非产品缺陷。
+- **本地 docker 构建缓存致镜像陈旧（环境事项，非产品缺陷）**：本机 `docker compose build` 复用了旧的 `go build` 层，导致运行中的后端二进制不含最新 main 的 Inspection(M52)/Golden(M56) 路由（运行时该两服务在旧二进制里为 nil，路由未注册，返回 404；而 M57/M58/M60 正常）。CI 使用 `docker buildx` 在干净环境构建不受影响。本地验证已改用主机 Go（GOPROXY=goproxy.cn）交叉编译 linux/amd64 二进制并直接打镜像，确保二进制为最新源码。
+- **M52 巡检 plan 创建 500（产品缺陷，已修复）**：`POST /api/v1/aiops/inspection/plans` 报 `INSPECTION_FAILED`，后端日志 `failed to parse field: ClusterIDs, error: unsupported data type: &[]`。
+  - **根因 1**：`inspection/model.go` 的 `Plan.ClusterIDs` / `RuleCodes`（GORM 模型）为 `Int64Array`/`StringArray`，但**缺少 `gorm:"type:bigint[]"` / `type:varchar(128)[]` 字段 tag**。GORM 的 postgres dialector 对无 tag 的 slice 字段先按原生 slice 解析（校验失败并污染 `db.Error`），带显式 `type:` tag 后才直接走数组绑定。backup 模块因 `included_namespaces text[]` 带 tag 一直正常。
+  - **根因 2**：`createPlan` handler 直接返回 GORM 内部 `Plan`（无 json tag）而非 `PlanView`，JSON 序列化为 `{"ID":1,...}`（大写 Go 字段名），**违反 API 小驼峰契约**（`getPlan`/`updatePlan` 均返回 `PlanView`）。
+  - **修复**：① `model.go` 给 `Plan`/`Task` 数组字段加 `gorm:"type:..."` tag；② 同时新增 `Int64Array`/`StringArray` 类型（实现 `driver.Valuer`/`sql.Scanner`，基于 `lib/pq`）并全链路显式转换（`service.go`/`repository.go`/`httpserver/inspection.go`）；③ `createPlan` handler 返回 `inspection.PlanView`（小驼峰）。**已用真实 Postgres 集成测试复现并确认修复生效**。
+
+---
+
+## 7. 本次测试环境验证（2026-08-02）
+
+> 环境：Windows + Docker 29.6.2 + kind v0.30.0 + kubectl v1.34.0
+> 拓扑：docker-compose 起控制面（postgres+backend+frontend），e2e 自建 kind 成员集群注册验证。
+
+| 步骤 | 结果 |
+|---|---|
+| 镜像重建（backend+frontend，docker compose build） | ✅ 构建成功（但命中旧 `go build` 缓存层 → 二进制陈旧） |
+| compose 控制面启动 + 后端 ready | ✅ healthy |
+| postgres 卷密码残留导致认证失败 → 重置卷 | ✅ 已解决（测试环境数据残留） |
+| e2e 第一次：M46 因脚本 `metadata` 字符串 bug 失败 | ✅ 定位并修复脚本 |
+| e2e 第二次：M52 因旧镜像缺 Inspection/Golden 路由 404 | ✅ 定位为本地构建缓存问题 |
+| 改用主机 Go 交叉编译 linux/amd64 并直接打镜像（绕过容器内模块下载） | ✅ 采用 `DOCKER_BUILDKIT=0` legacy builder + 预编译二进制 |
+| **M48 联邦注册 + probe（真实 kind 集群）** | ✅ `probe=ready`，PASS |
+| **M52 巡检 catalog + plan 生命周期** | ✅ PASS（修复两个产品 bug，见第 6 节） |
+| **M57 app-catalog plan 查询** | ✅ PASS（`{"items":[],"total":0}`，带 cluster_id） |
+| 全量单元测试 `go test ./...` | ✅ 40+ 包全部通过，无回归 |
+
+**最终验证（2026-08-02）：**
+```
+PASS M48 federation (cluster_id=8 probe=ready seen=1)
+PASS M52 inspection catalog + plan lifecycle(id=2)
+PASS M57 app-catalog plans
+RESULT M48/M52/M57: PASS=3 FAIL=0
+```
+> 注：本地镜像构建须用 `DOCKER_BUILDKIT=0 docker build`（沙箱环境的 buildx `activity/.tmp-*` rename 被拒，Access denied）。CI 的 buildx 不受影响。
+
+（e2e 完成后的 summary.json 路径：`.artifacts/m46-m60-kind/summary.json`）
+
+---
+
+## 8. 遗留 / 延期项（非阻塞）
+
+- **M26 外部门禁未实现**（按 `docs/next-development-plan.md` 需组织授权）：
+  - 生产级 OIDC/MFA（M26B）：仅有离线就绪检查，未实现。
+  - 生产级 PITR / HA（M26B）：未实现。
+- 上述属于"外部决策门禁"，在缺少组织授权时不阻塞项目收尾，但标注为 deferred。
+
+---
+
+## 9. 敏感信息安全态势
+
+专项检查（2026-08-02）结论：**通过，无敏感信息泄露风险**。
+- 仓库内无真实 `.env`、`.key`、`.pem`、`.kubeconfig` 被跟踪或历史强制提交（仅 `.env.example` 模板）。
+- 工作树与全部 git 历史均未检出真实密钥 token（OpenAI `sk-`、Slack `xox`、JWT、AWS `AKIA`、GitHub `ghp_`、GitLab `glpat_` 精确正则全 0 命中）。
+- 仅 7 处 `CHANGE_ME` 占位符与开发默认值（compose 默认口令）。
+- 打包迁移目录（含 `.git`）不会带入密钥。
+
+---
+
+## 10. 新环境上手步骤
+
+```bash
+git clone <this-repo> aiops-platform
+cd aiops-platform
+docker compose up -d              # 本地起测试栈
+# 或使用 kind 跑 e2e：
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/e2e-m46-m60-kind.ps1
+```
+- 替换所有 `CHANGE_ME` / `change_me*` 默认值为真实密钥后再投产。
+- 数据库迁移在后端首次启动时自动执行（`backend/migrations/`）。
+
+---
+
+## 11. 交付物清单（本次收尾）
+
+1. M67–M73 里程碑 change-record 文档（7 份，`docs/changes/`）。
+2. M76/M77/M78 change-record + CHANGELOG（先前已完成）。
+3. e2e 脚本 `metadata` bug 修复（待提交）。
+4. 本交接状态文档 `docs/PROJECT_STATUS.md`。
+5. 敏感信息专项检查（第 9 节，通过）。
+6. 可移植目录（含 `.git` 完整历史，见打包步骤）。

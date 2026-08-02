@@ -218,8 +218,8 @@ func (s *Service) RunInspectOnce(ctx context.Context, triggeredBy int64, cluster
 	task := Task{
 		TriggeredBy:       &triggeredBy,
 		TriggerReason:     TriggerManual,
-		ClusterIDs:        effectiveClusterIDs(effectiveClusters),
-		RuleCodes:         append([]string(nil), ruleCodes...),
+		ClusterIDs:        Int64Array(effectiveClusterIDs(effectiveClusters)),
+		RuleCodes:         StringArray(append([]string(nil), ruleCodes...)),
 		Status:            TaskStatusPending,
 		TotalClusters:     len(effectiveClusters),
 		CompletedClusters: 0,

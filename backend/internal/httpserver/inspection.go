@@ -132,8 +132,8 @@ func (h inspectionHandler) createPlan(c *gin.Context) {
 	plan := &inspection.Plan{
 		Name:       strings.TrimSpace(req.Name),
 		CreatorID:  currentActorID(c),
-		ClusterIDs: append([]int64(nil), req.ClusterIDs...),
-		RuleCodes:  append([]string(nil), req.RuleCodes...),
+		ClusterIDs: inspection.Int64Array(append([]int64(nil), req.ClusterIDs...)),
+		RuleCodes:  inspection.StringArray(append([]string(nil), req.RuleCodes...)),
 		CronSpec:   req.CronSpec,
 		Enabled:    req.Enabled,
 	}
@@ -143,7 +143,21 @@ func (h inspectionHandler) createPlan(c *gin.Context) {
 		return
 	}
 	setAuditTarget(c, "InspectionPlan", "", strconv.FormatInt(created.ID, 10))
-	c.JSON(http.StatusCreated, created)
+	// Expose the public PlanView projection (JSON contract) rather than the
+	// raw GORM model, so the created plan matches GET/PATCH serialization.
+	c.JSON(http.StatusCreated, inspection.PlanView{
+		ID:         created.ID,
+		Name:       created.Name,
+		CreatorID:  created.CreatorID,
+		ClusterIDs: append([]int64(nil), created.ClusterIDs...),
+		RuleCodes:  append([]string(nil), created.RuleCodes...),
+		CronSpec:   created.CronSpec,
+		Enabled:    created.Enabled,
+		LastRunAt:  created.LastRunAt,
+		NextRunAt:  created.NextRunAt,
+		CreatedAt:  created.CreatedAt,
+		UpdatedAt:  created.UpdatedAt,
+	})
 }
 
 func (h inspectionHandler) getPlan(c *gin.Context) {

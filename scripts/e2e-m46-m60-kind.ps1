@@ -1,5 +1,5 @@
 <#
-Runs the M46–M58 post-M45 milestone kind E2E suite against a disposable kind
+Runs the M46–M60 post-M45 milestone kind E2E suite against a disposable kind
 cluster and the platform backend (already running at $ApiBase, as the other
 kind suites assume).
 
@@ -15,10 +15,15 @@ timing):
   M57 Helm app catalog        : plans list is a well-formed paged response
   M58 Cross-cluster copy      : copy-plans list is reachable; preview without
        a target cluster is rejected with INVALID_REQUEST
+  M60 Provider registry       : capability provider catalog is a non-empty,
+       name-ordered list and known providers resolve to a well-formed
+       ProviderInfo (M59 signing/SLSA is CI-only — Cosign keyless + SLSA
+       attestation in release.yml — with no runtime HTTP surface, so it is
+       recorded as a skip rather than asserted)
 
 The script follows the e2e-*-kind.ps1 conventions: Wait-AiopsBackend, admin
 login, disposable kind cluster, Register-AiopsCluster, evidence under
-.artifacts/m46-m58-kind, deterministic cleanup in finally.
+.artifacts/m46-m60-kind, deterministic cleanup in finally.
 #>
 [CmdletBinding()]
 param(
@@ -35,10 +40,10 @@ $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'e2e-kind-common.ps1')
 $Kind = Resolve-KindExecutable $Root
 $RunID = '{0}-{1}' -f (Get-Date -Format 'yyyyMMddHHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
-$ClusterName = "m46-m58-$RunID"
+$ClusterName = "m46-m60-$RunID"
 $Context = "kind-$ClusterName"
-$PlatformName = "m46-m58-kind-$RunID"
-$ArtifactDirectory = Join-Path $Root '.artifacts\m46-m58-kind'
+$PlatformName = "m46-m60-kind-$RunID"
+$ArtifactDirectory = Join-Path $Root '.artifacts\m46-m60-kind'
 $ClusterID = 0L
 $Headers = $null
 $Created = $false
@@ -56,6 +61,8 @@ $summary = [ordered]@{
     golden = $null
     appcatalog = $null
     copyops = $null
+    providers = $null
+    signing = $null
 }
 
 try {
@@ -149,10 +156,50 @@ try {
     $summary.copyops = [ordered]@{ plans_listed = @($copyPlans.items).Count; preview_rejects_missing_target = $true }
     $summary.milestones.M58 = 'copy ops read + validation passed'
 
+    # ---------------------------------------------------------------- M60 --
+    # Capability provider registry is a compile-time, read-only catalog
+    # (system_ops_admin). The admin bootstrap account carries SystemAdmin, so
+    # both list and single-provider reads are assertable without flaky health
+    # probes (no ?refresh=true, no live upstream checks).
+    $providers = Invoke-RestMethod -Uri "$ApiBase/api/v1/capability/providers" -Headers $Headers
+    Assert-Condition (@($providers.items).Count -gt 0) 'capability provider catalog is empty'
+    $sortedNames = @($providers.items | ForEach-Object { [string]$_.name })
+    $sortedCopy = @($sortedNames | Sort-Object)
+    $nameOrdered = $true
+    for ($i = 0; $i -lt $sortedNames.Count; $i++) {
+        if ($sortedNames[$i] -ne $sortedCopy[$i]) { $nameOrdered = $false }
+    }
+    Assert-Condition $nameOrdered 'capability provider catalog is not name-ordered'
+    $knownProvider = $null
+    foreach ($p in @($providers.items)) {
+        if ([string]$p.name -eq 'federation') { $knownProvider = $p }
+    }
+    Assert-Condition ($null -ne $knownProvider) 'known provider federation is missing from catalog'
+    Assert-Condition ($knownProvider.configured -is [bool]) 'provider configured flag is not a boolean'
+    Assert-Condition (-not [string]::IsNullOrWhiteSpace([string]$knownProvider.state)) 'provider state is empty'
+    try {
+        Invoke-RestMethod -Uri "$ApiBase/api/v1/capability/providers/no-such-provider-e2e" -Headers $Headers | Out-Null
+        throw 'unknown provider unexpectedly resolved'
+    } catch {
+        if ($_.Exception.Message.StartsWith('unknown provider unexpectedly resolved', [StringComparison]::Ordinal)) { throw }
+        $missingStatus = 0
+        if ($_.Exception.Response) { $missingStatus = [int]$_.Exception.Response.StatusCode }
+        Assert-Condition ($missingStatus -eq 404) "unknown provider should 404, got $missingStatus"
+    }
+    $summary.providers = [ordered]@{ catalog = @($providers.items).Count; name_ordered = $nameOrdered; known_provider = 'federation'; unknown_rejected = $true }
+    $summary.milestones.M60 = 'capability provider registry read passed'
+
+    # ---------------------------------------------------------------- M59 --
+    # Signing / SLSA is delivered entirely in the CI pipeline (release.yml:
+    # Cosign keyless signature + SLSA v1 in-toto attestation, fail-open) with
+    # no runtime HTTP surface. Recorded as a skip so the suite stays honest.
+    $summary.signing = [ordered]@{ skipped = $true; reason = 'CI-only (release.yml Cosign keyless + SLSA attestation); no runtime endpoint' }
+    $summary.milestones.M59 = 'signing/SLSA skipped (CI-only)'
+
     Write-RedactedEvidence $ArtifactDirectory $summary
 } finally {
     if ($null -ne $Headers) { Remove-AiopsCluster $ApiBase $Headers $ClusterID }
-    if ($Created -and $ClusterName.StartsWith('m46-m58-', [StringComparison]::Ordinal)) {
+    if ($Created -and $ClusterName.StartsWith('m46-m60-', [StringComparison]::Ordinal)) {
         Invoke-NativeText $Kind @('delete', 'cluster', '--name', $ClusterName) -AllowFailure | Out-Null
     }
 }

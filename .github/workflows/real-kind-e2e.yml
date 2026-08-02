@@ -24,7 +24,7 @@ on:
           - m29
           - m30
           - m31
-          - m46-m58
+          - m46-m60
 
 permissions:
   contents: read
@@ -73,7 +73,7 @@ jobs:
             m29 = '.\scripts\e2e-m29-governance-posture-kind.ps1'
             m30 = '.\scripts\e2e-m30-node-maintenance-kind.ps1'
             m31 = '.\scripts\e2e-m31-isolated-restore-kind.ps1'
-            m46-m58 = '.\scripts\e2e-m46-m58-kind.ps1'
+            m46-m60 = '.\scripts\e2e-m46-m60-kind.ps1'
           }
           if ($env:E2E_SUITE -ne 'all' -and $env:E2E_SUITE -ne 'history' -and -not $suites.Contains($env:E2E_SUITE)) {
             throw "Unsupported E2E suite: $env:E2E_SUITE"
@@ -139,6 +139,6 @@ jobs:
             .artifacts/m29-governance-posture-kind/*.json
             .artifacts/m30-node-maintenance-kind/*.json
             .artifacts/m31-isolated-restore-kind/*.json
-            .artifacts/m46-m58-kind/*.json
+            .artifacts/m46-m60-kind/*.json
           if-no-files-found: warn
           retention-days: 14

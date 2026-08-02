@@ -540,6 +540,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/gitops/analyze", AuthRequired: true, Handler: optAPI.gitopsAnalyze, AuditAction: "optimization.gitops.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/capacity/analyze", AuthRequired: true, Handler: optAPI.capacityAnalyze, AuditAction: "optimization.capacity.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/policy/analyze", AuthRequired: true, Handler: optAPI.policyAnalyze, AuditAction: "optimization.policy.analyze", AuditResource: "Cluster"})
+		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/hpa/analyze", AuthRequired: true, Handler: optAPI.hpaAnalyze, AuditAction: "optimization.hpa.analyze", AuditResource: "Cluster"})
 	}
 
 	// M37B alert routes: webhook receivers, exact-match routes, bounded

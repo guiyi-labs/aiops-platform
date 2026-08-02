@@ -18,6 +18,7 @@ import (
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
 	"k8s-aiops.local/backend/internal/gitopsdrift"
+	"k8s-aiops.local/backend/internal/hpa"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/policy"
@@ -102,4 +103,10 @@ func (s *Service) CollectCapacity(ctx context.Context, clusterID int64) (capacit
 // for a cluster.
 func (s *Service) CollectPolicy(ctx context.Context, clusterID int64) (policy.Inputs, error) {
 	return s.collector.CollectPolicy(ctx, clusterID)
+}
+
+// CollectHPA auto-collects the HPA posture observation bundle (scaling
+// bounds, current replicas and utilization) for a cluster.
+func (s *Service) CollectHPA(ctx context.Context, clusterID int64) (hpa.Inputs, error) {
+	return s.collector.CollectHPA(ctx, clusterID)
 }

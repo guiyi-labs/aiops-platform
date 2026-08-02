@@ -11,6 +11,7 @@ import (
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
 	"k8s-aiops.local/backend/internal/gitopsdrift"
+	"k8s-aiops.local/backend/internal/hpa"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/optimization"
@@ -308,5 +309,40 @@ func (h optimizationHandler) policyAnalyze(c *gin.Context) {
 		inputs = collected
 	}
 	status := policy.Evaluate(req.ClusterID, inputs, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// hpaAnalyzeRequest carries the cluster identity plus the HPA observation
+// bundle. hpa.Inputs is embedded so its "hpas" field is accepted at the top
+// level of the JSON body.
+type hpaAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	hpa.Inputs
+}
+
+func (h optimizationHandler) hpaAnalyze(c *gin.Context) {
+	var req hpaAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectHPA(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := hpa.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

@@ -234,3 +234,21 @@ export interface PolicyStatus {
   by_family: Record<string, number>
   findings: OptimizationFinding[]
 }
+
+/**
+ * M76 HPA scaling posture: HorizontalPodAutoscaler target-metric presence,
+ * max-replica headroom and utilization vs target.
+ */
+export interface HPAStatus {
+  cluster_id: number
+  evaluated_at: string
+  total: number
+  failed: number
+  passed: number
+  hpas_total: number
+  at_max_replicas_count: number
+  over_target_count: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
+}

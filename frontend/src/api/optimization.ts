@@ -6,6 +6,7 @@ import type {
   DeprecatedAPIStatus,
   FinOpsWasteSummary,
   GitOpsStatus,
+  HPAStatus,
   ImageStatus,
   NetworkStatus,
   PolicyStatus,
@@ -80,6 +81,14 @@ export async function analyzeCapacity(token: string, clusterId: number): Promise
 
 export async function analyzePolicy(token: string, clusterId: number): Promise<PolicyStatus> {
   const status = await authorizedRequest<PolicyStatus>('/api/v1/optimization/policy/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+export async function analyzeHPA(token: string, clusterId: number): Promise<HPAStatus> {
+  const status = await authorizedRequest<HPAStatus>('/api/v1/optimization/hpa/analyze', token, {
     method: 'POST',
     body: JSON.stringify({ cluster_id: clusterId }),
   })

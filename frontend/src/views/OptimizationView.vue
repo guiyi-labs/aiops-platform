@@ -8,6 +8,7 @@ import {
   ClipboardCheck,
   Cpu,
   Container,
+  Gauge,
   GitBranch,
   History,
   MemoryStick,
@@ -30,6 +31,7 @@ import type {
   DeprecatedAPIStatus,
   FinOpsWasteSummary,
   GitOpsStatus,
+  HPAStatus,
   ImageStatus,
   NetworkStatus,
   OptimizationFinding,
@@ -42,7 +44,7 @@ import type {
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity' | 'policy'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity' | 'policy' | 'hpa'
 
 const auth = useAuthStore()
 
@@ -60,9 +62,10 @@ const image = ref<ImageStatus | null>(null)
 const gitops = ref<GitOpsStatus | null>(null)
 const capacity = ref<CapacityStatus | null>(null)
 const policy = ref<PolicyStatus | null>(null)
+const hpa = ref<HPAStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false, policy: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false, policy: false, hpa: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '' })
 
 const targetVersion = ref('1.29')
 
@@ -78,6 +81,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'gitops', label: 'GitOps 漂移', icon: GitBranch },
   { key: 'capacity', label: '容量预测', icon: TrendingUp },
   { key: 'policy', label: '策略合规', icon: ClipboardCheck },
+  { key: 'hpa', label: 'HPA 扩缩容', icon: Gauge },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -247,6 +251,14 @@ const policyComplianceRate = computed(() => {
   return Math.round(((policy.value?.compliant_workloads ?? 0) / total) * 100)
 })
 
+/** HPA findings ordered critical → warning → info so the worst surface first. */
+const hpaFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(hpa.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
 const cisFamilies = computed(() => Object.entries(cis.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
 
 /** CIS pass rate, used as the headline compliance score. */
@@ -270,7 +282,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value, policy: policy.value }[tab]
+  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value, policy: policy.value, hpa: hpa.value }[tab]
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -298,9 +310,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'capacity') {
       const result = await optimizationAPI.analyzeCapacity(auth.accessToken, clusterId)
       if (sequence === requestSequence) capacity.value = result
-    } else {
+    } else if (tab === 'policy') {
       const result = await optimizationAPI.analyzePolicy(auth.accessToken, clusterId)
       if (sequence === requestSequence) policy.value = result
+    } else {
+      const result = await optimizationAPI.analyzeHPA(auth.accessToken, clusterId)
+      if (sequence === requestSequence) hpa.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -318,7 +333,8 @@ function resetResults() {
   gitops.value = null
   capacity.value = null
   policy.value = null
-  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '' }
+  hpa.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '', hpa: '' }
 }
 
 async function loadClusters() {
@@ -957,7 +973,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ----------------------------------------------- 策略合规 -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'policy'" class="optimization-tab">
         <div v-if="loading.policy" class="panel-empty">正在采集工作负载清单并逐容器评估资源、安全上下文、探针与宿主访问…</div>
         <div v-else-if="errors.policy" class="panel-empty error">{{ errors.policy }}</div>
         <template v-else-if="policy">
@@ -1024,6 +1040,85 @@ onMounted(() => void loadClusters())
                       <div class="cell-sub muted">
                         {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
                         <template v-if="item.details?.container"> · 容器 {{ item.details.container }}</template>
+                      </div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
+      </section>
+
+      <!-- ----------------------------------------------- HPA 扩缩容 -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.hpa" class="panel-empty">正在采集 HorizontalPodAutoscaler 并检查扩缩容目标、上限余量与利用率…</div>
+        <div v-else-if="errors.hpa" class="panel-empty error">{{ errors.hpa }}</div>
+        <template v-else-if="hpa">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><Gauge :size="16" />评估 HPA</p>
+              <strong>{{ hpa.hpas_total }}</strong>
+              <span>HorizontalPodAutoscaler 数量</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><AlertTriangle :size="16" />触顶 HPA</p>
+              <strong>{{ hpa.at_max_replicas_count }}</strong>
+              <span>当前副本数已达 maxReplicas</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><TrendingUp :size="16" />超目标 HPA</p>
+              <strong>{{ hpa.over_target_count }}</strong>
+              <span>当前利用率高于扩缩容目标</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><CheckCircle2 :size="16" />预警数</p>
+              <strong>{{ hpa.failed }}</strong>
+              <span>严重 {{ hpa.by_severity.critical ?? 0 }} · 警告 {{ hpa.by_severity.warning ?? 0 }} · 提示 {{ hpa.by_severity.info ?? 0 }} · 分析时间 {{ formatTimestamp(hpa.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <p class="view-intro muted">
+            本视图只读检查每个 HPA 的扩缩容目标是否显式声明、当前副本是否已触顶、
+            maxReplicas 是否留有空间，并在 API 提供利用率时对比目标（未声明目标时按 Kubernetes
+            默认 80% 评估）。不修改任何 HPA、不触发任何扩缩容；配合容量预测（M70）判断触顶是真缺资源还是配置问题。
+          </p>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <Gauge :size="18" />
+                <strong>HPA 扩缩容发现</strong>
+                <span class="muted">{{ hpaFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="hpaFindings.length === 0" class="panel-empty muted">
+              所有 HPA 均声明了扩缩容目标且有充足上限余量
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>资源</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in hpaFindings" :key="`${item.code}-${item.resource.namespace ?? ''}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">
+                        {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
+                        <template v-if="item.details?.max_replicas"> · maxReplicas {{ item.details.max_replicas }}</template>
                       </div>
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>

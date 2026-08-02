@@ -745,3 +745,92 @@ func TestOptimizationPolicyAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
 		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
 	}
 }
+
+func TestOptimizationHPAAnalyzeExplicitBundle(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/hpa/analyze", map[string]any{
+		"cluster_id": 7,
+		"hpas": []map[string]any{{
+			"namespace": "prod", "name": "web", "max_replicas": 5, "current_replicas": 5,
+		}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		HPAsTotal          int `json:"hpas_total"`
+		AtMaxReplicasCount int `json:"at_max_replicas_count"`
+		Failed             int `json:"failed"`
+		Findings           []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode hpa status: %v", err)
+	}
+	if status.HPAsTotal != 1 || status.AtMaxReplicasCount != 1 {
+		t.Fatalf("counters = %d/%d, want 1/1", status.HPAsTotal, status.AtMaxReplicasCount)
+	}
+	// No target metric + at max replicas = 2 findings.
+	if status.Failed != 2 {
+		t.Fatalf("failed = %d, want 2; findings=%d", status.Failed, len(status.Findings))
+	}
+	sawAtMax := false
+	for _, f := range status.Findings {
+		if f.Code == "HPA_AT_MAX_REPLICAS" {
+			sawAtMax = true
+		}
+	}
+	if !sawAtMax {
+		t.Fatalf("findings = %+v, want an at-max finding", status.Findings)
+	}
+}
+
+func TestOptimizationHPAAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/apis/autoscaling/v2/horizontalpodautoscalers": {
+			json.RawMessage(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web"},"spec":{"minReplicas":2,"maxReplicas":10,"metrics":[{"type":"Resource","resource":{"name":"cpu","target":{"averageUtilization":80}}}]},"status":{"currentReplicas":3}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/hpa/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		HPAsTotal int `json:"hpas_total"`
+		Failed    int `json:"failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode hpa status: %v", err)
+	}
+	if status.HPAsTotal != 1 {
+		t.Fatalf("hpas_total = %d, want 1", status.HPAsTotal)
+	}
+	if status.Failed != 0 { // healthy: target declared, headroom ok, no utilization
+		t.Fatalf("failed = %d, want 0", status.Failed)
+	}
+}
+
+func TestOptimizationHPAAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/hpa/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = postJSON(t, engine, "/api/v1/optimization/hpa/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}

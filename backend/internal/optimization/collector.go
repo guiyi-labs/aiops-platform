@@ -13,6 +13,7 @@ import (
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
 	"k8s-aiops.local/backend/internal/gitopsdrift"
+	"k8s-aiops.local/backend/internal/hpa"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
@@ -908,6 +909,101 @@ type policyPodSpecRaw struct {
 		ReadinessProbe *json.RawMessage `json:"readinessProbe"`
 		StartupProbe   *json.RawMessage `json:"startupProbe"`
 	} `json:"containers"`
+}
+
+// CollectHPA builds the HPA posture observation bundle: every
+// HorizontalPodAutoscaler's scaling bounds, current replicas and (when
+// reported by the API server) current utilization. This is what the hpa
+// analyzer evaluates against its scaling-policy rules.
+//
+// Everything is a read-only List against the API server. Nothing is mutated
+// and no autoscaler state is written.
+func (c *Collector) CollectHPA(ctx context.Context, clusterID int64) (hpa.Inputs, error) {
+	in := hpa.Inputs{}
+
+	items, err := c.lister.List(ctx, clusterID, "/apis/autoscaling/v2/horizontalpodautoscalers")
+	if err != nil {
+		return hpa.Inputs{}, err
+	}
+	for _, raw := range items {
+		var h hpaRaw
+		if json.Unmarshal(raw, &h) != nil {
+			continue
+		}
+		if h.Metadata.Name == "" {
+			continue
+		}
+		info := hpa.HPAInput{
+			Namespace:       h.Metadata.Namespace,
+			Name:            h.Metadata.Name,
+			UID:             h.Metadata.UID,
+			MinReplicas:     h.Spec.MinReplicas,
+			MaxReplicas:     h.Spec.MaxReplicas,
+			CurrentReplicas: h.Status.CurrentReplicas,
+		}
+		// First declared metric provides the target; resource metrics carry a
+		// utilization percentage that the analyzer compares against current.
+		if len(h.Spec.Metrics) > 0 {
+			m := h.Spec.Metrics[0]
+			if m.Resource != nil {
+				info.TargetMetric = m.Resource.Name
+				info.TargetValue = float64(m.Resource.Target.AverageUtilization)
+			} else if m.Pods != nil {
+				info.TargetMetric = "pods"
+				if n, err := strconv.ParseFloat(string(m.Pods.Target.AverageValue), 64); err == nil {
+					info.TargetValue = n
+				}
+			} else if m.Type != "" {
+				info.TargetMetric = m.Type
+			}
+		}
+		for _, cm := range h.Status.CurrentMetrics {
+			if cm.Resource != nil {
+				info.CurrentUtilizationPct = cm.Resource.Current.AverageUtilization
+				break
+			}
+		}
+		in.HPAs = append(in.HPAs, info)
+	}
+	return in, nil
+}
+
+// hpaRaw decodes the scaling-relevant subset of a HorizontalPodAutoscaler
+// (autoscaling/v2).
+type hpaRaw struct {
+	Metadata struct {
+		Namespace string `json:"namespace"`
+		Name      string `json:"name"`
+		UID       string `json:"uid"`
+	} `json:"metadata"`
+	Spec struct {
+		MinReplicas *int32 `json:"minReplicas"`
+		MaxReplicas int32  `json:"maxReplicas"`
+		Metrics     []struct {
+			Type     string `json:"type"`
+			Resource *struct {
+				Name   string `json:"name"`
+				Target struct {
+					AverageUtilization int32 `json:"averageUtilization"`
+				} `json:"target"`
+			} `json:"resource"`
+			Pods *struct {
+				Target struct {
+					AverageValue json.Number `json:"averageValue"`
+				} `json:"target"`
+			} `json:"pods"`
+		} `json:"metrics"`
+	} `json:"spec"`
+	Status struct {
+		CurrentReplicas int32 `json:"currentReplicas"`
+		CurrentMetrics  []struct {
+			Resource *struct {
+				Current struct {
+					AverageUtilization *int32 `json:"averageUtilization"`
+				} `json:"current"`
+			} `json:"resource"`
+		} `json:"currentMetrics"`
+	} `json:"status"`
 }
 
 // namespaceManagedByGitOps reports whether a namespace is managed by a GitOps

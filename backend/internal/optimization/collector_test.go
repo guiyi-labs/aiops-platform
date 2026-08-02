@@ -786,3 +786,53 @@ func TestCollectPolicy_PropagatesListFailure(t *testing.T) {
 		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 	}
 }
+
+// TestCollectHPA_MapsScalingFields extracts scaling bounds, target metric and
+// current utilization from an autoscaling/v2 HPA.
+func TestCollectHPA_MapsScalingFields(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/autoscaling/v2/horizontalpodautoscalers": {
+			raw(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web"},"spec":{
+				"minReplicas":2,"maxReplicas":10,
+				"metrics":[{"type":"Resource","resource":{"name":"cpu","target":{"averageUtilization":80}}}]
+			},"status":{"currentReplicas":4,"currentMetrics":[{"type":"Resource","resource":{"name":"cpu","current":{"averageUtilization":65}}}]}}`),
+		},
+	}}
+
+	in, err := NewCollector(lister, nil, nil).CollectHPA(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectHPA: %v", err)
+	}
+	if len(in.HPAs) != 1 {
+		t.Fatalf("hpas = %d, want 1", len(in.HPAs))
+	}
+	h := in.HPAs[0]
+	if h.Namespace != "prod" || h.Name != "web" {
+		t.Fatalf("hpa identity = %+v, want prod/web", h)
+	}
+	if h.MinReplicas == nil || *h.MinReplicas != 2 {
+		t.Fatalf("min_replicas = %v, want 2", h.MinReplicas)
+	}
+	if h.MaxReplicas != 10 || h.CurrentReplicas != 4 {
+		t.Fatalf("replicas = %d/%d, want 10/4", h.MaxReplicas, h.CurrentReplicas)
+	}
+	if h.TargetMetric != "cpu" || h.TargetValue != 80 {
+		t.Fatalf("target = %q/%v, want cpu/80", h.TargetMetric, h.TargetValue)
+	}
+	if h.CurrentUtilizationPct == nil || *h.CurrentUtilizationPct != 65 {
+		t.Fatalf("current_utilization_pct = %v, want 65", h.CurrentUtilizationPct)
+	}
+}
+
+// TestCollectHPA_PropagatesListFailure ensures a broken HPA List surfaces as
+// an error rather than a partial bundle.
+func TestCollectHPA_PropagatesListFailure(t *testing.T) {
+	lister := failingLister{failOn: "/apis/autoscaling/v2/horizontalpodautoscalers"}
+	in, err := NewCollector(lister, nil, nil).CollectHPA(context.Background(), 7)
+	if err == nil {
+		t.Fatalf("expected the hpa list failure to propagate")
+	}
+	if len(in.HPAs) != 0 {
+		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
+	}
+}

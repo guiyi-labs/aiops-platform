@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeImage, analyzeNetwork } from './optimization'
+import { analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeImage, analyzeNetwork } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -137,6 +137,39 @@ describe('optimization API client', () => {
 
     await expect(analyzeImage('token', 15)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 15 is unreachable',
+    })
+  })
+
+  it('asks the server to auto-collect the GitOps bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 18, evaluated_at: '2026-08-02T10:00:00Z', total: 8, failed: 2, passed: 6,
+      resources_total: 8, drifted_resources: 1, unmanaged_resources: 1,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzeGitOps('token', 18)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/gitops/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 18 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.drifted_resources).toBe(1)
+    expect(status.unmanaged_resources).toBe(1)
+  })
+
+  it('surfaces a failed GitOps collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 18 is unreachable' }, 502,
+    )))
+
+    await expect(analyzeGitOps('token', 18)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 18 is unreachable',
     })
   })
 })

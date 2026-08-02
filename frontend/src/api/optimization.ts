@@ -4,6 +4,7 @@ import type {
   CostRate,
   DeprecatedAPIStatus,
   FinOpsWasteSummary,
+  GitOpsStatus,
   ImageStatus,
   NetworkStatus,
 } from '../types/optimization'
@@ -53,6 +54,14 @@ export async function analyzeNetwork(token: string, clusterId: number): Promise<
 
 export async function analyzeImage(token: string, clusterId: number): Promise<ImageStatus> {
   const status = await authorizedRequest<ImageStatus>('/api/v1/optimization/image/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+export async function analyzeGitOps(token: string, clusterId: number): Promise<GitOpsStatus> {
+  const status = await authorizedRequest<GitOpsStatus>('/api/v1/optimization/gitops/analyze', token, {
     method: 'POST',
     body: JSON.stringify({ cluster_id: clusterId }),
   })

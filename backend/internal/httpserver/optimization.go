@@ -9,6 +9,7 @@ import (
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
+	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/optimization"
@@ -198,5 +199,40 @@ func (h optimizationHandler) imageAnalyze(c *gin.Context) {
 		inputs = collected
 	}
 	status := imagepolicy.Evaluate(req.ClusterID, inputs, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// gitopsAnalyzeRequest carries the cluster identity plus the GitOps drift
+// observation bundle. gitopsdrift.Inputs is embedded so its "resources" and
+// "managed_namespaces" fields are accepted at the top level of the JSON body.
+type gitopsAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	gitopsdrift.Inputs
+}
+
+func (h optimizationHandler) gitopsAnalyze(c *gin.Context) {
+	var req gitopsAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectGitOpsDrift(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := gitopsdrift.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

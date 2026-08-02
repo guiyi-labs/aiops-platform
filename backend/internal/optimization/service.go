@@ -16,6 +16,7 @@ import (
 	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/deprecatedapi"
 	"k8s-aiops.local/backend/internal/finops"
+	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 )
@@ -79,4 +80,11 @@ func (s *Service) CollectNetPolicy(ctx context.Context, clusterID int64) (netpol
 // (every container image referenced by a workload) for a cluster.
 func (s *Service) CollectImagePolicy(ctx context.Context, clusterID int64) (imagepolicy.Inputs, error) {
 	return s.collector.CollectImagePolicy(ctx, clusterID)
+}
+
+// CollectGitOpsDrift auto-collects the GitOps configuration-drift observation
+// bundle (last-applied-configuration annotations plus live spec/data, and the
+// GitOps-managed namespaces) for a cluster.
+func (s *Service) CollectGitOpsDrift(ctx context.Context, clusterID int64) (gitopsdrift.Inputs, error) {
+	return s.collector.CollectGitOpsDrift(ctx, clusterID)
 }

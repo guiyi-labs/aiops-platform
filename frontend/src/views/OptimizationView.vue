@@ -7,6 +7,7 @@ import {
   CircleDollarSign,
   Cpu,
   Container,
+  GitBranch,
   History,
   MemoryStick,
   Network,
@@ -25,18 +26,19 @@ import type {
   CISStatus,
   DeprecatedAPIStatus,
   FinOpsWasteSummary,
+  GitOpsStatus,
   ImageStatus,
   NetworkStatus,
   OptimizationFinding,
 } from '../types/optimization'
 
-// Read-only optimization console (M66) over the M61-M68 analyzers.
+// Read-only optimization console (M66) over the M61-M70 analyzers.
 //
 // Each tab posts only the cluster id, which makes the server auto-collect the
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops'
 
 const auth = useAuthStore()
 
@@ -51,9 +53,10 @@ const cis = ref<CISStatus | null>(null)
 const deprecated = ref<DeprecatedAPIStatus | null>(null)
 const network = ref<NetworkStatus | null>(null)
 const image = ref<ImageStatus | null>(null)
+const gitops = ref<GitOpsStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '' })
 
 const targetVersion = ref('1.29')
 
@@ -66,6 +69,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'deprecated', label: '废弃 API', icon: PackageX },
   { key: 'network', label: '网络连通', icon: Network },
   { key: 'image', label: '镜像供应链', icon: Container },
+  { key: 'gitops', label: 'GitOps 漂移', icon: GitBranch },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -164,6 +168,26 @@ const finopsRecommendations = computed(() =>
   [...(finops.value?.recommendations ?? [])].sort((a, b) => b.monthly_waste_usd - a.monthly_waste_usd),
 )
 
+/** GitOps findings ordered critical → warning → info so the worst surface first. */
+const gitopsFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(gitops.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
+/**
+ * Share of observed resources that have drifted away from their
+ * last-applied-configuration. Unmanaged resources are excluded from the
+ * denominator — without a recorded manifest, drift cannot even be measured.
+ */
+const gitopsDriftRate = computed(() => {
+  const total = gitops.value?.resources_total ?? 0
+  if (total === 0) return 0
+  const drifted = gitops.value?.drifted_resources ?? 0
+  return Math.round((drifted / total) * 100)
+})
+
 const cisFamilies = computed(() => Object.entries(cis.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
 
 /** CIS pass rate, used as the headline compliance score. */
@@ -187,7 +211,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value }[tab]
+  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value }[tab]
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -206,9 +230,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'network') {
       const result = await optimizationAPI.analyzeNetwork(auth.accessToken, clusterId)
       if (sequence === requestSequence) network.value = result
-    } else {
+    } else if (tab === 'image') {
       const result = await optimizationAPI.analyzeImage(auth.accessToken, clusterId)
       if (sequence === requestSequence) image.value = result
+    } else {
+      const result = await optimizationAPI.analyzeGitOps(auth.accessToken, clusterId)
+      if (sequence === requestSequence) gitops.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -223,7 +250,8 @@ function resetResults() {
   deprecated.value = null
   network.value = null
   image.value = null
-  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '' }
+  gitops.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '' }
 }
 
 async function loadClusters() {
@@ -622,7 +650,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ----------------------------------------------- 镜像供应链 / 可复现性 -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'image'" class="optimization-tab">
         <div v-if="loading.image" class="panel-empty">正在采集工作负载镜像引用并做静态可复现性分析…</div>
         <div v-else-if="errors.image" class="panel-empty error">{{ errors.image }}</div>
         <template v-else-if="image">
@@ -688,6 +716,86 @@ onMounted(() => void loadClusters())
                         <template v-if="item.details?.tag">tag {{ item.details.tag }}</template>
                         <template v-else-if="item.details?.tags">tags {{ item.details.tags }}</template>
                         <template v-if="item.details?.containers"> · {{ item.details.containers }} 个容器</template>
+                      </div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
+      </section>
+
+      <!-- ----------------------------------------------- GitOps 漂移检测 -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.gitops" class="panel-empty">正在采集工作负载、ConfigMap、Secret 与命名空间注解并比对 last-applied…</div>
+        <div v-else-if="errors.gitops" class="panel-empty error">{{ errors.gitops }}</div>
+        <template v-else-if="gitops">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><GitBranch :size="16" />受管资源</p>
+              <strong>{{ gitops.resources_total }}</strong>
+              <span>含工作负载、ConfigMap、Secret</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><AlertTriangle :size="16" />漂移资源</p>
+              <strong>{{ gitops.drifted_resources }}</strong>
+              <span>实况与 last-applied 不一致</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><PackageX :size="16" />未受管资源</p>
+              <strong>{{ gitops.unmanaged_resources }}</strong>
+              <span>受管命名空间内缺 last-applied 注解</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><CheckCircle2 :size="16" />漂移率</p>
+              <strong>{{ gitopsDriftRate }}%</strong>
+              <span>警告 {{ gitops.by_severity.warning ?? 0 }} · 提示 {{ gitops.by_severity.info ?? 0 }} · 分析时间 {{ formatTimestamp(gitops.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <p class="view-intro muted">
+            本视图不连接任何 Git 仓库、不调用 GitOps 控制器、也不重新 apply 任何对象，仅将实况对象与
+            <code>kubectl.kubernetes.io/last-applied-configuration</code> 注解（kubectl apply / Flux / Argo CD 写入）做静态比对。
+            漂移意味着 GitOps 已无法干净地 reconcile 该资源；缺失注解则意味着漂移无从发现、也无从修复。
+          </p>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <GitBranch :size="18" />
+                <strong>GitOps 漂移发现</strong>
+                <span class="muted">{{ gitopsFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="gitopsFindings.length === 0" class="panel-empty muted">
+              未发现实况与 last-applied 不一致的资源，也未发现受管命名空间内的未受管资源
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>资源</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in gitopsFindings" :key="`${item.code}-${item.resource.namespace ?? ''}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <div v-if="item.details?.field_count" class="cell-sub muted">{{ item.details.field_count }} 个字段不一致</div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">
+                        {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
+                        <template v-if="item.details?.manager"> · {{ item.details.manager }}</template>
                       </div>
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>

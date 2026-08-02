@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"k8s-aiops.local/backend/internal/cluster"
+	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/kubernetes"
 )
@@ -500,6 +501,98 @@ func TestCollectImagePolicy_PropagatesListFailure(t *testing.T) {
 			t.Fatalf("expected the %s failure to propagate", path)
 		}
 		if len(in.Usages) != 0 {
+			t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
+		}
+	}
+}
+
+// TestCollectGitOpsDrift_MapsResourcesAndManagers verifies the GitOps drift
+// collector captures each scanned kind with its last-applied-configuration
+// (decoded from the annotation JSON string) and live spec/data, detects the
+// manager, and records GitOps-managed namespaces.
+func TestCollectGitOpsDrift_MapsResourcesAndManagers(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/api/v1/namespaces": {
+			raw(`{"metadata":{"name":"gitops","annotations":{"kustomize.toolkit.fluxcd.io/name":"app"}}}`),
+			raw(`{"metadata":{"name":"shop"}}`),
+		},
+		"/apis/apps/v1/deployments": {raw(`{"apiVersion":"apps/v1","kind":"Deployment","metadata":{
+			"namespace":"shop","name":"api","uid":"u1",
+			"annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"api\"},\"spec\":{\"replicas\":3}}"}},"spec":{"replicas":3}}`)},
+		"/apis/apps/v1/statefulsets": {raw(`{"apiVersion":"apps/v1","kind":"StatefulSet","metadata":{
+			"namespace":"shop","name":"db","uid":"u2",
+			"annotations":{"argocd.argoproj.io/tracking-id":"app:db"}},"spec":{"replicas":1}}`)},
+		"/apis/apps/v1/daemonsets": {raw(`{"apiVersion":"apps/v1","kind":"DaemonSet","metadata":{
+			"namespace":"kube-system","name":"agent","uid":"u3"},"spec":{}}`)},
+		"/api/v1/configmaps": {raw(`{"apiVersion":"v1","kind":"ConfigMap","metadata":{
+			"namespace":"shop","name":"cfg","uid":"u4",
+			"annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"data\":{\"KEY\":\"v1\"}}"}},
+			"data":{"KEY":"v1"}}`)},
+		"/api/v1/secrets": {raw(`{"apiVersion":"v1","kind":"Secret","metadata":{
+			"namespace":"shop","name":"sec","uid":"u5"},"data":{}}`)},
+	}}
+
+	in, err := NewCollector(lister, nil).CollectGitOpsDrift(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectGitOpsDrift: %v", err)
+	}
+	if len(in.Resources) != 5 {
+		t.Fatalf("resources = %d, want 5: %+v", len(in.Resources), in.Resources)
+	}
+
+	byName := map[string]gitopsdrift.ManagedResource{}
+	for _, r := range in.Resources {
+		byName[r.Namespace+"/"+r.Name] = r
+	}
+
+	dep := byName["shop/api"]
+	if dep.Kind != "Deployment" || dep.UID != "u1" {
+		t.Fatalf("deployment = %+v", dep)
+	}
+	if dep.Manager != gitopsdrift.ManagerKubectl {
+		t.Fatalf("deployment manager = %q, want kubectl", dep.Manager)
+	}
+	if len(dep.AppliedConfig) == 0 {
+		t.Fatal("deployment missing applied config")
+	}
+	if string(dep.LiveBody) != `{"replicas":3}` {
+		t.Fatalf("deployment live body = %s, want {\"replicas\":3}", dep.LiveBody)
+	}
+
+	if byName["shop/db"].Manager != gitopsdrift.ManagerArgoCD {
+		t.Fatalf("statefulset manager = %q, want argocd", byName["shop/db"].Manager)
+	}
+
+	cfg := byName["shop/cfg"]
+	if len(cfg.AppliedConfig) == 0 {
+		t.Fatal("configmap missing applied config")
+	}
+	if string(cfg.LiveBody) != `{"KEY":"v1"}` {
+		t.Fatalf("configmap live body = %s, want {\"KEY\":\"v1\"}", cfg.LiveBody)
+	}
+
+	// No last-applied annotation and no GitOps annotation -> unknown manager.
+	if byName["kube-system/agent"].Manager != "" {
+		t.Fatalf("agent manager = %q, want empty", byName["kube-system/agent"].Manager)
+	}
+
+	// Only the namespace carrying a Flux annotation is recorded as managed.
+	if len(in.ManagedNamespaces) != 1 || in.ManagedNamespaces[0] != "gitops" {
+		t.Fatalf("managed namespaces = %+v, want [gitops]", in.ManagedNamespaces)
+	}
+}
+
+// TestCollectGitOpsDrift_PropagatesListFailure ensures a broken cluster
+// connection surfaces as an error (502 COLLECT_FAILED) rather than a partial
+// or empty bundle.
+func TestCollectGitOpsDrift_PropagatesListFailure(t *testing.T) {
+	for _, path := range []string{"/api/v1/namespaces", "/apis/apps/v1/deployments"} {
+		lister := failingLister{failOn: path}
+		in, err := NewCollector(lister, nil).CollectGitOpsDrift(context.Background(), 7)
+		if err == nil {
+			t.Fatalf("expected the %s failure to propagate", path)
+		}
+		if len(in.Resources) != 0 {
 			t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 		}
 	}

@@ -457,3 +457,70 @@ func TestOptimizationImageAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
 		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
 	}
 }
+
+func TestOptimizationGitOpsAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/api/v1/namespaces": {
+			json.RawMessage(`{"metadata":{"name":"gitops","annotations":{"kustomize.toolkit.fluxcd.io/name":"app"}}}`),
+		},
+		"/apis/apps/v1/deployments": {
+			json.RawMessage(`{"apiVersion":"apps/v1","kind":"Deployment","metadata":{
+				"namespace":"gitops","name":"api","uid":"u1",
+				"annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"api\"},\"spec\":{\"replicas\":3}}"}},"spec":{"replicas":5}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/gitops/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		ResourcesTotal     int `json:"resources_total"`
+		DriftedResources   int `json:"drifted_resources"`
+		UnmanagedResources int `json:"unmanaged_resources"`
+		Findings           []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode gitops status: %v", err)
+	}
+	if status.ResourcesTotal != 1 {
+		t.Fatalf("resources_total = %d, want 1", status.ResourcesTotal)
+	}
+	if status.DriftedResources != 1 {
+		t.Fatalf("drifted_resources = %d, want 1", status.DriftedResources)
+	}
+	var sawDrift bool
+	for _, f := range status.Findings {
+		if f.Code == "GITOPS_DRIFT_DETECTED" {
+			sawDrift = true
+		}
+	}
+	if !sawDrift {
+		t.Fatalf("expected GITOPS_DRIFT_DETECTED, got %+v", status.Findings)
+	}
+}
+
+func TestOptimizationGitOpsAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/gitops/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = postJSON(t, engine, "/api/v1/optimization/gitops/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}

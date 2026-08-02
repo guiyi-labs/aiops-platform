@@ -1,4 +1,4 @@
-// Types for the read-only optimization analyzers (M61-M68).
+// Types for the read-only optimization analyzers (M61-M70).
 //
 // These mirror the backend contracts exactly:
 //   - cis.Status            (internal/cis/model.go)
@@ -6,6 +6,7 @@
 //   - deprecatedapi.Status  (internal/deprecatedapi/model.go)
 //   - netpolicy.Status      (internal/netpolicy/model.go)
 //   - imagepolicy.Status    (internal/imagepolicy/model.go)
+//   - gitopsdrift.Status    (internal/gitopsdrift/model.go)
 //   - finding.Finding       (internal/finding) — shared by every analyzer
 //
 // Every endpoint is read-only: the server collects an observation bundle and
@@ -158,6 +159,33 @@ export interface ImageStatus {
   mutable_tag_images: number
   /** Distinct images referenced by tag only, without a digest pin. */
   unpinned_images: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
+}
+
+/**
+ * GitOps configuration-drift rollup (gitopsdrift.Status).
+ *
+ * The analyzer is pure and offline (ADR 0004): it only compares the live
+ * object against the `kubectl.kubernetes.io/last-applied-configuration`
+ * annotation that a GitOps tool (kubectl apply / Flux / Argo CD) wrote, and
+ * never re-applies or mutates anything. A resource in a managed namespace with
+ * no such annotation is reported as unmanaged (drift can never be reconciled
+ * for it).
+ */
+export interface GitOpsStatus {
+  cluster_id: number
+  evaluated_at: string
+  total: number
+  failed: number
+  passed: number
+  /** Resources observed across the cluster (workloads + ConfigMap/Secret). */
+  resources_total: number
+  /** Resources whose live spec/data no longer matches last-applied. */
+  drifted_resources: number
+  /** Managed-namespace resources with no last-applied annotation. */
+  unmanaged_resources: number
   by_severity: Record<string, number>
   by_family: Record<string, number>
   findings: OptimizationFinding[]

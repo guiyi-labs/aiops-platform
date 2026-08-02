@@ -1318,6 +1318,89 @@ a "fixed" version may never actually reach production.
 - Multi-architecture container build (linux/amd64, linux/arm64) for the
   backend and frontend images.
 
+### Added — M67 NetworkPolicy / Connectivity Read-Only Analyzer (P1-①)
+
+- **`backend/internal/netpolicy`**: read-only NetworkPolicy posture analyzer
+  (committed `a8f4039`). Evaluates pod connectivity against NetworkPolicies
+  and emits `internal/finding`-shaped findings. `CollectNetwork` feeds the
+  collector; `POST /api/v1/optimization/network/analyze` (audit
+  `optimization.network.analyze`) exposes it; frontend adds a "网络" tab.
+
+### Added — M68 Image Supply-Chain / Reproducibility Read-Only View (P1-③)
+
+- **`backend/internal/imagepolicy`**: read-only image supply-chain and
+  reproducibility analyzer (committed `a50cd52`). Surfaces unsigned / missing
+  digest / non-reproducible image references. `POST /api/v1/optimization/image/analyze`
+  (audit `optimization.image.analyze`) exposes it; frontend adds a "镜像供应链"
+  tab.
+
+### Added — M69 GitOps Configuration-Drift Read-Only Detector (P1-④)
+
+- **`backend/internal/gitopsdrift`** (committed `f014afa`): compares applied
+  manifests against the GitOps source of truth and reports drift. `CollectGitOps`
+  + `POST /api/v1/optimization/gitops/analyze` (audit `optimization.gitops.analyze`);
+  frontend adds a "GitOps 漂移" tab (managed / drifted / unmanaged + drift rate
+  + findings).
+
+### Added — M70 Capacity Trend Prediction Read-Only Analyzer (P1-⑤)
+
+- **`backend/internal/capacity`** (committed `9b2e919`): least-squares
+  projection of CPU/memory usage over a horizon (default 30d); flags imminent
+  saturation. `CollectCapacity` + `POST /api/v1/optimization/capacity/analyze`
+  (audit `optimization.capacity.analyze`); frontend adds a "容量预测" tab.
+
+### Added — M71 Policy-as-Code Read-Only Analyzer (P2-①)
+
+- **`backend/internal/policy`** (committed `15b8f12`): declarative baseline
+  (KubeSphere-style) checking cpu/mem requests+limits, privileged,
+  allowPrivilegeEscalation, runAsNonRoot, probes, host namespaces — no Rego/OPA
+  engine. `CollectPolicy` + `POST /api/v1/optimization/policy/analyze` (audit
+  `optimization.policy.analyze`); frontend adds a "策略合规" tab. Probe presence
+  detected via `*json.RawMessage`.
+
+### Added — M72 Topology Collection Parallelization (P2-②)
+
+- **`Collector.Snapshot`** (committed `da58511`) concurrently fetches 8 resource
+  kinds via `WaitGroup` + mutex-guarded first-error; `Service.CollectCluster` uses
+  a bounded per-namespace worker pool (default concurrency 4, `WithNamespaceConcurrency`
+  option). A data race in the test stub counter (`countingRepository.upsertCount`)
+  under the parallel worker was fixed with `atomic.Int64` in `be8ecbd` after the
+  CI `go test -race` gate caught it (unreproducible locally under `CGO_ENABLED=0`).
+
+### Added — M73 M46–M58 kind E2E Suite (P2-③)
+
+- **`scripts/e2e-m46-m58-kind.ps1`** (committed `dd82e54`, race fix `be8ecbd`):
+  first post-M45 kind E2E suite, asserting M46 workspace CRUD, M48 federation
+  overview, M52 inspection catalog + plan lifecycle, M56 quality report, M57
+  app-catalog plans, M58 copy-plans. Registered in `real-kind-e2e.yml`.
+
+### Added — M76 HPA Scaling-Posture Read-Only Analyzer
+
+- **`backend/internal/hpa`** (committed `b405730`): evaluates `autoscaling/v2`
+  HPAs — missing target metric, replicas at `maxReplicas`, thin `maxReplicas`,
+  over/under-target utilization. `CollectHPA` + `POST /api/v1/optimization/hpa/analyze`
+  (audit `optimization.hpa.analyze`); frontend adds an "HPA 扩缩容" tab.
+  See [M76 change record](docs/changes/2026-08-02-m76-hpa-scaling-posture.md).
+
+### Added — M77 PodDisruptionBudget Protection Read-Only Analyzer
+
+- **`backend/internal/pdb`** (committed `40877fc`): evaluates PDBs — missing PDB,
+  missing `minAvailable`/`maxUnavailable`, `maxUnavailable=100%`, allow-voluntary
+  annotation. `IntOrString` decoded via `json.RawMessage` + `rawToText`. `CollectPDB`
+  + `POST /api/v1/optimization/pdb/analyze` (audit `optimization.pdb.analyze`);
+  frontend adds a "PDB 保护" tab.
+  See [M77 change record](docs/changes/2026-08-02-m77-pdb-protection.md).
+
+### Added — M78 Ingress Exposure-Surface Audit Read-Only Analyzer
+
+- **`backend/internal/ingressposture`** (committed `675ca54`): evaluates Ingresses
+  — no TLS, dead backend Service, wildcard host, missing `ingressClassName`.
+  `CollectIngress` + `POST /api/v1/optimization/ingress/analyze` (audit
+  `optimization.ingress.analyze`); frontend adds an "Ingress 暴露面" tab. This
+  completes the M76–M78 analyzer trio; the optimization center now exposes **11
+  analyzer tabs**.
+  See [M78 change record](docs/changes/2026-08-02-m78-ingress-exposure-audit.md).
+
 ### Changed
 
 - M33: migrated Kubernetes API interactions from raw HTTP to client-go

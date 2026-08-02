@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   CheckCircle2,
   CircleDollarSign,
+  ClipboardCheck,
   Cpu,
   Container,
   GitBranch,
@@ -32,6 +33,7 @@ import type {
   ImageStatus,
   NetworkStatus,
   OptimizationFinding,
+  PolicyStatus,
 } from '../types/optimization'
 
 // Read-only optimization console (M66) over the M61-M70 analyzers.
@@ -40,7 +42,7 @@ import type {
 // observation bundle and run the corresponding pure analyzer. No request from
 // this view can mutate cluster state (ADR 0004).
 
-type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity'
+type TabKey = 'finops' | 'cis' | 'deprecated' | 'network' | 'image' | 'gitops' | 'capacity' | 'policy'
 
 const auth = useAuthStore()
 
@@ -57,9 +59,10 @@ const network = ref<NetworkStatus | null>(null)
 const image = ref<ImageStatus | null>(null)
 const gitops = ref<GitOpsStatus | null>(null)
 const capacity = ref<CapacityStatus | null>(null)
+const policy = ref<PolicyStatus | null>(null)
 
-const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false })
-const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '' })
+const loading = ref<Record<TabKey, boolean>>({ finops: false, cis: false, deprecated: false, network: false, image: false, gitops: false, capacity: false, policy: false })
+const errors = ref<Record<TabKey, string>>({ finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '' })
 
 const targetVersion = ref('1.29')
 
@@ -74,6 +77,7 @@ const tabs: { key: TabKey; label: string; icon: typeof Wallet }[] = [
   { key: 'image', label: '镜像供应链', icon: Container },
   { key: 'gitops', label: 'GitOps 漂移', icon: GitBranch },
   { key: 'capacity', label: '容量预测', icon: TrendingUp },
+  { key: 'policy', label: '策略合规', icon: ClipboardCheck },
 ]
 
 const severityLabels: Record<string, string> = {
@@ -228,6 +232,21 @@ function pct(value: number | string | undefined): string {
   return `${(ratio * 100).toFixed(1)}%`
 }
 
+/** Policy findings ordered critical → warning → info so the worst surface first. */
+const policyFindings = computed<OptimizationFinding[]>(() => {
+  const order: Record<string, number> = { critical: 0, warning: 1, info: 2 }
+  return [...(policy.value?.findings ?? [])].sort(
+    (a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3),
+  )
+})
+
+/** Share of workloads with no policy finding at all. */
+const policyComplianceRate = computed(() => {
+  const total = policy.value?.workloads_total ?? 0
+  if (total === 0) return 0
+  return Math.round(((policy.value?.compliant_workloads ?? 0) / total) * 100)
+})
+
 const cisFamilies = computed(() => Object.entries(cis.value?.by_family ?? {}).sort((a, b) => b[1] - a[1]))
 
 /** CIS pass rate, used as the headline compliance score. */
@@ -251,7 +270,7 @@ function describeError(err: unknown): string {
 async function runAnalysis(tab: TabKey, force = false) {
   const clusterId = selectedClusterID.value
   if (!clusterId || !auth.accessToken) return
-  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value }[tab]
+  const cached = { finops: finops.value, cis: cis.value, deprecated: deprecated.value, network: network.value, image: image.value, gitops: gitops.value, capacity: capacity.value, policy: policy.value }[tab]
   if (cached && !force) return
 
   const sequence = ++requestSequence
@@ -276,9 +295,12 @@ async function runAnalysis(tab: TabKey, force = false) {
     } else if (tab === 'gitops') {
       const result = await optimizationAPI.analyzeGitOps(auth.accessToken, clusterId)
       if (sequence === requestSequence) gitops.value = result
-    } else {
+    } else if (tab === 'capacity') {
       const result = await optimizationAPI.analyzeCapacity(auth.accessToken, clusterId)
       if (sequence === requestSequence) capacity.value = result
+    } else {
+      const result = await optimizationAPI.analyzePolicy(auth.accessToken, clusterId)
+      if (sequence === requestSequence) policy.value = result
     }
   } catch (err) {
     if (sequence === requestSequence) errors.value = { ...errors.value, [tab]: describeError(err) }
@@ -295,7 +317,8 @@ function resetResults() {
   image.value = null
   gitops.value = null
   capacity.value = null
-  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '' }
+  policy.value = null
+  errors.value = { finops: '', cis: '', deprecated: '', network: '', image: '', gitops: '', capacity: '', policy: '' }
 }
 
 async function loadClusters() {
@@ -853,7 +876,7 @@ onMounted(() => void loadClusters())
       </section>
 
       <!-- ----------------------------------------------- 容量预测 -->
-      <section v-else class="optimization-tab">
+      <section v-else-if="activeTab === 'capacity'" class="optimization-tab">
         <div v-if="loading.capacity" class="panel-empty">正在汇总节点可分配容量与近 24 小时用量并拟合趋势…</div>
         <div v-else-if="errors.capacity" class="panel-empty error">{{ errors.capacity }}</div>
         <template v-else-if="capacity">
@@ -922,6 +945,86 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
                       <div class="cell-sub muted">{{ item.resource.kind }}</div>
+                    </td>
+                    <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
+        <div v-else class="panel-empty muted">选择集群后开始分析</div>
+      </section>
+
+      <!-- ----------------------------------------------- 策略合规 -->
+      <section v-else class="optimization-tab">
+        <div v-if="loading.policy" class="panel-empty">正在采集工作负载清单并逐容器评估资源、安全上下文、探针与宿主访问…</div>
+        <div v-else-if="errors.policy" class="panel-empty error">{{ errors.policy }}</div>
+        <template v-else-if="policy">
+          <div class="summary-grid">
+            <article class="metric-card">
+              <p class="metric-heading"><Container :size="16" />评估工作负载</p>
+              <strong>{{ policy.workloads_total }}</strong>
+              <span>Deployment / StatefulSet / DaemonSet / 裸 Pod</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><Cpu :size="16" />评估容器</p>
+              <strong>{{ policy.containers_total }}</strong>
+              <span>逐容器检查资源与安全基线</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><BadgeCheck :size="16" />合规率</p>
+              <strong>{{ policyComplianceRate }}%</strong>
+              <span>{{ policy.compliant_workloads }} 个工作负载全部通过</span>
+            </article>
+            <article class="metric-card">
+              <p class="metric-heading"><ClipboardCheck :size="16" />预警数</p>
+              <strong>{{ policy.failed }}</strong>
+              <span>严重 {{ policy.by_severity.critical ?? 0 }} · 警告 {{ policy.by_severity.warning ?? 0 }} · 提示 {{ policy.by_severity.info ?? 0 }} · 分析时间 {{ formatTimestamp(policy.evaluated_at) }}</span>
+            </article>
+          </div>
+
+          <p class="view-intro muted">
+            本视图对每个工作负载的 Pod 模板执行声明式基线检查（对标 KubeSphere 默认策略）：
+            资源 requests/limits 是否声明、是否 privileged / 允许权限提升 / 以 root 运行、
+            是否使用 hostNetwork / hostPID / hostIPC、是否配置 liveness / readiness / startup 探针。
+            全部为只读静态评估（ADR 0004），不安装任何策略引擎，也不修改任何对象。
+          </p>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <ClipboardCheck :size="18" />
+                <strong>策略违规</strong>
+                <span class="muted">{{ policyFindings.length }} 条</span>
+              </div>
+            </header>
+            <div v-if="policyFindings.length === 0" class="panel-empty muted">
+              所有工作负载均通过声明式策略基线
+            </div>
+            <div v-else class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>规则编号</th>
+                    <th>说明</th>
+                    <th>资源</th>
+                    <th>等级</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in policyFindings" :key="`${item.code}-${item.resource.namespace ?? ''}-${item.resource.name}-${index}`">
+                    <td><code>{{ item.code }}</code></td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                    </td>
+                    <td>
+                      <div class="cell-main">{{ item.resource.name }}</div>
+                      <div class="cell-sub muted">
+                        {{ item.resource.kind }}<template v-if="item.resource.namespace"> · {{ item.resource.namespace }}</template>
+                        <template v-if="item.details?.container"> · 容器 {{ item.details.container }}</template>
+                      </div>
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
                   </tr>

@@ -20,6 +20,7 @@ import (
 	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
+	"k8s-aiops.local/backend/internal/policy"
 )
 
 // Service carries the shared configuration and the collector for the
@@ -94,4 +95,11 @@ func (s *Service) CollectGitOpsDrift(ctx context.Context, clusterID int64) (gito
 // allocatable capacity plus the aggregate node usage time series) for a cluster.
 func (s *Service) CollectCapacity(ctx context.Context, clusterID int64) (capacity.Inputs, error) {
 	return s.collector.CollectCapacity(ctx, clusterID)
+}
+
+// CollectPolicy auto-collects the policy-as-code observation bundle (workload
+// controllers with resource/security-context/probe fields plus host access)
+// for a cluster.
+func (s *Service) CollectPolicy(ctx context.Context, clusterID int64) (policy.Inputs, error) {
+	return s.collector.CollectPolicy(ctx, clusterID)
 }

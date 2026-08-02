@@ -8,6 +8,7 @@ import type {
   GitOpsStatus,
   ImageStatus,
   NetworkStatus,
+  PolicyStatus,
 } from '../types/optimization'
 
 // Client for the read-only optimization analyzers (M61-M68).
@@ -71,6 +72,14 @@ export async function analyzeGitOps(token: string, clusterId: number): Promise<G
 
 export async function analyzeCapacity(token: string, clusterId: number): Promise<CapacityStatus> {
   const status = await authorizedRequest<CapacityStatus>('/api/v1/optimization/capacity/analyze', token, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_id: clusterId }),
+  })
+  return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+export async function analyzePolicy(token: string, clusterId: number): Promise<PolicyStatus> {
+  const status = await authorizedRequest<PolicyStatus>('/api/v1/optimization/policy/analyze', token, {
     method: 'POST',
     body: JSON.stringify({ cluster_id: clusterId }),
   })

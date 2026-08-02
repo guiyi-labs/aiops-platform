@@ -149,6 +149,23 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/optimization/policy/analyze:
+    post:
+      tags: [optimization]
+      summary: Evaluate workload manifests against the declarative policy baseline (resources, security context, host access, probes)
+      operationId: analyzePolicyPosture
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Policy observation bundle (workload controllers with container resource/security-context/probe fields plus host access flags); omit the bundle to auto-collect workloads from the cluster
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/fleet/health:
     get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
   /api/v1/fleet/resources/search:

@@ -17,6 +17,7 @@ import (
 	"k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/netpolicy"
+	"k8s-aiops.local/backend/internal/policy"
 )
 
 // ClusterLister fetches one Kubernetes List resource and returns its items as
@@ -742,6 +743,171 @@ func toSamples(agg map[int64]float64) []capacity.Sample {
 		out = append(out, capacity.Sample{Timestamp: time.Unix(k, 0).UTC(), Value: agg[k]})
 	}
 	return out
+}
+
+// policyWorkloadSources are the workload controllers scanned for policy
+// evaluation. Controllers are read instead of their Pods so each manifest is
+// checked once rather than once per replica; bare Pods are picked up
+// separately (see CollectPolicy) only when they have no owner.
+//
+// Jobs/CronJobs are omitted: their containers are short-lived batch tasks
+// where probes and long-running resource baselines do not apply.
+var policyWorkloadSources = []struct {
+	kind string
+	path string
+}{
+	{"Deployment", "/apis/apps/v1/deployments"},
+	{"StatefulSet", "/apis/apps/v1/statefulsets"},
+	{"DaemonSet", "/apis/apps/v1/daemonsets"},
+}
+
+// CollectPolicy builds the policy-as-code observation bundle: every workload
+// controller's pod template (containers with their resource requests/limits,
+// security context and probes, plus the pod-level host access flags), plus
+// standalone Pods. This is what the policy analyzer evaluates against its
+// declarative rule set.
+//
+// Everything is a read-only List against the API server. No policy engine is
+// invoked here and nothing is ever mutated.
+func (c *Collector) CollectPolicy(ctx context.Context, clusterID int64) (policy.Inputs, error) {
+	in := policy.Inputs{}
+
+	for _, src := range policyWorkloadSources {
+		items, err := c.lister.List(ctx, clusterID, src.path)
+		if err != nil {
+			return policy.Inputs{}, err
+		}
+		for _, raw := range items {
+			var w policyWorkloadRaw
+			if json.Unmarshal(raw, &w) != nil {
+				continue
+			}
+			if w.Metadata.Name == "" {
+				continue
+			}
+			in.Workloads = append(in.Workloads, policyWorkloadFromTemplate(src.kind, w))
+		}
+	}
+
+	// Standalone Pods (no owner) are evaluated as bare workloads: their
+	// container specs live directly under .spec rather than .spec.template.
+	podItems, err := c.lister.List(ctx, clusterID, "/api/v1/pods")
+	if err != nil {
+		return policy.Inputs{}, err
+	}
+	for _, raw := range podItems {
+		var p policyPodRaw
+		if json.Unmarshal(raw, &p) != nil {
+			continue
+		}
+		if len(p.Metadata.OwnerReferences) > 0 || p.Metadata.Name == "" {
+			continue
+		}
+		in.Workloads = append(in.Workloads, policyWorkloadFromSpec("Pod", p.Metadata.Namespace, p.Metadata.Name, p.Metadata.UID, p.Spec))
+	}
+
+	return in, nil
+}
+
+// policyWorkloadFromTemplate maps one decoded controller into the analyzer's
+// workload model, reading the pod template under spec.template.spec.
+func policyWorkloadFromTemplate(kind string, w policyWorkloadRaw) policy.WorkloadPolicy {
+	return policyWorkloadFromSpec(kind, w.Metadata.Namespace, w.Metadata.Name, w.Metadata.UID, w.Spec.Template.Spec)
+}
+
+// policyWorkloadFromSpec maps one decoded pod spec into the analyzer's
+// workload model.
+func policyWorkloadFromSpec(kind, namespace, name, uid string, spec policyPodSpecRaw) policy.WorkloadPolicy {
+	wl := policy.WorkloadPolicy{
+		Kind:        kind,
+		Namespace:   namespace,
+		Name:        name,
+		UID:         uid,
+		HostNetwork: spec.HostNetwork,
+		HostPID:     spec.HostPID,
+		HostIPC:     spec.HostIPC,
+	}
+	for _, ctr := range spec.Containers {
+		cp := policy.ContainerPolicy{Name: ctr.Name}
+		if ctr.Resources.Requests != nil {
+			cp.CPURequest = ctr.Resources.Requests["cpu"] != ""
+			cp.MemoryRequest = ctr.Resources.Requests["memory"] != ""
+		}
+		if ctr.Resources.Limits != nil {
+			cp.HasResourceLimits = ctr.Resources.Limits["cpu"] != "" || ctr.Resources.Limits["memory"] != ""
+		}
+		if sc := ctr.SecurityContext; sc != nil {
+			cp.Privileged = sc.Privileged
+			cp.AllowPrivilegeEscalation = sc.AllowPrivilegeEscalation
+			cp.RunAsNonRoot = sc.RunAsNonRoot
+		}
+		// A probe key is present when its JSON pointer decodes to non-nil.
+		cp.LivenessProbe = ctr.LivenessProbe != nil
+		cp.ReadinessProbe = ctr.ReadinessProbe != nil
+		cp.StartupProbe = ctr.StartupProbe != nil
+		wl.Containers = append(wl.Containers, cp)
+	}
+	return wl
+}
+
+// policyWorkloadRaw decodes a controller whose pod template carries the fields
+// the policy analyzer needs. The embedded policyPodSpecRaw covers bare Pods
+// (spec.containers / spec.hostNetwork at the top level) — encoding/json
+// promotes the exported fields of the embedded struct — while Template.Spec
+// holds the controller pod template.
+type policyWorkloadRaw struct {
+	Metadata struct {
+		Namespace       string `json:"namespace"`
+		Name            string `json:"name"`
+		UID             string `json:"uid"`
+		OwnerReferences []struct {
+			Kind string `json:"kind"`
+		} `json:"ownerReferences"`
+	} `json:"metadata"`
+	Spec struct {
+		policyPodSpecRaw
+		Template struct {
+			Spec policyPodSpecRaw `json:"spec"`
+		} `json:"template"`
+	} `json:"spec"`
+}
+
+// policyPodRaw is the bare-Pod variant: the pod spec sits directly under
+// .spec, with ownerReferences under .metadata.
+type policyPodRaw struct {
+	Metadata struct {
+		Namespace       string `json:"namespace"`
+		Name            string `json:"name"`
+		UID             string `json:"uid"`
+		OwnerReferences []struct {
+			Kind string `json:"kind"`
+		} `json:"ownerReferences"`
+	} `json:"metadata"`
+	Spec policyPodSpecRaw `json:"spec"`
+}
+
+// policyPodSpecRaw is the policy-relevant subset of a PodSpec. Probes are
+// captured as raw JSON pointers so their presence (a non-nil pointer) is
+// observable without decoding the probe bodies.
+type policyPodSpecRaw struct {
+	HostNetwork bool `json:"hostNetwork"`
+	HostPID     bool `json:"hostPID"`
+	HostIPC     bool `json:"hostIPC"`
+	Containers  []struct {
+		Name      string `json:"name"`
+		Resources struct {
+			Requests map[string]string `json:"requests"`
+			Limits   map[string]string `json:"limits"`
+		} `json:"resources"`
+		SecurityContext *struct {
+			Privileged               *bool `json:"privileged"`
+			AllowPrivilegeEscalation *bool `json:"allowPrivilegeEscalation"`
+			RunAsNonRoot             *bool `json:"runAsNonRoot"`
+		} `json:"securityContext"`
+		LivenessProbe  *json.RawMessage `json:"livenessProbe"`
+		ReadinessProbe *json.RawMessage `json:"readinessProbe"`
+		StartupProbe   *json.RawMessage `json:"startupProbe"`
+	} `json:"containers"`
 }
 
 // namespaceManagedByGitOps reports whether a namespace is managed by a GitOps

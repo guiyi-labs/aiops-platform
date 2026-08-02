@@ -646,3 +646,102 @@ func TestOptimizationGitOpsAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
 		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
 	}
 }
+
+// TestOptimizationPolicyAnalyzeExplicitBundle feeds a workload with no
+// requests/limits/probes and expects the container-level findings.
+func TestOptimizationPolicyAnalyzeExplicitBundle(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/policy/analyze", map[string]any{
+		"cluster_id": 7,
+		"workloads": []map[string]any{{
+			"kind": "Deployment", "namespace": "prod", "name": "web",
+			"containers": []map[string]any{{"name": "app"}},
+		}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		WorkloadsTotal     int `json:"workloads_total"`
+		ContainersTotal    int `json:"containers_total"`
+		Failed             int `json:"failed"`
+		CompliantWorkloads int `json:"compliant_workloads"`
+		Findings           []struct {
+			Code string `json:"code"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode policy status: %v", err)
+	}
+	if status.WorkloadsTotal != 1 || status.ContainersTotal != 1 {
+		t.Fatalf("counters = %d/%d, want 1/1", status.WorkloadsTotal, status.ContainersTotal)
+	}
+	if status.Failed != 8 { // no cpu req, no mem req, no limits, esc, runasroot, no liveness, no readiness, no startup
+		t.Fatalf("failed = %d, want 8; findings=%d", status.Failed, len(status.Findings))
+	}
+	if status.CompliantWorkloads != 0 {
+		t.Fatalf("compliant_workloads = %d, want 0", status.CompliantWorkloads)
+	}
+	sawCPURequest := false
+	for _, f := range status.Findings {
+		if f.Code == "POLICY_CONTAINER_NO_CPU_REQUEST" {
+			sawCPURequest = true
+		}
+	}
+	if !sawCPURequest {
+		t.Fatalf("findings = %+v, want a cpu-request finding", status.Findings)
+	}
+}
+
+// TestOptimizationPolicyAnalyzeAutoCollect exercises the collector path: a
+// Deployment whose container is missing everything yields findings; the
+// controller pod template is what is scanned.
+func TestOptimizationPolicyAnalyzeAutoCollect(t *testing.T) {
+	lister := fakeClusterLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {
+			json.RawMessage(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web"},"spec":{"template":{"spec":{"containers":[{"name":"app"}]}}}}`),
+		},
+	}}
+	engine := newOptimizationEngineWithCollector(t, lister)
+	rec := postJSON(t, engine, "/api/v1/optimization/policy/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	var status struct {
+		WorkloadsTotal  int `json:"workloads_total"`
+		ContainersTotal int `json:"containers_total"`
+		Failed          int `json:"failed"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &status); err != nil {
+		t.Fatalf("decode policy status: %v", err)
+	}
+	if status.WorkloadsTotal != 1 || status.ContainersTotal != 1 {
+		t.Fatalf("counters = %d/%d, want 1/1", status.WorkloadsTotal, status.ContainersTotal)
+	}
+	if status.Failed != 8 {
+		t.Fatalf("failed = %d, want 8", status.Failed)
+	}
+}
+
+func TestOptimizationPolicyAnalyzeRejectsMissingClusterAndInputs(t *testing.T) {
+	engine := newOptimizationEngine(t)
+
+	rec := postJSON(t, engine, "/api/v1/optimization/policy/analyze", map[string]any{})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for a missing cluster_id; body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = postJSON(t, engine, "/api/v1/optimization/policy/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 for an empty bundle without auto-collection; body=%s", rec.Code, rec.Body.String())
+	}
+	var errBody struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &errBody); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if errBody.Code != "NO_INPUTS" {
+		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
+	}
+}

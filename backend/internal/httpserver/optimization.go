@@ -14,6 +14,7 @@ import (
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/netpolicy"
 	"k8s-aiops.local/backend/internal/optimization"
+	"k8s-aiops.local/backend/internal/policy"
 )
 
 // optimizationHandler exposes the read-only M61-M63 analyzers over HTTP.
@@ -272,5 +273,40 @@ func (h optimizationHandler) capacityAnalyze(c *gin.Context) {
 		inputs = collected
 	}
 	status := capacity.Evaluate(req.ClusterID, inputs, time.Now())
+	c.JSON(http.StatusOK, status)
+}
+
+// policyAnalyzeRequest carries the cluster identity plus the policy
+// observation bundle. policy.Inputs is embedded so its "workloads" field is
+// accepted at the top level of the JSON body.
+type policyAnalyzeRequest struct {
+	ClusterID int64 `json:"cluster_id"`
+	policy.Inputs
+}
+
+func (h optimizationHandler) policyAnalyze(c *gin.Context) {
+	var req policyAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_BODY", err.Error())
+		return
+	}
+	if req.ClusterID == 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	inputs := req.Inputs
+	if inputs.Empty() {
+		if !h.svc.HasCollector() {
+			writeError(c, http.StatusBadRequest, "NO_INPUTS", "no observation bundle supplied and auto-collection is not configured")
+			return
+		}
+		collected, err := h.svc.CollectPolicy(c.Request.Context(), req.ClusterID)
+		if err != nil {
+			writeError(c, http.StatusBadGateway, "COLLECT_FAILED", err.Error())
+			return
+		}
+		inputs = collected
+	}
+	status := policy.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
 }

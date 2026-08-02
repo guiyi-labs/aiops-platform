@@ -696,3 +696,93 @@ func TestCollectCapacity_PropagatesListFailure(t *testing.T) {
 		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 	}
 }
+
+// TestCollectPolicy_ControllerTemplate extracts the pod template of a
+// Deployment: resource requests/limits, security context, probes and host
+// access flags all map into the policy workload model.
+func TestCollectPolicy_ControllerTemplate(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {
+			raw(`{"metadata":{"namespace":"prod","name":"web","uid":"u-web"},"spec":{"template":{"spec":{
+				"hostNetwork":true,
+				"containers":[{
+					"name":"app",
+					"resources":{"requests":{"cpu":"100m","memory":"128Mi"},"limits":{"cpu":"1"}},
+					"securityContext":{"privileged":true,"allowPrivilegeEscalation":true,"runAsNonRoot":false},
+					"livenessProbe":{"httpGet":{"path":"/healthz"}},
+					"readinessProbe":{"httpGet":{"path":"/ready"}},
+					"startupProbe":{"httpGet":{"path":"/startup"}}
+				}]
+			}}}}`),
+		},
+		"/api/v1/pods": {},
+	}}
+
+	in, err := NewCollector(lister, nil, nil).CollectPolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectPolicy: %v", err)
+	}
+	if len(in.Workloads) != 1 {
+		t.Fatalf("workloads = %d, want 1", len(in.Workloads))
+	}
+	wl := in.Workloads[0]
+	if wl.Kind != "Deployment" || wl.Namespace != "prod" || wl.Name != "web" || !wl.HostNetwork {
+		t.Fatalf("workload = %+v, want Deployment prod/web with hostNetwork", wl)
+	}
+	if len(wl.Containers) != 1 {
+		t.Fatalf("containers = %d, want 1", len(wl.Containers))
+	}
+	c := wl.Containers[0]
+	if !c.CPURequest || !c.MemoryRequest || !c.HasResourceLimits {
+		t.Fatalf("resource flags = %+v, want all true", c)
+	}
+	if c.Privileged == nil || !*c.Privileged {
+		t.Fatalf("privileged = %v, want true", c.Privileged)
+	}
+	if c.AllowPrivilegeEscalation == nil || !*c.AllowPrivilegeEscalation {
+		t.Fatalf("allowPrivilegeEscalation = %v, want true", c.AllowPrivilegeEscalation)
+	}
+	if c.RunAsNonRoot == nil || *c.RunAsNonRoot {
+		t.Fatalf("runAsNonRoot = %v, want false", c.RunAsNonRoot)
+	}
+	if !c.LivenessProbe || !c.ReadinessProbe || !c.StartupProbe {
+		t.Fatalf("probes = %+v, want all present", c)
+	}
+}
+
+// TestCollectPolicy_SkipsOwnedPods verifies that bare Pods are only included
+// when they have no owner, and that an owned Pod does not double-count.
+func TestCollectPolicy_SkipsOwnedPods(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/apps/v1/deployments": {},
+		"/api/v1/pods": {
+			raw(`{"metadata":{"namespace":"prod","name":"owned","ownerReferences":[{"kind":"ReplicaSet"}],"uid":"p1"},"spec":{"hostPID":true}}`),
+			raw(`{"metadata":{"namespace":"prod","name":"standalone","uid":"p2"},"spec":{"hostIPC":true}}`),
+		},
+	}}
+
+	in, err := NewCollector(lister, nil, nil).CollectPolicy(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("CollectPolicy: %v", err)
+	}
+	if len(in.Workloads) != 1 {
+		t.Fatalf("workloads = %d, want 1 (only the standalone pod)", len(in.Workloads))
+	}
+	wl := in.Workloads[0]
+	if wl.Kind != "Pod" || wl.Name != "standalone" || !wl.HostIPC || wl.HostPID {
+		t.Fatalf("workload = %+v, want Pod standalone with hostIPC", wl)
+	}
+}
+
+// TestCollectPolicy_PropagatesListFailure ensures a broken deployment List
+// surfaces as an error rather than a partial bundle.
+func TestCollectPolicy_PropagatesListFailure(t *testing.T) {
+	lister := failingLister{failOn: "/apis/apps/v1/deployments"}
+	in, err := NewCollector(lister, nil, nil).CollectPolicy(context.Background(), 7)
+	if err == nil {
+		t.Fatalf("expected the deployments failure to propagate")
+	}
+	if len(in.Workloads) != 0 {
+		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
+	}
+}

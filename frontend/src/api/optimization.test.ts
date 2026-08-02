@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeImage, analyzeNetwork } from './optimization'
+import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeImage, analyzeNetwork, analyzePolicy } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -206,6 +206,39 @@ describe('optimization API client', () => {
 
     await expect(analyzeCapacity('token', 21)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 21 is unreachable',
+    })
+  })
+
+  it('asks the server to auto-collect the policy bundle and normalises null maps', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 24, evaluated_at: '2026-08-02T11:00:00Z', total: 11, failed: 8, passed: 3,
+      workloads_total: 1, containers_total: 1, compliant_workloads: 0,
+      by_severity: null, by_family: null, findings: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const status = await analyzePolicy('token', 24)
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/policy/analyze')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 24 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil slice/map server-side arrives as null and must not leak to views.
+    expect(status.findings).toEqual([])
+    expect(status.by_severity).toEqual({})
+    expect(status.by_family).toEqual({})
+    expect(status.workloads_total).toBe(1)
+    expect(status.compliant_workloads).toBe(0)
+  })
+
+  it('surfaces a failed policy collection as a stable API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(
+      { code: 'COLLECT_FAILED', message: 'cluster 24 is unreachable' }, 502,
+    )))
+
+    await expect(analyzePolicy('token', 24)).rejects.toMatchObject({
+      status: 502, code: 'COLLECT_FAILED', message: 'cluster 24 is unreachable',
     })
   })
 })

@@ -214,3 +214,23 @@ export interface CapacityStatus {
   by_family: Record<string, number>
   findings: OptimizationFinding[]
 }
+
+/**
+ * M71 policy-as-code posture: workload manifests checked against the
+ * declarative baseline (resources, security context, host access, probes).
+ */
+export interface PolicyStatus {
+  cluster_id: number
+  evaluated_at: string
+  /** Rule checks evaluated (per container + per pod level); failed = findings. */
+  total: number
+  failed: number
+  passed: number
+  workloads_total: number
+  containers_total: number
+  /** Workloads whose every checked container passed every rule. */
+  compliant_workloads: number
+  by_severity: Record<string, number>
+  by_family: Record<string, number>
+  findings: OptimizationFinding[]
+}

@@ -588,94 +588,94 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/signals/catalog", AuthRequired: true, Handler: signalAPI.listSignalCatalog})
 	}
 
-		// M40 temporal topology and change timeline
-		if options.TopologyService != nil {
-			topologyAPI := topologyHandler{service: options.TopologyService}
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/topology/graph", AuthRequired: true, Handler: topologyAPI.getTopologyGraph, AuditAction: "aiops.topology.graph.read", AuditResource: "TopologyGraph"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/topology/changes", AuthRequired: true, Handler: topologyAPI.listChangeEvents, AuditAction: "aiops.topology.changes.list", AuditResource: "ChangeEvent"})
-		}
+	// M40 temporal topology and change timeline
+	if options.TopologyService != nil {
+		topologyAPI := topologyHandler{service: options.TopologyService}
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/topology/graph", AuthRequired: true, Handler: topologyAPI.getTopologyGraph, AuditAction: "aiops.topology.graph.read", AuditResource: "TopologyGraph"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/topology/changes", AuthRequired: true, Handler: topologyAPI.listChangeEvents, AuditAction: "aiops.topology.changes.list", AuditResource: "ChangeEvent"})
+	}
 
-		// M41 SLO, error budget and impact
-		if options.SLOService != nil {
-			sloAPI := sloHandler{service: options.SLOService}
-			// Templates catalog is a read-only public contract.
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/templates", AuthRequired: true, Handler: sloAPI.listSLITemplates, AuditAction: "aiops.slo.templates.list", AuditResource: "SLITemplate"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos", AuthRequired: true, Handler: sloAPI.listSLODefinitions, AuditAction: "aiops.slo.definitions.list", AuditResource: "SLODefinition"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/slos", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.createSLODefinition, AuditAction: "aiops.slo.definitions.create", AuditResource: "SLODefinition"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/:id", AuthRequired: true, Handler: sloAPI.getSLODefinition, AuditAction: "aiops.slo.definitions.read", AuditResource: "SLODefinition"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "PATCH", Path: "/slos/:id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.patchSLODefinition, AuditAction: "aiops.slo.definitions.update", AuditResource: "SLODefinition"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "DELETE", Path: "/slos/:id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.deleteSLODefinition, AuditAction: "aiops.slo.definitions.delete", AuditResource: "SLODefinition"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/slos/:id/evaluate", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.evaluateSLO, AuditAction: "aiops.slo.evaluate", AuditResource: "SLOEvaluation"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/:id/evaluations", AuthRequired: true, Handler: sloAPI.listSLOEvaluations, AuditAction: "aiops.slo.evaluations.list", AuditResource: "SLOEvaluation"})
-		}
+	// M41 SLO, error budget and impact
+	if options.SLOService != nil {
+		sloAPI := sloHandler{service: options.SLOService}
+		// Templates catalog is a read-only public contract.
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/templates", AuthRequired: true, Handler: sloAPI.listSLITemplates, AuditAction: "aiops.slo.templates.list", AuditResource: "SLITemplate"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos", AuthRequired: true, Handler: sloAPI.listSLODefinitions, AuditAction: "aiops.slo.definitions.list", AuditResource: "SLODefinition"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/slos", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.createSLODefinition, AuditAction: "aiops.slo.definitions.create", AuditResource: "SLODefinition"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/:id", AuthRequired: true, Handler: sloAPI.getSLODefinition, AuditAction: "aiops.slo.definitions.read", AuditResource: "SLODefinition"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "PATCH", Path: "/slos/:id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.patchSLODefinition, AuditAction: "aiops.slo.definitions.update", AuditResource: "SLODefinition"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "DELETE", Path: "/slos/:id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.deleteSLODefinition, AuditAction: "aiops.slo.definitions.delete", AuditResource: "SLODefinition"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/slos/:id/evaluate", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.evaluateSLO, AuditAction: "aiops.slo.evaluate", AuditResource: "SLOEvaluation"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/:id/evaluations", AuthRequired: true, Handler: sloAPI.listSLOEvaluations, AuditAction: "aiops.slo.evaluations.list", AuditResource: "SLOEvaluation"})
+	}
 
-		// M42 multi-signal correlation and deterministic RCA
-		if options.CorrelationService != nil {
-			correlationAPI := correlationHandler{service: options.CorrelationService}
-			// Rule catalog is a read-only public contract.
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/rules", AuthRequired: true, Handler: correlationAPI.listCorrelationRules, AuditAction: "aiops.correlation.rules.list", AuditResource: "CorrelationRule"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases", AuthRequired: true, Handler: correlationAPI.listCorrelationCases, AuditAction: "aiops.correlation.cases.list", AuditResource: "CorrelationCase"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/timeline", AuthRequired: true, Handler: correlationAPI.listCorrelationTimeline, AuditAction: "aiops.correlation.timeline.list", AuditResource: "CorrelationCase"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/:id", AuthRequired: true, Handler: correlationAPI.getCorrelationCase, AuditAction: "aiops.correlation.cases.read", AuditResource: "CorrelationCase"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/:id/graph", AuthRequired: true, Handler: correlationAPI.getCorrelationCaseGraph, AuditAction: "aiops.correlation.graph.read", AuditResource: "CorrelationCase"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/:id/actions", AuthRequired: true, Handler: correlationAPI.listCorrelationActions, AuditAction: "aiops.correlation.actions.list", AuditResource: "ActionCandidate"})
-		}
+	// M42 multi-signal correlation and deterministic RCA
+	if options.CorrelationService != nil {
+		correlationAPI := correlationHandler{service: options.CorrelationService}
+		// Rule catalog is a read-only public contract.
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/rules", AuthRequired: true, Handler: correlationAPI.listCorrelationRules, AuditAction: "aiops.correlation.rules.list", AuditResource: "CorrelationRule"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases", AuthRequired: true, Handler: correlationAPI.listCorrelationCases, AuditAction: "aiops.correlation.cases.list", AuditResource: "CorrelationCase"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/timeline", AuthRequired: true, Handler: correlationAPI.listCorrelationTimeline, AuditAction: "aiops.correlation.timeline.list", AuditResource: "CorrelationCase"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/:id", AuthRequired: true, Handler: correlationAPI.getCorrelationCase, AuditAction: "aiops.correlation.cases.read", AuditResource: "CorrelationCase"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/:id/graph", AuthRequired: true, Handler: correlationAPI.getCorrelationCaseGraph, AuditAction: "aiops.correlation.graph.read", AuditResource: "CorrelationCase"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases/:id/actions", AuthRequired: true, Handler: correlationAPI.listCorrelationActions, AuditAction: "aiops.correlation.actions.list", AuditResource: "ActionCandidate"})
+	}
 
-		// M43 cited and evaluated AI investigator
-		if options.AIInvestigatorService != nil {
-			investigatorAPI := aiInvestigatorHandler{service: options.AIInvestigatorService}
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/investigator/runbooks", AuthRequired: true, Handler: investigatorAPI.listRunbooks, AuditAction: "aiops.investigator.runbooks.list", AuditResource: "Runbook"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/investigator/cases/:case_id/investigations", AuthRequired: true, Handler: investigatorAPI.listInvestigations, AuditAction: "aiops.investigator.investigations.list", AuditResource: "Investigation"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/investigator/investigations/:id", AuthRequired: true, Handler: investigatorAPI.getInvestigation, AuditAction: "aiops.investigator.investigations.read", AuditResource: "Investigation"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/investigator/cases/:case_id/investigations", AuthRequired: true, Handler: investigatorAPI.generateInvestigation, AuditAction: "aiops.investigator.investigations.generate", AuditResource: "Investigation"})
-		}
+	// M43 cited and evaluated AI investigator
+	if options.AIInvestigatorService != nil {
+		investigatorAPI := aiInvestigatorHandler{service: options.AIInvestigatorService}
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/investigator/runbooks", AuthRequired: true, Handler: investigatorAPI.listRunbooks, AuditAction: "aiops.investigator.runbooks.list", AuditResource: "Runbook"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/investigator/cases/:case_id/investigations", AuthRequired: true, Handler: investigatorAPI.listInvestigations, AuditAction: "aiops.investigator.investigations.list", AuditResource: "Investigation"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/investigator/investigations/:id", AuthRequired: true, Handler: investigatorAPI.getInvestigation, AuditAction: "aiops.investigator.investigations.read", AuditResource: "Investigation"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/investigator/cases/:case_id/investigations", AuthRequired: true, Handler: investigatorAPI.generateInvestigation, AuditAction: "aiops.investigator.investigations.generate", AuditResource: "Investigation"})
+	}
 
-		// M44 policy-constrained automation and post-action verification
-		if options.AutomationService != nil {
-			automationAPI := automationHandler{service: options.AutomationService}
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/runbooks", AuthRequired: true, Handler: automationAPI.listRunbooks, AuditAction: "aiops.automation.runbooks.list", AuditResource: "Runbook"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/plans", AuthRequired: true, Handler: automationAPI.listPlans, AuditAction: "aiops.automation.plans.list", AuditResource: "ActionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.createPlan, AuditAction: "aiops.automation.plans.create", AuditResource: "ActionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/plans/:plan_id", AuthRequired: true, Handler: automationAPI.getPlan, AuditAction: "aiops.automation.plans.read", AuditResource: "ActionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/preview", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.previewPlan, AuditAction: "aiops.automation.plans.preview", AuditResource: "ActionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/approve", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.approvePlan, AuditAction: "aiops.automation.plans.approve", AuditResource: "ActionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/execute", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.executePlan, AuditAction: "aiops.automation.plans.execute", AuditResource: "ActionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/cancel", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.cancelPlan, AuditAction: "aiops.automation.plans.cancel", AuditResource: "ActionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/verify", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.verifyPlan, AuditAction: "aiops.automation.plans.verify", AuditResource: "ActionVerification"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/plans/:plan_id/verification", AuthRequired: true, Handler: automationAPI.getVerification, AuditAction: "aiops.automation.verification.read", AuditResource: "ActionVerification"})
-		}
+	// M44 policy-constrained automation and post-action verification
+	if options.AutomationService != nil {
+		automationAPI := automationHandler{service: options.AutomationService}
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/runbooks", AuthRequired: true, Handler: automationAPI.listRunbooks, AuditAction: "aiops.automation.runbooks.list", AuditResource: "Runbook"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/plans", AuthRequired: true, Handler: automationAPI.listPlans, AuditAction: "aiops.automation.plans.list", AuditResource: "ActionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.createPlan, AuditAction: "aiops.automation.plans.create", AuditResource: "ActionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/plans/:plan_id", AuthRequired: true, Handler: automationAPI.getPlan, AuditAction: "aiops.automation.plans.read", AuditResource: "ActionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/preview", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.previewPlan, AuditAction: "aiops.automation.plans.preview", AuditResource: "ActionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/approve", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.approvePlan, AuditAction: "aiops.automation.plans.approve", AuditResource: "ActionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/execute", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.executePlan, AuditAction: "aiops.automation.plans.execute", AuditResource: "ActionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/cancel", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.cancelPlan, AuditAction: "aiops.automation.plans.cancel", AuditResource: "ActionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/automation/plans/:plan_id/verify", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: automationAPI.verifyPlan, AuditAction: "aiops.automation.plans.verify", AuditResource: "ActionVerification"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/automation/plans/:plan_id/verification", AuthRequired: true, Handler: automationAPI.getVerification, AuditAction: "aiops.automation.verification.read", AuditResource: "ActionVerification"})
+	}
 
-		// M52 intelligent inspection (KubeEye-style compile-time rule catalog
-		// + ad-hoc/scheduled runs). Catalog reads are any-auth; plan CRUD and
-		// run-once trigger require operations_admin. Per-cluster effective
-		// rules route is under /clusters/:cluster_id/inspection/rules
-		// (cluster-scoped) so it inherits requireClusterAccess.
-		if options.InspectionService != nil {
-			inspAPI := inspectionHandler{service: options.InspectionService}
-			// Global rule catalog (read-only contract)
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/rules/catalog", AuthRequired: true, Handler: inspAPI.listRules, AuditAction: "aiops.inspection.rules_catalog.read", AuditResource: "InspectionRuleCatalog"})
-			// Inspection plans: list + create (ops_admin) + get + delete (ops_admin)
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/plans", AuthRequired: true, Handler: inspAPI.listPlans, AuditAction: "aiops.inspection.plans.list", AuditResource: "InspectionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/inspection/plans", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: inspAPI.createPlan, AuditAction: "aiops.inspection.plans.create", AuditResource: "InspectionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/plans/:id", AuthRequired: true, Handler: inspAPI.getPlan, AuditAction: "aiops.inspection.plans.read", AuditResource: "InspectionPlan"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "DELETE", Path: "/inspection/plans/:id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: inspAPI.deletePlan, AuditAction: "aiops.inspection.plans.delete", AuditResource: "InspectionPlan"})
-			// Ad-hoc run-once: triggers background inspection; returns 202 Accepted with TaskView.
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/inspection/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: inspAPI.runOnce, AuditAction: "aiops.inspection.run_once", AuditResource: "InspectionTask"})
-			// Tasks (execution records): list + detail
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/tasks", AuthRequired: true, Handler: inspAPI.listTasks, AuditAction: "aiops.inspection.tasks.list", AuditResource: "InspectionTask"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/tasks/:id", AuthRequired: true, Handler: inspAPI.getTask, AuditAction: "aiops.inspection.tasks.read", AuditResource: "InspectionTask"})
-			// Results (findings normalized to M39 signal shape): list + detail
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/results", AuthRequired: true, Handler: inspAPI.listResults, AuditAction: "aiops.inspection.results.list", AuditResource: "InspectionResult"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/results/:id", AuthRequired: true, Handler: inspAPI.getResult, AuditAction: "aiops.inspection.results.read", AuditResource: "InspectionResult"})
-		}
+	// M52 intelligent inspection (KubeEye-style compile-time rule catalog
+	// + ad-hoc/scheduled runs). Catalog reads are any-auth; plan CRUD and
+	// run-once trigger require operations_admin. Per-cluster effective
+	// rules route is under /clusters/:cluster_id/inspection/rules
+	// (cluster-scoped) so it inherits requireClusterAccess.
+	if options.InspectionService != nil {
+		inspAPI := inspectionHandler{service: options.InspectionService}
+		// Global rule catalog (read-only contract)
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/rules/catalog", AuthRequired: true, Handler: inspAPI.listRules, AuditAction: "aiops.inspection.rules_catalog.read", AuditResource: "InspectionRuleCatalog"})
+		// Inspection plans: list + create (ops_admin) + get + delete (ops_admin)
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/plans", AuthRequired: true, Handler: inspAPI.listPlans, AuditAction: "aiops.inspection.plans.list", AuditResource: "InspectionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/inspection/plans", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: inspAPI.createPlan, AuditAction: "aiops.inspection.plans.create", AuditResource: "InspectionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/plans/:id", AuthRequired: true, Handler: inspAPI.getPlan, AuditAction: "aiops.inspection.plans.read", AuditResource: "InspectionPlan"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "DELETE", Path: "/inspection/plans/:id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: inspAPI.deletePlan, AuditAction: "aiops.inspection.plans.delete", AuditResource: "InspectionPlan"})
+		// Ad-hoc run-once: triggers background inspection; returns 202 Accepted with TaskView.
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/inspection/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: inspAPI.runOnce, AuditAction: "aiops.inspection.run_once", AuditResource: "InspectionTask"})
+		// Tasks (execution records): list + detail
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/tasks", AuthRequired: true, Handler: inspAPI.listTasks, AuditAction: "aiops.inspection.tasks.list", AuditResource: "InspectionTask"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/tasks/:id", AuthRequired: true, Handler: inspAPI.getTask, AuditAction: "aiops.inspection.tasks.read", AuditResource: "InspectionTask"})
+		// Results (findings normalized to M39 signal shape): list + detail
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/results", AuthRequired: true, Handler: inspAPI.listResults, AuditAction: "aiops.inspection.results.list", AuditResource: "InspectionResult"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/results/:id", AuthRequired: true, Handler: inspAPI.getResult, AuditAction: "aiops.inspection.results.read", AuditResource: "InspectionResult"})
+	}
 
-		// M56 golden quality-report. GET reads the latest report (any-auth);
-		// POST triggers an async replay (SystemOpsAdmin only).
-		if options.GoldenService != nil {
-			goldenAPI := goldenHandler{service: options.GoldenService}
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/quality-report", AuthRequired: true, Handler: goldenAPI.getQualityReport, AuditAction: "aiops.quality_report.read", AuditResource: "QualityReport"})
-			reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/quality-report/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: goldenAPI.runQualityReplay, AuditAction: "aiops.quality_report.run", AuditResource: "QualityReport"})
-		}
+	// M56 golden quality-report. GET reads the latest report (any-auth);
+	// POST triggers an async replay (SystemOpsAdmin only).
+	if options.GoldenService != nil {
+		goldenAPI := goldenHandler{service: options.GoldenService}
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/quality-report", AuthRequired: true, Handler: goldenAPI.getQualityReport, AuditAction: "aiops.quality_report.read", AuditResource: "QualityReport"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/quality-report/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: goldenAPI.runQualityReplay, AuditAction: "aiops.quality_report.run", AuditResource: "QualityReport"})
+	}
 
 	// M57 Helm application catalog. Repository CRUD (SystemOpsAdmin for
 	// write), chart listing/detail (any-auth, read-only index.yaml fetch),

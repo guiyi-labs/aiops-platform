@@ -114,9 +114,9 @@ type Plan struct {
 	ID         int64
 	Name       string
 	CreatorID  int64
-	ClusterIDs Int64Array  `gorm:"type:bigint[]"`      // empty = all reachable clusters
+	ClusterIDs Int64Array  `gorm:"type:bigint[]"`       // empty = all reachable clusters
 	RuleCodes  StringArray `gorm:"type:varchar(128)[]"` // empty = all enabled rules
-	CronSpec   string   // empty = manual only
+	CronSpec   string      // empty = manual only
 	Enabled    bool
 	LastRunAt  *time.Time
 	NextRunAt  *time.Time
@@ -145,7 +145,7 @@ type Task struct {
 	PlanID            *int64
 	PlanNameSnapshot  string
 	TriggeredBy       *int64
-	TriggerReason     string // manual | schedule
+	TriggerReason     string      // manual | schedule
 	ClusterIDs        Int64Array  `gorm:"type:bigint[]"`
 	RuleCodes         StringArray `gorm:"type:varchar(128)[]"`
 	Status            string

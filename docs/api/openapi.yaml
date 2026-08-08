@@ -1298,6 +1298,7 @@ paths:
         - { name: cluster_id, in: query, required: true, schema: { type: integer, format: int64, minimum: 1 } }
         - { name: namespace, in: query, required: true, schema: { type: string, maxLength: 63 } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 200 } }
+        - { name: collapse, in: query, description: "When 1, duplicate edges between the same source/target pair collapse into one edge with an aggregate_count (large-graph view, M83/W7).", schema: { type: string, enum: ["0", "1"] } }
       responses:
         '200': { description: Topology graph, content: { application/json: { schema: { $ref: '#/components/schemas/TopologyGraph' } } } }
         '400': { $ref: '#/components/responses/Error' }

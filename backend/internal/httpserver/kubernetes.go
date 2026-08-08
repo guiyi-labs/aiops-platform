@@ -875,7 +875,7 @@ func (h kubernetesHandler) writeServiceError(c *gin.Context, err error) bool {
 	case errors.Is(err, k8sgateway.ErrMetricsAPIUnavailable):
 		writeError(c, http.StatusFailedDependency, "METRICS_API_UNAVAILABLE", "Kubernetes Metrics API is not installed or not available")
 	case errors.Is(err, k8sgateway.ErrVeleroUnavailable):
-		writeError(c, http.StatusFailedDependency, "VELERO_UNAVAILABLE", "Velero API is not installed on this cluster")
+		writeError(c, http.StatusServiceUnavailable, "VELERO_UNAVAILABLE", "Velero API is not installed on this cluster")
 	default:
 		writeError(c, http.StatusBadGateway, "KUBERNETES_API_ERROR", "unable to query Kubernetes API")
 	}

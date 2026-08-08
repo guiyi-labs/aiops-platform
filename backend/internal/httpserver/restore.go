@@ -103,7 +103,7 @@ func (h restoreHandler) writeError(c *gin.Context, err error, fallback string) {
 	case errors.Is(err, restore.ErrInvalidRequest):
 		writeError(c, http.StatusBadRequest, "INVALID_RESTORE_REQUEST", "restore request parameters are invalid")
 	case errors.Is(err, restore.ErrVeleroNotInstalled):
-		writeError(c, http.StatusUnprocessableEntity, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
+		writeError(c, http.StatusServiceUnavailable, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
 	case errors.Is(err, restore.ErrSourceBackupNotFound):
 		writeError(c, http.StatusNotFound, "SOURCE_BACKUP_NOT_FOUND", "source backup not found")
 	case errors.Is(err, restore.ErrSourceBackupIncomplete):

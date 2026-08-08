@@ -1,7 +1,7 @@
 # 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-09 · 维护人：开发 Agent
-> 当前基线：`main` @ `30cb507`（M1–M84：AIOps 闭环 + 黄金契约 + 拓扑深化 + 测试强度，通过本地全量测试）
+> 当前基线：`main` @ `113e88b`（M1–M86：W10 OpenAPI 契约治理 + 类型同步已收尾，通过本地全量测试；工作树含 W11 UI/动效在途改动）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,8 +12,8 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新提交 | `30cb507` docs: M82 analyzer-discovery change record + roadmap baseline sync |
-| 里程碑范围 | **M1 – M84**（M80–M84 为打磨期 W4–W8） |
+| 最新提交 | `113e88b` docs: W10 error-code audit change-record + polish-plan status (on top of `9fcb9a1` typegen slice) |
+| 里程碑范围 | **M1 – M86**（M80–M86 为打磨期 W4–W10） |
 | 远程同步 | 本地 `main` 领先 `origin/main` 8 个提交（未推送，待次日统一备份） |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
@@ -47,8 +47,10 @@
 | M82 | 黄金回归发现契约（W6）：analyzer_discovery 场景，DatasetVersion → 1.1 |
 | M83 | 拓扑深化（W7）：Gateway API 只读 + collapse 折叠/聚合 |
 | M84 | 测试强度（W8）：14 fuzz + 4 benchmark + 核心包 ≥70% 门禁；全局覆盖率 60.03%（CI 门禁 50%→60%） |
+| M85 | 前端质量（W9）：Playwright 双视口 14/14、console error=0、统一 motion 层（并入 `a75d357`） |
+| M86 | 契约与 API 治理（W10）：错误码审计 + OpenAPI schema 修复 + `pnpm typegen` + CI sync gate + `insight.ts` 消费生成类型 |
 
-> 待办：M85 浏览器 E2E（Playwright）、M86 契约与 API 治理、UX/动效持续打磨；M87–M90 需组织授权。
+> 待办：UX/动效持续打磨（在途）；M87–M90 需组织授权。
 
 ---
 

@@ -119,3 +119,131 @@ tbody tr:nth-child(n+2) { animation-delay: 0.04s; }
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ------------------------------------------------------------------ *
+ * Premium motion layer (W9/W10 continuation)
+ * References: Vercel/Linear-style staggered reveal, soft spotlight
+ * hover, shimmer sweeps, breathing indicators. All animations are
+ * deferred when prefers-reduced-motion is set (see base override below).
+ * ------------------------------------------------------------------ */
+
+/* ---- Route transition (App.vue <Transition name="page">) ---- */
+.page-enter-active,
+.page-leave-active {
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(10px) scale(0.995);
+}
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.998);
+}
+
+/* ---- Dashboard metric cards: staggered reveal ---- */
+.dashboard-workspace-panel,
+.cockpit-metrics .cockpit-metric {
+  animation: card-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.cockpit-metrics .cockpit-metric:nth-child(1) { animation-delay: 0.02s; }
+.cockpit-metrics .cockpit-metric:nth-child(2) { animation-delay: 0.07s; }
+.cockpit-metrics .cockpit-metric:nth-child(3) { animation-delay: 0.12s; }
+.cockpit-metrics .cockpit-metric:nth-child(4) { animation-delay: 0.17s; }
+.cockpit-metrics .cockpit-metric:nth-child(5) { animation-delay: 0.22s; }
+.cockpit-metrics .cockpit-metric:nth-child(6) { animation-delay: 0.27s; }
+.dashboard-workspace-panel:nth-child(2) { animation-delay: 0.06s; }
+.dashboard-workspace-panel:nth-child(3) { animation-delay: 0.12s; }
+.dashboard-workspace-panel:nth-child(4) { animation-delay: 0.18s; }
+
+/* ---- Cursor-follow spotlight hover on metric cards ---- */
+.cockpit-metric,
+.metric-card,
+.stat-card,
+.quality-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.cockpit-metric::after,
+.metric-card::after,
+.stat-card::after,
+.quality-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background: radial-gradient(
+    360px circle at 50% 0%,
+    color-mix(in srgb, var(--blue-400, #5e93ff) 14%, transparent),
+    transparent 60%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.cockpit-metric:hover::after,
+.metric-card:hover::after,
+.stat-card:hover::after,
+.quality-card:hover::after {
+  opacity: 1;
+}
+
+/* ---- Hover lift for interactive cards ---- */
+.cockpit-metric,
+.metric-card,
+.stat-card,
+.quality-card {
+  transition:
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.24s ease,
+    border-color 0.18s ease;
+}
+.cockpit-metric:hover,
+.metric-card:hover,
+.stat-card:hover,
+.quality-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--blue-400, #5e93ff) 45%, var(--border-subtle, #e5e7eb));
+  box-shadow: 0 10px 28px -10px color-mix(in srgb, var(--blue-500, #326ce5) 35%, transparent);
+}
+
+/* ---- Live indicator: soft breathing pulse ---- */
+.live-indicator {
+  position: relative;
+  animation: live-breathe 2.6s ease-in-out infinite;
+}
+@keyframes live-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-success, #16a34a) 35%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--status-success, #16a34a) 0%, transparent); }
+}
+
+/* ---- Sidebar nav icon: tiny pop on hover/active ---- */
+.sidebar nav a svg,
+.sidebar .nav-link svg {
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.sidebar nav a:hover svg,
+.sidebar .nav-link:hover svg {
+  transform: translateX(2px) scale(1.08);
+}
+
+/* ---- Key value pop when count-up settles (Dashboard) ---- */
+.dashboard-workspace-panel strong,
+.cockpit-metric strong {
+  display: inline-block;
+}
+
+/* ---- Aurora login backdrop: gentle drift (see LoginView aurora) ---- */
+@keyframes aurora-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(3%, -2%, 0) scale(1.04); }
+  66% { transform: translate3d(-2%, 2%, 0) scale(0.98); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  [class*="aurora"] {
+    animation: aurora-drift 14s ease-in-out infinite alternate;
+  }
+}

@@ -60,6 +60,14 @@ func testEngineContracts() golden.EngineContracts {
 			"pending": true, "effective": true, "ineffective": true,
 			"failed": true, "unknown": true,
 		},
+		AnalyzerDiscovery: &golden.AnalyzerDiscoveryContract{
+			SchemaVersion:   "1.0",
+			PostureDomains:  []string{"cis", "finops"},
+			InsightKinds:    []string{"Deployment", "Pod"},
+			DiagnosisRules:  []string{"pod.pending.v1"},
+			InspectionRules: []string{"pod_pending"},
+			Operations:      []string{"deployment.rollout_restart"},
+		},
 	}
 }
 

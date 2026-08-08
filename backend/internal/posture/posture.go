@@ -278,6 +278,17 @@ func (e *Evaluator) Evaluate(ctx context.Context, clusterID int64, observedAt ti
 	return report, nil
 }
 
+// Domains returns the analyzer domain identifiers in a stable, sorted order
+// (used by the M82 analyzer-discovery snapshot).
+func Domains() []Domain {
+	domains := []Domain{
+		DomainCIS, DomainFinOps, DomainDeprecatedAPI, DomainNetwork, DomainImage,
+		DomainGitOps, DomainCapacity, DomainPolicy, DomainHPA, DomainPDB, DomainIngress,
+	}
+	sort.Slice(domains, func(i, j int) bool { return domains[i] < domains[j] })
+	return domains
+}
+
 func severityRank(sev string) int {
 	switch sev {
 	case finding.SeverityCritical:

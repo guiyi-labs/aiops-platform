@@ -32,6 +32,18 @@ func testContracts() EngineContracts {
 			"pending": true, "effective": true, "ineffective": true,
 			"failed": true, "unknown": true,
 		},
+		AnalyzerDiscovery: testAnalyzerSnapshot(),
+	}
+}
+
+func testAnalyzerSnapshot() *AnalyzerDiscoveryContract {
+	return &AnalyzerDiscoveryContract{
+		SchemaVersion:   "1.0",
+		PostureDomains:  []string{"cis", "finops"},
+		InsightKinds:    []string{"Deployment", "Node", "Pod"},
+		DiagnosisRules:  []string{"pod.pending.v1"},
+		InspectionRules: []string{"pod_pending"},
+		Operations:      []string{"deployment.scale"},
 	}
 }
 
@@ -44,8 +56,8 @@ func TestReplayRunner_AllScenariosPass(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
-	if len(results) != 3 {
-		t.Fatalf("expected 3 scenario results, got %d", len(results))
+	if len(results) != 4 {
+		t.Fatalf("expected 4 scenario results, got %d", len(results))
 	}
 	for _, sr := range results {
 		if !sr.Passed {
@@ -342,11 +354,11 @@ func TestService_RunReplay_Success(t *testing.T) {
 	if report.ReportVersion != ReportVersion {
 		t.Errorf("ReportVersion = %q, want %q", report.ReportVersion, ReportVersion)
 	}
-	if len(report.ScenarioResults) != 3 {
-		t.Errorf("ScenarioResults len = %d, want 3", len(report.ScenarioResults))
+	if len(report.ScenarioResults) != 4 {
+		t.Errorf("ScenarioResults len = %d, want 4", len(report.ScenarioResults))
 	}
-	if report.Summary.TotalScenarios != 3 {
-		t.Errorf("Summary.TotalScenarios = %d, want 3", report.Summary.TotalScenarios)
+	if report.Summary.TotalScenarios != 4 {
+		t.Errorf("Summary.TotalScenarios = %d, want 4", report.Summary.TotalScenarios)
 	}
 	if report.Summary.Regressed != 0 {
 		t.Errorf("Summary.Regressed = %d, want 0 (first run, all preserved)", report.Summary.Regressed)

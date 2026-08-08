@@ -20,7 +20,7 @@ package golden
 // DatasetVersion is the version of the golden dataset. Bumped when a
 // scenario is added, removed, or its expected outcomes change. A bump
 // requires a quality report (before/after) per the M45 plan.
-const DatasetVersion = "1.0"
+const DatasetVersion = "1.1"
 
 // ScenarioVersion is the per-scenario version. Scenarios may evolve
 // independently; the dataset version is the max of all scenario versions.
@@ -42,6 +42,9 @@ const (
 	StepExecuteVerify           StepID = "execute_verify"
 	StepRecoverAlert            StepID = "recover_alert"
 	StepCleanup                 StepID = "cleanup"
+
+	// StepAnalyzerDiscovery verifies the M82 analyzer discovery contract.
+	StepAnalyzerDiscovery StepID = "analyzer_discovery"
 )
 
 // AllSteps is the ordered list of mandatory golden scenario steps.
@@ -77,6 +80,12 @@ const (
 	// metrics/log provider is stopped, the case must be partial/unknown
 	// rather than falsely healthy or resolved.
 	ScenarioNegativePartialEvidence ScenarioID = "negative_partial_evidence"
+
+	// ScenarioAnalyzerDiscovery is the M82 dedicated golden scenario: it proves
+	// that the analyzer discovery contract (posture domains, insight kinds,
+	// diagnosis rules, inspection rules, remediable operations) remains non-empty
+	// and populated by the platform packages.
+	ScenarioAnalyzerDiscovery ScenarioID = "analyzer_discovery"
 )
 
 // StepOutcome is the expected outcome of one step in a golden scenario.
@@ -128,6 +137,11 @@ type StepOutcome struct {
 	// ExpectAlertRecovered is true when the alert should be recovered
 	// after this step (M27 lifecycle).
 	ExpectAlertRecovered bool `json:"expect_alert_recovered,omitempty"`
+
+	// ExpectAnalyzerContracts is true when the step verifies the M82 analyzer
+	// discovery contract (posture domains, insight kinds, diagnosis rules,
+	// inspection rules and remediable operations).
+	ExpectAnalyzerContracts bool `json:"expect_analyzer_contracts,omitempty"`
 }
 
 // Scenario is one golden replay scenario. It is a deterministic
@@ -166,6 +180,7 @@ func defaultScenarios() []Scenario {
 		mandatoryEndToEndScenario(),
 		negativeMisattributionScenario(),
 		negativePartialEvidenceScenario(),
+		analyzerDiscoveryScenario(),
 	}
 }
 
@@ -307,6 +322,29 @@ func negativePartialEvidenceScenario() Scenario {
 				Description:              "AI investigation discloses uncertainty and does not claim to confirm root cause.",
 				ExpectInvestigation:      true,
 				ExpectInvestigationValid: true,
+			},
+		},
+	}
+}
+
+// analyzerDiscoveryScenario is the M82 scenario that verifies the analyzer
+// discovery contract stays non-empty and populated: posture domains, insight
+// kinds, deterministic diagnosis rules, corroborating inspection rules and
+// remediable operations. A silently-emptied analyzer surface therefore fails
+// the golden replay instead of being unnoticed.
+func analyzerDiscoveryScenario() Scenario {
+	return Scenario{
+		ID:      ScenarioAnalyzerDiscovery,
+		Version: ScenarioVersion,
+		Description: "M82 analyzer discovery contract: the compiled-in analyzer " +
+			"surface (posture domains, insight kinds, diagnosis rules, " +
+			"inspection rules, remediable operations) must stay non-empty " +
+			"and version-populated on every golden replay.",
+		Steps: []StepOutcome{
+			{
+				StepID:                  StepAnalyzerDiscovery,
+				Description:             "Verify the analyzer discovery contract snapshot in non-empty across all five catalog families.",
+				ExpectAnalyzerContracts: true,
 			},
 		},
 	}

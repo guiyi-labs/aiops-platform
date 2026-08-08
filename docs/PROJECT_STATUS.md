@@ -1,7 +1,7 @@
 # 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-09 · 维护人：开发 Agent
-> 当前基线：`main` @ `113e88b`（M1–M86：W10 OpenAPI 契约治理 + 类型同步已收尾，通过本地全量测试；工作树含 W11 UI/动效在途改动）
+> 当前基线：`main` @ `3b744e1`（M1–M87：W11 premium UX 交互层 + axe 无障碍门禁 + bundle 体积门禁已落地，工作树干净）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,8 +12,8 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新提交 | `113e88b` docs: W10 error-code audit change-record + polish-plan status (on top of `9fcb9a1` typegen slice) |
-| 里程碑范围 | **M1 – M86**（M80–M86 为打磨期 W4–W10） |
+| 最新提交 | `3b744e1` feat(w11): premium UX interaction layer + axe a11y gate + bundle size gate |
+| 里程碑范围 | **M1 – M87**（M80–M87 为打磨期 W4–W11） |
 | 远程同步 | 本地 `main` 领先 `origin/main` 8 个提交（未推送，待次日统一备份） |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 

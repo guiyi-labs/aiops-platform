@@ -94,6 +94,23 @@ jobs:
         run: |
           go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...
           go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 50.0) { print "Coverage " a[1] "% is below 50.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 50.0% baseline" }}'
+      # M84: core package coverage gate; global ≥60% target tracked in polish-plan.md as a follow-up incremental lift.
+      - name: Core package coverage gate (M84)
+        working-directory: backend
+        run: |
+          for pkg in ./internal/metricshistory/ ./internal/apiquery/ ./internal/deprecatedapi/ ./internal/optimization/; do
+            cover="$(go test -cover -p=1 -count=1 "$pkg" | sed -n 's/.*coverage: \([0-9.]*\)% of statements.*/\1/p')"
+            if awk -v c="$cover" 'BEGIN{ exit !(c < 70.0) }'; then
+              printf 'Core package %s coverage %s%% is below 70.0%%\n' "$pkg" "$cover"
+              exit 1
+            fi
+            printf 'Core package %s coverage %s%% meets 70.0%%\n' "$pkg" "$cover"
+          done
+      - name: Fuzz seed + benchmark smoke (M84)
+        working-directory: backend
+        run: |
+          go test -run '^Fuzz' -count=1 ./internal/metricshistory/ ./internal/deprecatedapi/ ./internal/apiquery/ ./internal/netpolicy/ ./internal/namespaceposture/ ./internal/optimization/ ./internal/kubernetes/ ./internal/posture/ ./internal/topology/
+          go test -bench . -benchtime 5x -run '^$' ./internal/metricshistory/ ./internal/topology/ ./internal/posture/ ./internal/capability/
       - name: Build server
         working-directory: backend
         run: |

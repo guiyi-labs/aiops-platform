@@ -8,6 +8,24 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
+### Added — M84 Test Intensity Upgrade (fuzz targets + benchmarks + core coverage gate)
+
+- **New seed fuzz targets** across the pure parsers/validators behind the
+  analyzers (CI runs them as deterministic seed smoke via `go test -run '^Fuzz'`):
+  `metricshistory` quantity parsing, `deprecatedapi` apiVersion+catalog lookup,
+  `apiquery` list-query contract, `netpolicy` port parser, `namespaceposture`
+  quota ratio, `optimization` collector CPU/mem parse, `kubernetes` rollback
+  revision, `posture` severity ordering, `topology` evidence/plan-ID hash.
+- **New benchmarks** (first-time baseline, trend-tracked in docs):
+  `metricshistory.EvaluateWindow` (~15µs), `topology.SortEdges` 500 edges
+  (~578µs), `posture` aggregate severity sort (~307µs), `capability.Registry.List`
+  (~6µs).
+- **CI core-package coverage gate (≥70%)** for `metricshistory`, `apiquery`,
+  `deprecatedapi`, `optimization` (currently 79/100/93/76%) + a fuzz/benchmark
+  smoke step. The existing global ≥50% baseline is retained; the M84 "global
+  ≥60%" delta is tracked as a follow-up incremental lift in `docs/polish-plan.md`.
+- See [M84 change record](docs/changes/2026-08-09-m84-test-intensity.md).
+
 
 ### Added — M59 Signed Releases + SLSA Provenance (Structural Placeholders)
 

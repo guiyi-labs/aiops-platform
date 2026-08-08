@@ -128,6 +128,11 @@
 - 范围：覆盖率门禁从"全局≥50%"提升为"核心包≥70% 且全局≥60%"；为 Quantity 解析、迁移解析、
   YAML/JSON 契约校验、OpenAPI schema 校验器补 10+ fuzz target；新增 benchmark 门禁
   （拓扑采集、metrics 序列查询、聚合分析器、registry health）。
+- 进度：核心包门禁（metricshistory/apiquery/deprecatedapi/optimization ≥70%）已入 CI；
+  9 个包新增 14 个 fuzz target、4 个 benchmark 并本地全绿（见
+  `docs/changes/2026-08-09-m84-test-intensity.md`）。
+  **剩余增量：全局覆盖率 ≥60%**（当前 55.3%，CI 全局门禁暂保持 ≥50% 以维持绿线）——
+  需在后续里程碑按包渐进补测，属显式跟踪项而非已完成。
 - 验收：CI 新增 job 全绿；fuzz 记录随 change-record 留存；benchmark 基线写入文档。
 
 **W9 前端质量与浏览器 E2E（建议 M85）**

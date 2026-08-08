@@ -142,7 +142,7 @@
 - 验收：Playwright 关键链路 ≥5 条全绿；console error=0。
 - 门禁：真实浏览器执行（本机或 CI headless）。
 
-**W10 契约与 API 治理（建议 M86）** — 部分落地：OpenAPI 破坏性变更检查（oasdiff）已在 CI 生效；2026-08-09 新增全路由错误码静态审计测试并归一化 `VELERO_UNAVAILABLE` → 503（见 `docs/changes/2026-08-09-w10-error-code-audit.md`）；前端类型生成/同步校验为后续增量。
+**W10 契约与 API 治理（M86）** — 已完成：OASdiff 破坏性变更检查在 CI 生效；全路由错误码静态审计并归一化 `VELERO_UNAVAILABLE` → 503；修复 OpenAPI 重复 schema（`VeleroBackupList`/`EvidenceRef`）与缺失 federation schemas/参数；生成 `frontend/src/api/openapi.d.ts`（`pnpm typegen` + CI sync gate）；`insight.ts` 消费生成契约类型。详见 `docs/changes/2026-08-09-w10-openapi-typesync.md`。
 - 范围：全路由错误码审计（400/403/404/409/500 映射一致）；OpenAPI 破坏性检查扩展（schema 深度 diff）；
   前端类型改为从 `docs/api/openapi.yaml` 生成（或校验同步）。
 - 验收：契约测试全覆盖；生成物与 openapi 同步自动校验。

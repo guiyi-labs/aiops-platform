@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertTriangle, CheckCircle2, Info, RefreshCw, ShieldCheck, ShieldAlert } from 'lucide-vue-next'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ChevronUp, Info, RefreshCw, Route, ShieldAlert, ShieldCheck, Sparkles, Stethoscope, Workflow, Zap } from 'lucide-vue-next'
 
 import * as clusterAPI from '../api/clusters'
 import { getPostureReport } from '../api/optimization'
+import { getInsightRunbook } from '../api/insight'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useCountUp } from '../composables/useCountUp'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type { PostureDomain, PostureDomainStatus, PostureFinding, PostureReport } from '../types/optimization'
+import type { InsightRunbook } from '../types/insight'
 
 // M80 aggregated governance posture view.
 //
@@ -111,6 +113,49 @@ async function loadReport() {
   }
 }
 
+
+// M81 closed-loop drill-down: resolve the deterministic runbook for a
+// posture finding (diagnosis -> inspection -> AI explanation -> dry-run ops).
+const insightMap = ref<Record<string, InsightRunbook>>({})
+const insightLoading = ref<Record<string, boolean>>({})
+const insightError = ref<Record<string, string>>({})
+
+function findingKey(finding: PostureFinding, index: number): string {
+  return [finding.domain, finding.code, finding.resource.kind, finding.resource.namespace ?? '', finding.resource.name, index].join(':')
+}
+
+async function toggleInsight(finding: PostureFinding, index: number) {
+  const key = findingKey(finding, index)
+  if (insightMap.value[key]) {
+    delete insightMap.value[key]
+    return
+  }
+  if (selectedClusterID.value === null) return
+  insightLoading.value[key] = true
+  insightError.value[key] = ''
+  try {
+    insightMap.value[key] = await getInsightRunbook(auth.accessToken ?? '', {
+      clusterId: selectedClusterID.value,
+      domain: finding.domain,
+      code: finding.code,
+      kind: finding.resource.kind,
+      namespace: finding.resource.namespace,
+      name: finding.resource.name,
+    })
+  } catch {
+    insightError.value[key] = '环路洞察加载失败，请稍后重试'
+  } finally {
+    delete insightLoading.value[key]
+  }
+}
+
+function hasInsight(finding: PostureFinding, index: number): boolean {
+  return Boolean(insightMap.value[findingKey(finding, index)])
+}
+
+function insightOf(finding: PostureFinding, index: number): InsightRunbook | undefined {
+  return insightMap.value[findingKey(finding, index)]
+}
 function refresh() {
   void loadReport()
 }
@@ -187,6 +232,52 @@ onMounted(async () => {
                 {{ domainLabel(finding.domain) }} · {{ finding.resource.kind }} {{ finding.resource.namespace ? `${finding.resource.namespace}/` : '' }}{{ finding.resource.name }}
               </p>
               <p v-if="finding.code" class="posture-finding-code">{{ finding.code }}</p>
+              <button type="button" class="posture-insight-toggle" :disabled="Boolean(insightLoading[findingKey(finding, index)])" @click="toggleInsight(finding, index)">
+                <Route :size="14" />
+                {{ insightLoading[findingKey(finding, index)] ? '加载中…' : (hasInsight(finding, index) ? '收起闭环' : '查看闭环') }}
+                <ChevronUp v-if="hasInsight(finding, index)" :size="14" />
+                <ChevronDown v-else :size="14" />
+              </button>
+            </div>
+            <div v-if="insightOf(finding, index)" class="posture-runbook">
+              <p v-if="insightError[findingKey(finding, index)]" class="notice error">{{ insightError[findingKey(finding, index)] }}</p>
+              <template v-else>
+                <div v-for="route in insightOf(finding, index)?.diagnoses" :key="route.resource_kind" class="runbook-step">
+                  <span class="runbook-step-icon"><Stethoscope :size="15" /></span>
+                  <div class="runbook-step-body">
+                    <p class="runbook-step-title">确定性诊断 · {{ route.resource_kind }}</p>
+                    <p class="runbook-step-desc">{{ route.summary }}</p>
+                    <p class="runbook-step-meta">{{ route.rule_ids.join(' / ') }}</p>
+                  </div>
+                  <router-link class="runbook-link" to="/diagnoses">去诊断 <ArrowRight :size="13" /></router-link>
+                </div>
+                <div v-if="insightOf(finding, index)?.inspection.length" class="runbook-step">
+                  <span class="runbook-step-icon"><Workflow :size="15" /></span>
+                  <div class="runbook-step-body">
+                    <p class="runbook-step-title">巡检佐证 · M52</p>
+                    <p v-for="rule in insightOf(finding, index)?.inspection" :key="rule.rule_code" class="runbook-step-meta">{{ rule.signal_code }}</p>
+                  </div>
+                  <router-link class="runbook-link" to="/inspection">去巡检 <ArrowRight :size="13" /></router-link>
+                </div>
+                <div v-if="insightOf(finding, index)?.ai_explanation" class="runbook-step">
+                  <span class="runbook-step-icon"><Sparkles :size="15" /></span>
+                  <div class="runbook-step-body">
+                    <p class="runbook-step-title">AI 引用解释 · M55</p>
+                    <p class="runbook-step-desc">{{ insightOf(finding, index)?.ai_explanation?.summary }}</p>
+                  </div>
+                  <router-link class="runbook-link" to="/aiops/investigator">AI 调查 <ArrowRight :size="13" /></router-link>
+                </div>
+                <div v-if="insightOf(finding, index)?.operations.length" class="runbook-step">
+                  <span class="runbook-step-icon"><Zap :size="15" /></span>
+                  <div class="runbook-step-body">
+                    <p class="runbook-step-title">受控操作预览 · M19（dry-run）</p>
+                    <p v-for="op in insightOf(finding, index)?.operations" :key="op.action" class="runbook-step-meta">
+                      {{ op.action }}{{ op.dry_run_first ? ' · 仅预览' : '' }}
+                    </p>
+                  </div>
+                  <router-link class="runbook-link" to="/diagnoses">操作台 <ArrowRight :size="13" /></router-link>
+                </div>
+              </template>
             </div>
           </li>
         </ul>
@@ -380,4 +471,97 @@ onMounted(async () => {
 }
 
 .notice.error { color: var(--status-danger); }	
+.posture-insight-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background var(--transition-base), transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.posture-insight-toggle:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+}
+
+.posture-runbook {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  animation: runbook-in 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes runbook-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.runbook-step {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-base), transform var(--transition-base);
+}
+
+.runbook-step:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-subtle));
+  transform: translateX(2px);
+}
+
+.runbook-step-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: var(--radius-full);
+}
+
+.runbook-step-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.runbook-step-title { margin: 0; font-size: 12px; font-weight: 650; }
+.runbook-step-desc { margin: 0; color: var(--text-secondary); font-size: 12px; }
+.runbook-step-meta {
+  margin: 0;
+  color: var(--text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, monospace;
+  font-size: 11px;
+}
+
+.runbook-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.runbook-link:hover { text-decoration: underline; }
 </style>

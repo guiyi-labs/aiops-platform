@@ -1760,6 +1760,28 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '503': { description: Quality report service unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/aiops/insight:
+    get:
+      tags: [aiops-insight]
+      summary: Resolve the closed-loop insight for a posture finding
+      description: >-
+        Maps a read-only posture/optimization finding to a deterministic runbook:
+        applicable deterministic diagnosis routes, corroborating M52 inspection rules,
+        the cited AI-explanation entry point (M55) and dry-run operation candidates (M19).
+        Pure read-only mapping; no cluster access and no state mutation.
+      operationId: getInsightRunbook
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: domain, in: query, required: true, schema: { type: string } }
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: kind, in: query, required: true, schema: { type: string } }
+        - { name: namespace, in: query, required: false, schema: { type: string } }
+        - { name: name, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Resolved runbook, content: { application/json: { schema: { $ref: '#/components/schemas/InsightRunbook' } } } }
+        '400': { description: Invalid query, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/app-catalog/repositories:
     get:
       tags: [app-catalog]
@@ -4540,6 +4562,57 @@ components:
         task_id: { type: string, description: Async replay task ID (e.g. qr-<hex>) }
         status: { type: string, enum: [running, succeeded, failed] }
         message: { type: string, description: Human-readable status message }
+    InsightRunbook:
+      type: object
+      additionalProperties: false
+      required: [cluster_id, domain, kind, name, diagnoses, inspection, read_only]
+      description: M81 closed-loop runbook resolving one posture finding to diagnosis, inspection, AI explanation and dry-run operation candidates.
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        domain: { type: string }
+        finding_code: { type: string }
+        kind: { type: string }
+        namespace: { type: string }
+        name: { type: string }
+        read_only: { type: boolean }
+        diagnoses:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [resource_kind, rule_ids, summary]
+            properties:
+              resource_kind: { type: string }
+              rule_ids: { type: array, items: { type: string } }
+              summary: { type: string }
+        inspection:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [rule_code, signal_code, summary]
+            properties:
+              rule_code: { type: string }
+              signal_code: { type: string }
+              summary: { type: string }
+        ai_explanation:
+          type: object
+          additionalProperties: false
+          required: [endpoint, summary]
+          properties:
+            endpoint: { type: string }
+            summary: { type: string }
+        operations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [action, target_kind, dry_run_first, summary]
+            properties:
+              action: { type: string }
+              target_kind: { type: string }
+              dry_run_first: { type: boolean }
+              summary: { type: string }
     HelmRepositoryView:
       type: object
       additionalProperties: false

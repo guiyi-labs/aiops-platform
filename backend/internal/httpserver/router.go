@@ -686,6 +686,12 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/quality-report/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: goldenAPI.runQualityReplay, AuditAction: "aiops.quality_report.run", AuditResource: "QualityReport"})
 	}
 
+	// M81 AIOps closed-loop runbook: maps a posture finding to its diagnosis,
+	// corroborating inspection rules, AI explanation entry and dry-run
+	// operation candidates. Pure read-only mapping (ADR 0004); no cluster access.
+	insightAPI := insightHandler{}
+	reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/insight", AuthRequired: true, Handler: insightAPI.runbook, AuditAction: "aiops.insight.runbook.read", AuditResource: "InsightRunbook"})
+
 	// M57 Helm application catalog. Repository CRUD (SystemOpsAdmin for
 	// write), chart listing/detail (any-auth, read-only index.yaml fetch),
 	// and M19 controlled-operation deploy plans (SystemOpsAdmin for

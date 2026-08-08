@@ -170,6 +170,11 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+      - name: Contract typegen sync (W10)
+        working-directory: frontend
+        run: |
+          pnpm typegen
+          git diff --exit-code -- src/api/openapi.d.ts
       - name: Lint
         working-directory: frontend
         run: pnpm lint

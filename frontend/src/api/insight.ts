@@ -1,11 +1,21 @@
 import { authorizedRequest } from './client'
-import type { InsightRunbook } from '../types/insight'
+import type { InsightRunbookContract, InsightRunbookQuery } from './openapi'
 
 // M81 closed-loop insight: resolve the deterministic runbook for a posture
 // finding. The backend mapping is pure read-only (no cluster access).
+//
+// W10: request query and response payload types are consumed from the
+// openapi-typescript generated contract (src/api/openapi.d.ts ←
+// docs/api/openapi.yaml); runtime behavior is unchanged.
+export type InsightRunbook = InsightRunbookContract
+export type InsightRunbookParams = Omit<InsightRunbookQuery, 'cluster_id' | 'namespace'> & {
+  clusterId: number
+  namespace?: string
+}
+
 export async function getInsightRunbook(
   token: string,
-  params: { clusterId: number; domain: string; code?: string; kind: string; namespace?: string; name: string },
+  params: InsightRunbookParams,
 ): Promise<InsightRunbook> {
   const query = new URLSearchParams({
     cluster_id: String(params.clusterId),

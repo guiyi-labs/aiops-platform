@@ -634,18 +634,21 @@ h1 {
 .page-enter-active,
 .page-leave-active {
   transition:
-    opacity 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.26s cubic-bezier(0.4, 0, 0.2, 1),
+    filter 0.26s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .page-enter-from {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(12px) scale(0.995);
+  filter: blur(2px);
 }
 
 .page-leave-to {
   opacity: 0;
-  transform: translateY(-6px);
+  transform: translateY(-8px) scale(0.998);
+  filter: blur(1px);
 }
 
 /* ---- Sidebar: animated active indicator ---- */
@@ -829,4 +832,157 @@ tbody tr {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+/* ============================================================
+ * Polish layer 2 — premium motion & depth (2026-08-08)
+ * Modern SaaS console accent: aurora login backdrop, button
+ * sheen sweep, soft status pulse, staggered card entrance,
+ * metric hover glow and count-list fade. Respects reduced motion
+ * through the global reset above.
+ * ============================================================ */
+
+/* ---- Aurora login backdrop (animated gradient orbs) ---- */
+.login-page {
+  position: relative;
+  overflow: hidden;
+}
+
+.login-intro::before {
+  content: '';
+  position: absolute;
+  inset: -20%;
+  z-index: 0;
+  background:
+    radial-gradient(42% 42% at 22% 18%, rgba(94, 147, 255, 0.28) 0%, transparent 70%),
+    radial-gradient(36% 36% at 78% 30%, rgba(56, 130, 246, 0.18) 0%, transparent 70%),
+    radial-gradient(44% 44% at 60% 82%, rgba(139, 92, 246, 0.16) 0%, transparent 70%);
+  filter: blur(6px);
+  animation: aurora-drift 18s ease-in-out infinite alternate;
+}
+
+.login-intro > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes aurora-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(-3%, 2%, 0) scale(1.05); }
+  100% { transform: translate3d(2%, -3%, 0) scale(1.02); }
+}
+
+/* ---- Button sheen sweep ---- */
+.primary-button,
+.login-submit {
+  position: relative;
+  overflow: hidden;
+}
+
+.primary-button::after,
+.login-submit::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.35) 50%, transparent 100%);
+  transform: skewX(-20deg);
+  transition: none;
+}
+
+.primary-button:hover::after,
+.login-submit:hover::after {
+  animation: button-sheen 0.8s ease forwards;
+}
+
+@keyframes button-sheen {
+  to { left: 140%; }
+}
+
+/* ---- Soft status dot pulse ---- */
+.status-dot,
+.environment-dot {
+  position: relative;
+}
+
+.status-dot::after,
+.environment-dot::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  z-index: 0;
+  border-radius: var(--radius-full);
+  background: inherit;
+  opacity: 0.35;
+  animation: status-pulse 2.4s ease-out infinite;
+}
+
+/* Variant-aware pulse colors (ready=green, unavailable=red, else neutral). */
+.status-pill.ready .status-dot::after,
+.tone-green .status-dot::after { background: var(--status-success); }
+.status-pill.unavailable .status-dot::after,
+.tone-red .status-dot::after { background: var(--status-danger); }
+.status-dot::after { background: var(--border-strong); }
+
+@keyframes status-pulse {
+  0%   { transform: scale(0.6); opacity: 0.5; }
+  70%  { transform: scale(1.7); opacity: 0; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* ---- Staggered section entrance (works on any section sibling) ---- */
+.cockpit-metrics > *,
+.posture-headline,
+.posture-domains,
+.metrics-consumers > header,
+.trend-consumers > header {
+  animation: section-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cockpit-metrics > *:nth-child(2) { animation-delay: 0.04s; }
+.cockpit-metrics > *:nth-child(3) { animation-delay: 0.08s; }
+.cockpit-metrics > *:nth-child(4) { animation-delay: 0.12s; }
+.cockpit-metrics > *:nth-child(5) { animation-delay: 0.16s; }
+.cockpit-metrics > *:nth-child(6) { animation-delay: 0.2s; }
+
+@keyframes section-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Metric hover glow ---- */
+.cockpit-metric:hover {
+  border-color: color-mix(in srgb, var(--blue-500) 46%, var(--border-default));
+  box-shadow:
+    var(--shadow-md),
+    0 10px 30px -12px rgba(50, 108, 229, 0.35);
+}
+
+/* ---- List row fade-in (findings / consumers) ---- */
+.metrics-consumer-row,
+.posture-finding {
+  animation: row-fade 0.42s ease both;
+}
+
+.metrics-consumer-row:nth-child(n+2) { animation-delay: 0.03s; }
+.posture-finding:nth-child(n+2) { animation-delay: 0.03s; }
+
+@keyframes row-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Progress bar shimmer on load ---- */
+.health-track .healthy,
+.metrics-consumer-row i {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ---- Focus sheen for primary actions ---- */
+.primary-button:focus-visible,
+.login-submit:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue-400) 55%, transparent);
+  outline-offset: 2px;
 }

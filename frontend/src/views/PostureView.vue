@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Info, RefreshCw, ShieldCheck, ShieldAlert 
 import * as clusterAPI from '../api/clusters'
 import { getPostureReport } from '../api/optimization'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import { useCountUp } from '../composables/useCountUp'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type { PostureDomain, PostureDomainStatus, PostureFinding, PostureReport } from '../types/optimization'
@@ -52,6 +53,11 @@ const sortedFindings = computed<PostureFinding[]>(() => report.value?.findings ?
 const criticalCount = computed(() => report.value?.by_severity?.critical ?? 0)
 const warningCount = computed(() => report.value?.by_severity?.warning ?? 0)
 const infoCount = computed(() => report.value?.by_severity?.info ?? 0)
+const animatedCritical = useCountUp(0, criticalCount, { duration: 650 })
+const animatedWarning = useCountUp(0, warningCount, { duration: 650 })
+const animatedInfo = useCountUp(0, infoCount, { duration: 650 })
+const animatedFailed = useCountUp(0, computed(() => report.value?.failed_checks ?? 0), { duration: 800 })
+const animatedTotal = useCountUp(0, computed(() => report.value?.total_checks ?? 0), { duration: 800 })
 
 /** Domains ordered by failed count desc then critical count, so the worst first. */
 const orderedDomains = computed<PostureDomainStatus[]>(() =>
@@ -136,17 +142,17 @@ onMounted(async () => {
     <template v-if="report">
       <div class="posture-headline">
         <div class="posture-score">
-          <strong>{{ report.failed_checks }}</strong>
+          <strong>{{ animatedFailed.value }}</strong>
           <span>风险项</span>
         </div>
         <div class="posture-total">
-          <strong>{{ report.total_checks }}</strong>
+          <strong>{{ animatedTotal.value }}</strong>
           <span>累计检查</span>
         </div>
         <div class="posture-severity-strip">
-          <span class="severity-chip critical"><AlertTriangle :size="14" />{{ criticalCount }} 严重</span>
-          <span class="severity-chip warning"><AlertTriangle :size="14" />{{ warningCount }} 警告</span>
-          <span class="severity-chip info"><Info :size="14" />{{ infoCount }} 提示</span>
+          <span class="severity-chip critical"><AlertTriangle :size="14" />{{ animatedCritical.value }} 严重</span>
+          <span class="severity-chip warning"><AlertTriangle :size="14" />{{ animatedWarning.value }} 警告</span>
+          <span class="severity-chip info"><Info :size="14" />{{ animatedInfo.value }} 提示</span>
         </div>
       </div>
 

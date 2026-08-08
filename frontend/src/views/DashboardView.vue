@@ -26,6 +26,7 @@ import { APIError } from '../api/auth'
 import { evaluateMetricHistory, getMetricHistory } from '../api/metrics-history'
 import { listDeployments, listEvents, listNodeMetrics, listNodes, listPodMetrics, listPods, listServices } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import { useCountUp } from '../composables/useCountUp'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type { DiagnosisRecord, DiagnosisSummary } from '../types/diagnosis'
@@ -90,6 +91,13 @@ const checkedAt = computed(() => lastSyncedAt.value
   : '--')
 const nodeHealthPercent = computed(() => percentage(readyNodes.value, nodes.value.length))
 const podHealthPercent = computed(() => percentage(healthyPods.value, pods.value.length))
+const warningEventCount = computed(() => warningEvents.value.length)
+const animatedReadyNodes = useCountUp(0, readyNodes, { duration: 720 })
+const animatedHealthyPods = useCountUp(0, healthyPods, { duration: 720 })
+const animatedWarningEvents = useCountUp(0, warningEventCount, { duration: 720 })
+const animatedPending = useCountUp(0, pendingCount, { duration: 720 })
+const animatedNodeHealthPercent = useCountUp(0, nodeHealthPercent, { duration: 900 })
+const animatedPodHealthPercent = useCountUp(0, podHealthPercent, { duration: 900 })
 const deploymentHealthPercent = computed(() => percentage(readyDeployments.value, deployments.value.length))
 const nodeUsage = computed(() => aggregateNodeMetrics(nodeMetrics.value))
 const nodeAllocatable = computed(() => aggregateNodeAllocatable(nodes.value, nodeMetrics.value))
@@ -422,12 +430,12 @@ onBeforeUnmount(() => requestController?.abort())
     <div v-if="metricsState === 'unavailable' || metricsState === 'error'" class="metrics-capability" :class="metricsState"><TriangleAlert :size="16" /><span><strong>资源用量不可用</strong>{{ metricsState === 'unavailable' ? '目标集群未提供 Metrics API' : 'Metrics API 查询失败，资源健康数据仍可用' }}</span></div>
 
     <section class="cockpit-metrics" aria-label="实时资源指标">
-      <article class="cockpit-metric tone-green"><span><Server :size="17" />Node Ready</span><strong>{{ readyNodes }}<small>/{{ nodes.length }}</small></strong><em>{{ nodeHealthPercent }}% 节点就绪</em></article>
-      <article class="cockpit-metric tone-blue"><span><Boxes :size="17" />Pod Healthy</span><strong>{{ healthyPods }}<small>/{{ pods.length }}</small></strong><em>{{ criticalPods > 0 ? `${criticalPods} 个严重异常` : '容器状态稳定' }}</em></article>
+      <article class="cockpit-metric tone-green"><span><Server :size="17" />Node Ready</span><strong>{{ animatedReadyNodes.value }}<small>/{{ nodes.length }}</small></strong><em>{{ animatedNodeHealthPercent.value }}% 节点就绪</em></article>
+      <article class="cockpit-metric tone-blue"><span><Boxes :size="17" />Pod Healthy</span><strong>{{ animatedHealthyPods.value }}<small>/{{ pods.length }}</small></strong><em>{{ criticalPods > 0 ? `${criticalPods} 个严重异常` : '容器状态稳定' }}</em></article>
       <article class="cockpit-metric tone-amber" :class="{ 'metric-unavailable': metricsState !== 'ready' }"><span><Cpu :size="17" />CPU Usage</span><strong>{{ metricsState === 'ready' ? formatCPU(nodeUsage.cpuMillicores) : '--' }}</strong><em>{{ metricsState === 'ready' ? formatUtilization(cpuUtilization) : metricsState === 'loading' ? '正在读取 Metrics API' : '没有可用的真实指标' }}</em></article>
       <article class="cockpit-metric tone-coral" :class="{ 'metric-unavailable': metricsState !== 'ready' }"><span><MemoryStick :size="17" />Memory Usage</span><strong>{{ metricsState === 'ready' ? formatMemory(nodeUsage.memoryBytes) : '--' }}</strong><em>{{ metricsState === 'ready' ? formatUtilization(memoryUtilization) : metricsState === 'loading' ? '正在读取 Metrics API' : '没有可用的真实指标' }}</em></article>
-      <article class="cockpit-metric tone-red"><span><Bell :size="17" />Warning</span><strong>{{ warningEvents.length }}</strong><em>最近 100 条 Event</em></article>
-      <article class="cockpit-metric tone-neutral"><span><Stethoscope :size="17" />待处置诊断</span><strong>{{ pendingCount }}</strong><em>{{ diagnosisSummary.overdue }} 条已逾期</em></article>
+      <article class="cockpit-metric tone-red"><span><Bell :size="17" />Warning</span><strong>{{ animatedWarningEvents.value }}</strong><em>最近 100 条 Event</em></article>
+      <article class="cockpit-metric tone-neutral"><span><Stethoscope :size="17" />待处置诊断</span><strong>{{ animatedPending.value }}</strong><em>{{ diagnosisSummary.overdue }} 条已逾期</em></article>
     </section>
 
     <section v-if="metricsState === 'ready'" class="metrics-consumers" aria-label="Pod 资源消费排行">
@@ -513,8 +521,8 @@ onBeforeUnmount(() => requestController?.abort())
       <div class="dashboard-workspace-panel health-overview">
         <div class="section-heading"><div><p class="context-label">RESOURCE HEALTH</p><h2>工作负载健康度</h2></div><span>{{ services.length }} Services</span></div>
         <div class="health-meter-list">
-          <article><div><strong>Node</strong><span>{{ readyNodes }} / {{ nodes.length }} Ready</span></div><div class="health-track"><span class="healthy" :style="{ width: `${nodeHealthPercent}%` }" /></div><b>{{ nodeHealthPercent }}%</b></article>
-          <article><div><strong>Pod</strong><span>{{ healthyPods }} / {{ pods.length }} Healthy</span></div><div class="health-track"><span :class="criticalPods > 0 ? 'critical' : 'healthy'" :style="{ width: `${podHealthPercent}%` }" /></div><b>{{ podHealthPercent }}%</b></article>
+          <article><div><strong>Node</strong><span>{{ animatedReadyNodes.value }} / {{ nodes.length }} Ready</span></div><div class="health-track"><span class="healthy" :style="{ width: `${nodeHealthPercent}%` }" /></div><b>{{ animatedNodeHealthPercent.value }}%</b></article>
+          <article><div><strong>Pod</strong><span>{{ animatedHealthyPods.value }} / {{ pods.length }} Healthy</span></div><div class="health-track"><span :class="criticalPods > 0 ? 'critical' : 'healthy'" :style="{ width: `${podHealthPercent}%` }" /></div><b>{{ animatedPodHealthPercent.value }}%</b></article>
           <article><div><strong>Deployment</strong><span>{{ readyDeployments }} / {{ deployments.length }} Available</span></div><div class="health-track"><span class="warning" :style="{ width: `${deploymentHealthPercent}%` }" /></div><b>{{ deploymentHealthPercent }}%</b></article>
         </div>
         <button class="panel-link" type="button" @click="openWorkloads()">打开资源工作台<ChevronRight :size="15" /></button>

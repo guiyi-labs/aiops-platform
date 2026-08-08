@@ -8,6 +8,43 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
+
+### Added — M81 AIOps Closed-Loop Runbook (W5)
+
+- **End-to-end insight runbook**: 优化中心 findings → 巡检佐证（M52）→ 确定性
+  诊断（M43）→ AI 引用解释（M55）→ dry-run 预览（M19），一条链路可点击、可回放、
+  只读不扩安全边界；只读 insight runbook 端点。
+- See [M81 change record](docs/changes/2026-08-09-m81-insight-loop.md).
+
+### Added — M82 Golden Analyzer-Discovery Contract (W6)
+
+- 黄金回放新增 `analyzer_discovery` 场景：posture/insight/diagnosis/inspection
+  快照纳入 M56 黄金回放 + 质量报告；`DatasetVersion` → 1.1。
+- See [M82 change record](docs/changes/2026-08-09-m82-analyzer-discovery.md).
+
+### Added — M83 Topology Deepening (W7)
+
+- Gateway API（Gateway/HTTPRoute）只读接入拓扑 + collapse 折叠/聚合参数；
+  新增 ADR 0080 与拓扑深化测试。500 节点 fixture 渲染验证依赖真实集群环境。
+- See [M83 change record](docs/changes/2026-08-09-m83-topology-deepening.md).
+
+### Added — M80 Aggregated Governance Posture + UI Motion Baseline (W4)
+
+- 聚合治理态势视图（posture）；count-up 指标滚动、aurora 登录背景、premium
+  motion 层（useCountUp + Vitest 覆盖）。
+
+### Added — M85 W8/W9 Closure: Coverage 60% Gate + Playwright E2E + Unified Motion
+
+- 全局覆盖率 59.1% → 60.03%，CI 全局覆盖率门禁 50% → 60%（.github/workflows/ci.yml）；
+  新增 8 个低覆盖包纯逻辑测试（automation/auth/alert/alertroute/authz/workspace/cluster/insight）；
+  修复 correlation `EvidenceRef` 测试字段（RefID → ID）。
+- Playwright 浏览器 E2E：7 条关键链路 × 双视口（Desktop 1280×720 / Mobile 390×844）
+  全绿、console error=0（frontend/e2e/smoke.spec.ts）；新增 `frontend/src/styles/motion.css`
+  统一微交互动效层、`SkeletonCard.vue` 骨架屏、`EmptyState.vue` 空态。
+- 文档收口：README/PROJECT_STATUS/long-term-roadmap/polish-plan 对齐真实 HEAD；
+  补齐 M61–M66、M74、M75 缺失 change-record；新增 W8/W9 change-record。
+- See [W8 record](docs/changes/2026-08-09-w8-coverage-closure.md) /
+  [W9 record](docs/changes/2026-08-09-w9-playwright-e2e.md).
 ### Added — M84 Test Intensity Upgrade (fuzz targets + benchmarks + core coverage gate)
 
 - **New seed fuzz targets** across the pure parsers/validators behind the

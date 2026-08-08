@@ -17,18 +17,20 @@
 经 dry-run、确认、幂等和审计，凭据加密存储且未授权资源返回 404 以避免
 信息泄漏。
 
-## 当前基线（2026-08-01）
+## 当前基线（2026-08-08）
 
-> **安全重写说明**：本仓库 Git 历史已执行安全脱敏重写（清除历史提交中的个人邮箱），所有 commit hash 和 tag hash 均已变更。文档中引用的旧 commit hash（如 `2d46588`、`cf20c66`、`0baf858`、`b1f52e0` 等）仅供历史归档参考，无法通过 `git checkout` / `git reset` 直接访问。如需定位对应里程碑，请使用 tag 名称（如 `baseline-m60-20260801`）或按提交信息搜索。此外，文档中的 `<repo-root>`、`<local-refs>`、`<docker-data>` 为路径占位符，部署时需替换为实际路径。
+> **安全重写说明**：本仓库 Git 历史已执行安全脱敏重写（清除历史提交中的个人邮箱），所有 commit hash 和 tag hash 均已变更。文档中引用的旧 commit hash（如 `2d46588`、`cf20c66`、`0baf858`、`b1f52e0` 等）仅供历史归档参考，无法通过 `git checkout` / `git reset` 直接访问。如需定位对应里程碑，请使用 tag 名称（如 `baseline-m60-20260801`、`baseline-polish-20260808`）或按提交信息搜索。此外，文档中的 `<repo-root>`、`<local-refs>`、`<docker-data>` 为路径占位符，部署时需替换为实际路径。
 
-`baseline-m60-20260801` 完成 post-M45 路线全部 5 个阶段 15 个里程碑
-（M46-M60）：三层控制台与工作区多租户（M46-M47）、多集群联邦（M48）、
-CRD 发现与只读浏览（M49）、监控大盘与日志探索器（M50）、有界事件流与
-告警抑制（M51）、智能巡检与服务网格只读（M52）、黄金质量回放（M56）、
-Helm 应用目录与受控部署（M57）、DevOps 只读与跨集群复制（M58）、签名
-出处与 Provider Registry（M59-M60）。CI 全量通过；完整变更历史见
-[`CHANGELOG.md`](CHANGELOG.md)，安全策略见 [`SECURITY.md`](SECURITY.md)，
-里程碑归档见 [`docs/changes/`](docs/changes/)。
+`main` 当前处于 **M1–M78 全部落地** 的状态：post-M45 路线完成 15 个里程碑
+（M46-M60：三层控制台与工作区多租户、多集群联邦、CRD 发现与只读浏览、
+监控大盘与日志探索器、有界事件流与告警抑制、智能巡检与服务网格只读、
+黄金质量回放、Helm 应用目录与受控部署、DevOps 只读与跨集群复制、签名
+出处与 Provider Registry），随后完成优化中心（M61-M78：FinOps 右配、
+CIS 合规、废弃 API、网络策略、镜像供应链、GitOps 漂移、容量趋势、
+Policy-as-Code、HPA/PDB/Ingress 姿态等 18 个纯只读分析器与统一控制台）。
+CI 全量通过；完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，安全策略见
+[`SECURITY.md`](SECURITY.md)，里程碑归档见 [`docs/changes/`](docs/changes/)，
+M78 之后的打磨路线见 [`docs/polish-plan.md`](docs/polish-plan.md)。
 
 ## 核心能力
 
@@ -180,7 +182,7 @@ KRM 和 Ratel 仅用于需求、交互及部署思路参考。本仓库独立实
 
 ## Delivery Status（历史记录）
 
-以下保留早期路线（M1-M32）决策摘要与证据链入口；当前状态以文首 M60 基线为准。
+以下保留早期路线（M1-M32）决策摘要与证据链入口；当前状态以文首 2026-08-08 基线为准。
 
 - **M1-M19**：核心资源只读链路、证据型诊断、受控操作目录（Deployment scale/restart、CronJob suspend/resume），全部经 dry-run、幂等和审计。
 - **M20-M26**：有界多集群健康 fan-out、全局搜索、用户私有筛选器、分层 CI/发布流水线、依赖治理、PostgreSQL 备份恢复、凭据再加密、签名审计归档、OIDC/MFA 就绪准入、恢复策略准入。

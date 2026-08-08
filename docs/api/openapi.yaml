@@ -217,6 +217,23 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/optimization/posture/cluster:
+    get:
+      tags: [optimization]
+      summary: Aggregated cluster governance posture across all M61-M78 analyzers
+      operationId: getPostureReport
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, required: true, schema: { type: integer } }
+        - { name: target_version, in: query, description: Optional Kubernetes target version for the deprecated-API check, schema: { type: string } }
+      responses:
+        '200':
+          description: Aggregated posture report (risk-sorted findings + per-domain rollups)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostureReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /api/v1/fleet/health:
     get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
   /api/v1/fleet/resources/search:
@@ -2493,6 +2510,55 @@ components:
     Login: { description: Login or refresh response, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
     Error: { description: Structured error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   schemas:
+    # -------- M80 Aggregated governance posture --------
+    PostureReport:
+      type: object
+      required: [cluster_id, evaluated_at, domains, findings, by_severity, total_checks, failed_checks, passed_checks]
+      properties:
+        cluster_id: { type: integer }
+        evaluated_at: { type: string, format: date-time }
+        domains:
+          type: array
+          items: { $ref: '#/components/schemas/PostureDomainStatus' }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/PostureFinding' }
+        by_severity: { type: object, additionalProperties: { type: integer } }
+        total_checks: { type: integer }
+        failed_checks: { type: integer }
+        passed_checks: { type: integer }
+    PostureDomainStatus:
+      type: object
+      required: [domain, total, failed, passed]
+      properties:
+        domain:
+          type: string
+          enum: [cis, finops, deprecated_api, network, image, gitops, capacity, policy, hpa, pdb, ingress]
+        total: { type: integer }
+        failed: { type: integer }
+        passed: { type: integer }
+        by_severity: { type: object, additionalProperties: { type: integer } }
+    PostureFinding:
+      type: object
+      required: [domain, severity, code, summary, resource, observed_at]
+      properties:
+        domain:
+          type: string
+          enum: [cis, finops, deprecated_api, network, image, gitops, capacity, policy, hpa, pdb, ingress]
+        severity: { type: string, enum: [info, warning, critical] }
+        code: { type: string }
+        summary: { type: string }
+        resource:
+          type: object
+          required: [kind, name]
+          properties:
+            kind: { type: string }
+            namespace: { type: string }
+            name: { type: string }
+            uid: { type: string }
+            resource_version: { type: string }
+        details: { type: object, additionalProperties: { type: string } }
+        observed_at: { type: string }
     # -------- M58 GitOps + Velero + CopyOps schemas --------
     GitOpsCapability:
       type: object

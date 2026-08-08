@@ -1,7 +1,7 @@
 # 项目进度与交接状态（Project Status & Handoff）
 
-> 生成时间：2026-08-02 · 维护人：开发 Agent
-> 当前基线：`main` @ `a2fb5fe`（M1–M78 全部落地，通过 CI）
+> 生成时间：2026-08-08 · 维护人：开发 Agent
+> 当前基线：`main` @ `591c19b`（M1–M78 全部落地 + UI 打磨，通过本地全量测试）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,9 +12,9 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新提交 | `a2fb5fe` docs: archive M67-M73 change records |
+| 最新提交 | `591c19b` feat(ui): polish console motion and add polish plan baseline |
 | 里程碑范围 | **M1 – M78**（共 78 个） |
-| 远程同步 | 本地 `main` == `origin/main` == `a2fb5fe`，ahead/behind 0/0 |
+| 远程同步 | 本地 `main` 领先 `origin/main` 1 个提交（未推送，待次日统一备份） |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---

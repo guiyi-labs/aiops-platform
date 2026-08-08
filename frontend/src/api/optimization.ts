@@ -12,6 +12,7 @@ import type {
   NetworkStatus,
   PDBStatus,
   PolicyStatus,
+  PostureReport,
 } from '../types/optimization'
 
 // Client for the read-only optimization analyzers (M61-M68).
@@ -111,4 +112,18 @@ export async function analyzeIngress(token: string, clusterId: number): Promise<
     body: JSON.stringify({ cluster_id: clusterId }),
   })
   return { ...status, findings: status.findings ?? [], by_severity: status.by_severity ?? {}, by_family: status.by_family ?? {} }
+}
+
+// M80 aggregated governance posture: one GET returns findings across all
+// M61-M78 analyzers, risk-sorted (critical first).
+export async function getPostureReport(token: string, clusterId: number, targetVersion?: string): Promise<PostureReport> {
+  const query = new URLSearchParams({ cluster_id: String(clusterId) })
+  if (targetVersion) query.set('target_version', targetVersion)
+  const report = await authorizedRequest<PostureReport>(`/api/v1/optimization/posture/cluster?${query.toString()}`, token)
+  return {
+    ...report,
+    findings: report.findings ?? [],
+    domains: report.domains ?? [],
+    by_severity: report.by_severity ?? {},
+  }
 }

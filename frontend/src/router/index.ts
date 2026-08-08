@@ -79,6 +79,12 @@ const router = createRouter({
       name: 'optimization',
       component: () => import('../views/OptimizationView.vue'),
     },
+    // M80: 聚合治理态势（全部 M61-M78 分析器的统一只读总览）
+    {
+      path: '/posture',
+      name: 'posture',
+      component: () => import('../views/PostureView.vue'),
+    },
     {
       path: '/node-maintenance',
       name: 'node-maintenance',

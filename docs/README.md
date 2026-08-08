@@ -4,6 +4,7 @@
 
 | 目录或文件 | 内容 |
 |---|---|
+| `polish-plan.md` | **当前打磨入口**：M78 之后向业界头部水准靠拢的 P0-P3 路线、差距分析与验收标准 |
 | `kubesphere-optimization-plan.md` | M32 后以 KubeSphere 能力为底座、融合 AIOps 信号/诊断/AI/安全闭环的 M33-M45 路线和验收标准 |
 | `next-development-plan.md` | 已归档的 M26-M32 开发执行合同，不再作为当前开发入口 |
 | `development.md` | 本地开发、测试和运行方法 |

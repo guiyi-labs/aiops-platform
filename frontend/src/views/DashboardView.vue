@@ -26,6 +26,7 @@ import { APIError } from '../api/auth'
 import { evaluateMetricHistory, getMetricHistory } from '../api/metrics-history'
 import { listDeployments, listEvents, listNodeMetrics, listNodes, listPodMetrics, listPods, listServices } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import SkeletonCard from '../components/SkeletonCard.vue'
 import { useCountUp } from '../composables/useCountUp'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
@@ -405,7 +406,7 @@ onBeforeUnmount(() => requestController?.abort())
         <span v-if="fleetHealth">{{ fleetHealthyCount }} 健康 / {{ fleetHealth.total }} 已启用<span v-if="fleetHealth.remaining"> · {{ fleetHealth.remaining }} 未载入</span></span>
       </header>
       <p v-if="fleetError" class="fleet-error"><TriangleAlert :size="15" />{{ fleetError }}</p>
-      <div v-else-if="fleetLoading && !fleetHealth" class="fleet-empty">正在读取集群健康状态</div>
+      <div v-else-if="fleetLoading && !fleetHealth" class="fleet-loading" aria-busy="true"><SkeletonCard :lines="2" height="54px" /><SkeletonCard :lines="2" height="54px" /></div>
       <div v-else-if="!fleetHealth?.items.length" class="fleet-empty">没有已启用的集群</div>
       <div v-else class="fleet-table-scroll">
         <table class="fleet-table">

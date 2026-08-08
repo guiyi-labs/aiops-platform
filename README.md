@@ -21,7 +21,7 @@
 
 > **安全重写说明**：本仓库 Git 历史已执行安全脱敏重写（清除历史提交中的个人邮箱），所有 commit hash 和 tag hash 均已变更。文档中引用的旧 commit hash（如 `2d46588`、`cf20c66`、`0baf858`、`b1f52e0` 等）仅供历史归档参考，无法通过 `git checkout` / `git reset` 直接访问。如需定位对应里程碑，请使用 tag 名称（如 `baseline-m60-20260801`、`baseline-polish-20260808`）或按提交信息搜索。此外，文档中的 `<repo-root>`、`<local-refs>`、`<docker-data>` 为路径占位符，部署时需替换为实际路径。
 
-`main` 当前处于 **M1–M78 全部落地** 的状态：post-M45 路线完成 15 个里程碑
+`main` 当前处于 **M1–M84** 的状态（M80–M84 为打磨期 W4–W8，全局覆盖率 60.03%、CI 覆盖率门禁 60%）：post-M45 路线完成 15 个里程碑
 （M46-M60：三层控制台与工作区多租户、多集群联邦、CRD 发现与只读浏览、
 监控大盘与日志探索器、有界事件流与告警抑制、智能巡检与服务网格只读、
 黄金质量回放、Helm 应用目录与受控部署、DevOps 只读与跨集群复制、签名
@@ -42,7 +42,7 @@ M78 之后的打磨路线见 [`docs/polish-plan.md`](docs/polish-plan.md)。
 - **服务网格只读**：VirtualService/DestinationRule 只读浏览与固定 Prometheus 模板流量指标投影（M52）。
 - **质量与交付**：黄金数据集回放与质量报告（M56）；编译时 Provider Registry 统一生命周期/健康/角色选择（M60）；Cosign keyless 签名与 SLSA provenance 占位（M59）。
 - **安全与治理**：四类角色、加密集群凭据、会话管理、平台审计、安全 CSV 导出（M20）；OIDC/MFA 离线就绪准入（M32）；Namespace 治理态势（M29）；RBAC 只读盘点（M34）；签名审计归档（M31）；凭据密钥再加密（M30）。
-- **交付门禁**：Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和；CI 强制 race 检测、golangci-lint、ESLint、50% 覆盖率基线和 OpenAPI 破坏性变更检查；发布产出多架构 OCI 镜像、SPDX SBOM 和 SHA256 清单；许可 allowlist 强制；提供官方 Helm 图表与 Kustomize 双路径部署。
+- **交付门禁**：Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和；CI 强制 race 检测、golangci-lint、ESLint、60% 覆盖率基线（核心包 ≥70%）和 OpenAPI 破坏性变更检查；发布产出多架构 OCI 镜像、SPDX SBOM 和 SHA256 清单；许可 allowlist 强制；提供官方 Helm 图表与 Kustomize 双路径部署。
 
 ## 技术栈
 

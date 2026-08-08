@@ -2,7 +2,7 @@
 
 - Status: Active（执行基线）
 - Updated: 2026-08-09
-- Baseline: `main` @ `288d824`（领先 `origin/main` 7 个提交，工作树干净）
+- Baseline: `main` @ `30cb507`（领先 `origin/main` 8 个提交；另有未提交的 W8 覆盖率补测与本次同步，待明日统一提交远端）
 - 关系：详细打磨合同见 [`docs/polish-plan.md`](polish-plan.md)；本文件是面向"长远方向 + 分阶段执行 + 已落地清单"的路由图。
 - 原则：不推翻既有架构决策、安全边界与非目标；每一步带可验证的证据与验收标准。
 
@@ -10,7 +10,7 @@
 
 ## 0. 当前已落地进度（2026-08-09）
 
-本地 `main` 领先 `origin/main` 7 个提交，工作树干净；已打 tags：
+本地 `main` 领先 `origin/main` 8 个提交（另有未提交的 W8 覆盖率补测）；已打 tags：
 
 | 提交 | 内容 | tag |
 |---|---|---|
@@ -21,11 +21,12 @@
 | `290e52e` | M81 AIOps 端到端闭环（W5）：findings → 巡检佐证（M52）→ 确定性诊断（M43）→ AI 引用（M55）→ dry-run 预览（M19），新增只读 insight runbook 端点 | `baseline-m81-20260809` |
 | `5d01974` | M82 黄金回归发现契约（W6）：analyzer_discovery 场景 + posture/engine/diagnosis/inspection 快照进黄金回放，DatasetVersion → 1.1 | `baseline-m82-20260809` |
 | `288d824` | M83 拓扑深化（W7）：Gateway API 只读白名单 + collapse 折叠/聚合参数 + 4 条新测试 + ADR 0080 | `baseline-m83-20260809` |
+| `30cb507` | M82 发现契约 change-record + 长远路线图基线同步 | — |
 
 验证状态：
 - 前端全绿：typecheck / eslint / vitest（22 files · 124 tests）/ vite build。
 - 后端全绿：gofmt / vet / build / `go test ./...`；W7 相关包（httpserver/kubernetes/topology）gofmt + vet + test 单独复验通过。
-- 全局覆盖率 55.3%（< 60% 目标，显式跟踪项，见 W8）。
+- 全局覆盖率 59.1%（< 60% 目标，显式跟踪项，见 W8）；W8 覆盖率补测（correlation/diagnosis/inspection/automation/kubernetes/optimization/golden）已就绪并通过，待提交。
 - 依赖提示：kind E2E 涉及 W3/W5/W7 集群行为，需要 Docker/kind 运行时；当前本机 Docker daemon 未运行，真实集群验收证据待推送远端后补。
 
 ---
@@ -48,7 +49,7 @@
 
 - 文档基线对齐实际 HEAD：README/PROJECT_STATUS 更新到当前提交后的真实状态；本文件已同步 W7。
 - 补齐 M1–M20 与 M61–M66 缺失的独立 change-record（含本次 M82 的 change-record 待补）。
-- 全局覆盖率从 55.3% 渐进拉向 ≥60%（重点：cmd、repository、store、migrations 等低覆盖层）。
+- 全局覆盖率从 59.1% 渐进拉向 ≥60%（重点：cmd、repository、store、migrations 等低覆盖层）。
 
 ### Phase 1：AIOps 差异化（主线，按月里程碑推进）
 

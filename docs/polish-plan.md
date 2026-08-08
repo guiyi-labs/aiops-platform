@@ -131,17 +131,18 @@
 - 进度：核心包门禁（metricshistory/apiquery/deprecatedapi/optimization ≥70%）已入 CI；
   9 个包新增 14 个 fuzz target、4 个 benchmark 并本地全绿（见
   `docs/changes/2026-08-09-m84-test-intensity.md`）。
-  **剩余增量：全局覆盖率 ≥60%**（当前 55.3%，CI 全局门禁暂保持 ≥50% 以维持绿线）——
-  需在后续里程碑按包渐进补测，属显式跟踪项而非已完成。
+  **剩余增量：全局覆盖率 ≥60%**（已达成：2026-08-09 实测 60.03%，CI 全局门禁同步提升到 60%，按包补测了
+  automation/auth/cluster/workspace/alert/alertroute/authz/insight 等低覆盖层，共新增 8 个测试文件；见
+  `docs/changes/2026-08-09-w8-coverage-closure.md`）。
 - 验收：CI 新增 job 全绿；fuzz 记录随 change-record 留存；benchmark 基线写入文档。
 
-**W9 前端质量与浏览器 E2E（建议 M85）**
+**W9 前端质量与浏览器 E2E（建议 M85）** — 已落地（2026-08-09）：Playwright 双视口（Desktop 1280×720 / Mobile 390×844）14 项 smoke 全绿、console error=0；新增 unified motion 层（motion.css）、SkeletonCard、EmptyState。见 `docs/changes/2026-08-09-w9-playwright-e2e.md`。
 - 范围：引入 Playwright（1280×720 + 390×844 两张视口），覆盖登录→工作台→详情→优化总览等关键链路，
   断言无 undefined 与 console 警告；补 a11y 基础（ARIA、键盘导航）；bundle 体积门禁。
 - 验收：Playwright 关键链路 ≥5 条全绿；console error=0。
 - 门禁：真实浏览器执行（本机或 CI headless）。
 
-**W10 契约与 API 治理（建议 M86）**
+**W10 契约与 API 治理（建议 M86）** — 部分落地：OpenAPI 破坏性变更检查（oasdiff）已在 CI 生效；全路由错误码审计与前端类型生成/同步校验为后续增量。
 - 范围：全路由错误码审计（400/403/404/409/500 映射一致）；OpenAPI 破坏性检查扩展（schema 深度 diff）；
   前端类型改为从 `docs/api/openapi.yaml` 生成（或校验同步）。
 - 验收：契约测试全覆盖；生成物与 openapi 同步自动校验。

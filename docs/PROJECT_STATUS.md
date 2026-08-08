@@ -1,7 +1,7 @@
 # 项目进度与交接状态（Project Status & Handoff）
 
-> 生成时间：2026-08-08 · 维护人：开发 Agent
-> 当前基线：`main` @ `591c19b`（M1–M78 全部落地 + UI 打磨，通过本地全量测试）
+> 生成时间：2026-08-09 · 维护人：开发 Agent
+> 当前基线：`main` @ `30cb507`（M1–M84：AIOps 闭环 + 黄金契约 + 拓扑深化 + 测试强度，通过本地全量测试）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,9 +12,9 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新提交 | `591c19b` feat(ui): polish console motion and add polish plan baseline |
-| 里程碑范围 | **M1 – M78**（共 78 个） |
-| 远程同步 | 本地 `main` 领先 `origin/main` 1 个提交（未推送，待次日统一备份） |
+| 最新提交 | `30cb507` docs: M82 analyzer-discovery change record + roadmap baseline sync |
+| 里程碑范围 | **M1 – M84**（M80–M84 为打磨期 W4–W8） |
+| 远程同步 | 本地 `main` 领先 `origin/main` 8 个提交（未推送，待次日统一备份） |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---
@@ -22,8 +22,8 @@
 ## 2. 里程碑与文档覆盖
 
 - **CHANGELOG.md**：覆盖 M1–M78 全部 `Added/Changed` 条目。
-- **docs/changes/**：114 份变更记录。M21–M78 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
-- **已知文档缺口（低风险）**：M1–M20、M61–M66 仅有 CHANGELOG/README 摘要，缺独立 change-record 文件；如需逐里程碑审计，建议后续补全。
+- **docs/changes/**：122 份变更记录。M21–M84 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
+- **已知文档缺口（低风险）**：M1–M20 以主题文档形式归档（无独立 mXX 编号文件）；M61–M66/M74/M75 已补齐独立 change-record。
 
 ### 优化中心（M67–M78，纯只读分析器）
 | 里程碑 | 包 | 关键规则 |
@@ -38,6 +38,17 @@
 | M76 HPA 姿态 | `internal/hpaposture` | HPA 缩放姿态 |
 | M77 PDB 保护 | `internal/pdbposture` | PodDisruptionBudget 保护 |
 | M78 Ingress 暴露面 | `internal/ingressposture` | 无 TLS / 死后端 / 通配符 host / 未显式 ingressClassName |
+
+### 打磨期（M80–M84，polish-plan P0/P1/P2 已落地部分）
+| 里程碑 | 内容 |
+|---|---|
+| M80 | 聚合治理态势视图（W4 posture）+ UI motion 打磨基线（aurora 登录、count-up 指标滚动、premium 动效层） |
+| M81 | AIOps 端到端闭环（W5）：findings → 巡检佐证（M52）→ 确定性诊断（M43）→ AI 引用（M55）→ dry-run 预览（M19） |
+| M82 | 黄金回归发现契约（W6）：analyzer_discovery 场景，DatasetVersion → 1.1 |
+| M83 | 拓扑深化（W7）：Gateway API 只读 + collapse 折叠/聚合 |
+| M84 | 测试强度（W8）：14 fuzz + 4 benchmark + 核心包 ≥70% 门禁；全局覆盖率 60.03%（CI 门禁 50%→60%） |
+
+> 待办：M85 浏览器 E2E（Playwright）、M86 契约与 API 治理、UX/动效持续打磨；M87–M90 需组织授权。
 
 ---
 

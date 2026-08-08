@@ -187,6 +187,9 @@ jobs:
       - name: Build
         working-directory: frontend
         run: pnpm build
+      - name: Bundle size gate (W11)
+        working-directory: frontend
+        run: pnpm bundle:gate
 
   manifests:
     name: Manifests

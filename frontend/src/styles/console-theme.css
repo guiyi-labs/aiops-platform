@@ -38,8 +38,8 @@
   /* Typography colors */
   --text-primary: var(--gray-900);
   --text-secondary: var(--gray-600);
-  --text-tertiary: var(--gray-500);
-  --text-muted: var(--gray-400);
+  --text-tertiary: var(--gray-600);
+  --text-muted: #5b6672;
   --text-inverse: #ffffff;
 
   /* Surface colors */
@@ -334,7 +334,7 @@ h1 {
 }
 
 .live-indicator {
-  color: var(--status-success);
+  color: #15803d;
   background: var(--success-bg);
   border-radius: var(--radius-sm);
   font-weight: 600;

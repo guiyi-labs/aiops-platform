@@ -64,9 +64,9 @@
 - [x] **W8/M84 测试强度**：核心包 ≥70% 门禁、fuzz、benchmark；全局覆盖率 ≥60%（实测 60.03%）。
 - [x] **W9/M85 前端质量 + 浏览器 E2E**：Playwright 双视口 7 条关键链路全绿（14/14）、console error=0、统一 motion 层。
 - [x] **W10/M86 契约与 API 治理**：错误码审计 + OpenAPI schema 修复 + 前端类型从 OpenAPI 生成 + `pnpm typegen` + CI sync gate + `insight.ts` 消费生成类型。
-- [ ] **UX/动效持续打磨**（用户当前最关注方向）：
-  - Dashboard/Posture/Topology 补齐节流、骨架屏、空态与过渡动效；统一 motion 语言与设计 token（基于 motion.css 已有基础）；
-  - 主题切换（亮/暗/自定义）、a11y 深化（Playwright axe 断言）、bundle 体积门禁（vite build + CI 阈值）。
+- [x] **W11 UX/动效打磨 + a11y + bundle 门禁**（2026-08-09 已落地）：
+  - Dashboard/Posture/Topology 骨架屏、空态与过渡动效延续 W9；premium 微交互层新增（顶栏 glass、侧边栏发光、Card 按压等）；
+  - a11y 深化（axe-core 双视口扫描 0 critical/serious）、bundle 体积门禁（vite build + CI 阈值）已入 CI；主题切换（亮/暗）列 P3 候选。
 
 ### Phase 3：交付与生产就绪（P3，需组织授权）
 
@@ -80,7 +80,7 @@
 ## 3. 建议的下一步顺序（W10 → UX → P3）
 
 1. **W10 已完成**：OpenAPI schema 修复 + typegen + CI gate + change-record + 文档基线刷新（本轮提交后推送）。
-2. **UX/动效持续打磨（可并行，用户重点方向）**：骨架屏/空态/过渡动效/主题切换/设计 token；随后追加 a11y 与 bundle 门禁。
+2. **W11 已完成**：premium 交互层 + axe 无障碍 + bundle 门禁已入 CI（本轮提交后推送）；主题切换列 P3 候选。
 3. **P3 授权项**：M87–M90 依赖 Docker/kind + 组织授权，逐个推进并保持证据与验收标准。
 
 > 依赖提示：kind E2E（W3/W5/W7 集群行为）需要 Docker/kind 运行时；当前本机 Docker daemon 未运行，真实集群验收证据待推送远端并具备环境后补。

@@ -6,5 +6,6 @@ import router from './router'
 import './styles/base.css'
 import './styles/console-theme.css'
 import './styles/motion.css'
+import './styles/premium-ui.css'
 
 createApp(App).use(createPinia()).use(router).mount('#app')

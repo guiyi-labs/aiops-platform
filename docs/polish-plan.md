@@ -147,6 +147,10 @@
   前端类型改为从 `docs/api/openapi.yaml` 生成（或校验同步）。
 - 验收：契约测试全覆盖；生成物与 openapi 同步自动校验。
 
+**W11 UX 精细打磨 + a11y 断言 + bundle 门禁** — 已完成（2026-08-09）：新增 premium-ui.css 微交互层（顶栏玻璃拟态、workspace-selector 悬浮、侧栏激活发光、头像/退出 hover、主按钮按压、卡片顶缘光晕）；Playwright 引入 axe-core（WCAG 2A/2AA/2.1AA）对 7 条关键路由双视口扫描，critical/serious 违规清零；修复 27 类低对比度文字色与 PostureView 缺失下拉 label；新增 `pnpm bundle:gate` + CI 门禁。详见 `docs/changes/2026-08-09-w11-ux-a11y-bundle.md`。
+- 范围：premium 交互层；a11y（axe 断言 + 对比度修复）；bundle 体积门禁（vite build + CI 阈值）。
+- 验收：Playwright smoke 14/14 + a11y 14/14 全绿；axe 0 critical/serious；bundle 门禁生效。
+
 ### Phase 3：交付与生产就绪（P3，外部授权）
 
 - **P3-1 正式发布闭环（建议 M87）**：语义化 tag + GitHub Release 产物 + Cosign 真实通过（移除

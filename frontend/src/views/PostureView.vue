@@ -175,7 +175,7 @@ onMounted(async () => {
     </template>
 
     <section class="page-toolbar">
-      <select v-model="selectedClusterID" class="form-select" :disabled="clustersLoading" @change="loadReport">
+      <select v-model="selectedClusterID" class="form-select" aria-label="选择集群" :disabled="clustersLoading" @change="loadReport">
         <option v-if="clustersLoading" value="">加载集群中…</option>
         <option v-for="cluster in clusters" :key="cluster.id" :value="cluster.id">{{ cluster.name }}</option>
       </select>
@@ -340,10 +340,10 @@ onMounted(async () => {
   border-radius: var(--radius-full);
 }
 
-.severity-chip.critical { color: var(--status-danger); background: var(--danger-bg); }
-.severity-chip.warning { color: var(--status-warning); background: var(--warning-bg); }
-.severity-chip.info { color: var(--status-info); background: var(--info-bg); }
-.severity-chip.ok { color: var(--status-success); background: var(--success-bg); }
+.severity-chip.critical { color: #b91c1c; background: var(--danger-bg); }
+.severity-chip.warning { color: #92400e; background: var(--warning-bg); }
+.severity-chip.info { color: #0369a1; background: var(--info-bg); }
+.severity-chip.ok { color: #15803d; background: var(--success-bg); }
 
 
 .posture-domain-card {

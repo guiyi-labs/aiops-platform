@@ -2,50 +2,55 @@
 
 - Status: Active（执行入口）
 - Updated: 2026-08-09
-- Baseline: 本地功能基线 `main` @ `b0287e1`（M92，tag `baseline-m92-20260809`）；`origin/main` @ `181da6f`，本地归档与基线提交待统一推送
+- Baseline: 功能基线 `744bf1f`（M93-A，tag `baseline-m93a-20260809`）
 - 上位路线：[`long-term-roadmap.md`](long-term-roadmap.md)
 - 归档规范：[`ARCHIVING.md`](ARCHIVING.md)
 
 ## 0. 当前判断
 
 项目已经越过“功能是否齐全”的阶段：确定性诊断、AI 引用解释、多集群联邦、优化中心、
-受控运维、真实 kind E2E、覆盖率/契约/a11y/bundle 门禁均已形成基线。M92 又补齐了登录
-首屏的产品识别度。下一阶段不应继续横向堆页面，而应按以下顺序提升：
+受控运维、真实 kind E2E、覆盖率/契约/a11y/bundle 门禁均已形成基线。M92 补齐了登录
+首屏的产品识别度，M93-A 又关闭了硬编码“实时”数字与浏览器回归依赖真实后端的问题。
+下一阶段不应继续横向堆页面，而应按以下顺序提升：
 
 1. 先把新视觉做成可信、可测、低成本运行的正式能力。
 2. 再把 AIOps 核心价值收敛成“10 秒看清根因”的产品叙事。
 3. 最后用规模、性能和供应链证据证明它可以稳定交付。
 
-## 1. M92 基线快照
+## 1. M93-A 基线快照
 
 | 维度 | 当前状态 | 结论 |
 |---|---|---|
-| 产品能力 | M1–M92 + W10–W12 | 主链路闭环，进入深度与证据阶段 |
-| 前端 | 34 个视图；M91 虚拟滚动；M92 粒子网络/拓扑登录页 | 视觉完成度明显提升，需补数据真实性与专项回归 |
+| 产品能力 | M1–M93-A + W10–W12 | 主链路闭环，进入深度与证据阶段 |
+| 前端 | 34 个视图；M91 虚拟滚动；M92 粒子网络/拓扑；M93-A 能力卡 | 数据真实性已关闭，继续补粒子生命周期与性能证据 |
 | 后端 | 61 个 `internal/` 模块；18 个只读分析器 | 领域能力充足，不再以新增模块数量为目标 |
-| 质量 | 全局覆盖率 60.03%；核心包 ≥70%；Playwright/axe/bundle/typegen 门禁 | 基线可靠，下一目标是性能预算与关键旅程覆盖 |
+| 质量 | 全局覆盖率 60.03%；核心包 ≥70%；Playwright/axe 双视口 28/28；bundle/typegen 门禁 | 基线可靠，下一目标是性能预算与关键旅程覆盖 |
 | 交付 | kind E2E、SHA256SUMS、签名 fail-closed | 正式 Release / 真实 keyless / 离线包仍需收口 |
 | 外部依赖 | M89 OIDC/MFA、M90 WAL/PITR/HA | 继续按组织授权推进，不阻塞本地主线 |
 
 ## 2. 执行顺序
 
-### M93：登录页质量收口（1–2 天，立即开始）
+### M93：登录页质量收口（M93-A 已完成，M93-B 预计 1–2 天）
 
 目标：把 M92 从“视觉完成”提升为“可长期维护、数据可信、低端设备可控”。
 
-范围：
+M93-A 已完成：
 
-- 明确 12 / 186 / 99 的语义：优先接入最小公开摘要接口；若安全边界不允许未认证读取，
-  改为明确的演示/能力基线，不使用“实时”措辞。
+- 安全审查结论是不新增未认证资源统计接口；移除 12 / 186 / 99 与“实时”措辞，改为能力卡。
+- Playwright 使用确定性管理员会话与空 API 数据集，登录页单独覆盖匿名会话。
+- 修复 Dashboard 三处 WCAG AA 对比度；Desktop/Mobile smoke + axe 28/28 全绿。
+
+M93-B 范围：
+
 - ParticleNetwork 使用 `ResizeObserver` 处理容器尺寸变化；页面隐藏时暂停 RAF，恢复时继续。
 - 监听 reduced-motion 变化，用户运行时切换系统设置也能即时降级。
 - 增加组件测试与 Playwright：Canvas 非空像素、桌面/移动布局、reduced-motion 静态帧、
   登录表单可用、console error=0。
 - 加性能预算：桌面 60fps 目标、低端移动设备降粒子密度、登录页新增 JS/CSS 体积阈值。
 
-验收：
+M93-B 验收：
 
-- 不存在无法解释的硬编码“实时”指标。
+- M93-A 数据真实性结论保持不回归，不新增未认证资源统计接口。
 - Desktop 1440×900、Mobile 390×844、reduced-motion 三组 Playwright 全绿。
 - Canvas 像素抽样非空，页面 hidden 后 RAF 停止，resize 后粒子数量重新计算。
 - `pnpm lint/typecheck/test/build/bundle:gate/test:e2e` 全绿并上传截图证据。
@@ -119,13 +124,14 @@
 
 ## 3. 第一迭代任务板（M93）
 
-| 顺序 | 任务 | 产物 | 门禁 |
-|---|---|---|---|
-| 1 | 决定展示数字的数据契约 | ADR/契约说明 | 未认证信息泄露审查 |
-| 2 | ParticleNetwork 生命周期增强 | 组件 + 单测 | reduced-motion / hidden / resize |
-| 3 | 登录页 Playwright 专项 | 双视口截图与像素断言 | console error=0 |
-| 4 | 低端设备性能预算 | benchmark 报告 | 粒子密度与 bundle 阈值 |
-| 5 | 归档与基线 | change-record / CHANGELOG / tag | 工作树干净、CI 全绿 |
+| 顺序 | 任务 | 产物 | 门禁 | 状态 |
+|---|---|---|---|---|
+| 1 | 登录页数据真实性决策 | 安全结论 + 能力卡 | 未认证信息泄露审查 | 完成（M93-A） |
+| 2 | 确定性浏览器回归 | API fixture + 双视口 smoke/axe | 28/28、console error=0 | 完成（M93-A） |
+| 3 | ParticleNetwork 生命周期增强 | 组件 + 单测 | reduced-motion / hidden / resize | 待开始（M93-B） |
+| 4 | Canvas 专项回归 | 双视口截图与像素断言 | 非空像素、布局稳定 | 待开始（M93-B） |
+| 5 | 低端设备性能预算 | benchmark 报告 | 粒子密度与 bundle 阈值 | 待开始（M93-B） |
+| 6 | 归档与基线 | change-record / CHANGELOG / tag | 工作树干净、CI 全绿 | M93-A 进行中 |
 
 ## 4. 每个里程碑的 Definition of Done
 

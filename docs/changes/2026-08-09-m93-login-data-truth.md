@@ -37,6 +37,12 @@ M92 登录页展示了“12 套集群 / 186 个节点 / 99% 准确率”，但�
 - `frontend/src/styles/base.css`：加深 fleet 汇总与空状态文字颜色。
 - `frontend/src/styles/console-theme.css`：加深 ready 状态文字，消除三处低于 4.5:1 的对比度。
 
+### 基线文档
+
+- 同步 `README.md`、`docs/PROJECT_STATUS.md`、`docs/long-term-roadmap.md` 与
+  `docs/next-long-term-plan.md`，将 M93-A 标记为完成，并把剩余粒子生命周期与性能工作收敛为 M93-B。
+- 功能提交为 `744bf1f`，归档标签为 `baseline-m93a-20260809`。
+
 ## Verification
 
 - `pnpm lint`：通过。

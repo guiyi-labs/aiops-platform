@@ -63,6 +63,16 @@ export interface DiagnosisTimelineEntry {
   missing_reason?: string
   summary: string
 }
+export type DiagnosisActionKind = 'advisory' | 'controlled_action'
+export interface DiagnosisActionItem {
+  kind: DiagnosisActionKind
+  title: string
+  detail?: string
+  action?: string
+  requires_dry_run: boolean
+  requires_confirmation: boolean
+}
+
 export interface RootCauseCard {
   conclusion: string
   severity: 'info' | 'warning' | 'high' | 'critical'
@@ -86,6 +96,7 @@ export interface DiagnosisRecord {
   evidence: DiagnosisEvidence[]
   timeline?: DiagnosisTimelineEntry[]
   root_cause_card?: RootCauseCard
+  actions?: DiagnosisActionItem[]
   assignee?: DiagnosisActor
   activities?: DiagnosisActivity[]
   feedback?: DiagnosisFeedback[]

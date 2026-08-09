@@ -9,7 +9,7 @@ import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisStatus, FeedbackVerdict, RemediationPlan } from '../types/diagnosis'
+import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, DiagnosisActionItem, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisStatus, FeedbackVerdict, RemediationPlan } from '../types/diagnosis'
 import type { UserProfile } from '../types/auth'
 
 const auth = useAuthStore()
@@ -117,6 +117,18 @@ async function confirmRemediation() {
 
 function remediationStatusLabel(status: RemediationPlan['status']): string {
   return ({ awaiting_confirmation: '等待确认', executing: '执行中', succeeded: '成功', failed: '失败', expired: '已过期' } as const)[status]
+}
+
+function actionKindLabel(kind: DiagnosisActionItem['kind']): string {
+  return kind === 'advisory' ? '只读建议' : '受控动作'
+}
+
+function actionAreaHint(detail: DiagnosisRecord): { level: 'advisory' | 'unavailable' | 'permission' | 'dependency'; text: string } {
+  const hasControlled = detail.actions?.some((item) => item.kind === 'controlled_action') ?? false
+  if (!hasControlled) return { level: 'advisory', text: '当前诊断仅提供只读建议，无受控动作。' }
+  if (!canManage.value) return { level: 'permission', text: '受控动作需要 system_admin / operations_admin 权限。' }
+  if (detail.status !== 'confirmed') return { level: 'dependency', text: '受控动作要求诊断处于 confirmed 状态，且集群 dry-run 可用。' }
+  return { level: 'advisory', text: '' }
 }
 
 function evidenceLabel(id: string): string {
@@ -283,6 +295,23 @@ onMounted(initialize)
         <div class="remediation-history"><article v-for="plan in remediationPlans" :key="plan.id"><span class="remediation-status" :class="plan.status">{{ remediationStatusLabel(plan.status) }}</span><strong>{{ plan.target.kind }}/{{ plan.target.namespace }}/{{ plan.target.name }}</strong><time>{{ formatTime(plan.created_at) }}</time><small>{{ plan.requested_by.name }} · {{ plan.id }}</small><p v-if="plan.last_error">{{ plan.last_error }}</p></article><p v-if="!remediationPlans.length" class="compact-empty">暂无受控修复计划。</p></div>
       </section>
       <h3>可能根因</h3><ol><li v-for="item in detail.root_causes" :key="item">{{ item }}</li></ol><h3>处理建议</h3><ol><li v-for="item in detail.recommendations" :key="item">{{ item }}</li></ol>
+      <section class="action-area">
+        <h3>行动区 · {{ detail.actions?.length ?? 0 }}</h3>
+        <div v-if="detail.actions?.length" class="action-area-list">
+          <article v-for="item in detail.actions" :key="item.title" :class="['action-item', item.kind]">
+            <span class="action-kind" :class="item.kind">{{ actionKindLabel(item.kind) }}</span>
+            <div class="action-body">
+              <strong>{{ item.title }}</strong>
+              <p v-if="item.detail">{{ item.detail }}</p>
+              <small v-if="item.requires_dry_run">先由 Kubernetes dry-run 验证；确认后才会执行。</small>
+            </div>
+          </article>
+        </div>
+        <div v-if="detail.actions?.some((item) => item.kind === 'controlled_action') && !(canManage && detail.status === 'confirmed')" class="action-area-note">
+          <span class="notice-badge">{{ actionAreaHint(detail).level }}</span>
+          {{ actionAreaHint(detail).text }}
+        </div>
+      </section>
       <section v-if="detail.timeline?.length" class="evidence-timeline">
         <h3>证据时间线 · {{ detail.timeline.length }}</h3>
         <article v-for="item in detail.timeline" :key="item.ref">

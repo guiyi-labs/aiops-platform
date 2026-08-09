@@ -66,6 +66,7 @@ func WithNarrative(record Record) Record {
 	record.Timeline = timeline
 	card := buildRootCauseCard(record, timeline)
 	record.RootCauseCard = &card
+	record.Actions = buildActionArea(record)
 	return record
 }
 

@@ -9,6 +9,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — M94 Diagnosis Action Area
+
+- 诊断详情新增类型化“行动区”：每条 recommendation 标记为只读建议（advisory）；
+  Pod 资源追加 rollout restart 受控动作（controlled_action，必须 dry-run + 显式确认）。
+- 无权限 / 非 confirmed 等不可用原因在行动区显式降级提示；受控修复表单仍只在
+  canManage && confirmed && Pod 时出现，不绕过确认。
+- OpenAPI 新增 `DiagnosisAction` schema；`pnpm typegen` 重新生成；`DiagnosisRecord` 增加 `actions?`。
+- Playwright 新增行动区旅程（受控动作 + 依赖降级，Desktop+Mobile 2/2），浏览器回归 46/46。
+- See [M94 action area change record](docs/changes/2026-08-10-m94-diagnosis-action-area.md).
+
 ### Added — M94 Diagnosis Narrative (Root Cause Card & Evidence Timeline)
 
 - 新增诊断根因卡（结论、严重度、状态、首次观察、置信来源、≤5 条关键证据引用）与只读证据时间线：

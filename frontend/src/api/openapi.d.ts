@@ -4753,6 +4753,19 @@ export interface components {
             /** @description Immutable refs of up to 5 non-missing evidence items backing the conclusion */
             key_evidence_refs: string[];
         };
+        /** @description One typed entry in the M94 diagnosis action area: read-only advisory vs controlled capability */
+        DiagnosisAction: {
+            /** @enum {string} */
+            kind: "advisory" | "controlled_action";
+            title: string;
+            detail?: string;
+            /** @description Controlled operation identifier */
+            action?: string;
+            /** @description True when execution requires a Kubernetes dry-run preview first */
+            requires_dry_run: boolean;
+            /** @description True when execution requires explicit human confirmation */
+            requires_confirmation: boolean;
+        };
         DiagnoseNodeMetricsRequest: {
             /** @description Node name */
             name: string;

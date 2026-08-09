@@ -3005,6 +3005,17 @@ components:
           type: array
           description: Immutable refs of up to 5 non-missing evidence items backing the conclusion
           items: { type: string }
+    DiagnosisAction:
+      type: object
+      description: 'One typed entry in the M94 diagnosis action area: read-only advisory vs controlled capability'
+      required: [kind, title, requires_dry_run, requires_confirmation]
+      properties:
+        kind: { type: string, enum: [advisory, controlled_action] }
+        title: { type: string }
+        detail: { type: string }
+        action: { type: string, description: Controlled operation identifier, e.g. deployment.rollout_restart }
+        requires_dry_run: { type: boolean, description: 'True when execution requires a Kubernetes dry-run preview first' }
+        requires_confirmation: { type: boolean, description: 'True when execution requires explicit human confirmation' }
     DiagnoseNodeMetricsRequest:
       type: object
       additionalProperties: false

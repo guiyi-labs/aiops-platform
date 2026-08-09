@@ -689,6 +689,7 @@ h1 {
 .evidence-card,
 .root-cause-card,
 .evidence-timeline article,
+.action-item,
 .ai-explanation-card,
 .cockpit-metric {
   transition:

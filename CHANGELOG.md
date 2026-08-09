@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — M92 Interactive Login Visual System
+
+- 新增 Canvas2D 粒子网络、SVG 多集群拓扑、展示指标与分层动效；支持触屏、2x DPR、
+  `prefers-reduced-motion` 静态降级和移动端语义化隐藏。
+- 认证流程与安全契约保持不变；展示数字目前为静态值，真实数据接入列入 M93。
+- See [M92 change record](docs/changes/2026-08-09-m92-interactive-login-visual.md).
+
 ### Added — 归档体系（强制所有修改留档）
 
 - 新增根目录 AGENTS.md：所有代码/文档改动必须先写 change-record 才能提交，附提交前归档完整性检查表。

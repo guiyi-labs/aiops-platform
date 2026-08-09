@@ -3068,7 +3068,7 @@ h2 {
     padding: 24px;
   }
 
-  .login-intro > div:nth-child(2),
+  .login-visual,
   .login-boundary {
     display: none;
   }

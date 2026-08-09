@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Documentation — Post-M93-C Program Plan
+
+- 将下一阶段执行入口扩展为 M93-B2–M102 的 12–16 周计划，加入依赖图、Gate A–D、并行轨道、
+  前十个工作日任务板、风险登记与 GA 准入。
+- M89 OIDC/MFA 与 M90 WAL/PITR/HA 保持组织授权轨；未形成真实演练证据时版本保持 RC。
+- See [Post-M93-C program plan record](docs/changes/2026-08-10-post-m93c-program-plan.md).
+
 ### Changed — M93-C Technology Console Shell
 
 - 登录页与登录后控制台统一为碳黑、冷灰、青色与状态色组成的工业科技主题，移除偏紫粒子色调。

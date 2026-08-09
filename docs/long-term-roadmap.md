@@ -1,7 +1,7 @@
 ﻿# 长远计划：把 AIOps 平台打磨到业内最高水准
 
 - Status: Active（执行基线）
-- Updated: 2026-08-09（对齐 M93-C 科技主题控制台）
+- Updated: 2026-08-10（对齐 Post-M93-C M93-B2–M102 执行计划）
 - Baseline: M93-C；tag `baseline-m93c-tech-console-20260809`
 - 关系：详细打磨契约见 [`docs/polish-plan.md`](polish-plan.md)；本文件是面向"长远方向 + 分阶段执行 + 已落地清单"的路由图。
 - 原则：不推翻既有架构决策、安全边界与非目标；每一步都带可验证的证据与验收标准。
@@ -108,15 +108,19 @@
 
 ---
 
-## 4. 建议的下一步顺序（M93 → M97）
+## 4. 建议的下一步顺序（M93-B2 → M102）
 
 1. **M93-B2 登录页性能证据**：交互、生命周期和 Canvas 回归已在 B1 关闭；只补低端设备帧耗与登录页专属 JS/CSS 预算。
 2. **M94 诊断叙事**：根因卡片 + 证据时间线 + 可回放链路，目标是“10 秒看清根因”。
 3. **M95 洞察可解释分层**：规则 → 证据 → 建议三层下钻，打通 posture / diagnosis / inspection。
 4. **M96 规模与性能证据**：500 节点 / 50k Pod fixture、P95 API 与前端渲染预算入 CI。
-5. **M97 发布与供应链收尾**：正式 Release、SBOM 入库、签名/provenance 验证与离线安装包。
+5. **M97 Release Candidate**：SBOM、签名/provenance、离线安装、升级与回滚，不提前宣称 GA。
+6. **M98–M99 产品深化**：事故工作空间、信号关联、SLO 与影响分析，形成可交接和可复盘闭环。
+7. **M100–M101 生产治理**：本地权限/会话/审计加固，并在授权后集成 OIDC/MFA、WAL/PITR/HA。
+8. **M102 GA 证据封口**：Gate A–D、两套全新环境演练和统一 release manifest 全部通过才准入。
 
-> 详细范围、验收标准与顺序见 `docs/next-long-term-plan.md`；M89/M90 仍按组织授权独立推进。
+> 详细范围、依赖图、阶段门、周计划和前十个工作日任务板见 `docs/next-long-term-plan.md`；
+> M89/M90 仍按组织授权独立推进，未完成时版本保持 RC。
 
 ---
 

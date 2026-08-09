@@ -35,8 +35,8 @@ CIS 合规、废弃 API、网络策略、镜像供应链、GitOps 漂移、容�
 Policy-as-Code、HPA/PDB/Ingress 姿态等 18 个纯只读分析器与统一控制台）。
 CI 全量通过；完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，安全策略见
 [`SECURITY.md`](SECURITY.md)，里程碑归档见 [`docs/changes/`](docs/changes/)，
-M78 之后的打磨路线见 [`docs/long-term-roadmap.md`](docs/long-term-roadmap.md)，下一阶段执行计划见
-[`docs/next-long-term-plan.md`](docs/next-long-term-plan.md)。
+M78 之后的打磨路线见 [`docs/long-term-roadmap.md`](docs/long-term-roadmap.md)，M93-B2–M102 的
+12–16 周下一阶段执行计划见 [`docs/next-long-term-plan.md`](docs/next-long-term-plan.md)。
 
 ## 核心能力
 

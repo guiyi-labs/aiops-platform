@@ -17,11 +17,13 @@
 经 dry-run、确认、幂等和审计，凭据加密存储且未授权资源返回 404 以避免
 信息泄漏。
 
-## 当前基线（2026-08-08）
+## 当前基线（2026-08-09）
 
 > **安全重写说明**：本仓库 Git 历史已执行安全脱敏重写（清除历史提交中的个人邮箱），所有 commit hash 和 tag hash 均已变更。文档中引用的旧 commit hash（如 `2d46588`、`cf20c66`、`0baf858`、`b1f52e0` 等）仅供历史归档参考，无法通过 `git checkout` / `git reset` 直接访问。如需定位对应里程碑，请使用 tag 名称（如 `baseline-m60-20260801`、`baseline-polish-20260808`）或按提交信息搜索。此外，文档中的 `<repo-root>`、`<local-refs>`、`<docker-data>` 为路径占位符，部署时需替换为实际路径。
 
-`main` 当前处于 **M1–M84** 的状态（M80–M84 为打磨期 W4–W8，全局覆盖率 60.03%、CI 覆盖率门禁 60%）：post-M45 路线完成 15 个里程碑
+本地 `main` 当前处于 **M1–M92 + W10–W12** 的状态：全局覆盖率 60.03%、CI 覆盖率门禁 60%，
+OpenAPI/typegen、Playwright、axe、bundle、真实 kind E2E 与发布签名 fail-closed 门禁均已落地；
+M91 完成大表虚拟滚动，M92 完成交互式登录页粒子网络与多集群拓扑视觉系统。post-M45 路线完成 15 个里程碑
 （M46-M60：三层控制台与工作区多租户、多集群联邦、CRD 发现与只读浏览、
 监控大盘与日志探索器、有界事件流与告警抑制、智能巡检与服务网格只读、
 黄金质量回放、Helm 应用目录与受控部署、DevOps 只读与跨集群复制、签名
@@ -30,7 +32,8 @@ CIS 合规、废弃 API、网络策略、镜像供应链、GitOps 漂移、容�
 Policy-as-Code、HPA/PDB/Ingress 姿态等 18 个纯只读分析器与统一控制台）。
 CI 全量通过；完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，安全策略见
 [`SECURITY.md`](SECURITY.md)，里程碑归档见 [`docs/changes/`](docs/changes/)，
-M78 之后的打磨路线见 [`docs/polish-plan.md`](docs/polish-plan.md)。
+M78 之后的打磨路线见 [`docs/long-term-roadmap.md`](docs/long-term-roadmap.md)，下一阶段执行计划见
+[`docs/next-long-term-plan.md`](docs/next-long-term-plan.md)。
 
 ## 核心能力
 

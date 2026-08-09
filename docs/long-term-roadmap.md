@@ -1,8 +1,8 @@
 ﻿# 长远计划：把 AIOps 平台打磨到业内最高水准
 
 - Status: Active（执行基线）
-- Updated: 2026-08-09（对齐 `c53bc06` + W12/M88/M91 关闭）
-- Baseline: `main` @ `c53bc06`（与 `origin/main` 同步 0/0，工作树干净，tag `baseline-m91-20260809` 已推送）
+- Updated: 2026-08-09（对齐 `b0287e1` + M92 关闭）
+- Baseline: 本地功能基线 `main` @ `b0287e1`（M92）；`origin/main` @ `181da6f`，归档体系/M92/基线文档待统一推送
 - 关系：详细打磨契约见 [`docs/polish-plan.md`](polish-plan.md)；本文件是面向"长远方向 + 分阶段执行 + 已落地清单"的路由图。
 - 原则：不推翻既有架构决策、安全边界与非目标；每一步都带可验证的证据与验收标准。
 
@@ -10,7 +10,7 @@
 
 ## 0. 当前已落地进度（2026-08-09 复验）
 
-本地 `main` 与 `origin/main` 已同步；`baseline-m85-w8w9` / `baseline-w11` / `baseline-m86` / `baseline-m87` 等 9 个新 tag 均指向当前 HEAD。
+本地 `main` 已完成 M92；远端仍停在 `181da6f`，本地新增归档体系与 M92 两个提交，基线文档同步后统一推送。
 
 | 提交 | 内容 | tag |
 |---|---|---|
@@ -28,12 +28,14 @@
 | `658066c` | W12 真实集群 kind E2E 证据（诊断/联邦/全局搜索三套）+ 前端构建契约修复 | `baseline-w12-20260809` |
 | `70c314c` | M88 发布闭环本地化：release-verify + SHA256SUMS + cosign fail-closed 门禁 | `baseline-m88-20260809` |
 | `c53bc06` | M91 前端虚拟滚动：useVirtualList + 6 条单测 + Workloads Pod 表窗口化 | `baseline-m91-20260809` |
+| `b0287e1` | M92 登录页视觉系统：ParticleNetwork + SVG 多集群拓扑 + 展示指标 + 响应式/reduced-motion 降级 | `baseline-m92-20260809`（本地已创建，待推送） |
 
 验证状态（2026-08-09 全量复验）：
 - 后端：gofmt / vet / build / `go test ./...` 全绿；全局覆盖率 60.03%（CI 门禁 50% → 60%）。
 - 前端：typecheck / eslint / vitest（22 files · 124 tests）/ vite build / Playwright Desktop+Mobile 14/14，console error=0；axe 双视口 critical/serious 为 0；bundle 门禁入 CI。
 - CI：OASdiff 破坏性检查、typegen sync gate、覆盖率门禁、bundle 门禁均已接入。
 - W12/M88/M91：真实集群 kind E2E 三套全绿（.artifacts 已归档）；release-verify 本地校验与 fail-closed 签名门禁生效；前端虚拟滚动 23 files 130 tests。
+- M92：登录页运行产物已重建并部署，`/login` 返回 200；代码验证与已知缺口见 `docs/changes/2026-08-09-m92-interactive-login-visual.md`。
 - 环境：Docker daemon 29.6.2 + kind v0.30.0 + kubectl v1.34.0 就绪；`.env` 已生成（production、强随机密钥、AI/NOTIFICATION 关闭）；compose 后端 + 前端 + Postgres 已启动且 healthy。
 
 **真实集群证据**：W3（诊断）、M46 联邦 M48（fleet）、M53 全局搜索的 kind 真实集群 E2E 已产出 `.artifacts/diagnosis-e2e`、`fleet-e2e`、`search-e2e` 三套 JSON，并归档到 W12 change-record。后续 500 节点拓扑渲染等规模级验证见 P1 3.3 / P2-B。
@@ -68,6 +70,7 @@
 ### P1 — AIOps 差异化深耕（已闭环，续推即深化）
 
 - [x] 聚合治理态势（W4/M80）、端到端闭环（W5/M81）、黄金回归发现契约（W6/M82）、拓扑深化（W7/M83）。
+- [x] M92 登录页首屏视觉叙事：粒子网络 + 多集群拓扑 + 展示指标，在不改变认证契约的前提下提升产品识别度。
 - [ ] **W1 续深化候选**（以 A/B 优先级，每项带验收与证据）：
   - 3.1 诊断友好化：以"根因卡片 + 证据引用 + YouTube 风格回放"把 M81 闭环再包装成可交付的演示叙事。
   - 3.2 洞察可解释分层：在聚合态势页为每类分析器给出"规则 → 证据 → 建议"三层可下钻 UI。
@@ -96,15 +99,15 @@
 
 ---
 
-## 4. 建议的下一步顺序（本周每天最多一件事）
+## 4. 建议的下一步顺序（M93 → M97）
 
-1. `docker compose up -d --build` → health ready。
-2. 跑 3 个 kind E2E 脚本并归档 `.artifacts` 证据 + change-record。
-3. 完成 M88 可本地化部分（release 脚本 / 校验文档 / CI 门禁），组织授权缺口明确记录。
-4. 刷新文档（README / PROJECT_STATUS / change-record / CHANGELOG / tags）并提交 + 推送。
-5. （可选）P2 A/B 补齐覆盖率与性能基准。
+1. **M93 登录页质量收口**：展示数字接入可信数据或明确标记演示；补 reduced-motion、ResizeObserver、Page Visibility 和 Playwright Canvas 断言。
+2. **M94 诊断叙事**：根因卡片 + 证据时间线 + 可回放链路，目标是“10 秒看清根因”。
+3. **M95 洞察可解释分层**：规则 → 证据 → 建议三层下钻，打通 posture / diagnosis / inspection。
+4. **M96 规模与性能证据**：500 节点 / 50k Pod fixture、P95 API 与前端渲染预算入 CI。
+5. **M97 发布与供应链收尾**：正式 Release、SBOM 入库、签名/provenance 验证与离线安装包。
 
-> 依赖提示：kind E2E 与发布校验需要 Docker/kind 与组织授权；无授权时记录证据缺口而不是假装通过。
+> 详细范围、验收标准与顺序见 `docs/next-long-term-plan.md`；M89/M90 仍按组织授权独立推进。
 
 ---
 

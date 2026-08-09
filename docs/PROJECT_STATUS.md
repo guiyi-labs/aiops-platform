@@ -1,7 +1,7 @@
 ﻿# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-09 · 维护人：开发 Agent
-> 当前基线：`main` @ `c53bc06`（M1–M91 + W10–W12：真实集群 kind E2E 证据 + 发布签名门禁 fail-closed + 前端虚拟滚动，工作树干净）
+> 当前功能基线：`main` @ `b0287e1`（M1–M92 + W10–W12：真实集群 kind E2E、发布签名 fail-closed、虚拟滚动与交互式登录视觉系统）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,17 +12,17 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新提交 | `c53bc06` feat(m91): windowed virtual scroll for large workload tables |
-| 里程碑范围 | **M1 – M91 + W10–W12**（M80–M87 打磨期；W12 真实集群 E2E；M88 发布闭环本地化；M91 前端虚拟滚动） |
-| 远程同步 | 本地 `main` 与 `origin/main` 同步 0/0（`c53bc06` 已推送，tag `baseline-m91-20260809` 已推送） |
+| 最新功能基线 | `b0287e1` feat(m92): interactive login particle topology |
+| 里程碑范围 | **M1 – M92 + W10–W12**（M88 发布闭环本地化；M91 前端虚拟滚动；M92 登录视觉系统） |
+| 远程同步 | `origin/main` 当前为 `181da6f`；本地包含归档体系、M92 与本次基线文档，完成后预计 ahead 3；`baseline-m92-20260809` 已在本地创建，待统一推送 |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---
 
 ## 2. 里程碑与文档覆盖
 
-- **CHANGELOG.md**：覆盖 M1–M91 全部 `Added/Changed` 条目（Unreleased 含 W10–W12 / M88 / M91）。
-- **docs/changes/**：134 份变更记录。M21–M91 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
+- **CHANGELOG.md**：覆盖 M1–M92 全部 `Added/Changed` 条目（Unreleased 含 W10–W12 / M88 / M91 / M92）。
+- **docs/changes/**：137 份变更记录 + 1 份模板。M21–M92 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
 - **已知文档缺口（低风险）**：M1–M20 以主题文档形式归档（无独立 mXX 编号文件）；M61–M66/M74/M75 已补齐独立 change-record。
 
 ### 优化中心（M67–M78，纯只读分析器）
@@ -53,8 +53,9 @@
 | M88 | 发布闭环本地化：release-verify 脚本 + SHA256SUMS + cosign fail-closed 签名门禁 |
 | W12 | 真实集群 kind E2E 证据（诊断/联邦/全局搜索三套）+ 前端构建契约修复 |
 | M91 | 前端规模性能：useVirtualList 窗口化虚拟滚动 + 6 条单测 + sticky 表头 |
+| M92 | 登录页交互视觉：Canvas2D 粒子网络 + SVG 多集群拓扑 + 展示指标 + reduced-motion / 移动端降级 |
 
-> 待办：M89 生产身份 / M90 数据可靠性需组织授权（P3）；M91 聚合缓存与 500 节点渲染基准待真实集群证据。
+> 待办：M89 生产身份 / M90 数据可靠性需组织授权（P3）；M93 先收口登录页数据真实性与自动化回归，随后推进诊断叙事和规模性能。
 
 ---
 

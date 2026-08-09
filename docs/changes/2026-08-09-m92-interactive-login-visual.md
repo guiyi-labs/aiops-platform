@@ -32,6 +32,11 @@ M80/M87 已建立 Aurora 登录背景与统一动效层，但登录页仍以静�
 - `frontend/src/styles/base.css`：移动端通过语义类 `.login-visual` 隐藏视觉区，替代脆弱的
   `nth-child` 选择器。
 
+### 基线与计划同步
+
+- 更新 `README.md`、`docs/PROJECT_STATUS.md` 与 `docs/long-term-roadmap.md` 到 M92。
+- 重写 `docs/next-long-term-plan.md`，将下一阶段拆为 M93–M97，并为每个里程碑定义验收证据。
+
 ## Change Size
 
 - 4 个文件：`+631 / -7`，净增 624 行。

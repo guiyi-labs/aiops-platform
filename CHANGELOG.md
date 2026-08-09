@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — M94 Diagnosis Deep Links
+
+- 诊断详情抽屉新增“关联入口”：从诊断直达资源详情（Pod/Service/Node/Deployment/Ingress/PVC）、
+  工作负载与相关事件（/workloads 查询路由）、审计记录（security_auditor/system_admin）。
+- 纯只读导航，不新增写路径；HorizontalPodAutoscaler 等不支持类型仅提供工作负载入口。
+- Playwright 新增深链旅程（Desktop+Mobile 4/4），浏览器回归 50/50。
+- See [M94 deep links change record](docs/changes/2026-08-10-m94-diagnosis-deep-links.md).
+
 ### Added — M94 Diagnosis Action Area
 
 - 诊断详情新增类型化“行动区”：每条 recommendation 标记为只读建议（advisory）；

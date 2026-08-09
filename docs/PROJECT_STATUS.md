@@ -1,7 +1,7 @@
 ﻿# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-10 · 维护人：开发 Agent
-> 当前功能基线：M94 诊断叙事第二步（tag `baseline-m94b-action-area-20260810`；根因卡 + 证据时间线 + 类型化行动区）
+> 当前功能基线：M94 诊断叙事第三步（tag `baseline-m94c-deep-links-20260810`；根因卡 + 证据时间线 + 行动区 + 深链）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,8 +12,8 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新功能基线 | M94 diagnosis narrative（根因卡 + 证据时间线 + 行动区，见 `baseline-m94b-action-area-20260810`） |
-| 里程碑范围 | **M1 – M94（第二步）+ W10–W12**（M93-C 科技主题、M93-B2 登录性能预算、M94 诊断叙事与行动区） |
+| 最新功能基线 | M94 diagnosis narrative（根因卡 + 证据时间线 + 行动区 + 深链，见 `baseline-m94c-deep-links-20260810`） |
+| 里程碑范围 | **M1 – M94（第三步）+ W10–W12**（M93-C 科技主题、M93-B2 登录性能预算、M94 诊断叙事/行动区/深链） |
 | 远程同步 | M94 `main` + tag 已同步；CI `31332489433` 全绿（M94b 行动区） |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
@@ -21,8 +21,8 @@
 
 ## 2. 里程碑与文档覆盖
 
-- **CHANGELOG.md**：覆盖 M1–M94（第二步）全部 `Added/Changed/Fixed` 条目（Unreleased 含 W10–W12 / M88 / M91 / M92 / M93-A / M93-B1.1 / M93-C / M93-B2 / M94）。
-- **docs/changes/**：144 份变更记录 + 1 份模板。M21–M94（第二步）每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
+- **CHANGELOG.md**：覆盖 M1–M94（第三步）全部 `Added/Changed/Fixed` 条目（Unreleased 含 W10–W12 / M88 / M91 / M92 / M93-A / M93-B1.1 / M93-C / M93-B2 / M94）。
+- **docs/changes/**：145 份变更记录 + 1 份模板。M21–M94（第三步）每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
 - **已知文档缺口（低风险）**：M1–M20 以主题文档形式归档（无独立 mXX 编号文件）；M61–M66/M74/M75 已补齐独立 change-record。
 
 ### 优化中心（M67–M78，纯只读分析器）
@@ -60,8 +60,10 @@
 | M93-C | 科技主题控制台：登录与控制台视觉统一、侧栏持久化折叠、永久路由底板、无透明度整页转场；Playwright/axe 42/42 |
 | M93-B2 | 登录页性能预算：LoginView 专属体积统计、三模式采样（desktop/mobile/reduced-motion）9 visits 0 失败、版本化基线 JSON、CI 报告模式探针 |
 | M94（第一步） | 诊断叙事：根因卡 + 只读证据时间线（六类分类、SHA-256 完整性、缺失语义）、OpenAPI 增量 schema、前端时间线渲染、Playwright 44/44 |
+| M94（第二步） | 行动区：类型化只读建议/受控动作（dry-run+确认）、无权限与依赖降级提示、OpenAPI `DiagnosisAction`、Playwright 46/46 |
+| M94（第三步） | 深链：资源详情/工作负载与相关事件/审计入口，纯只读导航，Playwright 50/50 |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2 已关闭、M94 第二步（根因卡 + 证据时间线 + 行动区）已落地；继续 M94 后续增量（回放/深链）再推进 M95–M102；
+> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2 已关闭、M94 第三步（根因卡 + 证据时间线 + 行动区 + 深链）已落地；继续 M94 后续增量（回放模式）再推进 M95–M102；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。
 
 ---

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { CheckCircle2, FileSearch, MessageSquareText, RefreshCw, RotateCcw, Sparkles, Stethoscope, UserCheck, X, XCircle } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { Boxes, CheckCircle2, FileSearch, MessageSquareText, RefreshCw, RotateCcw, SearchCheck, Sparkles, Stethoscope, UserCheck, X, XCircle } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
 import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, executeRemediation, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, listDiagnoses, listDiagnosisExplanations, listRemediationPlans, previewRemediation, transitionDiagnosis } from '../api/diagnosis'
@@ -13,6 +14,7 @@ import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, D
 import type { UserProfile } from '../types/auth'
 
 const auth = useAuthStore()
+const router = useRouter()
 const clusters = ref<Cluster[]>([])
 const selectedClusterID = ref(0)
 const statusFilter = ref<DiagnosisStatus | ''>('')
@@ -129,6 +131,40 @@ function actionAreaHint(detail: DiagnosisRecord): { level: 'advisory' | 'unavail
   if (!canManage.value) return { level: 'permission', text: '受控动作需要 system_admin / operations_admin 权限。' }
   if (detail.status !== 'confirmed') return { level: 'dependency', text: '受控动作要求诊断处于 confirmed 状态，且集群 dry-run 可用。' }
   return { level: 'advisory', text: '' }
+}
+
+const workloadsKindMap: Record<string, string> = {
+  Pod: 'Pod',
+  Service: 'Service',
+  Node: 'Node',
+  Deployment: 'Deployment',
+  Ingress: 'Ingress',
+  PersistentVolumeClaim: 'PVC',
+  HorizontalPodAutoscaler: 'HPA',
+}
+
+const resourceDetailKinds = new Set(['Pod', 'Service', 'Node', 'Deployment', 'Ingress', 'PersistentVolumeClaim'])
+
+function workloadsHref(record: DiagnosisRecord): string {
+  const query = new URLSearchParams({
+    cluster: String(record.cluster_id),
+    kind: workloadsKindMap[record.resource.kind] ?? record.resource.kind,
+  })
+  if (record.resource.namespace) query.set('namespace', record.resource.namespace)
+  query.set('name', record.resource.name)
+  return `/workloads?${query.toString()}`
+}
+
+function resourceDetailHref(record: DiagnosisRecord): string | null {
+  if (!resourceDetailKinds.has(record.resource.kind)) return null
+  const ns = record.resource.kind === 'Node' ? '_' : (record.resource.namespace || '_')
+  return `/clusters/${record.cluster_id}/resources/${record.resource.kind}/${ns}/${record.resource.name}`
+}
+
+const canViewAudit = computed(() => auth.user?.roles.some((role) => role === 'security_auditor' || role === 'system_admin') ?? false)
+
+function openDeepLink(href: string): void {
+  void router.push(href)
 }
 
 function evidenceLabel(id: string): string {
@@ -311,6 +347,15 @@ onMounted(initialize)
           <span class="notice-badge">{{ actionAreaHint(detail).level }}</span>
           {{ actionAreaHint(detail).text }}
         </div>
+      </section>
+      <section class="deep-links" aria-label="关联入口">
+        <h3>关联入口</h3>
+        <div class="deep-link-row">
+          <button v-if="resourceDetailHref(detail)" type="button" class="secondary-button deep-link" @click="openDeepLink(resourceDetailHref(detail)!)"><FileSearch :size="14" />资源详情</button>
+          <button type="button" class="secondary-button deep-link" @click="openDeepLink(workloadsHref(detail))"><Boxes :size="14" />工作负载与相关事件</button>
+          <button v-if="canViewAudit" type="button" class="secondary-button deep-link" @click="openDeepLink('/audit-logs')"><SearchCheck :size="14" />审计记录</button>
+        </div>
+        <small class="deep-link-hint">从诊断出发直达资源、拓扑工作台、相关事件与审计入口。</small>
       </section>
       <section v-if="detail.timeline?.length" class="evidence-timeline">
         <h3>证据时间线 · {{ detail.timeline.length }}</h3>

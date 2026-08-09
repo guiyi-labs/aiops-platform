@@ -156,3 +156,32 @@ test('Diagnosis with controlled action surfaces the degraded dependency note', a
   await expect(note).toContainText('confirmed 状态')
   await expect(drawer.locator('.remediation-preview-form')).toHaveCount(0)
 })
+
+
+test('Diagnosis drawer deep links navigate to resource and audit targets', async ({ page }) => {
+  await page.goto('/diagnoses')
+  await page.locator('.diagnosis-history-row').first().click()
+  const drawer = page.locator('.diagnosis-drawer')
+  await expect(drawer).toBeVisible()
+
+  const deepLinks = drawer.locator('.deep-links')
+  await expect(deepLinks).toBeVisible()
+  // Node diagnosis → cluster-scoped resource detail path
+  const resourceButton = deepLinks.getByRole('button', { name: '资源详情' })
+  await expect(resourceButton).toBeVisible()
+  await resourceButton.click()
+  await expect(page).toHaveURL('/clusters/1/resources/Node/_/worker-1')
+})
+
+test('Diagnosis drawer offers workloads and audit deep links', async ({ page }) => {
+  await page.goto('/diagnoses')
+  await page.locator('.diagnosis-history-row').first().click()
+  const drawer = page.locator('.diagnosis-drawer')
+  await expect(drawer).toBeVisible()
+
+  const deepLinks = drawer.locator('.deep-links')
+  const workloadsButton = deepLinks.getByRole('button', { name: '工作负载与相关事件' })
+  await expect(workloadsButton).toBeVisible()
+  await workloadsButton.click()
+  await expect(page).toHaveURL(/\/workloads\?cluster=1&kind=Node&name=worker-1/)
+})

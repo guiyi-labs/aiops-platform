@@ -9,6 +9,19 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — 归档体系（强制所有修改留档）
+
+- 新增根目录 AGENTS.md：所有代码/文档改动必须先写 change-record 才能提交，附提交前归档完整性检查表。
+- 新增 docs/ARCHIVING.md：四层归档体系（change-record / CHANGELOG / ADR / baseline tag）+ 提交与标签流程。
+- 新增 docs/changes/TEMPLATE.md：change-record 标准模板。
+- 还原 3 处未归档、来源不明的 UI 动效回退改动至已交付基线。
+- See [archive change record](docs/changes/2026-08-09-archive-system.md).
+
+### Fixed — 远端 CI：同步 main 修复达 7 条 dependabot PR 的 Typecheck 失败
+
+- 根因是 PR 基于旧 base，缺 W12 类型契约修复；合并 main 后全部转绿、mergeStateStatus=CLEAN，未改依赖版本。
+- See [CI recovery change record](docs/changes/2026-08-09-ci-dependabot-recovery.md).
+
 ### Added — M86 W10 Contract & API Governance
 
 - OpenAPI 契约修复（重复 schema、缺失 schemas 与参数）+ pnpm typegen + CI sync gate；

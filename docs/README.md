@@ -5,6 +5,8 @@
 | 目录或文件 | 内容 |
 |---|---|
 | `polish-plan.md` | **当前打磨入口**：M78 之后向业界头部水准靠拢的 P0-P3 路线、差距分析与验收标准 |
+| `ARCHIVING.md` | **归档手册**：所有修改必须遵守的四层归档体系、change-record 模板、提交/标签流程与完整性检查表（受根目录 AGENTS.md 强制约束） |
+| `changes/TEMPLATE.md` | change-record 标准模板：日期、状态、范围、Context、What Changed、Verification、Risks |
 | `kubesphere-optimization-plan.md` | M32 后以 KubeSphere 能力为底座、融合 AIOps 信号/诊断/AI/安全闭环的 M33-M45 路线和验收标准 |
 | `next-development-plan.md` | 已归档的 M26-M32 开发执行合同，不再作为当前开发入口 |
 | `development.md` | 本地开发、测试和运行方法 |

@@ -57,7 +57,8 @@ M94 第一步（根因卡 + 证据时间线）已交付。本步完成 M94 范�
 - `pnpm typegen`：通过（DiagnosisAction schema 增量）。
 - `pnpm typecheck`、`pnpm lint`：通过。
 - `npx playwright test`：46/46 通过（原 44/44 + 新增 2/2 行动区旅程，Desktop+Mobile）。
-- `git diff --check`：通过。
+- git diff --check：通过。
+- 远端 CI：run 31332489433 success（head afecc146c84cb00db1850c81a22a52614f79e17）；main + baseline tag 已同步。
 
 ## Risks / Notes
 

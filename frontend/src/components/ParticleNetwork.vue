@@ -1,277 +1,353 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-/**
- * ParticleNetwork — interactive Canvas2D particle field for the login backdrop.
- *
- * Particles drift freely; nearby pairs are connected with alpha-faded lines
- * to form a living mesh. The cursor acts as a soft gravity well that
- * gently attracts particles within a radius, then releases them.
- *
- * Respects prefers-reduced-motion by rendering a single static frame.
- */
+type ParticlePhase = 'idle' | 'username' | 'password' | 'submitting' | 'success' | 'error'
+
+const props = withDefaults(defineProps<{ phase?: ParticlePhase }>(), {
+  phase: 'idle',
+})
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
-let ctx: CanvasRenderingContext2D | null = null
-let raf = 0
-let running = true
-let dpr = 1
+const isRunning = ref(false)
+const particleCount = ref(0)
+const reducedMotion = ref(false)
+
+let context: CanvasRenderingContext2D | null = null
+let animationFrame = 0
+let resizeObserver: ResizeObserver | null = null
+let motionQuery: MediaQueryList | null = null
+let parentElement: HTMLElement | null = null
+let pageVisible = true
+let devicePixelRatio = 1
 let width = 0
 let height = 0
 
 interface Particle {
   x: number
   y: number
-  vx: number
-  vy: number
-  r: number
-  hue: number
+  velocityX: number
+  velocityY: number
+  radius: number
+  color: number
+}
+
+interface ParticleProfile {
+  density: number
+  maximum: number
+  minimum: number
+  pixelRatioCap: number
 }
 
 const particles: Particle[] = []
-let mouse = { x: -9999, y: -9999, active: false }
+const pointer = { x: -9999, y: -9999, active: false }
 
 const CONFIG = {
-  density: 11000,        // 1 particle per N px² of canvas area
-  maxParticles: 90,
-  minParticles: 28,
-  speed: 0.28,           // base velocity
-  linkRadius: 132,       // distance for line connections
-  mouseRadius: 180,      // cursor attraction radius
-  mouseForce: 0.045,     // attraction strength
+  speed: 0.28,
+  linkRadius: 132,
+  pointerRadius: 180,
+  pointerForce: 0.045,
   colors: [
-    { r: 94, g: 234, b: 212 },   // teal
-    { r: 129, g: 140, b: 248 },  // indigo
-    { r: 52, g: 211, b: 153 },   // emerald
-    { r: 165, g: 180, b: 252 },  // periwinkle
+    { red: 94, green: 234, blue: 212 },
+    { red: 129, green: 140, blue: 248 },
+    { red: 52, green: 211, blue: 153 },
+    { red: 245, green: 158, blue: 11 },
   ],
 }
 
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+function particleProfile(): ParticleProfile {
+  if (width <= 720) {
+    return { density: 15000, maximum: 48, minimum: 18, pixelRatioCap: 1.5 }
+  }
+  return { density: 11000, maximum: 90, minimum: 28, pixelRatioCap: 2 }
 }
 
 function pickColor() {
   return CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)]
 }
 
-function spawn(x?: number, y?: number): Particle {
+function spawnParticle(x?: number, y?: number): Particle {
   const color = pickColor()
   const angle = Math.random() * Math.PI * 2
   const speed = CONFIG.speed * (0.5 + Math.random())
   return {
     x: x ?? Math.random() * width,
     y: y ?? Math.random() * height,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
-    r: 1.2 + Math.random() * 1.8,
-    hue: (color.r << 16) | (color.g << 8) | color.b,
+    velocityX: Math.cos(angle) * speed,
+    velocityY: Math.sin(angle) * speed,
+    radius: 1.2 + Math.random() * 1.8,
+    color: (color.red << 16) | (color.green << 8) | color.blue,
   }
 }
 
-function colorStr(p: Particle, alpha: number): string {
-  const r = (p.hue >> 16) & 0xff
-  const g = (p.hue >> 8) & 0xff
-  const b = p.hue & 0xff
-  return `rgba(${r},${g},${b},${alpha})`
+function colorString(particle: Particle, alpha: number) {
+  const red = (particle.color >> 16) & 0xff
+  const green = (particle.color >> 8) & 0xff
+  const blue = particle.color & 0xff
+  return `rgba(${red},${green},${blue},${alpha})`
 }
 
-function initParticles() {
-  const count = Math.min(CONFIG.maxParticles, Math.max(CONFIG.minParticles, Math.floor((width * height) / CONFIG.density)))
+function initializeParticles() {
+  const profile = particleProfile()
+  const count = Math.min(profile.maximum, Math.max(profile.minimum, Math.floor((width * height) / profile.density)))
   particles.length = 0
-  for (let i = 0; i < count; i++) particles.push(spawn())
+  for (let index = 0; index < count; index += 1) particles.push(spawnParticle())
+  particleCount.value = particles.length
 }
 
-function resize() {
+function resizeCanvas() {
   const canvas = canvasRef.value
-  if (!canvas || !ctx) return
-  const rect = canvas.parentElement!.getBoundingClientRect()
-  dpr = Math.min(window.devicePixelRatio || 1, 2)
-  width = rect.width
-  height = rect.height
-  canvas.width = Math.floor(width * dpr)
-  canvas.height = Math.floor(height * dpr)
+  if (!canvas || !context || !parentElement) return
+  const bounds = parentElement.getBoundingClientRect()
+  if (bounds.width <= 0 || bounds.height <= 0) return
+
+  width = bounds.width
+  height = bounds.height
+  devicePixelRatio = Math.min(window.devicePixelRatio || 1, particleProfile().pixelRatioCap)
+  canvas.width = Math.floor(width * devicePixelRatio)
+  canvas.height = Math.floor(height * devicePixelRatio)
   canvas.style.width = `${width}px`
   canvas.style.height = `${height}px`
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-  initParticles()
+  context.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0)
+  initializeParticles()
+  draw()
 }
 
-function update() {
-  for (const p of particles) {
-    p.x += p.vx
-    p.y += p.vy
+function phaseMotionScale() {
+  if (props.phase === 'submitting') return 1.9
+  if (props.phase === 'success') return 0.72
+  if (props.phase === 'username' || props.phase === 'password') return 1.12
+  if (props.phase === 'error') return 0.55
+  return 1
+}
 
-    // Mouse attraction
-    if (mouse.active) {
-      const dx = mouse.x - p.x
-      const dy = mouse.y - p.y
-      const dist = Math.hypot(dx, dy)
-      if (dist < CONFIG.mouseRadius && dist > 0.1) {
-        const force = (1 - dist / CONFIG.mouseRadius) * CONFIG.mouseForce
-        p.vx += (dx / dist) * force
-        p.vy += (dy / dist) * force
+function updateParticles() {
+  const motionScale = phaseMotionScale()
+  const centerX = width / 2
+  const centerY = height / 2
+
+  for (const particle of particles) {
+    particle.x += particle.velocityX * motionScale
+    particle.y += particle.velocityY * motionScale
+
+    if (props.phase === 'success') {
+      const centerDistance = Math.hypot(centerX - particle.x, centerY - particle.y) || 1
+      particle.velocityX += ((centerX - particle.x) / centerDistance) * 0.0018
+      particle.velocityY += ((centerY - particle.y) / centerDistance) * 0.0018
+    } else if (pointer.active) {
+      const pointerDeltaX = pointer.x - particle.x
+      const pointerDeltaY = pointer.y - particle.y
+      const pointerDistance = Math.hypot(pointerDeltaX, pointerDeltaY)
+      if (pointerDistance < CONFIG.pointerRadius && pointerDistance > 0.1) {
+        const force = (1 - pointerDistance / CONFIG.pointerRadius) * CONFIG.pointerForce
+        particle.velocityX += (pointerDeltaX / pointerDistance) * force
+        particle.velocityY += (pointerDeltaY / pointerDistance) * force
       }
     }
 
-    // Friction
-    p.vx *= 0.985
-    p.vy *= 0.985
+    const friction = props.phase === 'error' ? 0.96 : 0.985
+    particle.velocityX *= friction
+    particle.velocityY *= friction
 
-    // Minimum speed to prevent freezing
-    const sp = Math.hypot(p.vx, p.vy)
-    if (sp < CONFIG.speed * 0.35) {
-      const angle = Math.atan2(p.vy, p.vx) || Math.random() * Math.PI * 2
-      p.vx = Math.cos(angle) * CONFIG.speed * 0.5
-      p.vy = Math.sin(angle) * CONFIG.speed * 0.5
+    const speed = Math.hypot(particle.velocityX, particle.velocityY)
+    if (speed < CONFIG.speed * 0.35) {
+      const angle = Math.atan2(particle.velocityY, particle.velocityX) || Math.random() * Math.PI * 2
+      particle.velocityX = Math.cos(angle) * CONFIG.speed * 0.5
+      particle.velocityY = Math.sin(angle) * CONFIG.speed * 0.5
     }
 
-    // Wrap edges
-    if (p.x < -12) p.x = width + 12
-    else if (p.x > width + 12) p.x = -12
-    if (p.y < -12) p.y = height + 12
-    else if (p.y > height + 12) p.y = -12
+    if (particle.x < -12) particle.x = width + 12
+    else if (particle.x > width + 12) particle.x = -12
+    if (particle.y < -12) particle.y = height + 12
+    else if (particle.y > height + 12) particle.y = -12
   }
+}
+
+function linkColor(alpha: number) {
+  if (props.phase === 'error') return `rgba(245, 158, 11, ${alpha})`
+  if (props.phase === 'password') return `rgba(129, 140, 248, ${alpha})`
+  return `rgba(94, 234, 212, ${alpha})`
 }
 
 function draw() {
-  if (!ctx) return
-  ctx.clearRect(0, 0, width, height)
+  if (!context) return
+  context.clearRect(0, 0, width, height)
 
-  // Draw connection lines
-  const lr = CONFIG.linkRadius
-  const lr2 = lr * lr
-  for (let i = 0; i < particles.length; i++) {
-    for (let j = i + 1; j < particles.length; j++) {
-      const dx = particles[i].x - particles[j].x
-      const dy = particles[i].y - particles[j].y
-      const dist2 = dx * dx + dy * dy
-      if (dist2 < lr2) {
-        const dist = Math.sqrt(dist2)
-        const alpha = (1 - dist / lr) * 0.22
-        ctx.strokeStyle = `rgba(129, 140, 248, ${alpha})`
-        ctx.lineWidth = 0.7
-        ctx.beginPath()
-        ctx.moveTo(particles[i].x, particles[i].y)
-        ctx.lineTo(particles[j].x, particles[j].y)
-        ctx.stroke()
-      }
+  const linkRadiusSquared = CONFIG.linkRadius * CONFIG.linkRadius
+  const phaseAlpha = props.phase === 'submitting' || props.phase === 'success' ? 0.34 : 0.22
+  for (let firstIndex = 0; firstIndex < particles.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < particles.length; secondIndex += 1) {
+      const firstParticle = particles[firstIndex]
+      const secondParticle = particles[secondIndex]
+      const deltaX = firstParticle.x - secondParticle.x
+      const deltaY = firstParticle.y - secondParticle.y
+      const distanceSquared = deltaX * deltaX + deltaY * deltaY
+      if (distanceSquared >= linkRadiusSquared) continue
+
+      const distance = Math.sqrt(distanceSquared)
+      const alpha = (1 - distance / CONFIG.linkRadius) * phaseAlpha
+      context.strokeStyle = linkColor(alpha)
+      context.lineWidth = props.phase === 'submitting' ? 0.9 : 0.7
+      context.beginPath()
+      context.moveTo(firstParticle.x, firstParticle.y)
+      context.lineTo(secondParticle.x, secondParticle.y)
+      context.stroke()
     }
   }
 
-  // Mouse cursor links
-  if (mouse.active) {
-    const mr = CONFIG.mouseRadius
-    for (const p of particles) {
-      const dx = p.x - mouse.x
-      const dy = p.y - mouse.y
-      const dist = Math.hypot(dx, dy)
-      if (dist < mr) {
-        const alpha = (1 - dist / mr) * 0.4
-        ctx.strokeStyle = `rgba(94, 234, 212, ${alpha})`
-        ctx.lineWidth = 0.8
-        ctx.beginPath()
-        ctx.moveTo(p.x, p.y)
-        ctx.lineTo(mouse.x, mouse.y)
-        ctx.stroke()
-      }
+  if (pointer.active && props.phase !== 'success') {
+    for (const particle of particles) {
+      const distance = Math.hypot(particle.x - pointer.x, particle.y - pointer.y)
+      if (distance >= CONFIG.pointerRadius) continue
+      const alpha = (1 - distance / CONFIG.pointerRadius) * 0.4
+      context.strokeStyle = `rgba(94, 234, 212, ${alpha})`
+      context.lineWidth = 0.8
+      context.beginPath()
+      context.moveTo(particle.x, particle.y)
+      context.lineTo(pointer.x, pointer.y)
+      context.stroke()
     }
   }
 
-  // Draw particles
-  for (const p of particles) {
-    // Glow
-    const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4)
-    glow.addColorStop(0, colorStr(p, 0.55))
-    glow.addColorStop(1, colorStr(p, 0))
-    ctx.fillStyle = glow
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2)
-    ctx.fill()
+  for (const particle of particles) {
+    const glow = context.createRadialGradient(
+      particle.x,
+      particle.y,
+      0,
+      particle.x,
+      particle.y,
+      particle.radius * 4,
+    )
+    glow.addColorStop(0, colorString(particle, 0.55))
+    glow.addColorStop(1, colorString(particle, 0))
+    context.fillStyle = glow
+    context.beginPath()
+    context.arc(particle.x, particle.y, particle.radius * 4, 0, Math.PI * 2)
+    context.fill()
 
-    // Core dot
-    ctx.fillStyle = colorStr(p, 0.85)
-    ctx.beginPath()
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2)
-    ctx.fill()
+    context.fillStyle = colorString(particle, 0.85)
+    context.beginPath()
+    context.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2)
+    context.fill()
   }
 }
 
-function loop() {
-  if (!running) return
-  update()
+function animationLoop() {
+  if (!isRunning.value) return
+  updateParticles()
   draw()
-  raf = requestAnimationFrame(loop)
+  animationFrame = requestAnimationFrame(animationLoop)
 }
 
-function onResize() {
-  resize()
-  if (prefersReducedMotion()) draw()
+function stopAnimation() {
+  isRunning.value = false
+  if (animationFrame) cancelAnimationFrame(animationFrame)
+  animationFrame = 0
 }
 
-function onMouseMove(e: MouseEvent) {
+function startAnimation() {
+  if (isRunning.value || reducedMotion.value || !pageVisible || !context) return
+  isRunning.value = true
+  animationFrame = requestAnimationFrame(animationLoop)
+}
+
+function synchronizeAnimation() {
+  if (reducedMotion.value || !pageVisible) {
+    stopAnimation()
+    draw()
+    return
+  }
+  startAnimation()
+}
+
+function handlePointerMove(event: MouseEvent) {
   const canvas = canvasRef.value
   if (!canvas) return
-  const rect = canvas.getBoundingClientRect()
-  mouse.x = e.clientX - rect.left
-  mouse.y = e.clientY - rect.top
-  mouse.active = true
+  const bounds = canvas.getBoundingClientRect()
+  pointer.x = event.clientX - bounds.left
+  pointer.y = event.clientY - bounds.top
+  pointer.active = true
 }
 
-function onMouseLeave() {
-  mouse.active = false
-  mouse.x = -9999
-  mouse.y = -9999
+function handlePointerLeave() {
+  pointer.active = false
+  pointer.x = -9999
+  pointer.y = -9999
 }
 
-function onTouchMove(e: TouchEvent) {
+function handleTouchMove(event: TouchEvent) {
   const canvas = canvasRef.value
-  if (!canvas || e.touches.length === 0) return
-  const rect = canvas.getBoundingClientRect()
-  mouse.x = e.touches[0].clientX - rect.left
-  mouse.y = e.touches[0].clientY - rect.top
-  mouse.active = true
+  const touch = event.touches[0]
+  if (!canvas || !touch) return
+  const bounds = canvas.getBoundingClientRect()
+  pointer.x = touch.clientX - bounds.left
+  pointer.y = touch.clientY - bounds.top
+  pointer.active = true
 }
+
+function handleVisibilityChange() {
+  pageVisible = !document.hidden
+  synchronizeAnimation()
+}
+
+function handleMotionPreference(event: MediaQueryListEvent) {
+  reducedMotion.value = event.matches
+  handlePointerLeave()
+  synchronizeAnimation()
+}
+
+watch(
+  () => props.phase,
+  () => {
+    if (reducedMotion.value) draw()
+  },
+)
 
 onMounted(() => {
   const canvas = canvasRef.value
   if (!canvas) return
-  ctx = canvas.getContext('2d', { alpha: true })
-  if (!ctx) return
-  resize()
+  context = canvas.getContext('2d', { alpha: true })
+  parentElement = canvas.parentElement
+  if (!context || !parentElement) return
 
-  const parent = canvas.parentElement!
-  parent.addEventListener('mousemove', onMouseMove)
-  parent.addEventListener('mouseleave', onMouseLeave)
-  parent.addEventListener('touchmove', onTouchMove, { passive: true })
-  parent.addEventListener('touchend', onMouseLeave)
-  window.addEventListener('resize', onResize)
+  pageVisible = !document.hidden
+  motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  reducedMotion.value = motionQuery.matches
+  motionQuery.addEventListener('change', handleMotionPreference)
 
-  if (prefersReducedMotion()) {
-    draw()
-  } else {
-    running = true
-    loop()
-  }
+  parentElement.addEventListener('mousemove', handlePointerMove)
+  parentElement.addEventListener('mouseleave', handlePointerLeave)
+  parentElement.addEventListener('touchmove', handleTouchMove, { passive: true })
+  parentElement.addEventListener('touchend', handlePointerLeave)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+
+  resizeObserver = new ResizeObserver(resizeCanvas)
+  resizeObserver.observe(parentElement)
+  resizeCanvas()
+  synchronizeAnimation()
 })
 
 onBeforeUnmount(() => {
-  running = false
-  if (raf) cancelAnimationFrame(raf)
-  const canvas = canvasRef.value
-  if (canvas) {
-    const parent = canvas.parentElement
-    parent?.removeEventListener('mousemove', onMouseMove)
-    parent?.removeEventListener('mouseleave', onMouseLeave)
-    parent?.removeEventListener('touchmove', onTouchMove)
-    parent?.removeEventListener('touchend', onMouseLeave)
-  }
-  window.removeEventListener('resize', onResize)
+  stopAnimation()
+  resizeObserver?.disconnect()
+  motionQuery?.removeEventListener('change', handleMotionPreference)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  parentElement?.removeEventListener('mousemove', handlePointerMove)
+  parentElement?.removeEventListener('mouseleave', handlePointerLeave)
+  parentElement?.removeEventListener('touchmove', handleTouchMove)
+  parentElement?.removeEventListener('touchend', handlePointerLeave)
 })
 </script>
 
 <template>
-  <canvas ref="canvasRef" class="particle-network" aria-hidden="true"></canvas>
+  <canvas
+    ref="canvasRef"
+    class="particle-network"
+    aria-hidden="true"
+    :data-particles="particleCount"
+    :data-phase="phase"
+    :data-reduced-motion="reducedMotion ? 'true' : 'false'"
+    :data-running="isRunning ? 'true' : 'false'"
+  ></canvas>
 </template>
 
 <style scoped>

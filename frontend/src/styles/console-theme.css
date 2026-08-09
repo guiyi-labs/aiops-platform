@@ -845,7 +845,7 @@ tbody tr {
  * through the global reset above.
  * ============================================================ */
 
-/* ---- Aurora login backdrop (animated gradient orbs) ---- */
+/* ---- Structured login backdrop ---- */
 .login-page {
   position: relative;
   overflow: hidden;
@@ -854,14 +854,14 @@ tbody tr {
 .login-intro::before {
   content: '';
   position: absolute;
-  inset: -20%;
+  inset: 0;
   z-index: 0;
   background:
-    radial-gradient(42% 42% at 22% 18%, rgba(94, 147, 255, 0.28) 0%, transparent 70%),
-    radial-gradient(36% 36% at 78% 30%, rgba(56, 130, 246, 0.18) 0%, transparent 70%),
-    radial-gradient(44% 44% at 60% 82%, rgba(139, 92, 246, 0.16) 0%, transparent 70%);
-  filter: blur(6px);
-  animation: aurora-drift 18s ease-in-out infinite alternate;
+    repeating-linear-gradient(118deg, transparent 0 78px, rgba(148, 163, 184, 0.035) 78px 79px),
+    linear-gradient(112deg, rgba(45, 212, 191, 0.14) 0%, transparent 38%),
+    linear-gradient(180deg, rgba(129, 140, 248, 0.08) 0%, transparent 52%);
+  transform-origin: center;
+  animation: control-plane-drift 18s ease-in-out infinite alternate;
 }
 
 /* Particle canvas sits above aurora but below content */
@@ -874,10 +874,9 @@ tbody tr {
   z-index: 2;
 }
 
-@keyframes aurora-drift {
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(-3%, 2%, 0) scale(1.05); }
-  100% { transform: translate3d(2%, -3%, 0) scale(1.02); }
+@keyframes control-plane-drift {
+  0%   { transform: translate3d(-1%, 0, 0); opacity: 0.72; }
+  100% { transform: translate3d(1%, -1%, 0); opacity: 1; }
 }
 
 /* ---- Button sheen sweep ---- */
@@ -998,7 +997,7 @@ tbody tr {
 
 /* ============================================================
  * Login page visual upgrade — animated fleet topology (2026-08-09)
- * Aurora backdrop + live mesh SVG + count-up stats.
+ * Structured backdrop + live mesh SVG + product capability strip.
  * All CSS animations respect the global prefers-reduced-motion reset.
  * ============================================================ */
 
@@ -1099,15 +1098,18 @@ tbody tr {
 
 .topo-hub .hub-dot { fill: #ffffff; }
 
-/* Perimeter nodes — gentle breathe, tone-aware halos */
-.topo-node {
+/* Perimeter nodes — animate child circles so SVG translate coordinates remain intact. */
+.topo-node .node-core,
+.topo-node .node-halo {
   transform-box: fill-box;
   transform-origin: center;
   animation: node-breathe 3.4s ease-in-out infinite;
 }
 
-.topo-node.tone-b { animation-duration: 3.9s; animation-delay: 0.35s; }
-.topo-node.tone-c { animation-duration: 2.7s; animation-delay: 0.7s; }
+.topo-node.tone-b .node-core,
+.topo-node.tone-b .node-halo { animation-duration: 3.9s; animation-delay: 0.35s; }
+.topo-node.tone-c .node-core,
+.topo-node.tone-c .node-halo { animation-duration: 2.7s; animation-delay: 0.7s; }
 
 @keyframes node-breathe {
   0%, 100% { transform: scale(1); opacity: 0.8; }
@@ -1216,4 +1218,436 @@ tbody tr {
   box-shadow:
     var(--shadow-lg),
     0 18px 44px -18px rgba(50, 108, 229, 0.28);
+}
+
+/* ============================================================
+ * M93-B1 — control-plane authentication motion
+ * ============================================================ */
+
+.login-page {
+  isolation: isolate;
+}
+
+.login-intro {
+  position: relative;
+  background:
+    linear-gradient(145deg, rgba(23, 40, 38, 0.96) 0%, rgba(17, 28, 27, 0.99) 58%, #121b1a 100%);
+}
+
+.login-intro::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+  background-size: 72px 72px;
+  pointer-events: none;
+}
+
+.login-brand,
+.login-eyebrow,
+.login-capability strong {
+  letter-spacing: 0;
+}
+
+.login-intro h1 {
+  font-size: 48px;
+  letter-spacing: 0;
+}
+
+.login-topology {
+  transition: filter 300ms ease, transform 500ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.topology-mesh {
+  animation: topology-awaken 760ms ease 260ms both;
+}
+
+.topology-links {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: topology-awaken 620ms ease 420ms both;
+}
+
+@keyframes topology-awaken {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.topology-links .flow,
+.topology-mesh line,
+.topo-node .node-core,
+.topo-node .node-halo,
+.topo-hub .hub-ring,
+.topo-hub .hub-core {
+  transition: stroke 240ms ease, fill 240ms ease, filter 240ms ease, opacity 240ms ease;
+}
+
+.login-capability {
+  min-width: 0;
+  border-radius: 8px;
+  transition:
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 220ms ease,
+    background-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.login-capability:hover,
+.login-capability.is-active {
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.075);
+  border-color: rgba(94, 234, 212, 0.3);
+  box-shadow: 0 14px 30px -22px rgba(45, 212, 191, 0.8);
+}
+
+.login-capability strong {
+  overflow-wrap: anywhere;
+  font-size: 17px;
+}
+
+.login-visual[data-capability='governance'] .node-governance .node-core,
+.login-visual[data-capability='diagnosis'] .node-diagnosis .node-core,
+.login-visual[data-capability='audit'] .node-audit .node-core {
+  filter: brightness(1.28) drop-shadow(0 0 8px rgba(94, 234, 212, 0.72));
+}
+
+.login-form-panel {
+  position: relative;
+  background:
+    linear-gradient(90deg, rgba(217, 226, 223, 0.22) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(217, 226, 223, 0.18) 1px, transparent 1px),
+    #f7f9f8;
+  background-size: 56px 56px;
+}
+
+.login-form-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(122deg, transparent 0 46%, rgba(43, 104, 94, 0.035) 46% 46.4%, transparent 46.4% 100%);
+  pointer-events: none;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: 8px;
+  transition:
+    border-color 240ms ease,
+    box-shadow 300ms ease,
+    transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-card-rail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  overflow: hidden;
+  background: #dfe7e4;
+}
+
+.login-card-rail i {
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: #2f786b;
+  transform: translateX(-110%);
+  transition: background-color 220ms ease;
+}
+
+.login-field {
+  position: relative;
+  display: flex;
+  height: 46px;
+  margin-bottom: 18px;
+  align-items: center;
+  color: #71807a;
+  background: #ffffff;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  box-shadow: var(--shadow-inset);
+  transition: border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+}
+
+.login-field.is-focused {
+  color: #286a60;
+  border-color: #2f786b;
+  box-shadow: 0 0 0 3px rgba(47, 120, 107, 0.14), 0 8px 18px -16px rgba(47, 120, 107, 0.9);
+}
+
+.login-field > svg:first-child {
+  position: absolute;
+  left: 13px;
+  pointer-events: none;
+}
+
+.login-field input,
+.login-field input:focus {
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  padding: 0 44px 0 40px;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.password-visibility {
+  position: absolute;
+  right: 5px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  color: #66756f;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+}
+
+.password-visibility:hover {
+  color: #286a60;
+  background: #eef5f3;
+}
+
+.login-submit {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  isolation: isolate;
+  letter-spacing: 0;
+}
+
+.login-submit > svg,
+.login-submit-label {
+  position: relative;
+  z-index: 2;
+}
+
+.login-submit-label {
+  min-width: 132px;
+  text-align: center;
+}
+
+.login-submit-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: 0;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.login-submit-spinner {
+  animation: login-spinner 720ms linear infinite;
+}
+
+@keyframes login-spinner {
+  to { transform: rotate(360deg); }
+}
+
+.login-security-status {
+  display: flex;
+  margin: 16px 0 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #66756f;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.login-security-status svg {
+  color: #2f786b;
+}
+
+.login-error {
+  animation: login-error-in 260ms ease both;
+}
+
+@keyframes login-error-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.login-page--username .topology-links .flow-a,
+.login-page--username .topology-links .flow-c,
+.login-page--username .topology-links .flow-e {
+  stroke: rgba(52, 211, 153, 0.9);
+}
+
+.login-page--password .topology-links .flow-b,
+.login-page--password .topology-links .flow-d,
+.login-page--password .topology-links .flow-f {
+  stroke: rgba(129, 140, 248, 0.92);
+}
+
+.login-page--username .topo-hub .hub-ring,
+.login-page--password .topo-hub .hub-ring {
+  stroke-width: 2.2;
+}
+
+.login-page--submitting .login-card {
+  border-color: rgba(47, 120, 107, 0.5);
+  box-shadow: var(--shadow-lg), 0 20px 44px -24px rgba(47, 120, 107, 0.85);
+  transform: translateY(-2px);
+}
+
+.login-page--submitting .login-card-rail i {
+  animation: auth-rail 1.1s ease-in-out infinite;
+}
+
+.login-page--submitting .login-submit-progress {
+  animation: auth-progress 1.15s ease-in-out infinite;
+}
+
+.login-page--submitting .login-submit::after {
+  display: none;
+}
+
+.login-page--submitting .topology-links .flow {
+  stroke: rgba(94, 234, 212, 0.9);
+  stroke-width: 2;
+  animation-duration: 780ms;
+}
+
+.login-page--submitting .topo-hub .hub-ring {
+  animation: hub-authenticate 1.1s linear infinite;
+}
+
+@keyframes auth-rail {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(330%); }
+}
+
+@keyframes auth-progress {
+  0% { width: 0; opacity: 0.2; }
+  55% { width: 72%; opacity: 0.7; }
+  100% { width: 100%; opacity: 0.1; }
+}
+
+@keyframes hub-authenticate {
+  to { stroke-dashoffset: -22; }
+}
+
+.login-page--success .login-card {
+  border-color: rgba(22, 101, 52, 0.42);
+  box-shadow: var(--shadow-lg), 0 20px 44px -24px rgba(22, 101, 52, 0.7);
+  transform: translateY(-2px) scale(0.995);
+}
+
+.login-page--success .login-card-rail i {
+  width: 100%;
+  background: #16825d;
+  transform: translateX(0);
+}
+
+.login-page--success .login-submit {
+  background: #16825d;
+}
+
+.login-page--success .topology-links .flow {
+  stroke: rgba(52, 211, 153, 0.95);
+  stroke-width: 2.1;
+  animation-duration: 620ms;
+}
+
+.login-page--success .topo-hub .hub-ring,
+.login-page--success .topo-hub .hub-core,
+.login-page--success .topo-hub .hub-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hub-confirm 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes hub-confirm {
+  0% { transform: scale(0.92); }
+  52% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+.login-page--error .login-card {
+  border-color: rgba(185, 28, 28, 0.38);
+  animation: login-error-glow 420ms ease both;
+}
+
+.login-page--error .login-card-rail i {
+  width: 100%;
+  background: #b91c1c;
+  transform: translateX(0);
+}
+
+.login-page--error .topology-links .flow {
+  stroke: rgba(245, 158, 11, 0.72);
+  animation-duration: 4s;
+}
+
+@keyframes login-error-glow {
+  0%, 100% { box-shadow: var(--shadow-lg); }
+  50% { box-shadow: var(--shadow-lg), 0 16px 38px -20px rgba(185, 28, 28, 0.58); }
+}
+
+@media (max-width: 1080px) {
+  .login-intro h1 { font-size: 40px; }
+  .login-capability { padding: 10px; }
+  .login-capability strong { font-size: 15px; }
+}
+
+@media (max-width: 720px) {
+  .login-page {
+    grid-template-rows: auto auto;
+    align-content: start;
+    min-height: 100vh;
+    background: #f7f9f8;
+  }
+
+  .login-intro {
+    height: 230px;
+    min-height: 230px;
+    max-height: 230px;
+    padding: 24px 22px 42px;
+    justify-content: flex-start;
+    gap: 24px;
+  }
+
+  .login-copy {
+    margin-top: auto;
+  }
+
+  .login-eyebrow {
+    margin-bottom: 10px;
+    font-size: 10px;
+  }
+
+  .login-intro h1 {
+    font-size: 29px;
+    line-height: 1.2;
+  }
+
+  .login-description {
+    display: none;
+  }
+
+  .login-form-panel {
+    z-index: 3;
+    min-height: auto;
+    margin-top: -22px;
+    padding: 0 16px 24px;
+    place-items: start center;
+    background: #f7f9f8;
+  }
+
+  .login-card {
+    width: 100%;
+    padding: 26px 22px 24px;
+  }
 }

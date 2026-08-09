@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed — M93-B1 Control-Plane Login Motion
+
+- 登录页新增用户名焦点、密码焦点、认证中、成功与失败五种状态驱动的拓扑/表单联动动画。
+- ParticleNetwork 接入 ResizeObserver、Page Visibility、动态 reduced-motion 与移动端粒子/DPR 降级。
+- 修复 SVG 节点呼吸动画覆盖 translate 坐标导致外围节点叠在左上角的问题；补充密码显隐和成功转场。
+- Playwright 新增 Canvas 非空像素、动态 reduced-motion、隐藏暂停、容器 resize 与认证成功转场回归。
+- See [M93-B1 change record](docs/changes/2026-08-09-m93b1-control-plane-login-motion.md).
+
 ### Fixed — M93-A Login Data Truth & Deterministic E2E
 
 - 移除登录页未经证实的 12 / 186 / 99 “实时”指标，改为不泄露资源数量的核心能力卡。
@@ -18,9 +26,9 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ### Added — M92 Interactive Login Visual System
 
-- 新增 Canvas2D 粒子网络、SVG 多集群拓扑、展示指标与分层动效；支持触屏、2x DPR、
+- 新增 Canvas2D 粒子网络、SVG 多集群拓扑、能力卡与分层动效；支持触屏、2x DPR、
   `prefers-reduced-motion` 静态降级和移动端语义化隐藏。
-- 认证流程与安全契约保持不变；展示数字目前为静态值，真实数据接入列入 M93。
+- 认证流程与安全契约保持不变；M92 的静态展示数字已在 M93-A 移除。
 - See [M92 change record](docs/changes/2026-08-09-m92-interactive-login-visual.md).
 
 ### Added — 归档体系（强制所有修改留档）

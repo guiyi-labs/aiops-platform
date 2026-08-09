@@ -57,3 +57,7 @@ export async function mockAuthenticatedAPI(page: Page) {
 export async function mockAnonymousAuth(page: Page) {
   await page.route('**/api/v1/auth/refresh', (route) => fulfillJSON(route, anonymousSession))
 }
+
+export async function mockSuccessfulLogin(page: Page) {
+  await page.route('**/api/v1/auth/login', (route) => fulfillJSON(route, authenticatedSession))
+}

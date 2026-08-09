@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Boxes, LockKeyhole } from 'lucide-vue-next'
+import {
+  ArrowRight,
+  Boxes,
+  Check,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LoaderCircle,
+  LockKeyhole,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import { APIError } from '../api/auth'
@@ -14,17 +25,56 @@ const username = ref('')
 const password = ref('')
 const submitting = ref(false)
 const errorMessage = ref('')
+const showPassword = ref(false)
+const focusedField = ref<'username' | 'password' | null>(null)
+const interactionState = ref<'idle' | 'submitting' | 'success' | 'error'>('idle')
+const activeCapability = ref<'governance' | 'diagnosis' | 'audit' | null>(null)
 const passwordChanged = computed(() => route.query.password_changed === '1')
+const authPhase = computed(() => {
+  if (interactionState.value !== 'idle') return interactionState.value
+  return focusedField.value ?? 'idle'
+})
+
+function prefersReducedMotion() {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function waitForSuccessTransition() {
+  if (prefersReducedMotion()) return Promise.resolve()
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 520))
+}
+
+function focusField(field: 'username' | 'password') {
+  focusedField.value = field
+  if (interactionState.value === 'error') {
+    interactionState.value = 'idle'
+    errorMessage.value = ''
+  }
+}
+
+function clearFieldFocus(field: 'username' | 'password') {
+  if (focusedField.value === field) focusedField.value = null
+}
+
+function clearError() {
+  if (interactionState.value !== 'error') return
+  interactionState.value = 'idle'
+  errorMessage.value = ''
+}
 
 async function submit() {
   if (submitting.value) return
   submitting.value = true
+  interactionState.value = 'submitting'
   errorMessage.value = ''
   try {
     await auth.login(username.value, password.value)
+    interactionState.value = 'success'
+    await waitForSuccessTransition()
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     await router.replace(redirect)
   } catch (error) {
+    interactionState.value = 'error'
     if (error instanceof APIError && error.code === 'INVALID_CREDENTIALS') {
       errorMessage.value = '用户名或密码不正确'
     } else if (error instanceof APIError && error.code === 'USER_DISABLED') {
@@ -34,14 +84,15 @@ async function submit() {
     }
   } finally {
     submitting.value = false
+    if (interactionState.value === 'submitting') interactionState.value = 'idle'
   }
 }
 </script>
 
 <template>
-  <main class="login-page">
+  <main :class="['login-page', `login-page--${authPhase}`]" :data-auth-phase="authPhase">
     <section class="login-intro">
-      <ParticleNetwork />
+      <ParticleNetwork :phase="authPhase" />
       <div class="login-brand"><span><Boxes :size="22" /></span>K8s AIOps</div>
 
       <div class="login-copy">
@@ -50,7 +101,7 @@ async function submit() {
         <p class="login-description">统一接入 Kubernetes 集群，关联资源状态、事件与日志，以规则诊断为主、AI 解释为辅。</p>
       </div>
 
-      <div class="login-visual">
+      <div class="login-visual" :data-capability="activeCapability || undefined">
         <div class="login-grid" aria-hidden="true"></div>
         <svg class="login-topology" viewBox="0 0 560 300" fill="none" aria-hidden="true" focusable="false">
           <defs>
@@ -86,32 +137,32 @@ async function submit() {
             <line class="flow flow-f" x1="280" y1="150" x2="376" y2="258" />
           </g>
 
-          <g class="topo-node tone-a" transform="translate(96 52)">
+          <g class="topo-node tone-a node-governance" transform="translate(96 52)">
             <circle class="node-halo" r="16" />
             <circle class="node-core" r="9" fill="url(#nodeGradA)" />
             <circle class="node-dot" r="2.8" />
           </g>
-          <g class="topo-node tone-b" transform="translate(470 60)">
+          <g class="topo-node tone-b node-diagnosis" transform="translate(470 60)">
             <circle class="node-halo" r="16" />
             <circle class="node-core" r="9" fill="url(#nodeGradB)" />
             <circle class="node-dot" r="2.8" />
           </g>
-          <g class="topo-node tone-a" transform="translate(60 205)">
+          <g class="topo-node tone-a node-governance" transform="translate(60 205)">
             <circle class="node-halo" r="16" />
             <circle class="node-core" r="9" fill="url(#nodeGradA)" />
             <circle class="node-dot" r="2.8" />
           </g>
-          <g class="topo-node tone-b" transform="translate(500 226)">
+          <g class="topo-node tone-b node-diagnosis" transform="translate(500 226)">
             <circle class="node-halo" r="16" />
             <circle class="node-core" r="9" fill="url(#nodeGradB)" />
             <circle class="node-dot" r="2.8" />
           </g>
-          <g class="topo-node tone-c" transform="translate(186 258)">
+          <g class="topo-node tone-c node-audit" transform="translate(186 258)">
             <circle class="node-halo" r="16" />
             <circle class="node-core" r="9" fill="#f59e0b" />
             <circle class="node-dot" r="2.8" />
           </g>
-          <g class="topo-node tone-b" transform="translate(376 258)">
+          <g class="topo-node tone-b node-audit" transform="translate(376 258)">
             <circle class="node-halo" r="16" />
             <circle class="node-core" r="9" fill="url(#nodeGradB)" />
             <circle class="node-dot" r="2.8" />
@@ -126,17 +177,32 @@ async function submit() {
         </svg>
 
         <div class="login-capabilities" role="list" aria-label="平台核心能力">
-          <div class="login-capability" role="listitem">
+          <div
+            :class="['login-capability', { 'is-active': activeCapability === 'governance' }]"
+            role="listitem"
+            @mouseenter="activeCapability = 'governance'"
+            @mouseleave="activeCapability = null"
+          >
             <i class="capability-pip pip-green" aria-hidden="true"></i>
             <span>多集群治理</span>
             <strong>统一视图</strong>
           </div>
-          <div class="login-capability" role="listitem">
+          <div
+            :class="['login-capability', { 'is-active': activeCapability === 'diagnosis' }]"
+            role="listitem"
+            @mouseenter="activeCapability = 'diagnosis'"
+            @mouseleave="activeCapability = null"
+          >
             <i class="capability-pip pip-teal" aria-hidden="true"></i>
             <span>诊断链路</span>
             <strong>证据优先</strong>
           </div>
-          <div class="login-capability" role="listitem">
+          <div
+            :class="['login-capability', { 'is-active': activeCapability === 'audit' }]"
+            role="listitem"
+            @mouseenter="activeCapability = 'audit'"
+            @mouseleave="activeCapability = null"
+          >
             <i class="capability-pip pip-violet" aria-hidden="true"></i>
             <span>变更控制</span>
             <strong>审计闭环</strong>
@@ -146,7 +212,8 @@ async function submit() {
     </section>
 
     <section class="login-form-panel">
-      <form class="login-card" @submit.prevent="submit">
+      <form class="login-card" :aria-busy="submitting" @submit.prevent="submit">
+        <div class="login-card-rail" aria-hidden="true"><i></i></div>
         <span class="login-icon"><LockKeyhole :size="22" /></span>
         <p class="context-label">安全访问</p>
         <h2>登录运维控制台</h2>
@@ -154,15 +221,61 @@ async function submit() {
         <p v-if="passwordChanged" class="login-success">密码已更新，请使用新密码重新登录。</p>
 
         <label for="username">用户名</label>
-        <input id="username" v-model="username" name="username" autocomplete="username" minlength="3" maxlength="64" required autofocus />
+        <div :class="['login-field', { 'is-focused': focusedField === 'username' }]">
+          <UserRound :size="17" aria-hidden="true" />
+          <input
+            id="username"
+            v-model="username"
+            name="username"
+            autocomplete="username"
+            minlength="3"
+            maxlength="64"
+            required
+            autofocus
+            @focus="focusField('username')"
+            @blur="clearFieldFocus('username')"
+            @input="clearError"
+          />
+        </div>
         <label for="password">密码</label>
-        <input id="password" v-model="password" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required />
+        <div :class="['login-field', { 'is-focused': focusedField === 'password' }]">
+          <KeyRound :size="17" aria-hidden="true" />
+          <input
+            id="password"
+            v-model="password"
+            name="password"
+            :type="showPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+            minlength="8"
+            maxlength="128"
+            required
+            @focus="focusField('password')"
+            @blur="clearFieldFocus('password')"
+            @input="clearError"
+          />
+          <button
+            class="password-visibility"
+            type="button"
+            :aria-label="showPassword ? '隐藏密码' : '显示密码'"
+            :title="showPassword ? '隐藏密码' : '显示密码'"
+            @click="showPassword = !showPassword"
+          >
+            <EyeOff v-if="showPassword" :size="17" aria-hidden="true" />
+            <Eye v-else :size="17" aria-hidden="true" />
+          </button>
+        </div>
 
         <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
         <button class="login-submit" type="submit" :disabled="submitting">
-          {{ submitting ? '正在验证…' : '登录' }}
+          <span class="login-submit-progress" aria-hidden="true"></span>
+          <LoaderCircle v-if="authPhase === 'submitting'" class="login-submit-spinner" :size="17" aria-hidden="true" />
+          <Check v-else-if="authPhase === 'success'" :size="17" aria-hidden="true" />
+          <ArrowRight v-else :size="17" aria-hidden="true" />
+          <span class="login-submit-label" aria-live="polite">
+            {{ authPhase === 'success' ? '认证通过' : authPhase === 'submitting' ? '正在建立安全会话' : '进入控制台' }}
+          </span>
         </button>
-        <p class="security-note">会话凭据通过 HttpOnly Cookie 轮换，访问令牌不会持久化到浏览器存储。</p>
+        <p class="login-security-status"><ShieldCheck :size="15" aria-hidden="true" />安全会话保护已启用</p>
       </form>
     </section>
   </main>

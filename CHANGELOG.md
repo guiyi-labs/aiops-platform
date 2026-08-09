@@ -9,6 +9,20 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — M94 Diagnosis Narrative (Root Cause Card & Evidence Timeline)
+
+- 新增诊断根因卡（结论、严重度、状态、首次观察、置信来源、≤5 条关键证据引用）与只读证据时间线：
+  六类证据分类（resource_state/event/log/alert/change/automation）、按类型提取 occurred_at、
+  SHA-256 完整性、缺失语义（status=Missing 传播、不可解析时间回退 observedAt）。
+- 后端 `WithNarrative` 纯投影经 `save()` 与 `Get/Transition/AddFeedback/Assign` 统一返回；
+  四条黄金场景（Node NotReady / Deployment unavailable / OOMKilled / Service 无后端）单测覆盖。
+- OpenAPI 新增 `DiagnosisTimelineEntry`、`RootCauseCard` schema；`pnpm typegen` 重新生成；
+  `DiagnosisRecord` 增加 `timeline?` / `root_cause_card?`。
+- 诊断详情抽屉顶部渲染根因卡，证据时间线替换默认原始 JSON；原始证据收进可折叠区块，
+  未携带 timeline 的旧响应保留原证据卡回退。
+- Playwright 新增诊断旅程（Desktop+Mobile 2/2），浏览器回归 44/44。
+- See [M94 change record](docs/changes/2026-08-10-m94-diagnosis-narrative.md).
+
 ### Added — M93-B2 Login Performance Budget & Evidence
 
 - 新增登录页专属体积分析（LoginView chunk 14.75 kB raw / 5.62 kB gzip）+ 三模式

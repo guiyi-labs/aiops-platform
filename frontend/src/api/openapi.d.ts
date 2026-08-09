@@ -4710,6 +4710,49 @@ export interface components {
             namespace?: string;
             name: string;
         };
+        /** @description One normalized evidence item on the diagnosis timeline (M94 read-only projection) */
+        DiagnosisTimelineEntry: {
+            index: number;
+            /** @enum {string} */
+            category: "resource_state" | "event" | "log" | "alert" | "change" | "automation";
+            /** @description Underlying evidence type */
+            type: string;
+            source: string;
+            /** @description Immutable evidence reference */
+            ref: string;
+            /** @description SHA-256 hex of the canonical evidence JSON */
+            integrity: string;
+            /**
+             * Format: date-time
+             * @description RFC3339 observation time when extractable, otherwise omitted
+             */
+            occurred_at?: string;
+            /** @description True when evidence is explicitly absent, e.g. a missing Ready condition */
+            missing: boolean;
+            missing_reason?: string;
+            summary: string;
+        };
+        /** @description First-screen diagnosis summary: conclusion, severity, first observation and key evidence refs (M94) */
+        RootCauseCard: {
+            conclusion: string;
+            /** @enum {string} */
+            severity: "info" | "warning" | "high" | "critical";
+            status: string;
+            /** Format: date-time */
+            first_observed_at: string;
+            /** @description deterministic for rule-derived conclusions */
+            confidence: string;
+            /** @description Rule ID that produced the conclusion */
+            confidence_source: string;
+            resource: {
+                kind: string;
+                namespace?: string;
+                name: string;
+                uid?: string;
+            };
+            /** @description Immutable refs of up to 5 non-missing evidence items backing the conclusion */
+            key_evidence_refs: string[];
+        };
         DiagnoseNodeMetricsRequest: {
             /** @description Node name */
             name: string;

@@ -59,11 +59,7 @@ func (s *Service) DiagnosePod(ctx context.Context, clusterID int64, namespace, n
 	if !matched {
 		return Record{}, ErrNoRuleMatch
 	}
-	record.SLADueAt = SLADeadline(record.Severity, record.ObservedAt)
-	if err := s.repository.Save(ctx, &record); err != nil {
-		return Record{}, err
-	}
-	return record, nil
+	return s.save(ctx, record)
 }
 
 func evaluatePod(clusterID int64, pod k8sgateway.Pod, events []k8sgateway.Event, observedAt time.Time) (Record, bool) {
@@ -93,11 +89,7 @@ func (s *Service) DiagnoseService(ctx context.Context, clusterID int64, namespac
 	if !matched {
 		return Record{}, ErrNoRuleMatch
 	}
-	record.SLADueAt = SLADeadline(record.Severity, record.ObservedAt)
-	if err := s.repository.Save(ctx, &record); err != nil {
-		return Record{}, err
-	}
-	return record, nil
+	return s.save(ctx, record)
 }
 
 func (s *Service) DiagnoseNode(ctx context.Context, clusterID int64, name string) (Record, error) {
@@ -112,11 +104,7 @@ func (s *Service) DiagnoseNode(ctx context.Context, clusterID int64, name string
 	if !matched {
 		return Record{}, ErrNoRuleMatch
 	}
-	record.SLADueAt = SLADeadline(record.Severity, record.ObservedAt)
-	if err := s.repository.Save(ctx, &record); err != nil {
-		return Record{}, err
-	}
-	return record, nil
+	return s.save(ctx, record)
 }
 
 func (s *Service) DiagnoseNodeMetrics(ctx context.Context, clusterID int64, name string, metric string, rule metricshistory.EvaluationRule) (Record, error) {
@@ -139,11 +127,7 @@ func (s *Service) DiagnoseNodeMetrics(ctx context.Context, clusterID int64, name
 	if !matched {
 		return Record{}, ErrNoRuleMatch
 	}
-	record.SLADueAt = SLADeadline(record.Severity, record.ObservedAt)
-	if err := s.repository.Save(ctx, &record); err != nil {
-		return Record{}, err
-	}
-	return record, nil
+	return s.save(ctx, record)
 }
 
 func (s *Service) DiagnosePersistentVolumeClaim(ctx context.Context, clusterID int64, namespace, name string) (Record, error) {
@@ -207,7 +191,7 @@ func (s *Service) save(ctx context.Context, record Record) (Record, error) {
 	if err := s.repository.Save(ctx, &record); err != nil {
 		return Record{}, err
 	}
-	return record, nil
+	return WithNarrative(record), nil
 }
 
 func (s *Service) DiagnoseDeployment(ctx context.Context, clusterID int64, namespace, name string) (Record, error) {
@@ -219,11 +203,7 @@ func (s *Service) DiagnoseDeployment(ctx context.Context, clusterID int64, names
 	if !matched {
 		return Record{}, ErrNoRuleMatch
 	}
-	record.SLADueAt = SLADeadline(record.Severity, record.ObservedAt)
-	if err := s.repository.Save(ctx, &record); err != nil {
-		return Record{}, err
-	}
-	return record, nil
+	return s.save(ctx, record)
 }
 
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]Record, error) {
@@ -231,18 +211,30 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Record, error)
 }
 
 func (s *Service) Get(ctx context.Context, id int64) (Record, error) {
-	return s.repository.Get(ctx, id)
+	record, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return Record{}, err
+	}
+	return WithNarrative(record), nil
 }
 
 func (s *Service) Transition(ctx context.Context, id int64, status string, actor ActorRef, comment string) (Record, error) {
-	return s.repository.Transition(ctx, id, status, actor, comment)
+	record, err := s.repository.Transition(ctx, id, status, actor, comment)
+	if err != nil {
+		return Record{}, err
+	}
+	return WithNarrative(record), nil
 }
 
 func (s *Service) AddFeedback(ctx context.Context, id int64, verdict string, actor ActorRef, comment string) (Record, error) {
 	if !ValidFeedbackVerdict(verdict) {
 		return Record{}, ErrInvalidFeedback
 	}
-	return s.repository.AddFeedback(ctx, id, verdict, actor, comment)
+	record, err := s.repository.AddFeedback(ctx, id, verdict, actor, comment)
+	if err != nil {
+		return Record{}, err
+	}
+	return WithNarrative(record), nil
 }
 
 func (s *Service) Summary(ctx context.Context) (Summary, error) {
@@ -250,5 +242,9 @@ func (s *Service) Summary(ctx context.Context) (Summary, error) {
 }
 
 func (s *Service) Assign(ctx context.Context, id int64, assignee, actor ActorRef, comment string) (Record, error) {
-	return s.repository.Assign(ctx, id, assignee, actor, comment)
+	record, err := s.repository.Assign(ctx, id, assignee, actor, comment)
+	if err != nil {
+		return Record{}, err
+	}
+	return WithNarrative(record), nil
 }

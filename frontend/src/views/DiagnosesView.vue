@@ -244,6 +244,15 @@ onMounted(initialize)
     </section>
 
     <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span><span v-if="detail.assignee" class="assignee-badge"><UserCheck :size="13" />{{ detail.assignee.name }}</span><span class="sla-badge" :class="{ overdue: detail.overdue }">{{ slaLabel(detail) }}</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }} · 截止 {{ formatTime(detail.sla_due_at) }}</p>
+      <section v-if="detail.root_cause_card" class="root-cause-card">
+        <header><span class="root-cause-label">根因结论</span><span class="root-cause-confidence">{{ detail.root_cause_card.confidence }}</span></header>
+        <p class="root-cause-conclusion">{{ detail.root_cause_card.conclusion }}</p>
+        <dl class="root-cause-meta">
+          <div><dt>首次观察</dt><dd>{{ formatTime(detail.root_cause_card.first_observed_at) }}</dd></div>
+          <div><dt>置信依据</dt><dd>{{ detail.root_cause_card.confidence_source }}</dd></div>
+          <div><dt>关键证据</dt><dd><code v-for="ref in detail.root_cause_card.key_evidence_refs" :key="ref">{{ evidenceLabel(ref) }}</code></dd></div>
+        </dl>
+      </section>
       <section class="ai-explanation-panel">
         <div class="ai-panel-heading"><div><span><Sparkles :size="15" />引用式 AI 解释</span><small>AI 只解释下方规则证据，不执行集群操作。</small></div><button v-if="canManage" class="secondary-button" :disabled="aiLoading || aiGenerationBlocked" @click="generateExplanation"><Sparkles :size="14" :class="{ spinning: aiLoading }" />{{ explanations.length ? '重新生成' : '生成解释' }}</button></div>
         <div v-if="aiStatus" class="ai-runtime-status"><span :class="{ available: aiStatus.available }">{{ !aiStatus.enabled ? 'Provider 已禁用' : aiStatus.available ? 'Provider 可用' : 'Provider 受限' }}</span><small>{{ aiStatus.model }} · 今日 {{ aiStatus.used_tokens_today }} / {{ aiStatus.daily_token_budget || '不限' }} tokens · 并发 {{ aiStatus.active_requests }}/{{ aiStatus.max_concurrent_requests }}</small><small v-if="aiQuality">质量反馈 {{ aiQuality.total_feedback }} 条 · 有帮助率 {{ percent(aiQuality.helpful_rate) }}</small></div>
@@ -273,7 +282,27 @@ onMounted(initialize)
         <div v-if="pendingRemediation" class="remediation-confirmation"><strong>dry-run 已通过：{{ pendingRemediation.target.kind }}/{{ pendingRemediation.target.namespace }}/{{ pendingRemediation.target.name }}</strong><small>计划 {{ pendingRemediation.id }} · 资源版本 {{ pendingRemediation.target.resource_version }} · {{ formatTime(pendingRemediation.expires_at) }} 前有效</small><label><input v-model="remediationConfirmed" type="checkbox" />我确认对上述固定资源执行 rollout restart，并理解这会创建新的 Pod。</label><button class="primary-button" :disabled="remediationBusy || !remediationConfirmed" @click="confirmRemediation">确认并执行</button></div>
         <div class="remediation-history"><article v-for="plan in remediationPlans" :key="plan.id"><span class="remediation-status" :class="plan.status">{{ remediationStatusLabel(plan.status) }}</span><strong>{{ plan.target.kind }}/{{ plan.target.namespace }}/{{ plan.target.name }}</strong><time>{{ formatTime(plan.created_at) }}</time><small>{{ plan.requested_by.name }} · {{ plan.id }}</small><p v-if="plan.last_error">{{ plan.last_error }}</p></article><p v-if="!remediationPlans.length" class="compact-empty">暂无受控修复计划。</p></div>
       </section>
-      <h3>可能根因</h3><ol><li v-for="item in detail.root_causes" :key="item">{{ item }}</li></ol><h3>处理建议</h3><ol><li v-for="item in detail.recommendations" :key="item">{{ item }}</li></ol><h3>持久化证据 · {{ detail.evidence.length }}</h3><article v-for="item in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card"><strong>{{ item.type }} · {{ item.source }}</strong><pre>{{ JSON.stringify(item.content, null, 2) }}</pre></article>
+      <h3>可能根因</h3><ol><li v-for="item in detail.root_causes" :key="item">{{ item }}</li></ol><h3>处理建议</h3><ol><li v-for="item in detail.recommendations" :key="item">{{ item }}</li></ol>
+      <section v-if="detail.timeline?.length" class="evidence-timeline">
+        <h3>证据时间线 · {{ detail.timeline.length }}</h3>
+        <article v-for="item in detail.timeline" :key="item.ref">
+          <span class="timeline-category" :class="item.category">{{ item.category }}</span>
+          <div class="timeline-entry-body">
+            <strong>{{ item.summary || item.type }}</strong>
+            <small>{{ item.type }} · {{ item.source }}</small>
+            <p v-if="item.missing" class="timeline-missing">证据缺失 · {{ item.missing_reason || '对象未报告该状态' }}</p>
+          </div>
+          <time>{{ item.occurred_at ? formatTime(item.occurred_at) : '时间未知' }}</time>
+        </article>
+        <details class="raw-evidence">
+          <summary>原始证据 JSON（可追溯）</summary>
+          <article v-for="item in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card"><strong>{{ item.type }} · {{ item.source }}</strong><pre>{{ JSON.stringify(item.content, null, 2) }}</pre></article>
+        </details>
+      </section>
+      <template v-else>
+        <h3>持久化证据 · {{ detail.evidence.length }}</h3>
+        <article v-for="item in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card"><strong>{{ item.type }} · {{ item.source }}</strong><pre>{{ JSON.stringify(item.content, null, 2) }}</pre></article>
+      </template>
       <section class="workflow-timeline"><h3>处置记录 · {{ detail.activities?.length ?? 0 }}</h3><article v-for="item in detail.activities" :key="item.id"><span>{{ item.from_status }} → {{ item.to_status }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article><p v-if="!detail.activities?.length" class="compact-empty">尚未开始人工处置</p></section>
       <section class="assignment-history"><h3>转派记录 · {{ detail.assignments?.length ?? 0 }}</h3><article v-for="item in detail.assignments" :key="item.id"><span>{{ item.from_assignee?.name || '未分配' }} → {{ item.to_assignee.name }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article><p v-if="!detail.assignments?.length" class="compact-empty">暂无负责人转派</p></section>
       <section v-if="canManage" class="feedback-panel"><h3>规则准确性反馈</h3><div><select v-model="feedbackVerdict" aria-label="反馈结论"><option value="accurate">准确</option><option value="inaccurate">不准确</option><option value="uncertain">暂不确定</option></select><input v-model="feedbackComment" maxlength="2000" placeholder="补充判断依据（可选）" /><button class="secondary-button" :disabled="saving" @click="submitFeedback"><MessageSquareText :size="14" />提交反馈</button></div></section><section class="feedback-history"><article v-for="item in detail.feedback" :key="item.id"><span class="feedback-verdict" :class="item.verdict">{{ item.verdict }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article></section>

@@ -96,24 +96,26 @@ type ListFilter struct {
 }
 
 type Record struct {
-	ID              int64        `json:"id"`
-	ClusterID       int64        `json:"cluster_id"`
-	RuleID          string       `json:"rule_id"`
-	Severity        string       `json:"severity"`
-	Resource        ResourceRef  `json:"resource"`
-	Status          string       `json:"status"`
-	Summary         string       `json:"summary"`
-	RootCauses      []string     `json:"root_causes"`
-	Recommendations []string     `json:"recommendations"`
-	Evidence        []Evidence   `json:"evidence"`
-	Assignee        *ActorRef    `json:"assignee,omitempty"`
-	Activities      []Activity   `json:"activities,omitempty"`
-	Feedback        []Feedback   `json:"feedback,omitempty"`
-	Assignments     []Assignment `json:"assignments,omitempty"`
-	ObservedAt      time.Time    `json:"observed_at"`
-	SLADueAt        time.Time    `json:"sla_due_at"`
-	ResolvedAt      *time.Time   `json:"resolved_at,omitempty"`
-	Overdue         bool         `json:"overdue"`
-	CreatedAt       time.Time    `json:"created_at"`
-	UpdatedAt       time.Time    `json:"updated_at"`
+	ID              int64           `json:"id"`
+	ClusterID       int64           `json:"cluster_id"`
+	RuleID          string          `json:"rule_id"`
+	Severity        string          `json:"severity"`
+	Resource        ResourceRef     `json:"resource"`
+	Status          string          `json:"status"`
+	Summary         string          `json:"summary"`
+	RootCauses      []string        `json:"root_causes"`
+	Recommendations []string        `json:"recommendations"`
+	Evidence        []Evidence      `json:"evidence"`
+	Timeline        []TimelineEntry `json:"timeline,omitempty"`
+	RootCauseCard   *RootCauseCard  `json:"root_cause_card,omitempty"`
+	Assignee        *ActorRef       `json:"assignee,omitempty"`
+	Activities      []Activity      `json:"activities,omitempty"`
+	Feedback        []Feedback      `json:"feedback,omitempty"`
+	Assignments     []Assignment    `json:"assignments,omitempty"`
+	ObservedAt      time.Time       `json:"observed_at"`
+	SLADueAt        time.Time       `json:"sla_due_at"`
+	ResolvedAt      *time.Time      `json:"resolved_at,omitempty"`
+	Overdue         bool            `json:"overdue"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }

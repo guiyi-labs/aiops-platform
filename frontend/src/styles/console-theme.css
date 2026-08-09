@@ -687,6 +687,8 @@ h1 {
 .account-security-card,
 .metric-card,
 .evidence-card,
+.root-cause-card,
+.evidence-timeline article,
 .ai-explanation-card,
 .cockpit-metric {
   transition:
@@ -702,6 +704,7 @@ h1 {
 .status-panel:hover,
 .activity-panel:hover,
 .evidence-card:hover,
+.root-cause-card:hover,
 .cockpit-metric:hover,
 .cluster-card:hover {
   transform: translateY(-2px);

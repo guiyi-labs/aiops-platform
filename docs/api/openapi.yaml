@@ -2967,6 +2967,44 @@ components:
         containers: { type: array, items: { $ref: '#/components/schemas/PodContainerLog' } }
         previous: { type: boolean }
     DiagnosisRequest: { type: object, required: [resource_kind, name], properties: { resource_kind: { type: string, enum: [Pod, Service, Node, Deployment, Ingress, PersistentVolumeClaim, HorizontalPodAutoscaler] }, namespace: { type: string, description: Required for namespaced resources; empty for Node }, name: { type: string } } }
+    DiagnosisTimelineEntry:
+      type: object
+      description: One normalized evidence item on the diagnosis timeline (M94 read-only projection)
+      required: [index, category, type, source, ref, integrity, missing, summary]
+      properties:
+        index: { type: integer }
+        category: { type: string, enum: [resource_state, event, log, alert, change, automation] }
+        type: { type: string, description: Underlying evidence type, e.g. node_condition, container_termination }
+        source: { type: string }
+        ref: { type: string, description: Immutable evidence reference, e.g. diagnosis:<id>:evidence:<index> or event/<name> }
+        integrity: { type: string, description: SHA-256 hex of the canonical evidence JSON }
+        occurred_at: { type: string, format: date-time, description: 'RFC3339 observation time when extractable, otherwise omitted' }
+        missing: { type: boolean, description: 'True when evidence is explicitly absent, e.g. a missing Ready condition' }
+        missing_reason: { type: string }
+        summary: { type: string }
+    RootCauseCard:
+      type: object
+      description: 'First-screen diagnosis summary: conclusion, severity, first observation and key evidence refs (M94)'
+      required: [conclusion, severity, status, first_observed_at, confidence, confidence_source, resource, key_evidence_refs]
+      properties:
+        conclusion: { type: string }
+        severity: { type: string, enum: [info, warning, high, critical] }
+        status: { type: string }
+        first_observed_at: { type: string, format: date-time }
+        confidence: { type: string, description: deterministic for rule-derived conclusions }
+        confidence_source: { type: string, description: Rule ID that produced the conclusion }
+        resource:
+          type: object
+          required: [kind, name]
+          properties:
+            kind: { type: string }
+            namespace: { type: string }
+            name: { type: string }
+            uid: { type: string }
+        key_evidence_refs:
+          type: array
+          description: Immutable refs of up to 5 non-missing evidence items backing the conclusion
+          items: { type: string }
     DiagnoseNodeMetricsRequest:
       type: object
       additionalProperties: false

@@ -50,6 +50,29 @@ export interface AIRuntimeStatus {
 }
 export type DiagnosisStatus = 'open' | 'confirmed' | 'resolved' | 'dismissed'
 export type FeedbackVerdict = 'accurate' | 'inaccurate' | 'uncertain'
+
+export interface DiagnosisTimelineEntry {
+  index: number
+  category: 'resource_state' | 'event' | 'log' | 'alert' | 'change' | 'automation'
+  type: string
+  source: string
+  ref: string
+  integrity: string
+  occurred_at?: string
+  missing: boolean
+  missing_reason?: string
+  summary: string
+}
+export interface RootCauseCard {
+  conclusion: string
+  severity: 'info' | 'warning' | 'high' | 'critical'
+  status: DiagnosisStatus
+  first_observed_at: string
+  confidence: string
+  confidence_source: string
+  resource: { kind: string; namespace?: string; name: string; uid?: string }
+  key_evidence_refs: string[]
+}
 export interface DiagnosisRecord {
   id: number
   cluster_id: number
@@ -61,6 +84,8 @@ export interface DiagnosisRecord {
   root_causes: string[]
   recommendations: string[]
   evidence: DiagnosisEvidence[]
+  timeline?: DiagnosisTimelineEntry[]
+  root_cause_card?: RootCauseCard
   assignee?: DiagnosisActor
   activities?: DiagnosisActivity[]
   feedback?: DiagnosisFeedback[]

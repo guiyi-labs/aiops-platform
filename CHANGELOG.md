@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed — M93-C Technology Console Shell
+
+- 登录页与登录后控制台统一为碳黑、冷灰、青色与状态色组成的工业科技主题，移除偏紫粒子色调。
+- 左侧功能栏支持桌面图标栏收起、移动端完全隐藏、刷新持久化和无障碍状态提示。
+- 移除整页路由淡出，增加永久技术底板并取消卡片透明度入场，消除功能切换时的白屏闪烁。
+- Playwright 新增侧栏持久化与路由连续着色回归；双视口 smoke + axe 提升到 42/42 全绿。
+- See [M93-C change record](docs/changes/2026-08-09-m93c-tech-console-shell.md).
+
 ### Changed — M93-B1.1 Fullscreen Login Refinement
 
 - 登录页由左右明暗分栏改为全视口控制平面场景，粒子、网格与拓扑覆盖整个背景，表单作为右侧悬浮操作区。

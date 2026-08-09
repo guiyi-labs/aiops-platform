@@ -151,6 +151,68 @@ test('Sidebar exposes navigation items', async ({ page }) => {
   await expect(item).toBeVisible()
 })
 
+test('Sidebar collapse state persists and remains reversible', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(() => window.localStorage.removeItem('aiops.sidebar.collapsed'))
+  await page.reload()
+
+  const shell = page.locator('.app-shell')
+  await page.getByRole('button', { name: '收起侧边栏' }).click()
+  await expect(shell).toHaveClass(/sidebar-collapsed/)
+  await expect(page.locator('.brand-copy')).toBeHidden()
+  await expect(page.locator('.nav-item span').first()).toBeHidden()
+
+  await page.reload()
+  await expect(shell).toHaveClass(/sidebar-collapsed/)
+  await page.getByRole('button', { name: '展开侧边栏' }).click()
+  await expect(shell).not.toHaveClass(/sidebar-collapsed/)
+  await expect.poll(() => page.evaluate(() => window.localStorage.getItem('aiops.sidebar.collapsed'))).toBe('0')
+})
+
+test('Route navigation never exposes a white viewport', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(() => {
+    const state = { gapDetected: false, whiteDetected: false, samples: 0, running: true }
+    const browserWindow = window as typeof window & { __routePaintState?: typeof state }
+    browserWindow.__routePaintState = state
+    const startedAt = performance.now()
+    const sample = () => {
+      const viewport = document.querySelector<HTMLElement>('.route-viewport')
+      state.samples += 1
+      if (!viewport) {
+        state.gapDetected = true
+      } else {
+        const channels = getComputedStyle(viewport).backgroundColor.match(/\d+/g)?.map(Number) ?? []
+        if (channels.length >= 3 && channels[0] >= 248 && channels[1] >= 248 && channels[2] >= 248) {
+          state.whiteDetected = true
+        }
+      }
+      if (performance.now() - startedAt < 500) {
+        requestAnimationFrame(sample)
+      } else {
+        state.running = false
+      }
+    }
+    requestAnimationFrame(sample)
+  })
+
+  await page.getByRole('button', { name: '集群', exact: true }).click()
+  await expect(page).toHaveURL('/clusters')
+  await expect(page.locator('.app-shell').last()).toBeVisible()
+  await expect.poll(() => page.evaluate(() => {
+    return (window as typeof window & { __routePaintState?: { running: boolean } }).__routePaintState?.running
+  })).toBe(false)
+
+  const paintState = await page.evaluate(() => {
+    return (window as typeof window & {
+      __routePaintState?: { gapDetected: boolean; whiteDetected: boolean; samples: number }
+    }).__routePaintState
+  })
+  expect(paintState?.gapDetected).toBe(false)
+  expect(paintState?.whiteDetected).toBe(false)
+  expect(paintState?.samples).toBeGreaterThan(1)
+})
+
 test('Optimization page renders a heading', async ({ page }) => {
   await page.goto('/optimization')
   const heading = page.locator('h2, h1').first()

@@ -12,8 +12,8 @@
 section[class*="panel"]:nth-of-type(n+2) { animation-delay: 0.04s; }
 
 @keyframes card-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(8px); }
+  to { transform: translateY(0); }
 }
 
 /* ---- Card hover: lift + soft shadow ---- */
@@ -116,8 +116,8 @@ tbody tr {
 tbody tr:nth-child(n+2) { animation-delay: 0.04s; }
 
 @keyframes row-enter {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(4px); }
+  to { transform: translateY(0); }
 }
 
 /* ------------------------------------------------------------------ *
@@ -126,22 +126,6 @@ tbody tr:nth-child(n+2) { animation-delay: 0.04s; }
  * hover, shimmer sweeps, breathing indicators. All animations are
  * deferred when prefers-reduced-motion is set (see base override below).
  * ------------------------------------------------------------------ */
-
-/* ---- Route transition (App.vue <Transition name="page">) ---- */
-.page-enter-active,
-.page-leave-active {
-  transition:
-    opacity 0.22s ease,
-    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.page-enter-from {
-  opacity: 0;
-  transform: translateY(10px) scale(0.995);
-}
-.page-leave-to {
-  opacity: 0;
-  transform: translateY(-6px) scale(0.998);
-}
 
 /* ---- Dashboard metric cards: staggered reveal ---- */
 .dashboard-workspace-panel,

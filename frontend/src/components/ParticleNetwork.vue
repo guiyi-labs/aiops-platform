@@ -47,9 +47,9 @@ const CONFIG = {
   pointerRadius: 180,
   pointerForce: 0.045,
   colors: [
-    { red: 94, green: 234, blue: 212 },
-    { red: 129, green: 140, blue: 248 },
-    { red: 52, green: 211, blue: 153 },
+    { red: 45, green: 212, blue: 191 },
+    { red: 34, green: 211, blue: 238 },
+    { red: 163, green: 230, blue: 53 },
     { red: 245, green: 158, blue: 11 },
   ],
 }
@@ -164,8 +164,8 @@ function updateParticles() {
 
 function linkColor(alpha: number) {
   if (props.phase === 'error') return `rgba(245, 158, 11, ${alpha})`
-  if (props.phase === 'password') return `rgba(129, 140, 248, ${alpha})`
-  return `rgba(94, 234, 212, ${alpha})`
+  if (props.phase === 'password') return `rgba(34, 211, 238, ${alpha})`
+  return `rgba(45, 212, 191, ${alpha})`
 }
 
 function draw() {
@@ -199,7 +199,7 @@ function draw() {
       const distance = Math.hypot(particle.x - pointer.x, particle.y - pointer.y)
       if (distance >= CONFIG.pointerRadius) continue
       const alpha = (1 - distance / CONFIG.pointerRadius) * 0.4
-      context.strokeStyle = `rgba(94, 234, 212, ${alpha})`
+      context.strokeStyle = `rgba(45, 212, 191, ${alpha})`
       context.lineWidth = 0.8
       context.beginPath()
       context.moveTo(particle.x, particle.y)

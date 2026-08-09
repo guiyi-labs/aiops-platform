@@ -1,8 +1,8 @@
 ﻿# 长远计划：把 AIOps 平台打磨到业内最高水准
 
 - Status: Active（执行基线）
-- Updated: 2026-08-09（对齐 `51ab90d` + M93-B1.1 关闭）
-- Baseline: 功能基线 `51ab90d`（M93-B1.1）；tag `baseline-m93b1-fullscreen-20260809`
+- Updated: 2026-08-09（对齐 M93-C 科技主题控制台）
+- Baseline: M93-C；tag `baseline-m93c-tech-console-20260809`
 - 关系：详细打磨契约见 [`docs/polish-plan.md`](polish-plan.md)；本文件是面向"长远方向 + 分阶段执行 + 已落地清单"的路由图。
 - 原则：不推翻既有架构决策、安全边界与非目标；每一步都带可验证的证据与验收标准。
 
@@ -10,8 +10,9 @@
 
 ## 0. 当前已落地进度（2026-08-09 复验）
 
-功能基线已完成 M93-B1.1：登录页数据真实性保持不回归，认证状态驱动拓扑/表单动效，ParticleNetwork
-生命周期与全视口暗色场景已关闭；低端设备帧耗与登录页专属体积预算继续归入 M93-B2。
+功能基线已完成 M93-C：登录页数据真实性保持不回归，认证状态驱动拓扑/表单动效，ParticleNetwork
+生命周期、全视口暗色场景、科技主题控制台、可收起侧栏与无白屏导航已关闭；低端设备帧耗与
+登录页专属体积预算继续归入 M93-B2。
 
 | 提交 | 内容 | tag |
 |---|---|---|
@@ -33,13 +34,14 @@
 | `744bf1f` | M93-A 登录页数据真实性：能力卡替代硬编码指标 + 确定性 Playwright fixture + WCAG AA 修复 | `baseline-m93a-20260809` |
 | `e962332` | M93-B1 控制平面登录动效：状态联动 + SVG 节点修复 + ParticleNetwork 生命周期 + 双端截图 | `baseline-m93b1-20260809` |
 | `51ab90d` | M93-B1.1 全屏登录页：全视口场景 + 暗色悬浮表单 + 移动首屏边界 + 对比度回归 | `baseline-m93b1-fullscreen-20260809` |
+| 见 tag | M93-C 科技主题控制台：视觉统一 + 持久化侧栏折叠 + 永久路由底板 + 无白屏导航 | `baseline-m93c-tech-console-20260809` |
 
 验证状态（2026-08-09 全量复验）：
 - 后端：gofmt / vet / build / `go test ./...` 全绿；全局覆盖率 60.03%（CI 门禁 50% → 60%）。
-- 前端：lint / typecheck / vitest（23 files · 130 tests）/ vite build / bundle gate 全绿；Playwright Desktop+Mobile 38/38，console error=0，axe critical/serious 为 0。
+- 前端：lint / typecheck / vitest（23 files · 130 tests）/ vite build / bundle gate 全绿；Playwright Desktop+Mobile 42/42，console error=0，axe critical/serious 为 0。
 - CI：OASdiff 破坏性检查、typegen sync gate、覆盖率门禁、bundle 门禁均已接入。
 - W12/M88/M91：真实集群 kind E2E 三套全绿（.artifacts 已归档）；release-verify 本地校验与 fail-closed 签名门禁生效；前端虚拟滚动 23 files 130 tests。
-- M92/M93-B1：登录页运行产物包含粒子与拓扑，`/login` 返回 200；数据真实性、生命周期、移动端首屏和视觉证据见 `docs/changes/2026-08-09-m93b1-control-plane-login-motion.md`。
+- M92/M93-C：登录页运行产物包含粒子与拓扑，数据真实性、生命周期、移动端首屏、科技主题、侧栏折叠与无白屏导航均有双视口回归；见 `docs/changes/2026-08-09-m93c-tech-console-shell.md`。
 - 环境：Docker daemon 29.6.2 + kind v0.30.0 + kubectl v1.34.0 就绪；`.env` 已生成（production、强随机密钥、AI/NOTIFICATION 关闭）；compose 后端 + 前端 + Postgres 已启动且 healthy。
 
 **真实集群证据**：W3（诊断）、M46 联邦 M48（fleet）、M53 全局搜索的 kind 真实集群 E2E 已产出 `.artifacts/diagnosis-e2e`、`fleet-e2e`、`search-e2e` 三套 JSON，并归档到 W12 change-record。后续 500 节点拓扑渲染等规模级验证见 P1 3.3 / P2-B。

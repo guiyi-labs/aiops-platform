@@ -20,6 +20,8 @@ import {
   LogOut,
   Network,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   Radar,
   Search,
   Send,
@@ -31,7 +33,7 @@ import {
   Wallet,
   Workflow,
 } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
@@ -40,6 +42,11 @@ defineProps<{ eyebrow: string; title: string }>()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const sidebarCollapsed = ref(window.localStorage.getItem('aiops.sidebar.collapsed') === '1')
+
+watch(sidebarCollapsed, (collapsed) => {
+  window.localStorage.setItem('aiops.sidebar.collapsed', collapsed ? '1' : '0')
+})
 
 const navigationGroups = computed(() => [
   {
@@ -114,11 +121,16 @@ async function logout() {
   await auth.logout()
   await router.push({ name: 'login' })
 }
+
+async function navigate(path: string) {
+  if (route.path === path) return
+  await router.push(path)
+}
 </script>
 
 <template>
-  <div class="app-shell">
-    <aside class="sidebar">
+  <div :class="['app-shell', { 'sidebar-collapsed': sidebarCollapsed }]">
+    <aside id="primary-sidebar" class="sidebar">
       <div class="brand">
         <span class="brand-mark"><Boxes :size="20" /></span>
         <span class="brand-copy"><strong>K8s AIOps</strong><small>Operations Console</small></span>
@@ -138,7 +150,8 @@ async function logout() {
             class="nav-item"
             :class="{ active: item.route === route.path }"
             :title="item.label"
-            @click="router.push(item.route)"
+            :aria-label="sidebarCollapsed ? item.label : undefined"
+            @click="navigate(item.route)"
           >
             <component :is="item.icon" :size="18" />
             <span>{{ item.label }}</span>
@@ -148,6 +161,18 @@ async function logout() {
     </aside>
     <main class="main-content">
       <header class="topbar">
+        <button
+          type="button"
+          class="icon-button sidebar-toggle"
+          :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+          :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+          :aria-expanded="!sidebarCollapsed"
+          aria-controls="primary-sidebar"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+        >
+          <PanelLeftOpen v-if="sidebarCollapsed" :size="18" />
+          <PanelLeftClose v-else :size="18" />
+        </button>
         <div class="topbar-title"><p class="context-label">{{ eyebrow }}</p><h1>{{ title }}</h1></div>
         <div class="topbar-actions">
           <slot name="actions" />

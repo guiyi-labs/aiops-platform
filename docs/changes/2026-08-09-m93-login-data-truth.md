@@ -52,6 +52,8 @@ M92 登录页展示了“12 套集群 / 186 个节点 / 99% 准确率”，但�
 - `pnpm bundle:gate`：通过；entry JS gzip 44.4 kB，largest chunk 21.6 kB，
   total JS gzip 242.0 kB，total CSS gzip 49.5 kB。
 - `pnpm test:e2e`：Desktop Chrome + Mobile Chrome 共 28/28 全绿；axe critical/serious = 0；console error = 0。
+- 远端 GitHub Actions：[`CI run 31317001963`](https://github.com/guiyi-labs/aiops-platform/actions/runs/31317001963)
+  全绿；Backend、Backend race、Frontend、Compose runtime、契约/清单与就绪演练均成功。
 
 ## Risks / Notes
 

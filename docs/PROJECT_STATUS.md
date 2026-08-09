@@ -14,7 +14,7 @@
 | 默认模块路径 | `k8s-aiops.local/backend` |
 | 最新功能基线 | `744bf1f` fix(m93): replace unverified login metrics and stabilize e2e |
 | 里程碑范围 | **M1 – M93-A + W10–W12**（M92 登录视觉系统；M93-A 数据真实性与确定性 E2E） |
-| 远程同步 | 交付目标为 `main`、`baseline-m92-20260809` 与 `baseline-m93a-20260809` 全部同步；最终状态以 CI 徽章与 M93-A change-record 为准 |
+| 远程同步 | M93-A 代码、基线文档与 `baseline-m92-20260809` / `baseline-m93a-20260809` 已推送；CI run `31317001963` 全绿 |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---

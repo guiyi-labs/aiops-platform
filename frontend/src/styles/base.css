@@ -3529,3 +3529,16 @@ h2 {
 }
 
 .detail-notice svg { flex: 0 0 16px; color: #286a60; margin-top: 1px; }
+
+
+/* M91 windowed virtual list: fixed-height scroll region for large
+   workload tables. Rows are rendered in a small window; the container
+   keeps a bounded height plus vertical scrollbar, with a sticky header. */
+.virtual-list-scroll {
+  max-height: 560px;
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.virtual-list-scroll thead { position: sticky; top: 0; z-index: 2; background: #f7faf9; }

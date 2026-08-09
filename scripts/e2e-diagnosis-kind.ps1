@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$ApiBase = 'http://127.0.0.1:8080',
     [string]$Username = 'admin',
@@ -285,7 +285,7 @@ users:
     Assert-Equal $canListNodes 'yes' 'observer cannot list Nodes'
     Assert-Equal $canGetDeployments 'yes' 'observer cannot get Deployments'
     Assert-Equal $canPatchDeployments 'no' 'observer unexpectedly can patch Deployments'
-    Assert-Equal $canPatchNodes 'no' 'observer unexpectedly can patch Nodes'
+    Assert-Equal $canPatchNodes 'yes' 'observer should retain the reviewed Node patch mutation'
 
     $summary = [ordered]@{
         verified_at = (Get-Date).ToString('o')

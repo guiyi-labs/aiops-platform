@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -51,6 +52,9 @@ func (h topologyHandler) getTopologyGraph(c *gin.Context) {
 		return
 	}
 
+	// collapse (optional): when "1", duplicate edges between the same
+	// source/target pair collapse into one edge with an aggregate count.
+	collapse := c.Query("collapse") == "1"
 	limit := 200
 	if v := c.Query("limit"); v != "" {
 		n, err := strconv.Atoi(v)
@@ -62,6 +66,9 @@ func (h topologyHandler) getTopologyGraph(c *gin.Context) {
 	}
 
 	graph, err := h.service.GetTopologyGraph(c.Request.Context(), clusterID, namespace, limit)
+	if err == nil && collapse {
+		graph.Edges = collapseEdges(graph.Edges)
+	}
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "TOPOLOGY_QUERY_FAILED", "failed to query topology graph")
 		return
@@ -133,4 +140,33 @@ func (h topologyHandler) listChangeEvents(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// collapseEdges compresses repeated edges between the same source/target pair
+// into a single representative edge carrying an advisory aggregate count.
+func collapseEdges(edges []topology.Edge) []topology.Edge {
+	sorted := make([]topology.Edge, len(edges))
+	copy(sorted, edges)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		a, b := sorted[i], sorted[j]
+		if a.Source.UID != b.Source.UID {
+			return a.Source.UID < b.Source.UID
+		}
+		if a.Target.UID != b.Target.UID {
+			return a.Target.UID < b.Target.UID
+		}
+		return string(a.Kind) < string(b.Kind)
+	})
+	out := make([]topology.Edge, 0, len(sorted))
+	for i := 0; i < len(sorted); {
+		j := i + 1
+		for j < len(sorted) && sorted[j].Source.UID == sorted[i].Source.UID && sorted[j].Target.UID == sorted[i].Target.UID && sorted[j].Kind == sorted[i].Kind {
+			j++
+		}
+		e := sorted[i]
+		topology.SetEdgeCount(&e, j-i)
+		out = append(out, e)
+		i = j
+	}
+	return out
 }

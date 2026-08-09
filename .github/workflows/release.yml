@@ -220,13 +220,27 @@ jobs:
             --predicate="aiops-platform-${VERSION}-provenance.in-toto.json" \
             --output-signature=aiops-platform-${VERSION}-provenance.sig \
             --output-certificate=aiops-platform-${VERSION}-provenance.cert.pem \
-            < /dev/null || true
+            < /dev/null \
+            || { echo 'provenance attestation failed (fail-closed)'; exit 1; }
           # Re-hash SHA256SUMS so the signed assets, provenance sigs and
           # signing certs are also checksummed in the final bundle.
           sha256sum -- *.tar *.tar.gz openapi.yaml dependency-licenses.md license-allowlist.json helm-chart.yaml sbom-backend-spdx.json sbom-frontend-spdx.json release-metadata.json SHA256SUMS.sig SHA256SUMS.cert.pem release-metadata.json.sig release-metadata.json.cert.pem aiops-platform-*-provenance.* >SHA256SUMS.tmp || true
           if [[ -s SHA256SUMS.tmp ]]; then
             mv SHA256SUMS.tmp SHA256SUMS
           fi
+      - name: Enforce signed release assets (M88 fail-closed gate)
+        shell: bash
+        run: |
+          : "Refuse to publish a release whose checksum manifest is unsigned."
+          if [[ ! -f .artifacts/release/SHA256SUMS.sig || ! -f .artifacts/release/SHA256SUMS.cert.pem ]]; then
+            echo "SHA256SUMS.sig / SHA256SUMS.cert.pem missing - release is unsigned"
+            exit 1
+          fi
+          if [[ ! -f .artifacts/release/aiops-platform-${VERSION}-provenance.sig ]]; then
+            echo "provenance signature missing - provenance is not attestable"
+            exit 1
+          fi
+          echo "signed release assets present"
       - name: Publish immutable tagged release
         if: startsWith(github.ref, 'refs/tags/')
         env:

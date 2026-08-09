@@ -93,7 +93,24 @@ jobs:
         working-directory: backend
         run: |
           go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 50.0) { print "Coverage " a[1] "% is below 50.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 50.0% baseline" }}'
+          go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 60.0) { print "Coverage " a[1] "% is below 60.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 60.0% baseline" }}'
+      # M84: global coverage gate now 60% (W8); core package gates enforced below.
+      - name: Core package coverage gate (M84)
+        working-directory: backend
+        run: |
+          for pkg in ./internal/metricshistory/ ./internal/apiquery/ ./internal/deprecatedapi/ ./internal/optimization/; do
+            cover="$(go test -cover -p=1 -count=1 "$pkg" | sed -n 's/.*coverage: \([0-9.]*\)% of statements.*/\1/p')"
+            if awk -v c="$cover" 'BEGIN{ exit !(c < 70.0) }'; then
+              printf 'Core package %s coverage %s%% is below 70.0%%\n' "$pkg" "$cover"
+              exit 1
+            fi
+            printf 'Core package %s coverage %s%% meets 70.0%%\n' "$pkg" "$cover"
+          done
+      - name: Fuzz seed + benchmark smoke (M84)
+        working-directory: backend
+        run: |
+          go test -run '^Fuzz' -count=1 ./internal/metricshistory/ ./internal/deprecatedapi/ ./internal/apiquery/ ./internal/netpolicy/ ./internal/namespaceposture/ ./internal/optimization/ ./internal/kubernetes/ ./internal/posture/ ./internal/topology/
+          go test -bench . -benchtime 5x -run '^$' ./internal/metricshistory/ ./internal/topology/ ./internal/posture/ ./internal/capability/
       - name: Build server
         working-directory: backend
         run: |
@@ -153,6 +170,11 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+      - name: Contract typegen sync (W10)
+        working-directory: frontend
+        run: |
+          pnpm typegen
+          git diff --exit-code -- src/api/openapi.d.ts
       - name: Lint
         working-directory: frontend
         run: pnpm lint
@@ -165,6 +187,9 @@ jobs:
       - name: Build
         working-directory: frontend
         run: pnpm build
+      - name: Bundle size gate (W11)
+        working-directory: frontend
+        run: pnpm bundle:gate
 
   manifests:
     name: Manifests

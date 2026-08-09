@@ -64,6 +64,9 @@ type Edge struct {
 	ValidTo         *time.Time       `json:"valid_to,omitempty"`
 	ReviewEvidence  []EvidenceRef    `json:"review_evidence,omitempty"`
 	SourceHash      string           `json:"source_hash,omitempty"`
+	// AggregateCount carries the collapsed edge multiplicity when the graph
+	// is served by GET /topology/graph?collapse=1 (advisory, read-only).
+	AggregateCount int `json:"aggregate_count,omitempty"`
 }
 
 // EvidenceRef points at a stable, redacted evidence snapshot. Mirrors
@@ -154,4 +157,21 @@ type ChangeTimelineResponse struct {
 	Items     []ChangeEvent `json:"items"`
 	Total     int64         `json:"total"`
 	Truncated bool          `json:"truncated,omitempty"`
+}
+
+// SetEdgeCount sets the advisory aggregate edge-count on an Edge (used by
+// the collapse view transform for large graphs).
+func SetEdgeCount(e *Edge, n int) {
+	if e == nil {
+		return
+	}
+	e.AggregateCount = n
+}
+
+// IncEdgeCount increments the advisory aggregate edge-count on an Edge.
+func IncEdgeCount(e *Edge) {
+	if e == nil {
+		return
+	}
+	e.AggregateCount++
 }

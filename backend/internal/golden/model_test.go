@@ -11,7 +11,7 @@ func TestDatasetVersion(t *testing.T) {
 	if DatasetVersion == "" {
 		t.Fatal("DatasetVersion must be non-empty")
 	}
-	if DatasetVersion != "1.0" {
+	if DatasetVersion != "1.1" {
 		t.Errorf("DatasetVersion = %q, want %q", DatasetVersion, "1.0")
 	}
 }
@@ -24,8 +24,8 @@ func TestDefaultDatasetIntegrity(t *testing.T) {
 	if ds.Version != DatasetVersion {
 		t.Errorf("dataset version = %q, want %q", ds.Version, DatasetVersion)
 	}
-	if len(ds.Scenarios) != 3 {
-		t.Fatalf("expected 3 scenarios, got %d", len(ds.Scenarios))
+	if len(ds.Scenarios) != 4 {
+		t.Fatalf("expected 4 scenarios, got %d", len(ds.Scenarios))
 	}
 
 	seenIDs := make(map[ScenarioID]bool)

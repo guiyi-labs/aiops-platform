@@ -52,6 +52,27 @@ runtime. It uploads only sanitized counts/hashes/status and service logs, never
 identity/recovery inputs, archive payloads, manifests or keys, and removes the
 runtime, volume and `.env` in `always()` steps.
 
+## Local Release Verification (M88)
+
+Before asking CI to create a tagged release, verify the package on the host
+that holds the checked-out HEAD:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1 -Version v0.2.0
+```
+
+The script asserts the semantic version, assembles source/contract/license/
+Helm artifacts, writes `release-metadata.json` and `SHA256SUMS`, then verifies
+every checksum locally. When `cosign` is on PATH and `COSIGN_PRIVATE_KEY` /
+`COSIGN_PUBLIC_KEY` are set, it performs a real `sign-blob` + `verify-blob`
+loop; otherwise it writes `SIGNING_SKIPPED` and fails loudly if strict signing
+was requested. Multi-architecture OCI archives are produced by CI
+(`-IncludeImages` is only for hosts that intend the full multi-arch build).
+
+The release workflow is now fail-closed: `cosign attest-blob` exits non-zero
+on failure and the `Publish immutable tagged release` step is preceded by an
+`Enforce signed release assets` gate that refuses to publish when
+`SHA256SUMS.sig` / `SHA256SUMS.cert.pem` / provenance signature are missing.
 ## Release Procedure
 
 1. Confirm the working branch is merged and all required checks passed.

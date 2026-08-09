@@ -18,6 +18,7 @@ import (
 	"k8s-aiops.local/backend/internal/optimization"
 	"k8s-aiops.local/backend/internal/pdb"
 	"k8s-aiops.local/backend/internal/policy"
+	"k8s-aiops.local/backend/internal/posture"
 )
 
 // optimizationHandler exposes the read-only M61-M63 analyzers over HTTP.
@@ -25,7 +26,8 @@ import (
 // request body, runs the corresponding pure analyzer, and returns findings.
 // The server never reaches into the cluster itself (ADR 0004).
 type optimizationHandler struct {
-	svc *optimization.Service
+	svc     *optimization.Service
+	posture *posture.Evaluator
 }
 
 // cisAnalyzeRequest carries the cluster identity plus the CIS observation
@@ -417,4 +419,31 @@ func (h optimizationHandler) ingressAnalyze(c *gin.Context) {
 	}
 	status := ingressposture.Evaluate(req.ClusterID, inputs, time.Now())
 	c.JSON(http.StatusOK, status)
+}
+
+// postureReport aggregates every M61-M78 analyzer for one cluster into a
+// unified governance posture report (M80). The endpoint stays read-only: the
+// server auto-collects observation bundles and runs only pure analyzers.
+type postureRequest struct {
+	ClusterID int64 `form:"cluster_id" binding:"required"`
+	// TargetVersion feeds the deprecated-API check; optional.
+	TargetVersion string `form:"target_version"`
+}
+
+func (h optimizationHandler) postureReport(c *gin.Context) {
+	if h.posture == nil {
+		writeError(c, http.StatusServiceUnavailable, "POSTURE_UNAVAILABLE", "posture evaluator is not configured")
+		return
+	}
+	var req postureRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		writeError(c, http.StatusBadRequest, "INVALID_CLUSTER", "cluster_id is required")
+		return
+	}
+	report, err := h.posture.Evaluate(c.Request.Context(), req.ClusterID, time.Now())
+	if err != nil {
+		writeError(c, http.StatusBadGateway, "POSTURE_FAILED", err.Error())
+		return
+	}
+	c.JSON(http.StatusOK, report)
 }

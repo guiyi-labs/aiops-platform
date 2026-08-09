@@ -1,0 +1,111 @@
+/* ============================================================
+ * premium-ui.css — 第三层精修（W10 之后 UX 延续）
+ * 参考 Linear / Vercel / Supabase 级控制台细节：
+ * 交互反馈、层级、玻璃拟态、状态一致。全部动画遵循
+ * prefers-reduced-motion（见下方复位）。
+ * ============================================================ */
+
+/* ---- 顶栏：更强的玻璃拟态 + 层级阴影 ---- */
+.topbar {
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: 0 1px 0 var(--border-subtle), 0 8px 24px -18px rgba(17, 24, 39, 0.35);
+}
+
+/* ---- 工作台选择器：悬浮上浮 + 箭头旋转 ---- */
+.workspace-selector {
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
+}
+.workspace-selector:hover {
+  background: rgba(0, 0, 0, 0.16);
+  border-color: rgba(94, 147, 255, 0.4);
+  box-shadow: 0 6px 18px -10px rgba(50, 108, 229, 0.4);
+  transform: translateY(-1px);
+}
+.workspace-selector > svg {
+  transition: transform var(--transition-base);
+}
+.workspace-selector:hover > svg {
+  transform: rotate(90deg);
+}
+
+/* ---- 侧栏导航激活项：渐变强调条 + 图标着色 ---- */
+.nav-item.active {
+  box-shadow:
+    inset 3px 0 var(--blue-500),
+    0 0 18px -6px color-mix(in srgb, var(--blue-500) 55%, transparent);
+}
+.nav-item.active svg {
+  color: var(--blue-400);
+}
+
+/* ---- 头像与账号按钮：悬浮放大 + 光环 ---- */
+.icon-button,
+.avatar {
+  transition:
+    transform var(--transition-base),
+    box-shadow var(--transition-base),
+    border-color var(--transition-base),
+    background-color var(--transition-base);
+}
+.avatar:hover {
+  box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-md);
+}
+.icon-button[aria-label="退出登录"]:hover {
+  color: var(--status-danger);
+  border-color: color-mix(in srgb, var(--status-danger) 35%, var(--border-default));
+  background: var(--danger-bg);
+}
+
+/* ---- 主按钮按下：更紧凑的反馈 ---- */
+.primary-button:not(:disabled):active,
+.login-submit:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+/* ---- 卡片顶缘渐变光晕（悬浮细节增强） ---- */
+.panel,
+section[class*="panel"],
+.card {
+  position: relative;
+}
+.card::after,
+.panel::after,
+section[class*="panel"]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--blue-400, #5e93ff) 45%, transparent),
+    transparent
+  );
+  opacity: 0;
+  transition: opacity var(--transition-slow);
+}
+.card:hover::after,
+.panel:hover::after,
+section[class*="panel"]:hover::after {
+  opacity: 1;
+}
+
+/* ---- 选中文本颜色统一 ---- */
+::selection {
+  color: var(--blue-900, var(--text-inverse));
+  background: color-mix(in srgb, var(--blue-300, #8fb8ff) 60%, transparent);
+}
+
+/* ---- 减少动态偏好 ---- */
+@media (prefers-reduced-motion: reduce) {
+  .topbar { backdrop-filter: blur(4px); }
+  .workspace-selector:hover { transform: none; }
+  .avatar:hover { box-shadow: var(--shadow-sm); }
+}

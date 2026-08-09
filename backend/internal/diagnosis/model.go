@@ -16,6 +16,24 @@ const (
 	RuleIngressBackendUnavailable        = "ingress.backend_unavailable.v1"
 )
 
+// RuleIDs returns the compiled-in deterministic diagnosis rule IDs in a
+// stable order (used by the analyzer discovery contract).
+func RuleIDs() []string {
+	return []string{
+		RuleImagePullBackOff,
+		RuleCrashLoopBackOff,
+		RulePodPending,
+		RulePodOOMKilled,
+		RuleServiceNoEndpoints,
+		RuleNodeNotReady,
+		RuleDeploymentReplicasUnavailable,
+		RuleNodePressure,
+		RulePersistentVolumeClaimPending,
+		RuleHorizontalPodAutoscalerSaturated,
+		RuleIngressBackendUnavailable,
+	}
+}
+
 type ResourceRef struct {
 	Kind      string `json:"kind"`
 	Namespace string `json:"namespace,omitempty"`

@@ -2976,6 +2976,13 @@ var customResourceWhitelist = map[string]customResourceDescriptor{
 	// ArgoCD (GitOps, M58). Read-only Application browse. The
 	// Application is cluster-scoped in ArgoCD v2.
 	"argoproj.io/v1alpha1/applications": {Namespaced: false},
+	// Gateway API (network gateway topology, polish-plan W7). Read-only
+	// browse only; GatewayClass is cluster-scoped, Gateway and HTTPRoute are
+	// namespaced. Adding these is a contract change that requires the Golden
+	// analyzer-discovery replay to still pass.
+	"gateway.networking.k8s.io/v1/gateways":       {Namespaced: true},
+	"gateway.networking.k8s.io/v1/httproutes":     {Namespaced: true},
+	"gateway.networking.k8s.io/v1/gatewayclasses": {Namespaced: false},
 }
 
 // IsCustomResourceBrowsable reports whether the given (group, version, resource)

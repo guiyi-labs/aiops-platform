@@ -20,6 +20,23 @@ type EngineContracts struct {
 	Versions                  EngineVersions
 	ValidPlanStatuses         map[string]bool
 	ValidVerificationStatuses map[string]bool
+
+	// AnalyzerDiscovery is the M82 analyzer-contract snapshot. When it is
+	// non-nil, replay steps that set ExpectAnalyzerContracts verify that the
+	// analyzer surface has not silently shrunk.
+	AnalyzerDiscovery *AnalyzerDiscoveryContract
+}
+
+// AnalyzerDiscoveryContract captures the compiled-in analyzer surface that the
+// golden run must not regress. The snapshot is taken at construction time from
+// the live platform packages (ADR 0079 / polish-plan W6 / M82).
+type AnalyzerDiscoveryContract struct {
+	SchemaVersion   string   `json:"schema_version,omitempty"`
+	PostureDomains  []string `json:"posture_domains,omitempty"`
+	InsightKinds    []string `json:"insight_kinds,omitempty"`
+	DiagnosisRules  []string `json:"diagnosis_rules,omitempty"`
+	InspectionRules []string `json:"inspection_rules,omitempty"`
+	Operations      []string `json:"operations,omitempty"`
 }
 
 // StepResult is the outcome of verifying one golden scenario step.
@@ -156,6 +173,14 @@ func (r *ReplayRunner) verifyStep(step StepOutcome) StepResult {
 	// respectively. They are always met as long as the engine versions
 	// are non-empty, which is checked above.
 
+	if step.ExpectAnalyzerContracts {
+		if err := verifyAnalyzerContracts(r.contracts.AnalyzerDiscovery); err != nil {
+			res.Passed = false
+			res.Notes = err.Error()
+			return res
+		}
+	}
+
 	res.Passed = true
 	return res
 }
@@ -231,4 +256,29 @@ func (t *replayTaskTracker) get(id string) (*ReplayTask, bool) {
 	defer t.mu.Unlock()
 	task, ok := t.tasks[id]
 	return task, ok
+}
+
+// verifyAnalyzerContracts ensures the M82 analyzer snapshot discovery is
+// non-empty across all families so a silently-shrunken contract fails the
+// golden replay instead of being unnoticed.
+func verifyAnalyzerContracts(snapshot *AnalyzerDiscoveryContract) error {
+	if snapshot == nil {
+		return fmt.Errorf("analyzer discovery contract is missing (M82 contract)")
+	}
+	if len(snapshot.PostureDomains) == 0 {
+		return fmt.Errorf("posture domains are empty (analyzer discovery contract)")
+	}
+	if len(snapshot.InsightKinds) == 0 {
+		return fmt.Errorf("insight kinds are empty (analyzer discovery contract)")
+	}
+	if len(snapshot.DiagnosisRules) == 0 {
+		return fmt.Errorf("diagnosis rules are empty (analyzer discovery contract)")
+	}
+	if len(snapshot.InspectionRules) == 0 {
+		return fmt.Errorf("inspection rules are empty (analyzer discovery contract)")
+	}
+	if len(snapshot.Operations) == 0 {
+		return fmt.Errorf("remediation operations are empty (analyzer discovery contract)")
+	}
+	return nil
 }

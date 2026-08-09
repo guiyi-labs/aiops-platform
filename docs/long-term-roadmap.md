@@ -88,7 +88,7 @@
   - 授权缺口已记录在 `docs/changes/2026-08-09-m88-release-loop.md`：GitHub Release 创建 / Fulcio keyless 签名待 runner 与授权。
 - [ ] **M89 生产身份（组织授权）**：OIDC/MFA 对接（M26B 前置审批）。
 - [ ] **M90 数据可靠性（组织授权）**：WAL 归档 → PITR 演练 → 多副本优雅停机 → 迁移回滚演练。
-- [ ] **M91 前端虚拟滚动 / 大规模性能（本地可做，M90 语义保持兼容）**：拓扑/工作负载列表虚拟滚动、聚合缓存、P95 延迟基准。
+- [x] **M91 前端虚拟滚动（本地可做，部分完成）**：`useVirtualList` 窗口化虚拟滚动 composable + 6 条单测已落地，接入 Workloads Pod 表 + sticky 表头；聚合缓存与 500 节点/50k pod 基准留待真实集群证据。
 
 ---
 

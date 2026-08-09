@@ -291,3 +291,45 @@ export interface IngressStatus {
   by_family: Record<string, number>
   findings: OptimizationFinding[]
 }
+
+/* ------------------------------------------------ M80 Posture (aggregate) ---- */
+
+/** Analyzer family identifiers in the aggregated posture report. */
+export type PostureDomain =
+  | 'cis' | 'finops' | 'deprecated_api' | 'network' | 'image' | 'gitops'
+  | 'capacity' | 'policy' | 'hpa' | 'pdb' | 'ingress'
+
+/** Per-domain rollup in the aggregated posture report. */
+export interface PostureDomainStatus {
+  domain: PostureDomain
+  total: number
+  failed: number
+  passed: number
+  by_severity: Record<string, number>
+}
+
+/** A finding with its originating analyzer domain attached. */
+export interface PostureFinding {
+  domain: PostureDomain
+  severity: string
+  code: string
+  summary: string
+  resource: ResourceCitation
+  details?: Record<string, string>
+  observed_at: string
+}
+
+/**
+ * Aggregated cluster governance posture across every M61-M78 analyzer.
+ * Findings are risk-sorted (critical first); domains carry their own rollups.
+ */
+export interface PostureReport {
+  cluster_id: number
+  evaluated_at: string
+  domains: PostureDomainStatus[]
+  findings: PostureFinding[]
+  by_severity: Record<string, number>
+  total_checks: number
+  failed_checks: number
+  passed_checks: number
+}

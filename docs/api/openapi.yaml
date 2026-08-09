@@ -217,6 +217,23 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/optimization/posture/cluster:
+    get:
+      tags: [optimization]
+      summary: Aggregated cluster governance posture across all M61-M78 analyzers
+      operationId: getPostureReport
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, required: true, schema: { type: integer } }
+        - { name: target_version, in: query, description: Optional Kubernetes target version for the deprecated-API check, schema: { type: string } }
+      responses:
+        '200':
+          description: Aggregated posture report (risk-sorted findings + per-domain rollups)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostureReport' }
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /api/v1/fleet/health:
     get: { tags: [fleet], summary: Compare bounded health samples across enabled clusters, operationId: getFleetHealth, security: [{ bearerAuth: [] }], parameters: [{ name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 20, default: 20 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
   /api/v1/fleet/resources/search:
@@ -1281,6 +1298,7 @@ paths:
         - { name: cluster_id, in: query, required: true, schema: { type: integer, format: int64, minimum: 1 } }
         - { name: namespace, in: query, required: true, schema: { type: string, maxLength: 63 } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 200 } }
+        - { name: collapse, in: query, description: "When 1, duplicate edges between the same source/target pair collapse into one edge with an aggregate_count (large-graph view, M83/W7).", schema: { type: string, enum: ["0", "1"] } }
       responses:
         '200': { description: Topology graph, content: { application/json: { schema: { $ref: '#/components/schemas/TopologyGraph' } } } }
         '400': { $ref: '#/components/responses/Error' }
@@ -1743,6 +1761,28 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '403': { $ref: '#/components/responses/Error' }
         '503': { description: Quality report service unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  /api/v1/aiops/insight:
+    get:
+      tags: [aiops-insight]
+      summary: Resolve the closed-loop insight for a posture finding
+      description: >-
+        Maps a read-only posture/optimization finding to a deterministic runbook:
+        applicable deterministic diagnosis routes, corroborating M52 inspection rules,
+        the cited AI-explanation entry point (M55) and dry-run operation candidates (M19).
+        Pure read-only mapping; no cluster access and no state mutation.
+      operationId: getInsightRunbook
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, required: true, schema: { type: integer, format: int64 } }
+        - { name: domain, in: query, required: true, schema: { type: string } }
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: kind, in: query, required: true, schema: { type: string } }
+        - { name: namespace, in: query, required: false, schema: { type: string } }
+        - { name: name, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Resolved runbook, content: { application/json: { schema: { $ref: '#/components/schemas/InsightRunbook' } } } }
+        '400': { description: Invalid query, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+        '401': { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   /api/v1/app-catalog/repositories:
     get:
       tags: [app-catalog]
@@ -2486,6 +2526,8 @@ components:
     Name: { name: name, in: path, required: true, schema: { type: string } }
     Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
     Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    QueryPage: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    QueryPageSize: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
     WorkspaceIDQuery: { name: workspace_id, in: query, required: false, schema: { type: integer, format: int64, minimum: 1 }, description: 'Optional M46 workspace filter. When set, namespaced list results are narrowed to namespaces that belong to the workspace on the current cluster. Pure visibility filter — does NOT grant namespace read access (ADR 0062 §4).' }
   responses:
     Ok: { description: Successful JSON response, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
@@ -2493,6 +2535,55 @@ components:
     Login: { description: Login or refresh response, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
     Error: { description: Structured error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   schemas:
+    # -------- M80 Aggregated governance posture --------
+    PostureReport:
+      type: object
+      required: [cluster_id, evaluated_at, domains, findings, by_severity, total_checks, failed_checks, passed_checks]
+      properties:
+        cluster_id: { type: integer }
+        evaluated_at: { type: string, format: date-time }
+        domains:
+          type: array
+          items: { $ref: '#/components/schemas/PostureDomainStatus' }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/PostureFinding' }
+        by_severity: { type: object, additionalProperties: { type: integer } }
+        total_checks: { type: integer }
+        failed_checks: { type: integer }
+        passed_checks: { type: integer }
+    PostureDomainStatus:
+      type: object
+      required: [domain, total, failed, passed]
+      properties:
+        domain:
+          type: string
+          enum: [cis, finops, deprecated_api, network, image, gitops, capacity, policy, hpa, pdb, ingress]
+        total: { type: integer }
+        failed: { type: integer }
+        passed: { type: integer }
+        by_severity: { type: object, additionalProperties: { type: integer } }
+    PostureFinding:
+      type: object
+      required: [domain, severity, code, summary, resource, observed_at]
+      properties:
+        domain:
+          type: string
+          enum: [cis, finops, deprecated_api, network, image, gitops, capacity, policy, hpa, pdb, ingress]
+        severity: { type: string, enum: [info, warning, critical] }
+        code: { type: string }
+        summary: { type: string }
+        resource:
+          type: object
+          required: [kind, name]
+          properties:
+            kind: { type: string }
+            namespace: { type: string }
+            name: { type: string }
+            uid: { type: string }
+            resource_version: { type: string }
+        details: { type: object, additionalProperties: { type: string } }
+        observed_at: { type: string }
     # -------- M58 GitOps + Velero + CopyOps schemas --------
     GitOpsCapability:
       type: object
@@ -2533,31 +2624,6 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/GitOpsApplication' } }
         total: { type: integer }
         remaining: { type: integer, description: Remaining cursor (optional capability-aware hint) }
-    VeleroBackupList:
-      type: object
-      required: [items, total]
-      properties:
-        items:
-          type: array
-          items:
-            type: object
-            description: Projected Velero Backup row (GUI-friendly)
-            required: [name, namespace, phase]
-            properties:
-              name: { type: string }
-              namespace: { type: string }
-              phase: { type: string, enum: [New, Fetching, WaitingForPluginOperations, WaitingForPluginOperationsPartiallyFailed, InProgress, Completed, PartiallyFailed, Failed, Deleting] }
-              schedule_name: { type: string }
-              included_namespaces: { type: array, items: { type: string } }
-              excluded_namespaces: { type: array, items: { type: string } }
-              started_at: { type: string, format: date-time }
-              completed_at: { type: string, format: date-time }
-              errors: { type: integer }
-              warnings: { type: integer }
-              expires_at: { type: string, format: date-time }
-              storage_location: { type: string }
-        total: { type: integer }
-        remaining: { type: integer }
     VeleroRestoreList:
       type: object
       required: [items, total]
@@ -2993,12 +3059,11 @@ components:
     VeleroBackupList:
       type: object
       additionalProperties: false
-      required: [items, total, page, limit]
+      required: [items, total, remaining]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/VeleroBackup' } }
         total: { type: integer, minimum: 0 }
-        page: { type: integer, minimum: 1 }
-        limit: { type: integer, minimum: 1, maximum: 100 }
+        remaining: { type: integer, minimum: 0, description: Number of remaining results beyond the current page }
     NamespacePosture:
       type: object
       required: [name, phase, resource_quotas, limit_ranges, workloads, pods, pdbs, node_capacity, partial_sections, overall_state, findings]
@@ -4011,14 +4076,6 @@ components:
       properties:
         evidence_ref: { $ref: '#/components/schemas/EvidenceRef' }
         claim: { type: string }
-    EvidenceRef:
-      type: object
-      additionalProperties: false
-      required: [kind, id]
-      properties:
-        kind: { type: string, enum: [signal_occurrence, topology_edge, change_event, diagnosis_record, slo_evaluation, correlation_case, change_candidate] }
-        id: { type: integer, format: int64 }
-        content_hash: { type: string, description: Redacted snapshot hash for replayability }
     AutomationRunbookList:
       type: object
       additionalProperties: false
@@ -4474,6 +4531,57 @@ components:
         task_id: { type: string, description: Async replay task ID (e.g. qr-<hex>) }
         status: { type: string, enum: [running, succeeded, failed] }
         message: { type: string, description: Human-readable status message }
+    InsightRunbook:
+      type: object
+      additionalProperties: false
+      required: [cluster_id, domain, kind, name, diagnoses, inspection, read_only]
+      description: M81 closed-loop runbook resolving one posture finding to diagnosis, inspection, AI explanation and dry-run operation candidates.
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        domain: { type: string }
+        finding_code: { type: string }
+        kind: { type: string }
+        namespace: { type: string }
+        name: { type: string }
+        read_only: { type: boolean }
+        diagnoses:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [resource_kind, rule_ids, summary]
+            properties:
+              resource_kind: { type: string }
+              rule_ids: { type: array, items: { type: string } }
+              summary: { type: string }
+        inspection:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [rule_code, signal_code, summary]
+            properties:
+              rule_code: { type: string }
+              signal_code: { type: string }
+              summary: { type: string }
+        ai_explanation:
+          type: object
+          additionalProperties: false
+          required: [endpoint, summary]
+          properties:
+            endpoint: { type: string }
+            summary: { type: string }
+        operations:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [action, target_kind, dry_run_first, summary]
+            properties:
+              action: { type: string }
+              target_kind: { type: string }
+              dry_run_first: { type: boolean }
+              summary: { type: string }
     HelmRepositoryView:
       type: object
       additionalProperties: false
@@ -4589,3 +4697,134 @@ components:
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/AppCatalogPlan' } }
         total: { type: integer }
+    FederationCluster:
+      type: object
+      additionalProperties: false
+      required: [id, name, api_server, enabled, status, cluster_role, federation_status, created_at, updated_at, conditions]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        api_server: { type: string }
+        enabled: { type: boolean }
+        status: { type: string, enum: [enabled, disabled, unreachable] }
+        kubernetes_version: { type: string }
+        last_probed_at: { type: string, format: date-time, nullable: true }
+        cluster_role: { type: string, enum: [host, member, standalone] }
+        federation_status: { type: string, enum: [registered, healthy, degraded, disconnected] }
+        registered_at: { type: string, format: date-time, nullable: true }
+        last_heartbeat_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+        conditions: { type: array, items: { $ref: '#/components/schemas/ClusterCondition' } }
+    ClusterCondition:
+      type: object
+      additionalProperties: false
+      required: [type, status, reason, message, last_transition_time]
+      properties:
+        type: { type: string }
+        status: { type: string }
+        reason: { type: string }
+        message: { type: string }
+        last_transition_time: { type: string, format: date-time }
+    ClusterSummary:
+      type: object
+      additionalProperties: false
+      required: [cluster_id, cluster_name, api_server, enabled, status, cluster_role, federation_status]
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        cluster_name: { type: string }
+        api_server: { type: string }
+        enabled: { type: boolean }
+        status: { type: string }
+        kubernetes_version: { type: string }
+        last_probed_at: { type: string, format: date-time, nullable: true }
+        cluster_role: { type: string, enum: [host, member, standalone] }
+        federation_status: { type: string, enum: [registered, healthy, degraded, disconnected] }
+        registered_at: { type: string, format: date-time, nullable: true }
+        last_heartbeat_at: { type: string, format: date-time, nullable: true }
+    FederationOverview:
+      type: object
+      additionalProperties: false
+      required: [members, standalone, total_clusters, healthy_count, degraded_count, disconnected_count, registered_count, generated_at]
+      properties:
+        host: { $ref: '#/components/schemas/ClusterSummary' }
+        members: { type: array, items: { $ref: '#/components/schemas/ClusterSummary' } }
+        standalone: { type: array, items: { $ref: '#/components/schemas/ClusterSummary' } }
+        total_clusters: { type: integer, minimum: 0 }
+        healthy_count: { type: integer, minimum: 0 }
+        degraded_count: { type: integer, minimum: 0 }
+        disconnected_count: { type: integer, minimum: 0 }
+        registered_count: { type: integer, minimum: 0 }
+        generated_at: { type: string, format: date-time }
+    FederationEvent:
+      type: object
+      additionalProperties: false
+      required: [id, cluster_id, event_type, status, message, occurred_at]
+      properties:
+        id: { type: integer, format: int64 }
+        cluster_id: { type: integer, format: int64 }
+        event_type: { type: string, enum: [registered, deregistered, heartbeat, status_change, role_change] }
+        status: { type: string, enum: [registered, healthy, degraded, disconnected] }
+        message: { type: string }
+        occurred_at: { type: string, format: date-time }
+    FederationEventList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/FederationEvent' } }
+    FederationResourceSummary:
+      type: object
+      additionalProperties: false
+      required: [items, generated_at]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/FederationResourceSummaryEntry' }
+        generated_at: { type: string, format: date-time }
+    FederationResourceSummaryEntry:
+      type: object
+      additionalProperties: false
+      required: [group, version, resource, kind, by_cluster, total_count]
+      properties:
+        group: { type: string }
+        version: { type: string }
+        resource: { type: string }
+        kind: { type: string }
+        by_cluster: { type: array, items: { $ref: '#/components/schemas/FederationClusterCount' } }
+        total_count: { type: integer, minimum: 0 }
+    FederationClusterCount:
+      type: object
+      additionalProperties: false
+      required: [cluster_id, cluster_name, count]
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        cluster_name: { type: string }
+        count: { type: integer, minimum: 0 }
+        error: { type: string, description: TIMEOUT or QUERY_FAILED when the per-cluster aggregate failed }
+    RegisterFederationClusterRequest:
+      type: object
+      additionalProperties: false
+      required: [cluster_id, role]
+      properties:
+        cluster_id: { type: integer, format: int64, minimum: 1 }
+        role: { type: string, enum: [host, member] }
+        status: { type: string, enum: [registered, healthy, degraded, disconnected], description: Initial federation status; defaults to registered }
+    DemoteFederationClusterRequest:
+      type: object
+      additionalProperties: false
+      required: [target_role]
+      properties:
+        target_role: { type: string, enum: [member, standalone] }
+    FederationHeartbeatRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        status: { type: string, enum: [registered, healthy, degraded, disconnected], description: Optional status transition; empty records a heartbeat only }
+    UpdateFederationStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, enum: [registered, healthy, degraded, disconnected] }
+        message: { type: string }

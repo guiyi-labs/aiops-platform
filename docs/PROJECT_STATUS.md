@@ -1,7 +1,7 @@
-# 项目进度与交接状态（Project Status & Handoff）
+﻿# 项目进度与交接状态（Project Status & Handoff）
 
-> 生成时间：2026-08-02 · 维护人：开发 Agent
-> 当前基线：`main` @ `a2fb5fe`（M1–M78 全部落地，通过 CI）
+> 生成时间：2026-08-09 · 维护人：开发 Agent
+> 当前基线：`main` @ `c53bc06`（M1–M91 + W10–W12：真实集群 kind E2E 证据 + 发布签名门禁 fail-closed + 前端虚拟滚动，工作树干净）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,18 +12,18 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新提交 | `a2fb5fe` docs: archive M67-M73 change records |
-| 里程碑范围 | **M1 – M78**（共 78 个） |
-| 远程同步 | 本地 `main` == `origin/main` == `a2fb5fe`，ahead/behind 0/0 |
+| 最新提交 | `c53bc06` feat(m91): windowed virtual scroll for large workload tables |
+| 里程碑范围 | **M1 – M91 + W10–W12**（M80–M87 打磨期；W12 真实集群 E2E；M88 发布闭环本地化；M91 前端虚拟滚动） |
+| 远程同步 | 本地 `main` 与 `origin/main` 同步 0/0（`c53bc06` 已推送，tag `baseline-m91-20260809` 已推送） |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---
 
 ## 2. 里程碑与文档覆盖
 
-- **CHANGELOG.md**：覆盖 M1–M78 全部 `Added/Changed` 条目。
-- **docs/changes/**：114 份变更记录。M21–M78 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
-- **已知文档缺口（低风险）**：M1–M20、M61–M66 仅有 CHANGELOG/README 摘要，缺独立 change-record 文件；如需逐里程碑审计，建议后续补全。
+- **CHANGELOG.md**：覆盖 M1–M91 全部 `Added/Changed` 条目（Unreleased 含 W10–W12 / M88 / M91）。
+- **docs/changes/**：134 份变更记录。M21–M91 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
+- **已知文档缺口（低风险）**：M1–M20 以主题文档形式归档（无独立 mXX 编号文件）；M61–M66/M74/M75 已补齐独立 change-record。
 
 ### 优化中心（M67–M78，纯只读分析器）
 | 里程碑 | 包 | 关键规则 |
@@ -38,6 +38,23 @@
 | M76 HPA 姿态 | `internal/hpaposture` | HPA 缩放姿态 |
 | M77 PDB 保护 | `internal/pdbposture` | PodDisruptionBudget 保护 |
 | M78 Ingress 暴露面 | `internal/ingressposture` | 无 TLS / 死后端 / 通配符 host / 未显式 ingressClassName |
+
+### 打磨期（M80–M84，polish-plan P0/P1/P2 已落地部分）
+| 里程碑 | 内容 |
+|---|---|
+| M80 | 聚合治理态势视图（W4 posture）+ UI motion 打磨基线（aurora 登录、count-up 指标滚动、premium 动效层） |
+| M81 | AIOps 端到端闭环（W5）：findings → 巡检佐证（M52）→ 确定性诊断（M43）→ AI 引用（M55）→ dry-run 预览（M19） |
+| M82 | 黄金回归发现契约（W6）：analyzer_discovery 场景，DatasetVersion → 1.1 |
+| M83 | 拓扑深化（W7）：Gateway API 只读 + collapse 折叠/聚合 |
+| M84 | 测试强度（W8）：14 fuzz + 4 benchmark + 核心包 ≥70% 门禁；全局覆盖率 60.03%（CI 门禁 50%→60%） |
+| M85 | 前端质量（W9）：Playwright 双视口 14/14、console error=0、统一 motion 层（并入 `a75d357`） |
+| M86 | 契约与 API 治理（W10）：错误码审计 + OpenAPI schema 修复 + `pnpm typegen` + CI sync gate + `insight.ts` 消费生成类型 |
+| M87 | W11 UX 精细打磨：premium 交互层 + axe 双视口 0 critical/serious + bundle 门禁 |
+| M88 | 发布闭环本地化：release-verify 脚本 + SHA256SUMS + cosign fail-closed 签名门禁 |
+| W12 | 真实集群 kind E2E 证据（诊断/联邦/全局搜索三套）+ 前端构建契约修复 |
+| M91 | 前端规模性能：useVirtualList 窗口化虚拟滚动 + 6 条单测 + sticky 表头 |
+
+> 待办：M89 生产身份 / M90 数据可靠性需组织授权（P3）；M91 聚合缓存与 500 节点渲染基准待真实集群证据。
 
 ---
 

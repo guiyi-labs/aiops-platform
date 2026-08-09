@@ -35,3 +35,7 @@ tmp/
 *.log
 *.dump
 *.backup
+
+# Playwright
+playwright-report/
+test-results/

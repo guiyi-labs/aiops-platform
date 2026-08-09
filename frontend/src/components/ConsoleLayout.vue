@@ -79,6 +79,7 @@ const navigationGroups = computed(() => [
       { label: '智能诊断', icon: Stethoscope, route: '/diagnoses' },
       { label: '告警规则', icon: BellRing, route: '/alerts' },
       { label: '命名空间治理', icon: LayoutGrid, route: '/namespace-posture' },
+      { label: '治理态势', icon: ShieldCheck, route: '/posture' },
       { label: '优化中心', icon: Wallet, route: '/optimization' },
       { label: '跨集群 Promotion', icon: Shuffle, route: '/promotions', adminOnly: true },
       { label: '工作负载保护', icon: ShieldCheck, route: '/workload-protection' },

@@ -45,6 +45,7 @@ import (
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/oidc"
 	"k8s-aiops.local/backend/internal/optimization"
+	"k8s-aiops.local/backend/internal/posture"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/restore"
@@ -168,7 +169,12 @@ func TestRegisteredRoutesMatchOpenAPI(t *testing.T) {
 		// M64 optimization analyzers: non-nil so the /optimization analyze
 		// routes are registered and covered by the route contract test.
 		Optimization: optimization.NewService(finops.DefaultCostRate(), nil),
-		Version:      "route-contract-test",
+		// M80 posture evaluator: non-nil so the /optimization/posture route is
+		// registered and covered by the route contract test. The route test
+		// only inspects route presence, not behavior, so a nil-collector
+		// evaluator is enough.
+		Posture: posture.New(nil),
+		Version: "route-contract-test",
 	}).(*gin.Engine)
 	if !ok {
 		t.Fatal("http server is not a gin engine")

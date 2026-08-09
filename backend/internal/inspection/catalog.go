@@ -102,6 +102,16 @@ func CatalogByCode(catalog []RuleDescriptor) map[string]RuleDescriptor {
 	return m
 }
 
+// RuleCodes returns the catalog rule codes in registration order (used by
+// the M82 analyzer discovery contract).
+func RuleCodes(catalog []RuleDescriptor) []string {
+	out := make([]string, 0, len(catalog))
+	for _, r := range catalog {
+		out = append(out, r.Code)
+	}
+	return out
+}
+
 // IsValidRuleCode reports whether code is in the catalog.
 func IsValidRuleCode(catalog map[string]RuleDescriptor, code string) bool {
 	_, ok := catalog[code]

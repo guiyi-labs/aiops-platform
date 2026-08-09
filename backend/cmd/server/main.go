@@ -42,6 +42,7 @@ import (
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/oidc"
 	"k8s-aiops.local/backend/internal/optimization"
+	"k8s-aiops.local/backend/internal/posture"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/restore"
@@ -102,6 +103,13 @@ func main() {
 	if err != nil {
 		logger.Fatal("configure metrics history", zap.Error(err))
 	}
+	// M80 unified governance posture: the single read-only collector shared by
+	// the optimization analyzers and the aggregated posture endpoint.
+	optimizationCollector := optimization.NewCollector(
+		optimization.NewKubernetesLister(clusterRegistry, clusterService),
+		optimization.NewMetricsHistorySource(metricsHistoryService, 24*time.Hour),
+		optimization.NewNodeUsageSource(metricsHistoryService, 24*time.Hour),
+	)
 	metricsCollector, err := metricshistory.NewCollector(metricshistory.CollectorConfig{
 		Enabled: cfg.MetricsHistoryEnabled, CollectionInterval: cfg.MetricsCollectionInterval,
 		PerClusterTimeout: cfg.MetricsCollectionTimeout, CleanupInterval: cfg.MetricsCleanupInterval,
@@ -453,12 +461,12 @@ func main() {
 			CapabilityMetricsProvider: capabilityMetricsProvider,
 			CapabilityLogProvider:     capabilityLogProvider,
 			CapabilityRegistry:        capabilityRegistry,
-			Optimization: optimization.NewService(finops.DefaultCostRate(),
-				optimization.NewCollector(
-					optimization.NewKubernetesLister(clusterRegistry, clusterService),
-					optimization.NewMetricsHistorySource(metricsHistoryService, 24*time.Hour),
-					optimization.NewNodeUsageSource(metricsHistoryService, 24*time.Hour),
-				)),
+			Optimization:              optimization.NewService(finops.DefaultCostRate(), optimizationCollector),
+			// M80 unified governance posture: aggregates all M61-M78 analyzers.
+			// The deprecated-API target version is supplied per request via the
+			// posture endpoint query parameter (none in the static config), so
+			// the evaluator is built without a fixed target.
+			Posture:        posture.New(optimizationCollector),
 			OIDC:           oidcSessionManager,
 			OIDCPostLogout: oidcPostLogoutURI,
 			SecureCookies:  cfg.SecureCookies,

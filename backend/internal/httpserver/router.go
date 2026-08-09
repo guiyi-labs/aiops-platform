@@ -37,6 +37,7 @@ import (
 	"k8s-aiops.local/backend/internal/notification"
 	"k8s-aiops.local/backend/internal/oidc"
 	"k8s-aiops.local/backend/internal/optimization"
+	"k8s-aiops.local/backend/internal/posture"
 	"k8s-aiops.local/backend/internal/promotion"
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/requestctx"
@@ -155,6 +156,9 @@ type Options struct {
 	// observation bundle (ADR 0004); the server never reaches into a cluster.
 	// Nil disables the optimization routes — safe for tests and minimal builds.
 	Optimization *optimization.Service
+	// Posture evaluator aggregates all M61-M78 analyzers into a unified
+	// cluster governance posture report. Nil disables the posture endpoint.
+	Posture *posture.Evaluator
 }
 
 func New(logger *zap.Logger, options Options) http.Handler {
@@ -530,7 +534,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 	// (ADR 0004). Routes are registered only when the optimization service is
 	// configured.
 	if options.Optimization != nil {
-		optAPI := optimizationHandler{svc: options.Optimization}
+		optAPI := optimizationHandler{svc: options.Optimization, posture: options.Posture}
 		optRoutes := v1.Group("/optimization")
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/cis/analyze", AuthRequired: true, Handler: optAPI.cisAnalyze, AuditAction: "optimization.cis.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/finops/analyze", AuthRequired: true, Handler: optAPI.finopsAnalyze, AuditAction: "optimization.finops.analyze", AuditResource: "Cluster"})
@@ -543,6 +547,11 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/hpa/analyze", AuthRequired: true, Handler: optAPI.hpaAnalyze, AuditAction: "optimization.hpa.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/pdb/analyze", AuthRequired: true, Handler: optAPI.pdbAnalyze, AuditAction: "optimization.pdb.analyze", AuditResource: "Cluster"})
 		reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/ingress/analyze", AuthRequired: true, Handler: optAPI.ingressAnalyze, AuditAction: "optimization.ingress.analyze", AuditResource: "Cluster"})
+		// M80 unified governance posture: aggregates all M61-M78 analyzers.
+		if options.Posture != nil {
+			postureRoutes := optRoutes.Group("/posture")
+			reg.register(postureRoutes, RouteDescriptor{Method: "GET", Path: "/cluster", AuthRequired: true, Handler: optAPI.postureReport, AuditAction: "posture.cluster.report", AuditResource: "Cluster"})
+		}
 	}
 
 	// M37B alert routes: webhook receivers, exact-match routes, bounded
@@ -676,6 +685,12 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/quality-report", AuthRequired: true, Handler: goldenAPI.getQualityReport, AuditAction: "aiops.quality_report.read", AuditResource: "QualityReport"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/quality-report/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: goldenAPI.runQualityReplay, AuditAction: "aiops.quality_report.run", AuditResource: "QualityReport"})
 	}
+
+	// M81 AIOps closed-loop runbook: maps a posture finding to its diagnosis,
+	// corroborating inspection rules, AI explanation entry and dry-run
+	// operation candidates. Pure read-only mapping (ADR 0004); no cluster access.
+	insightAPI := insightHandler{}
+	reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/insight", AuthRequired: true, Handler: insightAPI.runbook, AuditAction: "aiops.insight.runbook.read", AuditResource: "InsightRunbook"})
 
 	// M57 Helm application catalog. Repository CRUD (SystemOpsAdmin for
 	// write), chart listing/detail (any-auth, read-only index.yaml fetch),

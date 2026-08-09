@@ -4,7 +4,11 @@ import (
 	"k8s-aiops.local/backend/internal/aiinvestigator"
 	"k8s-aiops.local/backend/internal/automation"
 	"k8s-aiops.local/backend/internal/correlation"
+	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/golden"
+	"k8s-aiops.local/backend/internal/insight"
+	"k8s-aiops.local/backend/internal/inspection"
+	"k8s-aiops.local/backend/internal/posture"
 	"k8s-aiops.local/backend/internal/signal"
 	"k8s-aiops.local/backend/internal/slo"
 )
@@ -25,6 +29,7 @@ func goldenEngineContracts() golden.EngineContracts {
 			AutomationVersion:   automation.AutomationVersion,
 			VerifierVersion:     automation.VerifierVersion,
 		},
+		AnalyzerDiscovery: goldenAnalyzerDiscovery(),
 		ValidPlanStatuses: map[string]bool{
 			string(automation.StatusDraft):     true,
 			string(automation.StatusPreviewed): true,
@@ -44,4 +49,25 @@ func goldenEngineContracts() golden.EngineContracts {
 			string(automation.VerificationStatusUnknown):     true,
 		},
 	}
+}
+
+// goldenAnalyzerDiscovery builds the M82 analyzer discovery snapshot from the
+// actual compiled-in catalogs of the analyzer packages.
+func goldenAnalyzerDiscovery() *golden.AnalyzerDiscoveryContract {
+	return &golden.AnalyzerDiscoveryContract{
+		SchemaVersion:   "1.0",
+		PostureDomains:  domainsToStrings(posture.Domains()),
+		InsightKinds:    insight.Kinds(),
+		DiagnosisRules:  diagnosis.RuleIDs(),
+		InspectionRules: inspection.RuleCodes(inspection.DefaultCatalog()),
+		Operations:      insight.Operations(),
+	}
+}
+
+func domainsToStrings(domains []posture.Domain) []string {
+	out := make([]string, 0, len(domains))
+	for _, d := range domains {
+		out = append(out, string(d))
+	}
+	return out
 }

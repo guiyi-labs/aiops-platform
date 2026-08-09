@@ -105,7 +105,7 @@ func (h backupHandler) writeError(c *gin.Context, err error, fallback string) {
 	case errors.Is(err, backup.ErrInvalidRequest):
 		writeError(c, http.StatusBadRequest, "INVALID_BACKUP_REQUEST", "backup request parameters are invalid")
 	case errors.Is(err, backup.ErrVeleroNotInstalled):
-		writeError(c, http.StatusUnprocessableEntity, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
+		writeError(c, http.StatusServiceUnavailable, "VELERO_UNAVAILABLE", "Velero is not installed on the target cluster")
 	case errors.Is(err, backup.ErrStorageLocationNotFound):
 		writeError(c, http.StatusBadRequest, "STORAGE_LOCATION_NOT_FOUND", "backup storage location not found")
 	case errors.Is(err, backup.ErrStorageLocationUnavailable):

@@ -1,8 +1,8 @@
 ﻿# 长远计划：把 AIOps 平台打磨到业内最高水准
 
 - Status: Active（执行基线）
-- Updated: 2026-08-09（对齐 `744bf1f` + M93-A 关闭）
-- Baseline: 功能基线 `744bf1f`（M93-A）；tag `baseline-m93a-20260809`
+- Updated: 2026-08-09（对齐 `e962332` + M93-B1 关闭）
+- Baseline: 功能基线 `e962332`（M93-B1）；tag `baseline-m93b1-20260809`
 - 关系：详细打磨契约见 [`docs/polish-plan.md`](polish-plan.md)；本文件是面向"长远方向 + 分阶段执行 + 已落地清单"的路由图。
 - 原则：不推翻既有架构决策、安全边界与非目标；每一步都带可验证的证据与验收标准。
 
@@ -10,8 +10,8 @@
 
 ## 0. 当前已落地进度（2026-08-09 复验）
 
-功能基线已完成 M93-A：登录页不再展示未经证实的资源数字，浏览器回归改为确定性认证/API fixture；
-ParticleNetwork 生命周期与低端设备性能证据继续归入 M93-B。
+功能基线已完成 M93-B1：登录页数据真实性保持不回归，认证状态驱动拓扑/表单动效，ParticleNetwork
+生命周期和移动端首屏已关闭；低端设备帧耗与登录页专属体积预算继续归入 M93-B2。
 
 | 提交 | 内容 | tag |
 |---|---|---|
@@ -31,13 +31,14 @@ ParticleNetwork 生命周期与低端设备性能证据继续归入 M93-B。
 | `c53bc06` | M91 前端虚拟滚动：useVirtualList + 6 条单测 + Workloads Pod 表窗口化 | `baseline-m91-20260809` |
 | `b0287e1` | M92 登录页视觉系统：ParticleNetwork + SVG 多集群拓扑 + 响应式/reduced-motion 降级 | `baseline-m92-20260809` |
 | `744bf1f` | M93-A 登录页数据真实性：能力卡替代硬编码指标 + 确定性 Playwright fixture + WCAG AA 修复 | `baseline-m93a-20260809` |
+| `e962332` | M93-B1 控制平面登录动效：状态联动 + SVG 节点修复 + ParticleNetwork 生命周期 + 双端截图 | `baseline-m93b1-20260809` |
 
 验证状态（2026-08-09 全量复验）：
 - 后端：gofmt / vet / build / `go test ./...` 全绿；全局覆盖率 60.03%（CI 门禁 50% → 60%）。
-- 前端：lint / typecheck / vitest（23 files · 130 tests）/ vite build / bundle gate 全绿；Playwright Desktop+Mobile 28/28，console error=0，axe critical/serious 为 0。
+- 前端：lint / typecheck / vitest（23 files · 130 tests）/ vite build / bundle gate 全绿；Playwright Desktop+Mobile 38/38，console error=0，axe critical/serious 为 0。
 - CI：OASdiff 破坏性检查、typegen sync gate、覆盖率门禁、bundle 门禁均已接入。
 - W12/M88/M91：真实集群 kind E2E 三套全绿（.artifacts 已归档）；release-verify 本地校验与 fail-closed 签名门禁生效；前端虚拟滚动 23 files 130 tests。
-- M92/M93-A：登录页运行产物包含粒子与拓扑，`/login` 返回 200；硬编码“实时”数字已移除，验证与剩余缺口见 `docs/changes/2026-08-09-m93-login-data-truth.md`。
+- M92/M93-B1：登录页运行产物包含粒子与拓扑，`/login` 返回 200；数据真实性、生命周期、移动端首屏和视觉证据见 `docs/changes/2026-08-09-m93b1-control-plane-login-motion.md`。
 - 环境：Docker daemon 29.6.2 + kind v0.30.0 + kubectl v1.34.0 就绪；`.env` 已生成（production、强随机密钥、AI/NOTIFICATION 关闭）；compose 后端 + 前端 + Postgres 已启动且 healthy。
 
 **真实集群证据**：W3（诊断）、M46 联邦 M48（fleet）、M53 全局搜索的 kind 真实集群 E2E 已产出 `.artifacts/diagnosis-e2e`、`fleet-e2e`、`search-e2e` 三套 JSON，并归档到 W12 change-record。后续 500 节点拓扑渲染等规模级验证见 P1 3.3 / P2-B。
@@ -74,6 +75,7 @@ ParticleNetwork 生命周期与低端设备性能证据继续归入 M93-B。
 - [x] 聚合治理态势（W4/M80）、端到端闭环（W5/M81）、黄金回归发现契约（W6/M82）、拓扑深化（W7/M83）。
 - [x] M92 登录页首屏视觉叙事：粒子网络 + 多集群拓扑，在不改变认证契约的前提下提升产品识别度。
 - [x] M93-A 登录页数据真实性与回归确定性：移除硬编码指标，能力卡不暴露登录前资源数量，Playwright/axe 28/28。
+- [x] M93-B1 控制平面登录动效：认证状态联动、粒子生命周期、SVG 节点修复、桌面/移动截图与 Playwright/axe 38/38。
 - [ ] **W1 续深化候选**（以 A/B 优先级，每项带验收与证据）：
   - 3.1 诊断友好化：以"根因卡片 + 证据引用 + YouTube 风格回放"把 M81 闭环再包装成可交付的演示叙事。
   - 3.2 洞察可解释分层：在聚合态势页为每类分析器给出"规则 → 证据 → 建议"三层可下钻 UI。
@@ -104,7 +106,7 @@ ParticleNetwork 生命周期与低端设备性能证据继续归入 M93-B。
 
 ## 4. 建议的下一步顺序（M93 → M97）
 
-1. **M93-B 登录页质量收口**：数据真实性已在 M93-A 关闭；继续补动态 reduced-motion、ResizeObserver、Page Visibility、低端设备预算和 Playwright Canvas 断言。
+1. **M93-B2 登录页性能证据**：交互、生命周期和 Canvas 回归已在 B1 关闭；只补低端设备帧耗与登录页专属 JS/CSS 预算。
 2. **M94 诊断叙事**：根因卡片 + 证据时间线 + 可回放链路，目标是“10 秒看清根因”。
 3. **M95 洞察可解释分层**：规则 → 证据 → 建议三层下钻，打通 posture / diagnosis / inspection。
 4. **M96 规模与性能证据**：500 节点 / 50k Pod fixture、P95 API 与前端渲染预算入 CI。

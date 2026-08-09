@@ -41,6 +41,12 @@ M92/M93-A 已建立粒子网络、集群拓扑和真实能力卡，但动画仍�
 - `frontend/e2e/smoke.spec.ts`：增加焦点 phase、密码显隐、Canvas 非空像素、动态 reduced-motion、
   页面隐藏暂停、容器 resize 和成功转场断言。
 
+### Baseline Documentation
+
+- 同步 `README.md`、`docs/PROJECT_STATUS.md`、`docs/long-term-roadmap.md` 与
+  `docs/next-long-term-plan.md`，将本首版记为 M93-B1，并把性能证明收敛为 M93-B2。
+- 功能提交为 `e962332`，归档标签为 `baseline-m93b1-20260809`。
+
 ## Evidence
 
 - Desktop 1440×900：[`assets/2026-08-09-m93b1-login-desktop.png`](assets/2026-08-09-m93b1-login-desktop.png)

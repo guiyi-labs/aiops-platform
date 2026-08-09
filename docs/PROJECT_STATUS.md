@@ -14,7 +14,7 @@
 | 默认模块路径 | `k8s-aiops.local/backend` |
 | 最新功能基线 | M94 diagnosis narrative（根因卡 + 证据时间线，见 `baseline-m94-diagnosis-narrative-20260810`） |
 | 里程碑范围 | **M1 – M94（第一步）+ W10–W12**（M93-C 科技主题、M93-B2 登录性能预算、M94 诊断叙事） |
-| 远程同步 | M93-B2 `main` + tag 已同步；CI `31328957176` 全绿（M94 待推送后更新） |
+| 远程同步 | M94 `main` + tag 已同步；CI `31330954783` 全绿 |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---

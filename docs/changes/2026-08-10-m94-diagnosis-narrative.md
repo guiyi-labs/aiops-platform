@@ -63,7 +63,8 @@ M94 的目标是让诊断详情从“字段集合”升级为“10 秒看清根�
 - `pnpm typecheck`：通过。
 - `pnpm lint`：通过。
 - `npx playwright test`：44/44 通过（原 42/42 回归 + 新增 2/2 诊断旅程）。
-- `git diff --check`：通过。
+- git diff --check：通过。
+- 远端 CI：run 31330954783 success（head 712c43191da10538cc101fe22bc598afb49f73cc）；main + baseline tag 已同步。
 
 ## Risks / Notes
 

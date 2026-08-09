@@ -34,7 +34,8 @@ M94 的第一步（根因卡 + 证据时间线）与第二步（行动区）已�
 
 - `pnpm typecheck`、`pnpm lint`：通过。
 - `npx playwright test`：50/50 通过（原 46/46 + 新增 4/4 深链旅程，Desktop+Mobile）。
-- `git diff --check`：通过。
+- git diff --check：通过。
+- 远端 CI：run 31333690693 success（head 1a6e0e9e1cc3561b4aaacb52ea88237aa8b022a5）；main + baseline tag 已同步。
 - 后端无改动（纯前端只读导航）；此前 `go test ./internal/diagnosis/` 等仍通过。
 
 ## Risks / Notes

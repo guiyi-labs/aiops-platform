@@ -13,7 +13,11 @@
     "test": "vitest run",
     "typegen": "openapi-typescript ../docs/api/openapi.yaml -o src/api/openapi.d.ts",
     "bundle:gate": "node scripts/bundle-gate.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "perf:bundle": "node scripts/login-bundle-analyze.mjs",
+    "perf:sample": "node scripts/login-perf-sample.mjs",
+    "perf:report": "node scripts/login-perf-report.mjs",
+    "perf:login": "pnpm perf:sample && pnpm perf:bundle && pnpm perf:report"
   },
   "dependencies": {
     "lucide-vue-next": "^0.525.0",

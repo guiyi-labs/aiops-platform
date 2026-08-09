@@ -1,7 +1,7 @@
 ﻿# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-10 · 维护人：开发 Agent
-> 当前功能基线：M93-C（tag `baseline-m93c-tech-console-20260809`；科技主题控制台、侧栏折叠、无白屏导航、确定性浏览器回归）
+> 当前功能基线：M93-B2（tag `baseline-m93b2-login-perf-20260810`；登录性能报告模式基线、登录专属体积统计、三模式 Playwright 采样）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,8 +12,8 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新功能基线 | M93-C technology console shell（见 `baseline-m93c-tech-console-20260809`） |
-| 里程碑范围 | **M1 – M93-C + W10–W12**（M93-C 科技主题、可收起侧栏与无白屏导航） |
+| 最新功能基线 | M93-B2 login performance budget（见 `baseline-m93b2-login-perf-20260810`） |
+| 里程碑范围 | **M1 – M93-B2 + W10–W12**（M93-C 科技主题、M93-B2 登录性能预算与证据） |
 | 远程同步 | M93-C `main` + tag 已同步；CI `31322604425` 全绿 |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 

@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to the aiops-platform project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -8,6 +8,16 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
+
+### Added — M93-B2 Login Performance Budget & Evidence
+
+- 新增登录页专属体积分析（LoginView chunk 14.75 kB raw / 5.62 kB gzip）+ 三模式
+  （desktop / mobile / reduced-motion）Playwright 采样脚本、报告模式基线 JSON 与 Markdown 报告。
+- 采样捕获 FCP/LCP、long-task、rAF 帧率、交互延迟、Canvas DPR/粒子数、隐藏暂停/恢复
+  与 console error；产出版本化基线 login-baseline-v1.json。
+- CI frontend job 新增 Playwright chromium 安装 + pnpm perf:login + 保留 7 天 artifact；
+  预算为报告模式，不阻塞 CI，连续稳定后升级 fail-closed。
+- See [M93-B2 change record](docs/changes/2026-08-10-m93b2-login-perf-budget.md).
 
 ### Documentation — Post-M93-C Program Plan
 

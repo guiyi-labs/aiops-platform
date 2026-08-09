@@ -4,7 +4,6 @@ import { Boxes, LockKeyhole } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import { APIError } from '../api/auth'
-import { useCountUp } from '../composables/useCountUp'
 import ParticleNetwork from '../components/ParticleNetwork.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -16,10 +15,6 @@ const password = ref('')
 const submitting = ref(false)
 const errorMessage = ref('')
 const passwordChanged = computed(() => route.query.password_changed === '1')
-
-const statClusters = useCountUp(0, ref(12), { duration: 1400 })
-const statNodes = useCountUp(0, ref(186), { duration: 1700 })
-const statAccuracy = useCountUp(0, ref(99), { duration: 1500 })
 
 async function submit() {
   if (submitting.value) return
@@ -130,21 +125,21 @@ async function submit() {
           </g>
         </svg>
 
-        <div class="login-stats" role="group" aria-label="平台实时概况">
-          <div class="login-stat">
-            <i class="stat-pip pip-green"></i>
-            <span>已接入集群</span>
-            <strong>{{ statClusters.value }}<em> 套</em></strong>
+        <div class="login-capabilities" role="list" aria-label="平台核心能力">
+          <div class="login-capability" role="listitem">
+            <i class="capability-pip pip-green" aria-hidden="true"></i>
+            <span>多集群治理</span>
+            <strong>统一视图</strong>
           </div>
-          <div class="login-stat">
-            <i class="stat-pip pip-teal"></i>
-            <span>在线节点</span>
-            <strong>{{ statNodes.value }}<em> 个</em></strong>
+          <div class="login-capability" role="listitem">
+            <i class="capability-pip pip-teal" aria-hidden="true"></i>
+            <span>诊断链路</span>
+            <strong>证据优先</strong>
           </div>
-          <div class="login-stat">
-            <i class="stat-pip pip-violet"></i>
-            <span>诊断准确率</span>
-            <strong>{{ statAccuracy.value }}<em> %</em></strong>
+          <div class="login-capability" role="listitem">
+            <i class="capability-pip pip-violet" aria-hidden="true"></i>
+            <span>变更控制</span>
+            <strong>审计闭环</strong>
           </div>
         </div>
       </div>

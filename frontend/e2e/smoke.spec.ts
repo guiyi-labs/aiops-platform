@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test'
 
+import { mockAnonymousAuth, mockAuthenticatedAPI } from './api-fixtures'
+
 const consoleErrors: string[] = []
 
-test.beforeEach(({ page }) => {
+test.beforeEach(async ({ page }) => {
   consoleErrors.length = 0
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
-  // Deterministic: treat the app as authenticated by seeding the same
-  // persisted session keys the frontend uses. Dev serves a static shell,
-  // so a missing local backend should still render the layout shell.
+  await mockAuthenticatedAPI(page)
 })
 
 test.afterEach(() => {
@@ -23,15 +23,14 @@ test('App shell renders the operations console', async ({ page }) => {
 })
 
 test('Login page presents auth form when unauthenticated', async ({ page }) => {
+  await mockAnonymousAuth(page)
   await page.goto('/login')
-  // If a persisted session exists the router redirects to the console; in
-  // that case we assert we landed on either the console or a visible login.
-  const hasPassword = page.locator('input[type="password"]').count()
-  if (await hasPassword) {
-    await expect(page.locator('button[type="submit"], button:has-text("登录")').first()).toBeVisible()
-  } else {
-    await expect(page.locator('aside, nav[aria-label*="导航"]').first()).toBeVisible()
-  }
+  await expect(page.locator('button[type="submit"], button:has-text("登录")').first()).toBeVisible()
+  const capabilities = page.getByRole('list', { name: '平台核心能力' })
+  await expect(capabilities).toContainText('多集群治理')
+  await expect(capabilities).toContainText('证据优先')
+  await expect(capabilities).toContainText('审计闭环')
+  await expect(capabilities).not.toContainText(/12|186|99|实时概况/)
 })
 
 test('Dashboard renders operational cards', async ({ page }) => {

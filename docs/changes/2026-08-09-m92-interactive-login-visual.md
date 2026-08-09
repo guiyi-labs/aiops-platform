@@ -55,8 +55,8 @@ M80/M87 已建立 Aurora 登录背景与统一动效层，但登录页仍以静�
 
 ## Risks / Notes
 
-- 三组数字当前是硬编码展示值，并非后端实时指标；对外发布前必须接入可信数据源，或
-  明确标记为演示/能力基线，避免误导。
+- M93-A 已移除三组硬编码数字与“实时”措辞，替换为不泄露资源数量的核心能力卡；
+  见 `docs/changes/2026-08-09-m93-login-data-truth.md`。
 - ParticleNetwork 尚无独立组件测试；M93 应补 reduced-motion、ResizeObserver、
   Page Visibility 暂停和 Playwright Canvas 像素/布局断言。
 - 粒子连线复杂度为 O(n²)，但粒子数上限 90；M93 仍需在低端移动设备上做帧耗验证。

@@ -500,7 +500,7 @@ h1 {
   font-size: 12px;
 }
 
-.status-pill.ready { color: #15803d; background: var(--success-bg); }
+.status-pill.ready { color: #166534; background: var(--success-bg); }
 .status-pill.unavailable { color: #b91c1c; background: var(--danger-bg); }
 .status-pill.disabled { color: var(--text-secondary); background: var(--bg-tertiary); }
 .status-pill.unknown { color: #b45309; background: var(--warning-bg); }
@@ -1121,8 +1121,8 @@ tbody tr {
 
 .topo-node .node-dot { fill: #ffffff; }
 
-/* ---- Live stats strip ---- */
-.login-stats {
+/* ---- Product capability strip ---- */
+.login-capabilities {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
@@ -1131,7 +1131,7 @@ tbody tr {
   margin-inline: auto;
 }
 
-.login-stat {
+.login-capability {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: auto auto;
@@ -1144,7 +1144,7 @@ tbody tr {
   backdrop-filter: blur(6px);
 }
 
-.login-stat .stat-pip {
+.login-capability .capability-pip {
   grid-row: 1 / -1;
   width: 8px;
   height: 8px;
@@ -1152,17 +1152,17 @@ tbody tr {
   animation: stat-pulse 2.2s ease-out infinite;
 }
 
-.stat-pip.pip-green { background: #34d399; box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.14); }
-.stat-pip.pip-teal { background: #2dd4bf; box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.14); animation-delay: 0.5s; }
-.stat-pip.pip-violet { background: #818cf8; box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.14); animation-delay: 1s; }
+.capability-pip.pip-green { background: #34d399; box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.14); }
+.capability-pip.pip-teal { background: #2dd4bf; box-shadow: 0 0 0 4px rgba(45, 212, 191, 0.14); animation-delay: 0.5s; }
+.capability-pip.pip-violet { background: #818cf8; box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.14); animation-delay: 1s; }
 
 @keyframes stat-pulse {
   0%       { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.34); }
   70%, 100% { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
 }
 
-.login-stat:nth-child(2) .stat-pip { animation-name: stat-pulse-teal; }
-.login-stat:nth-child(3) .stat-pip { animation-name: stat-pulse-violet; }
+.login-capability:nth-child(2) .capability-pip { animation-name: stat-pulse-teal; }
+.login-capability:nth-child(3) .capability-pip { animation-name: stat-pulse-violet; }
 
 @keyframes stat-pulse-teal {
   0%       { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.34); }
@@ -1174,27 +1174,20 @@ tbody tr {
   70%, 100% { box-shadow: 0 0 0 7px rgba(129, 140, 248, 0); }
 }
 
-.login-stat span {
+.login-capability span {
   grid-column: 2;
   color: rgba(203, 213, 225, 0.88);
   font-size: 11px;
   font-weight: 500;
 }
 
-.login-stat strong {
+.login-capability strong {
   grid-column: 2;
   color: #ffffff;
   font-size: 19px;
   font-weight: 700;
   letter-spacing: 0.4px;
   line-height: 1.15;
-}
-
-.login-stat em {
-  color: rgba(203, 213, 225, 0.7);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 500;
 }
 
 /* ---- Form micro-interactions ---- */

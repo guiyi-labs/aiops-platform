@@ -1826,7 +1826,7 @@ h2 {
 }
 
 .fleet-comparison h2 { font-size: 15px; }
-.fleet-comparison > header > span { color: #71807a; font-size: 10px; }
+.fleet-comparison > header > span { color: #52615b; font-size: 10px; }
 .fleet-table-scroll { max-width: 100%; overflow-x: auto; }
 .fleet-table { width: 100%; min-width: 780px; border-collapse: collapse; table-layout: fixed; }
 .fleet-table th { height: 32px; padding: 0 10px; color: #7b8983; font-size: 9px; font-weight: 700; text-align: left; background: #f7f9f8; border-bottom: 1px solid #e5eae8; }
@@ -1853,7 +1853,7 @@ h2 {
 .fleet-status.timed_out { color: var(--status-danger); }
 .fleet-status.unavailable i,
 .fleet-status.timed_out i { background: var(--status-danger); }
-.fleet-empty { display: grid; min-height: 72px; place-items: center; color: #84918c; font-size: 10px; }
+.fleet-empty { display: grid; min-height: 72px; place-items: center; color: #5b6963; font-size: 10px; }
 .fleet-error { display: flex; min-height: 54px; margin: 0; padding: 0 16px; align-items: center; gap: 8px; color: #a14436; font-size: 10px; }
 
 .cockpit-metrics {

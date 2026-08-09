@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed — M93-A Login Data Truth & Deterministic E2E
+
+- 移除登录页未经证实的 12 / 186 / 99 “实时”指标，改为不泄露资源数量的核心能力卡。
+- Playwright 新增确定性认证/API fixture，登录页匿名路径与受保护页面不再依赖真实后端状态。
+- 修复 Dashboard 三处 WCAG AA 对比度回归；双视口 smoke + axe 28/28 全绿。
+- See [M93-A change record](docs/changes/2026-08-09-m93-login-data-truth.md).
+
 ### Added — M92 Interactive Login Visual System
 
 - 新增 Canvas2D 粒子网络、SVG 多集群拓扑、展示指标与分层动效；支持触屏、2x DPR、

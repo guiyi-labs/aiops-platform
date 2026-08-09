@@ -1,14 +1,17 @@
 import AxeBuilder from '@axe-core/playwright'
 import { test, expect } from '@playwright/test'
 
+import { mockAuthenticatedAPI } from './api-fixtures'
+
 const consoleErrors: string[] = []
 const scannedRoutes = ['/', '/clusters', '/topology', '/posture', '/optimization', '/search', '/events']
 
-test.beforeEach(({ page }) => {
+test.beforeEach(async ({ page }) => {
   consoleErrors.length = 0
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text())
   })
+  await mockAuthenticatedAPI(page)
 })
 
 test.afterEach(() => {

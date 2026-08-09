@@ -26,13 +26,29 @@ test('Login page presents auth form when unauthenticated', async ({ page }) => {
   await mockAnonymousAuth(page)
   await page.goto('/login')
   await expect(page.locator('button[type="submit"], button:has-text("登录")').first()).toBeVisible()
-  const capabilities = page.getByRole('list', { name: '平台核心能力' })
+  const capabilities = page.locator('.login-capabilities')
+  await expect(capabilities).toHaveAttribute('aria-label', '平台核心能力')
   await expect(capabilities).toContainText('多集群治理')
   await expect(capabilities).toContainText('证据优先')
   await expect(capabilities).toContainText('审计闭环')
   await expect(capabilities).not.toContainText(/12|186|99|实时概况/)
 
   const loginPage = page.locator('main.login-page')
+  const viewport = page.viewportSize()
+  const introBox = await page.locator('.login-intro').boundingBox()
+  const cardBox = await page.locator('.login-card').boundingBox()
+  expect(viewport).not.toBeNull()
+  expect(introBox).not.toBeNull()
+  expect(cardBox).not.toBeNull()
+  expect(Math.abs(Math.round(introBox!.width) - viewport!.width)).toBeLessThanOrEqual(8)
+  expect(Math.abs(Math.round(introBox!.height) - viewport!.height)).toBeLessThanOrEqual(8)
+  expect(cardBox!.y + cardBox!.height).toBeLessThanOrEqual(viewport!.height + 1)
+  if (viewport!.width <= 720) {
+    await expect(page.locator('.login-visual')).toBeHidden()
+  } else {
+    await expect(page.locator('.login-visual')).toBeVisible()
+  }
+
   const username = page.locator('#username')
   const password = page.locator('#password')
   await username.focus()

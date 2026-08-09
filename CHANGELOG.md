@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed — M93-B1.1 Fullscreen Login Refinement
+
+- 登录页由左右明暗分栏改为全视口控制平面场景，粒子、网格与拓扑覆盖整个背景，表单作为右侧悬浮操作区。
+- 表单统一为暗色玻璃层，补齐输入、自动填充、密码显隐、错误/成功、按钮与安全状态的暗色对比度细节。
+- 移动端保持全屏粒子背景，隐藏拓扑/能力卡并将完整表单控制在首屏；新增全屏尺寸和首屏边界回归。
+- See [M93-B1.1 change record](docs/changes/2026-08-09-m93b1-fullscreen-login-refinement.md).
+
 ### Changed — M93-B1 Control-Plane Login Motion
 
 - 登录页新增用户名焦点、密码焦点、认证中、成功与失败五种状态驱动的拓扑/表单联动动画。

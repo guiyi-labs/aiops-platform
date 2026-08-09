@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useVirtualList, windowRows } from '../composables/useVirtualList'
 import { Boxes, Check, ChevronRight, Clock3, Database, FileText, Gauge, Globe2, HardDrive, KeyRound, Layers, ListChecks, Network, Pause, Play, RefreshCw, Search, Server, Settings, ShieldCheck, SlidersHorizontal, Sparkles, X } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
@@ -185,6 +186,9 @@ const filteredPersistentVolumeClaims = computed(() => filterByName(persistentVol
 const filteredStorageClasses = computed(() => filterByName(storageClasses.value))
 const filteredConfigMaps = computed(() => filterByName(configMaps.value))
 const filteredM17Rows = computed(() => m17Items(selectedKind.value).filter((item) => item.metadata.name.toLowerCase().includes(searchQuery.value)).map((item) => m17Row(selectedKind.value as M17ResourceKind, item)))
+const podVirtual = useVirtualList({ total: () => filteredPods.value.length, rowHeight: 56, overscan: 4 })
+const podVisibleRows = computed(() => windowRows(filteredPods.value, podVirtual.window.value).visible)
+const podVirtualTopPad = computed(() => windowRows(filteredPods.value, podVirtual.window.value).topPad)
 const selectedCount = computed(() => resourceCount(selectedKind.value))
 const matchedCount = computed(() => filteredCount(selectedKind.value))
 const searchPlaceholder = computed(() => `按 ${kindLabel(selectedKind.value)} 名称筛选`)
@@ -947,16 +951,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
       </div>
 
       <div class="pod-table-wrap resource-table-wrap">
-        <table v-if="selectedKind === 'Pod'" class="pod-table resource-table">
-          <thead><tr><th>名称</th><th>Namespace</th><th>状态</th><th>Ready</th><th>重启</th><th>节点</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-for="pod in filteredPods" :key="pod.metadata.uid || `${pod.metadata.namespace}/${pod.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('Pod', pod.metadata.namespace, pod.metadata.name)" @keydown.enter="openResource('Pod', pod.metadata.namespace, pod.metadata.name)">
-              <td><strong>{{ pod.metadata.name }}</strong><span>{{ pod.spec.containers.map((item) => item.image).join(', ') }}</span></td><td>{{ pod.metadata.namespace }}</td><td><span class="resource-status" :class="statusClass(podReason(pod))">{{ podReason(pod) }}</span></td><td>{{ readyContainerCount(pod) }}/{{ pod.spec.containers.length }}</td><td>{{ restartCount(pod) }}</td><td>{{ pod.spec.nodeName || '--' }}</td>
-              <td><div class="resource-row-actions"><button class="icon-button compact" type="button" title="查看日志" aria-label="查看日志" @click.stop="showLogs(pod)"><FileText :size="15" /></button><button v-if="diagnosticPodReasons.includes(podReason(pod))" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Pod', pod)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
-            </tr>
-            <tr v-if="filteredPods.length === 0"><td colspan="7" class="table-empty">当前范围没有 Pod</td></tr>
-          </tbody>
-        </table>
+        <div v-if="selectedKind === 'Pod'" ref="podVirtual.container" class="pod-table resource-table virtual-list-scroll" @scroll="podVirtual.onScroll">
+          <table class="pod-table resource-table">
+            <thead><tr><th>名称</th><th>Namespace</th><th>状态</th><th>Ready</th><th>重启</th><th>节点</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr v-if="filteredPods.length === 0"><td colspan="7" class="table-empty">当前范围没有 Pod</td></tr>
+              <template v-else-if="podVisibleRows.length">
+                <tr v-for="pod in podVisibleRows" :key="pod.metadata.uid || `${pod.metadata.namespace}/${pod.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('Pod', pod.metadata.namespace, pod.metadata.name)" @keydown.enter="openResource('Pod', pod.metadata.namespace, pod.metadata.name)">
+                  <td><strong>{{ pod.metadata.name }}</strong><span>{{ pod.spec.containers.map((item) => item.image).join(', ') }}</span></td><td>{{ pod.metadata.namespace }}</td><td><span class="resource-status" :class="statusClass(podReason(pod))">{{ podReason(pod) }}</span></td><td>{{ readyContainerCount(pod) }}/{{ pod.spec.containers.length }}</td><td>{{ restartCount(pod) }}</td><td>{{ pod.spec.nodeName || '--' }}</td>
+                  <td><div class="resource-row-actions"><button class="icon-button compact" type="button" title="查看日志" aria-label="查看日志" @click.stop="showLogs(pod)"><FileText :size="15" /></button><button v-if="diagnosticPodReasons.includes(podReason(pod))" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Pod', pod)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
+                </tr>
+              </template>
+              <tr v-else-if="podVirtualTopPad > 0"><td :colspan="7" :style="{ height: podVirtualTopPad + 'px', padding: 0, border: 0 }"></td></tr>
+            </tbody>
+          </table>
+        </div>
 
         <table v-else-if="selectedKind === 'Deployment'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>Namespace</th><th>副本</th><th>Available</th><th>Updated</th><th>镜像</th><th>操作</th></tr></thead>

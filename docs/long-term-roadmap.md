@@ -1,8 +1,8 @@
-# 长远计划：把 AIOps 平台打磨到业内最高水准
+﻿# 长远计划：把 AIOps 平台打磨到业内最高水准
 
 - Status: Active（执行基线）
-- Updated: 2026-08-09（对齐 `a0874e3` + W11 关闭 + 全量推送完成）
-- Baseline: `main` @ `a0874e3`（与 `origin/main` 同步 0/0，工作树干净，18 提交与 9 个新 tag 已推送）
+- Updated: 2026-08-09（对齐 `c53bc06` + W12/M88/M91 关闭）
+- Baseline: `main` @ `c53bc06`（与 `origin/main` 同步 0/0，工作树干净，tag `baseline-m91-20260809` 已推送）
 - 关系：详细打磨契约见 [`docs/polish-plan.md`](polish-plan.md)；本文件是面向"长远方向 + 分阶段执行 + 已落地清单"的路由图。
 - 原则：不推翻既有架构决策、安全边界与非目标；每一步都带可验证的证据与验收标准。
 
@@ -25,14 +25,18 @@
 | `9fcb9a1` + `113e88b` | W10 错误码审计：全路由 writeError + `VELERO_UNAVAILABLE` → 503（backup/restore 3 处 + change-record） | — |
 | `258c2e7` + `f282e96` | W10/M86 OpenAPI 契约修复：重复 schema、缺失 schemas 与参数修复 + `pnpm typegen` + CI sync gate + `insight.ts` 消费生成类型 | `baseline-m86-20260809` |
 | `55e8ebd` + `3b744e1` + `a0874e3` | W11：premium 交互层（glass/发光/按压等）+ axe 双视口 0 critical/serious a11y 扫描 + bundle 体积门禁 + 文档基线同步 | `baseline-w11-20260809` / `baseline-m87-20260809`（指向同一基线） |
+| `658066c` | W12 真实集群 kind E2E 证据（诊断/联邦/全局搜索三套）+ 前端构建契约修复 | `baseline-w12-20260809` |
+| `70c314c` | M88 发布闭环本地化：release-verify + SHA256SUMS + cosign fail-closed 门禁 | `baseline-m88-20260809` |
+| `c53bc06` | M91 前端虚拟滚动：useVirtualList + 6 条单测 + Workloads Pod 表窗口化 | `baseline-m91-20260809` |
 
 验证状态（2026-08-09 全量复验）：
 - 后端：gofmt / vet / build / `go test ./...` 全绿；全局覆盖率 60.03%（CI 门禁 50% → 60%）。
 - 前端：typecheck / eslint / vitest（22 files · 124 tests）/ vite build / Playwright Desktop+Mobile 14/14，console error=0；axe 双视口 critical/serious 为 0；bundle 门禁入 CI。
 - CI：OASdiff 破坏性检查、typegen sync gate、覆盖率门禁、bundle 门禁均已接入。
-- 环境：Docker daemon 29.6.2 + kind v0.30.0 + kubectl v1.34.0 就绪；`.env` 已生成（production、强随机密钥、AI/NOTIFICATION 关闭）；compose 后端 + 前端 + Postgres 尚未启动。
+- W12/M88/M91：真实集群 kind E2E 三套全绿（.artifacts 已归档）；release-verify 本地校验与 fail-closed 签名门禁生效；前端虚拟滚动 23 files 130 tests。
+- 环境：Docker daemon 29.6.2 + kind v0.30.0 + kubectl v1.34.0 就绪；`.env` 已生成（production、强随机密钥、AI/NOTIFICATION 关闭）；compose 后端 + 前端 + Postgres 已启动且 healthy。
 
-**真实集群证据缺口（下一步核心）**：W3（诊断 / M46 联邦 M48）、W5 / W7 关键路径的 kind 真实集群 E2E 尚未在本地产生 `.artifacts/<suite>-e2e/*.json` 证据（当前 `.artifacts/` 为空）。需要在 compose 起来后依次跑 `e2e-diagnosis-kind.ps1`、`e2e-fleet-kind.ps1`、`e2e-global-search-kind.ps1`，产出证据并归档到 change-record。
+**真实集群证据**：W3（诊断）、M46 联邦 M48（fleet）、M53 全局搜索的 kind 真实集群 E2E 已产出 `.artifacts/diagnosis-e2e`、`fleet-e2e`、`search-e2e` 三套 JSON，并归档到 W12 change-record。后续 500 节点拓扑渲染等规模级验证见 P1 3.3 / P2-B。
 
 ---
 

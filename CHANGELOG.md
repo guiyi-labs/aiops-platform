@@ -9,6 +9,38 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — M86 W10 Contract & API Governance
+
+- OpenAPI 契约修复（重复 schema、缺失 schemas 与参数）+ pnpm typegen + CI sync gate；
+  insight.ts 消费生成类型；全路由错误码审计归一化 VELERO_UNAVAILABLE → 503。
+- See [W10 change record](docs/changes/2026-08-09-w10-openapi-typesync.md).
+
+### Added — M87 W11 UX & A11Y & Bundle Gate
+
+- premium-ui.css 微交互层；Playwright + axe（WCAG 2A/2AA/2.1AA）双视口 0 critical/serious；
+  修复 27 类低对比度文字色；新增 pnpm bundle:gate + CI 门禁。
+- See [W11 change record](docs/changes/2026-08-09-w11-ux-a11y-bundle.md).
+
+### Added — M88 Release Loop Localized + fail-closed signing
+
+- 新增 scripts/release-verify.ps1：语义化版本校验 + 发布包组装 + SHA256SUMS 自校验；
+  cosign 存在时真实 sign-blob/verify-blob，否则 SIGNING_SKIPPED 哨兵；
+  release.yml cosign attest-blob 由 fail-open 改为 fail-closed，发布前签名门禁。
+- See [M88 change record](docs/changes/2026-08-09-m88-release-loop.md).
+
+### Added — W12 Real-Cluster kind E2E Evidence
+
+- 修复前端构建契约缺陷（openapi.ts OperationResponse 泛型、insight.ts 契约形态）；
+  e2e-diagnosis-kind/fleet-kind/global-search-kind 三套真实集群 E2E 全部通过；
+  证据在 .artifacts/<suite>-e2e/。
+- See [W12 change record](docs/changes/2026-08-09-w12-real-cluster-e2e.md).
+
+### Added — M91 Windowed Virtual Scroll
+
+- 新增 useVirtualList（computeWindow 纯函数 + rAF 节流 + overscan）+ 6 条 Vitest；
+  WorkloadsView Pod 表窗口化渲染 + sticky 表头；数值为 23 files / 130 tests 全绿。
+- See [M91 change record](docs/changes/2026-08-09-m91-virtual-scroll.md).
+
 ### Added — M81 AIOps Closed-Loop Runbook (W5)
 
 - **End-to-end insight runbook**: 优化中心 findings → 巡检佐证（M52）→ 确定性

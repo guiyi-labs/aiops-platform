@@ -2,7 +2,7 @@
 
 - Status: Active（待评审）
 - Updated: 2026-08-09
-- Baseline: `main` @ `c53bc06`（M91 已提交，尚未推送）
+- Baseline: `main` @ `c53bc06`（M91 已提交，tag `baseline-m91-20260809` 已推送，与 origin/main 同步）
 - 打磨契约见 [`docs/polish-plan.md`](polish-plan.md)；分阶段路线见 [`docs/long-term-roadmap.md`](long-term-roadmap.md)。
 - 原则：不推翻既有架构决策与安全边界；每步带可验证证据；授权等外部依赖如实记录缺口。
 

@@ -38,6 +38,12 @@ M93-B1 已完成认证状态联动与 ParticleNetwork 生命周期，但页面�
   登录卡完整落在首屏；移动端 `.login-visual` 隐藏、桌面端可见。
 - 匿名登录页 Desktop/Mobile axe 扫描继续保持 critical/serious = 0。
 
+### Baseline Documentation
+
+- 同步 `README.md`、`docs/PROJECT_STATUS.md`、`docs/long-term-roadmap.md` 与
+  `docs/next-long-term-plan.md`，将本轮记为 M93-B1.1，M93-B2 继续只承担性能证据。
+- 功能提交为 `51ab90d`，归档标签为 `baseline-m93b1-fullscreen-20260809`。
+
 ## Evidence
 
 - Desktop 1440×900：[`assets/2026-08-09-m93b1-fullscreen-desktop.png`](assets/2026-08-09-m93b1-fullscreen-desktop.png)

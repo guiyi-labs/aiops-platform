@@ -1,7 +1,7 @@
 ﻿# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-09 · 维护人：开发 Agent
-> 当前功能基线：`e962332`（M1–M93-B1 + W10–W12：控制平面登录动效、粒子生命周期、确定性浏览器回归、真实集群 kind E2E）
+> 当前功能基线：`51ab90d`（M1–M93-B1.1 + W10–W12：全屏控制平面登录页、粒子生命周期、确定性浏览器回归、真实集群 kind E2E）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,17 +12,17 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新功能基线 | `e962332` feat(m93): add control-plane login motion |
-| 里程碑范围 | **M1 – M93-B1 + W10–W12**（M93-A 数据真实性；M93-B1 登录状态动效与生命周期） |
-| 远程同步 | M93-A 已同步并全绿；M93-B1 交付要求 `main` + `baseline-m93b1-20260809` 同步，最终状态以 CI 徽章为准 |
+| 最新功能基线 | `51ab90d` feat(m93): refine login into fullscreen scene |
+| 里程碑范围 | **M1 – M93-B1.1 + W10–W12**（M93-B1 状态动效与生命周期；B1.1 全屏视觉收口） |
+| 远程同步 | M93-B1 已同步并全绿；B1.1 交付要求 `main` + `baseline-m93b1-fullscreen-20260809` 同步，最终状态以 CI 徽章为准 |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---
 
 ## 2. 里程碑与文档覆盖
 
-- **CHANGELOG.md**：覆盖 M1–M93-B1 全部 `Added/Changed/Fixed` 条目（Unreleased 含 W10–W12 / M88 / M91 / M92 / M93-A / M93-B1）。
-- **docs/changes/**：139 份变更记录 + 1 份模板。M21–M93-B1 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
+- **CHANGELOG.md**：覆盖 M1–M93-B1.1 全部 `Added/Changed/Fixed` 条目（Unreleased 含 W10–W12 / M88 / M91 / M92 / M93-A / M93-B1.1）。
+- **docs/changes/**：140 份变更记录 + 1 份模板。M21–M93-B1.1 每个里程碑均有独立 `YYYY-MM-DD-mXX-*.md` change-record（M61–M66、M74、M75 已于 2026-08-09 补齐）；M1–M20 早期以主题文档（认证、引导、集群接入等）形式归档。
 - **已知文档缺口（低风险）**：M1–M20 以主题文档形式归档（无独立 mXX 编号文件）；M61–M66/M74/M75 已补齐独立 change-record。
 
 ### 优化中心（M67–M78，纯只读分析器）
@@ -56,6 +56,7 @@
 | M92 | 登录页交互视觉：Canvas2D 粒子网络 + SVG 多集群拓扑 + reduced-motion / 移动端降级 |
 | M93-A | 登录页数据真实性：移除 12 / 186 / 99 硬编码“实时”指标；能力卡替代；确定性 API fixture；Playwright/axe 双视口 28/28 |
 | M93-B1 | 控制平面登录动效：认证状态联动、SVG 节点坐标修复、ResizeObserver/Visibility/动态 reduced-motion、移动端首屏；Playwright/axe 38/38 |
+| M93-B1.1 | 全屏登录页收口：全视口粒子/拓扑场景、暗色悬浮表单、自动填充适配、移动端首屏边界断言 |
 
 > 待办：M89 生产身份 / M90 数据可靠性需组织授权（P3）；M93-B2 只剩低端设备帧耗与登录页专属体积预算，随后推进 M94 诊断叙事。
 

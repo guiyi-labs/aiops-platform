@@ -1,7 +1,7 @@
 # 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-09 · 维护人：开发 Agent
-> 当前基线：`main` @ `3b744e1`（M1–M87：W11 premium UX 交互层 + axe 无障碍门禁 + bundle 体积门禁已落地，工作树干净）
+> 当前基线：`main` @ `70c314c`（M1–M88 + W12：真实集群 kind E2E 证据 + 前端构建修复 + 发布签名门禁 fail-closed，工作树干净）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,9 +12,9 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新提交 | `3b744e1` feat(w11): premium UX interaction layer + axe a11y gate + bundle size gate |
-| 里程碑范围 | **M1 – M87**（M80–M87 为打磨期 W4–W11） |
-| 远程同步 | 本地 `main` 领先 `origin/main` 8 个提交（未推送，待次日统一备份） |
+| 最新提交 | `70c314c` feat(m88): fail-closed release signing gate + local release verify script |
+| 里程碑范围 | **M1 – M88 + W12**（M80–M87 打磨期；W12 真实集群 E2E；M88 发布闭环本地化） |
+| 远程同步 | 本地 `main` 与 `origin/main` 同步 0/0（`70c314c` 已推送，tag `baseline-w12-20260809` / `baseline-m88-20260809` 已推送） |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---

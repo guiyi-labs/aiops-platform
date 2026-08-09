@@ -1,4 +1,4 @@
-﻿# 长远计划：把 AIOps 平台打磨到业内最高水准
+# 长远计划：把 AIOps 平台打磨到业内最高水准
 
 - Status: Active（执行基线）
 - Updated: 2026-08-09（对齐 `a0874e3` + W11 关闭 + 全量推送完成）
@@ -82,10 +82,10 @@
 
 ### P3 — 交付与生产就绪（优先本地可执行部分）
 
-- [ ] **M88（正式发布闭环，最优先，本月）**：
+- [x] **M88（正式发布闭环，本地化部分已完成）**：
   - 语义化 tag / Release 流程接入真实校验；cosign key-less 移除 `|| true` 做真实 verify（需要 GitHub token / 组织授权）。
   - 产出 `SHA256SUMS` + signature + provenance 可验证；离线安装包（`docker save` + 迁移 tar）与文档。
-  - 若无法取得组织授权：推进所有可本地完成的 CI/release 脚本（如版本服务器、Release 描述模板、签名校验文档），并记录授权缺口。
+  - 授权缺口已记录在 `docs/changes/2026-08-09-m88-release-loop.md`：GitHub Release 创建 / Fulcio keyless 签名待 runner 与授权。
 - [ ] **M89 生产身份（组织授权）**：OIDC/MFA 对接（M26B 前置审批）。
 - [ ] **M90 数据可靠性（组织授权）**：WAL 归档 → PITR 演练 → 多副本优雅停机 → 迁移回滚演练。
 - [ ] **M91 前端虚拟滚动 / 大规模性能（本地可做，M90 语义保持兼容）**：拓扑/工作负载列表虚拟滚动、聚合缓存、P95 延迟基准。

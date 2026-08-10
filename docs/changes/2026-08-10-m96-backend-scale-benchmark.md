@@ -1,7 +1,7 @@
 # M96-B 后端规模基准报告
 
 - Date: 2026-08-10
-- Status: Draft
+- Status: Complete
 - Scope: 基于 `m96-v1` fixture 建立后端结构化 report-mode 性能基线，不预设 fail-closed 阈值
 
 ## Context
@@ -26,7 +26,14 @@ M96-A 已固定 500 Node / 50k Pod / 100k Event 输入和数据哈希，但尚�
 
 - `go test -count=1 ./internal/scalebench ./cmd/scale-bench`：通过。
 - `go vet ./internal/scalebench ./cmd/scale-bench`：通过。
-- 完整 `m96-v1` 预提交试跑：3 warmup / 30 samples、8 operations、全部语义不变量通过；正式 commit 绑定报告将在功能提交后重跑并补入本记录。
+- `go test -p=1 -count=1 ./...`：通过，全量 Go 包测试无回归。
+- `go test -cover ./internal/scalebench ./cmd/scale-bench`：通过，新增包覆盖率分别为 84.5% / 66.0%。
+- `go vet ./internal/scalebench ./cmd/scale-bench`、`git diff --check`：通过。
+- `go run ./cmd/scale-bench -config testdata/scale/m96-v1.json -fixture .artifacts/scale-fixture/m96-v1 -output .artifacts/scale-bench/m96-backend-baseline-v1.json -commit dff308fb407d98ae5c78747cc96efe5e91c7f085`：通过，3 warmup / 30 samples、8 operations、7/7 不变量通过。
+- 正式报告 JSON：`.artifacts/scale-bench/m96-backend-baseline-v1.json`；Markdown：`.artifacts/scale-bench/m96-backend-baseline-v1.md`。
+- 报告环境：Windows amd64、Go 1.26.5、20 CPUs、GOMAXPROCS 20；fixture `m96-v1`，dataset hash `81faa1de39eaca4dfb84944ebd7bf155bdc1e3716e5f1ae6431bcdb406647c71`。
+- 关键观察：拓扑 P50/P95/P99 `432.6948/450.8208/453.4259 ms`；Pod 分页 `8.7536/22.2167/24.4137 ms`；Event 分页 `26.9241/42.5991/45.3927 ms`；峰值 heap `539181056 bytes`；goroutine `1→3→1`。
+- 基线 tag：`baseline-m96b-backend-scale-report-20260810` → `dff308fb407d98ae5c78747cc96efe5e91c7f085`。
 
 ## Risks / Notes
 

@@ -63,6 +63,7 @@
 | M94（第二步） | 行动区：类型化只读建议/受控动作（dry-run+确认）、无权限与依赖降级提示、OpenAPI `DiagnosisAction`、Playwright 46/46 |
 | M94（第三步） | 深链：资源详情/工作负载与相关事件/审计入口，纯只读导航，Playwright 50/50 |
 | M95 | 统一证据模型：`FindingDetail v2`（规则身份/证据引用/类型化建议/版本信息）、v1→v2 兼容层、共享严重度映射、按资源合并保留规则来源、golden DatasetVersion 1.2 + 迁移提示；前端 Posture/Optimization/Diagnosis/Inspection 共享证据组件；11 posture 分析器 + finops schema parity；前端门禁 135 单测 / 56 浏览器回归 |
+| M96-A/B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）与 fixture-backed 后端 report-mode 基准；完整前端 DOM 预算、嵌套路由壳层和主题收敛仍在进行 |
 
 > 当前执行入口：`docs/next-long-term-plan.md`。M93-B2 已关闭、M94 第三步（根因卡 + 证据时间线 + 行动区 + 深链）已落地、M95 后端 FindingDetail v2 与前端统一证据组件均已落地；M96-A/B 确定性规模 fixture 与后端 report-mode 基准已落地，继续前端 DOM 预算与壳层收敛；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。

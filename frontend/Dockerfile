@@ -1,4 +1,4 @@
-FROM node:22.13.1-alpine3.21 AS build
+FROM --platform=$BUILDPLATFORM node:22.13.1-alpine3.21 AS build
 
 WORKDIR /app
 ARG PNPM_VERSION=11.7.0

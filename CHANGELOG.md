@@ -15,6 +15,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 发布包新增双架构 OCI 镜像、镜像 SBOM、Kustomize/Helm/离线部署资产和内部 `OFFLINE-SHA256SUMS`；离线包不包含 Secret 值。
 - 发布校验改为严格检查最终 checksum root、provenance subject、镜像平台和签名状态；修复签名后重写 `SHA256SUMS` 的一致性缺陷。
 - 新增 kind 生命周期演练入口，覆盖全新环境安装、升级、回滚、健康检查、认证和清理；数据库迁移回滚边界保持显式。
+- 修复 Helm 升级演练丢失首次安装值的问题；演练端口改为动态分配，失败路径也会写入脱敏结构化证据；前端静态资源构建阶段固定使用宿主架构，解除本地 arm64 OCI 构建卡死。
 - M89/M90 未完成且远端 GitHub Release 尚未取得本轮证据时，版本保持 RC，不宣称 GA 或 production-ready。
 - See [M97 release candidate change record](docs/changes/2026-08-10-m97-release-candidate-closure.md).
 

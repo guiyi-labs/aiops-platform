@@ -93,23 +93,34 @@ function Wait-Workloads {
     Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'rollout', 'status', 'deployment/frontend', '-n', $TargetNamespace, '--timeout=10m') | Out-Null
 }
 
+function Get-FreePort {
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    try {
+        $listener.Start()
+        return ([Net.IPEndPoint]$listener.LocalEndpoint).Port
+    } finally {
+        $listener.Stop()
+    }
+}
+
 function Start-HealthCheck {
     param([Parameter(Mandatory)][string]$TargetNamespace, [int]$Port = 18080)
     if ($null -ne $script:PortForward) { Stop-Process -Id $script:PortForward.Id -Force -ErrorAction SilentlyContinue }
     $script:PortForward = Start-Process -FilePath 'kubectl' -ArgumentList @('--context', $Context, '-n', $TargetNamespace, 'port-forward', 'service/backend', "$Port`:8080") -PassThru -WindowStyle Hidden
     $deadline = (Get-Date).AddMinutes(2)
+    $lastError = 'port-forward not ready'
     do {
         try {
+            if ($script:PortForward.HasExited) { throw "port-forward exited with code $($script:PortForward.ExitCode)" }
             $ready = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/v1/health/ready" -TimeoutSec 5
-            if ($ready.status -eq 'ready') {
-                $login = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$Port/api/v1/auth/login" -ContentType 'application/json' -Body (@{username='admin';password='m97-rehearsal-password'} | ConvertTo-Json -Compress)
-                if ([string]::IsNullOrWhiteSpace([string]$login.access_token)) { throw 'login did not return an access token' }
-                return
-            }
-        } catch {}
+            if ($ready.status -ne 'ready') { throw "health status was $($ready.status)" }
+            $login = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:$Port/api/v1/auth/login" -ContentType 'application/json' -Body (@{username='admin';password='m97-rehearsal-password'} | ConvertTo-Json -Compress)
+            if ([string]::IsNullOrWhiteSpace([string]$login.access_token)) { throw 'login did not return an access token' }
+            return
+        } catch { $lastError = $_.Exception.Message }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
-    throw "backend health/login did not pass in $TargetNamespace"
+    throw "backend health/login did not pass in $TargetNamespace`: $lastError"
 }
 
 function Apply-Kustomize {
@@ -119,7 +130,7 @@ function Apply-Kustomize {
     Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'apply', '-f', $SecretPath) | Out-Null
     Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'apply', '-k', $KustomizeDirectory) | Out-Null
     Wait-Workloads -TargetNamespace $Namespace
-    Start-HealthCheck -TargetNamespace $Namespace -Port 18080
+    Start-HealthCheck -TargetNamespace $Namespace -Port (Get-FreePort)
 }
 
 function Apply-Helm {
@@ -128,6 +139,8 @@ function Apply-Helm {
     $helmSecretPath = Join-Path $TemporaryDirectory 'aiops-helm-secret.yaml'
     Write-Utf8File -Path $helmSecretPath -Contents $helmSecret
     Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'create', 'namespace', $HelmNamespace) | Out-Null
+    Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'label', 'namespace', $HelmNamespace, 'app.kubernetes.io/managed-by=Helm', '--overwrite') | Out-Null
+    Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'annotate', '--overwrite', 'namespace', $HelmNamespace, 'meta.helm.sh/release-name=aiops', ('meta.helm.sh/release-namespace=' + $HelmNamespace)) | Out-Null
     Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'apply', '-f', $helmSecretPath) | Out-Null
     $helmValues = @(
         '--set', "namespace.name=$HelmNamespace",
@@ -138,7 +151,7 @@ function Apply-Helm {
     )
     Invoke-Native -FilePath 'helm' -Arguments (@('upgrade', '--install', 'aiops', $ChartPath, '--namespace', $HelmNamespace, '--create-namespace', '--wait', '--timeout', '10m') + $helmValues) | Out-Null
     Wait-Workloads -TargetNamespace $HelmNamespace
-    Start-HealthCheck -TargetNamespace $HelmNamespace -Port 18081
+    Start-HealthCheck -TargetNamespace $HelmNamespace -Port (Get-FreePort)
 }
 
 if (-not (Test-Path -LiteralPath $ReleaseDirectory)) { throw "Release directory does not exist: $ReleaseDirectory" }
@@ -150,7 +163,7 @@ if ($null -eq $chart -and -not $SkipHelm) { throw 'release directory has no pack
 
 New-Item -ItemType Directory -Force -Path $TemporaryDirectory | Out-Null
 New-Secret
-$results = [ordered]@{schema='aiops.m97-release-lifecycle/v1'; version=$Version; previous_version=$PreviousVersion; cluster=$ClusterName; kustomize='pending'; helm=if ($SkipHelm) {'skipped'} else {'pending'} }
+$results = [ordered]@{schema='aiops.m97-release-lifecycle/v1'; version=$Version; previous_version=$PreviousVersion; cluster=$ClusterName; kustomize='pending'; helm=if ($SkipHelm) {'skipped'} else {'pending'}; status='running' }
 try {
     $kind = if (Get-Command kind -ErrorAction SilentlyContinue) { 'kind' } else { Join-Path $Root '.tools\kind-v0.30.0.exe' }
     Invoke-Native -FilePath $kind -Arguments @('create', 'cluster', '--name', $ClusterName, '--wait', '5m') | Out-Null
@@ -171,23 +184,27 @@ try {
 
     if (-not $SkipHelm) {
         Apply-Helm -BackendTag $PreviousVersion -FrontendTag $PreviousVersion -ChartPath $chart.FullName
-        Invoke-Native -FilePath 'helm' -Arguments @('upgrade', 'aiops', $chart.FullName, '--namespace', $HelmNamespace, '--wait', '--timeout', '10m', '--set', "backend.image.tag=$Version", '--set', "frontend.image.tag=$Version") | Out-Null
+        Invoke-Native -FilePath 'helm' -Arguments @('upgrade', 'aiops', $chart.FullName, '--namespace', $HelmNamespace, '--reuse-values', '--wait', '--timeout', '10m', '--set', "backend.image.tag=$Version", '--set', "frontend.image.tag=$Version") | Out-Null
         Wait-Workloads -TargetNamespace $HelmNamespace
-        Start-HealthCheck -TargetNamespace $HelmNamespace -Port 18081
+        Start-HealthCheck -TargetNamespace $HelmNamespace -Port (Get-FreePort)
         Invoke-Native -FilePath 'helm' -Arguments @('rollback', 'aiops', '1', '--namespace', $HelmNamespace, '--wait', '--timeout', '10m') | Out-Null
         Wait-Workloads -TargetNamespace $HelmNamespace
-        Start-HealthCheck -TargetNamespace $HelmNamespace -Port 18081
+        Start-HealthCheck -TargetNamespace $HelmNamespace -Port (Get-FreePort)
         $results.helm = 'passed: install/upgrade/rollback/health/login/cleanup-pending'
         Invoke-Native -FilePath 'helm' -Arguments @('uninstall', 'aiops', '--namespace', $HelmNamespace) | Out-Null
         Invoke-Native -FilePath 'kubectl' -Arguments @('--context', $Context, 'delete', 'namespace', $HelmNamespace, '--wait=true', '--timeout=5m') | Out-Null
     }
     $results.status = 'passed'
+} catch {
+    $results.status = 'failed'
+    $results.failure = $_.Exception.Message
+    throw
 } finally {
-    if ($null -ne $PortForward) { Stop-Process -Id $PortForward.Id -Force -ErrorAction SilentlyContinue }
+    if ($null -ne $script:PortForward) { Stop-Process -Id $script:PortForward.Id -Force -ErrorAction SilentlyContinue }
     if (-not $KeepCluster) { Invoke-Native -FilePath $kind -Arguments @('delete', 'cluster', '--name', $ClusterName) -AllowFailure | Out-Null }
     if (Test-Path -LiteralPath $TemporaryDirectory) { Remove-Item -LiteralPath $TemporaryDirectory -Recurse -Force }
+    $results.cleanup = if ($KeepCluster) { 'deferred-by-request' } else { 'passed' }
+    New-Item -ItemType Directory -Force -Path $EvidenceDirectory | Out-Null
+    Write-Utf8File -Path $EvidencePath -Contents ($results | ConvertTo-Json -Depth 8)
 }
-$results.cleanup = if ($KeepCluster) { 'deferred-by-request' } else { 'passed' }
-New-Item -ItemType Directory -Force -Path $EvidenceDirectory | Out-Null
-Write-Utf8File -Path $EvidencePath -Contents ($results | ConvertTo-Json -Depth 8)
 Write-Output "M97 release lifecycle rehearsal passed: $EvidencePath"

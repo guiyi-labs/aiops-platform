@@ -1,7 +1,7 @@
 # M97 Release Candidate Supply-Chain Closure
 
 - Date: 2026-08-10
-- Status: Draft pending local lifecycle rehearsal and hosted release permissions
+- Status: Local lifecycle and multi-architecture build verified; strict package and hosted release evidence pending final clean revision
 - Scope: Unified RC manifest, offline package, deployment lifecycle rehearsal and fail-closed publishing
 
 ## Context
@@ -33,14 +33,30 @@ evidence.
   upload only the signed bundle, and publish a GitHub prerelease.
 - Added ADR 0087 and the operator runbook at
   `docs/release-candidate-operations.md`.
+- Updated the rehearsal to reuse the complete Helm install values during
+  upgrade, allocate health-check ports dynamically, and persist redacted
+  failure evidence before cleanup.
+- Updated `frontend/Dockerfile` so the architecture-neutral static build runs
+  on `$BUILDPLATFORM`; the final Nginx image is still emitted for each target
+  platform.
 
 ## Verification
 
-The final record will include the exact `.artifacts/m97-release/` evidence
-paths after the local package and lifecycle rehearsal. Hosted GitHub Release
-creation and keyless Cosign verification remain dependent on remote access and
-organization workflow permissions; a failed remote submission is not treated
-as local evidence.
+The local Kustomize and Helm install/upgrade/rollback/health/login/cleanup
+rehearsal passed in:
+
+- `.artifacts/m97-release/lifecycle-aiops-m97-helmfix.json`
+- `.artifacts/m97-release/frontend-multiarch-smoke-oci.tar` (SHA-256
+  `11cd90a326cd45a2871c9192d78e745dcd30547681a3361ce47e993855dc4094`)
+- `.artifacts/m97-release/m97-release-20260810-061402.json` (non-strict
+  local-key rehearsal package)
+
+The initial Helm rehearsal timed out during upgrade because the command did not
+retain the initial repository and namespace values; the fixed rehearsal passed
+after adding `--reuse-values`. The strict full package must be generated from
+the final clean revision. Hosted GitHub Release creation and keyless Cosign
+verification remain dependent on remote access and organization workflow
+permissions; a failed remote submission is not treated as local evidence.
 
 ## Risks / Notes
 

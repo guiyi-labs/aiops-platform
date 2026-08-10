@@ -14,7 +14,7 @@
 | 默认模块路径 | `k8s-aiops.local/backend` |
 | 最新功能基线 | M95 FindingDetail v2 统一证据模型（见 `baseline-m95-finding-detail-v2-20260810`；M94 诊断叙事为前一基线） |
 | 里程碑范围 | **M1 – M95 + W10–W12**（M93-C 科技主题、M93-B2 登录性能预算、M94 诊断叙事/行动区/深链、M95 统一证据模型） |
-| 远程同步 | M95 `main` + tag 已同步；CI 全绿（M95 FindingDetail v2；M94c 为前一基线 `31333690693`） |
+| 远程同步 | M95 `main` + tag 已同步；CI `31344072666` 全绿（M95 FindingDetail v2）；M94c 为前一基线 |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---

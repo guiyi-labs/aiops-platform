@@ -64,6 +64,7 @@ M94 已完成诊断叙事、类型化行动区与深链。M95 目标是让 18 �
 - OpenAPI 未变更（`FindingDetail v2` 为后端内部统一模型），`pnpm typegen` 无 diff，旧 API
   消费者兼容窗口保持不变。
 - git diff --check：通过。
+- 远端 CI：run 31344072666 success（head 81687daa4b919aac722867dcce466d8563fed00f）；main + baseline tag 已同步。
 
 ## Risks / Notes
 

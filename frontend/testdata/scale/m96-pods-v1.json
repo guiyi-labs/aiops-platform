@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "version": "m96-pods-v1",
+  "seed": 9601,
+  "pod_count": 50000,
+  "namespace_count": 100,
+  "node_count": 500,
+  "target_index": 49999,
+  "row_height_px": 56,
+  "overscan": 4,
+  "hard_rendered_row_limit": 40
+}

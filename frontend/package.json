@@ -17,7 +17,10 @@
     "perf:bundle": "node scripts/login-bundle-analyze.mjs",
     "perf:sample": "node scripts/login-perf-sample.mjs",
     "perf:report": "node scripts/login-perf-report.mjs",
-    "perf:login": "pnpm perf:sample && pnpm perf:bundle && pnpm perf:report"
+    "perf:login": "pnpm perf:sample && pnpm perf:bundle && pnpm perf:report",
+    "perf:pods:sample": "node scripts/pod-scale-perf-sample.mjs",
+    "perf:pods:report": "node scripts/pod-scale-perf-report.mjs",
+    "perf:pods": "pnpm perf:pods:sample && pnpm perf:pods:report"
   },
   "dependencies": {
     "lucide-vue-next": "^0.525.0",

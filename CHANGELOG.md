@@ -18,6 +18,19 @@ Detailed change records for each milestone live under `docs/changes/`.
 - See [M96 scale fixture change record](docs/changes/2026-08-10-m96-scale-fixture.md).
 - See [M96 backend scale benchmark record](docs/changes/2026-08-10-m96-backend-scale-benchmark.md).
 
+### Added — M96 Frontend Scale Budget
+
+- WorkloadsView now preserves a bounded virtual Pod window with top/bottom
+  spacers, mounted viewport measurement and stable scroll geometry at 50,000
+  Pods; name filtering reuses the unfiltered response array and retains object
+  identity for matched rows.
+- Added deterministic `m96-pods-v1` fixture generation and production-preview
+  Playwright sampling for desktop/mobile first render, filtering, scrolling,
+  long tasks, DOM nodes, heap and virtual-window bounds.
+- CI retains the structured M96 Pod scale report in report mode; exact fixture,
+  DOM, scroll, filter and console invariants are hard checks.
+- See [M96 frontend scale budget record](docs/changes/2026-08-10-m96-frontend-scale-budget.md).
+
 ### Added — M95 Frontend Finding Evidence Surface
 
 - Posture、Optimization（11 个 analyzer tab）、Diagnoses 和 Inspection 统一使用 `FindingDetailV2` 前端适配器与可折叠证据链组件，展示规则来源、证据引用、缺失语义和建议能力。

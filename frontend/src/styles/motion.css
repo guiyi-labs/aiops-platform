@@ -114,6 +114,7 @@ tbody tr {
 .fleet-table tbody tr:nth-child(n+2) { animation-delay: 0.04s; }
 .list-table tbody tr:nth-child(n+2) { animation-delay: 0.04s; }
 tbody tr:nth-child(n+2) { animation-delay: 0.04s; }
+.virtual-list-scroll tbody tr { animation: none; }
 
 @keyframes row-enter {
   from { transform: translateY(4px); }

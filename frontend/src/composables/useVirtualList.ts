@@ -103,6 +103,7 @@ export function useVirtualList(options: {
 
   let rafHandle = 0
   let lastSync = 0
+  let resizeObserver: ResizeObserver | null = null
 
   /** Recompute container height lazily (rAF-throttled). */
   const syncHeight = () => {
@@ -131,6 +132,17 @@ export function useVirtualList(options: {
     })
   }
 
+  watch(container, (element) => {
+    resizeObserver?.disconnect()
+    resizeObserver = null
+    if (!element) return
+    syncHeight()
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(syncHeight)
+      resizeObserver.observe(element)
+    }
+  }, { flush: 'post' })
+
   /** Rows (or generic values) within the current window. */
   const slice = <T,>(items: T[]): T[] => {
     const w = window.value
@@ -151,6 +163,7 @@ export function useVirtualList(options: {
 
   onBeforeUnmount(() => {
     if (rafHandle) cancelAnimationFrame(rafHandle)
+    resizeObserver?.disconnect()
   })
 
   return {

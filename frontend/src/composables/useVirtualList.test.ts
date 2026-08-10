@@ -3,8 +3,8 @@ import { computeWindow, windowRows } from './useVirtualList'
 
 describe('computeWindow', () => {
   it('returns a full window at the top for a large list', () => {
-    const w = computeWindow({ total: 5000, scrollTop: 0, viewportHeight: 640, rowHeight: 56 })
-    expect(w.totalHeight).toBe(280000)
+    const w = computeWindow({ total: 50_000, scrollTop: 0, viewportHeight: 640, rowHeight: 56 })
+    expect(w.totalHeight).toBe(2_800_000)
     expect(w.start).toBe(0)
     expect(w.end).toBeGreaterThanOrEqual(Math.ceil(640 / 56))
     expect(w.offsetY).toBe(0)

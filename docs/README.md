@@ -30,6 +30,8 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-08-10-m96-frontend-scale-budget.md`：M96 前端 50k Pod 确定性 fixture、虚拟列表边界与桌面/移动端 DOM/交互 report-mode 基线。
+
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。
 - `docs/changes/2026-07-30-m32-formal-closure.md`：M32 审计结论、缺陷修复和

@@ -1,7 +1,7 @@
 ﻿# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-10 · 维护人：开发 Agent
-> 当前功能基线：M97 RC 本地严格供应链包与双路径生命周期已验证；修复后的 Hosted required CI 已通过，Release 待新 RC 标签重跑
+> 当前功能基线：M97 Gate C 已完成；`v0.3.0-rc.4` 的本地生命周期、Hosted required CI、签名供应链和 GitHub prerelease 均已验证
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -14,7 +14,7 @@
 | 默认模块路径 | `k8s-aiops.local/backend` |
 | 最新功能基线 | M97 `aiops.release-manifest/v1`、双架构 OCI 资产、Helm/Kustomize/离线包、SBOM/provenance 入口与严格校验（见 `2026-08-10-m97-release-candidate-closure.md`） |
 | 里程碑范围 | **M1 – M97 + W10–W12**（M93-C 科技主题、M93-B2 登录性能预算、M94 诊断叙事/行动区/深链、M95 统一证据模型、M96 规模证据及 M97 RC 供应链） |
-| 远程同步 | `main` 已推送至 `ec3da0c6d878a0a4b8fcef49826d02ff67b1a3d9`，CI run `31378870337` 的 12 个作业全部通过；不可变 `v0.3.0-rc.1` 的历史 Release run `31376784927` 仍未创建 GitHub Release，待新 RC 标签重跑 |
+| 远程同步 | RC revision `0f69256c1ddb0f874a12c79e7fcbda4f20a8fa9a` 的 main CI run `31384162209` 12 个作业全部通过；不可变 `v0.3.0-rc.4` 的 Release run `31384939856` 已通过并发布含 20 个资产的 GitHub prerelease |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
 
 ---
@@ -63,10 +63,10 @@
 | M94（第二步） | 行动区：类型化只读建议/受控动作（dry-run+确认）、无权限与依赖降级提示、OpenAPI `DiagnosisAction`、Playwright 46/46 |
 | M94（第三步） | 深链：资源详情/工作负载与相关事件/审计入口，纯只读导航，Playwright 50/50 |
 | M95 | 统一证据模型：`FindingDetail v2`（规则身份/证据引用/类型化建议/版本信息）、v1→v2 兼容层、共享严重度映射、按资源合并保留规则来源、golden DatasetVersion 1.2 + 迁移提示；前端 Posture/Optimization/Diagnosis/Inspection 共享证据组件；11 posture 分析器 + finops schema parity；前端门禁 135 单测 / 56 浏览器回归 |
-| M96-A/B/C/D + Gate B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准、前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）、认证单壳层与 active CSS layer 基线（56/56 浏览器回归）；本地 Gate B 聚合 PASS，Hosted CI 待运行 |
-| M97 | `aiops.release-manifest/v1`、RC-only workflow、双架构 OCI、四份平台 SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 与 kind 生命周期；本地 Gate C 证据已通过，M89/M90 与 Hosted GitHub Release/keyless 证据仍为 Blocked/Deferred |
+| M96-A/B/C/D + Gate B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准、前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）、认证单壳层与 active CSS layer 基线（56/56 浏览器回归）；本地与 Hosted Gate B 均 PASS |
+| M97 | `aiops.release-manifest/v1`、RC-only workflow、双架构 OCI、四份平台 SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 与 kind 生命周期；`v0.3.0-rc.4` 本地与 Hosted Gate C 均通过，M89/M90 外部证据继续为 Blocked/Deferred |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 本地 Gate B 与 M97 本地 Gate C 已归档；M97 远端修复后的 main CI run `31378870337` 已通过，原 `v0.3.0-rc.1` 失败记录保留，Release 待新 RC 标签重跑，不进入 M98；
+> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 Gate B 与 M97 Gate C 已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变，本轮不进入 M98；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。
 
 ---

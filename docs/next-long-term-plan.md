@@ -184,7 +184,7 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 ### M97：Release Candidate 与供应链闭环（5–7 天）
 
-**进度（2026-08-10，local Gate C verified; hosted quality gates recovered）**：已实现 RC-only tag 校验、`aiops.release-manifest/v1`、递归 OCI archive digest/平台绑定、四份平台 SPDX SBOM、provenance、Helm/Kustomize/离线包、严格 checksum/Cosign 入口和 kind 生命周期演练脚本。本地严格供应链包以及 Kustomize/Helm 的安装、升级、回滚、健康检查、认证和清理已通过，baseline 与 `v0.3.0-rc.1` 已推送。Hosted run `31376784927` 的原始失败已由 `ec3da0c` 修复，main CI run `31378870337` 的 12 个作业全部通过；原标签的发布包仍未创建，待新 RC 标签重跑 Release，不创建 GA 声明。
+**进度（2026-08-10，Gate C complete for RC scope）**：已实现 RC-only tag 校验、`aiops.release-manifest/v1`、递归 OCI archive digest/平台绑定、四份平台 SPDX SBOM、provenance、Helm/Kustomize/离线包、严格 checksum/Cosign 入口和 kind 生命周期演练脚本。本地严格供应链包以及 Kustomize/Helm 的安装、升级、回滚、健康检查、认证和清理已通过。Main CI run `31384162209` 的 12 个作业全部通过；Release run `31384939856` 为不可变 `v0.3.0-rc.4` 完成完整质量门、双架构构建、SBOM、校验和、keyless Cosign 和 GitHub prerelease 发布。M89/M90 仍为外部阻塞，因此保持 RC 且不创建 GA 声明。
 
 **目标**：产出可以安装、验证、升级和回滚的 RC，而不是只创建一个标签。
 
@@ -391,5 +391,5 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 2. M93-B2 关闭后立即编写 M94 证据时间 ADR，并冻结四条黄金场景。
 3. M94 合并前准备 M95 `FindingDetail v2` 草案，但不并行修改公共契约。
 4. M95 关闭后再启动 M96 壳层重构与大规模 fixture，避免产品模型和基础架构同时震荡。
-5. Hosted CI Gate B 通过后进入 M97 Release Candidate；在此之前保留 M96 Gate B pending 状态。
+5. M96 Hosted Gate B 与 M97 Gate C 已由 `v0.3.0-rc.4` 证据关闭；本轮在 RC 归档后暂停，不进入 M98。
 6. M89/M90 从现在开始准备授权与环境，但其完成状态独立于本地主线，最终只在 Gate D 汇合。

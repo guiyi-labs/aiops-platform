@@ -1,7 +1,7 @@
 # M97 Hosted CI Recovery
 
 - Date: 2026-08-10
-- Status: In progress; main CI recovery verified, RC package workflow follow-up pending
+- Status: Complete; full hosted quality gate and signed RC prerelease verified
 - Scope: Repair the Backend lint and M96 Pod scale invariant failures that blocked the first hosted RC workflow.
 
 ## Context
@@ -64,14 +64,30 @@ last-Pod filtering, and zero console errors.
 - RC rerun `31382016265` proved the forced full quality gate and
   multi-architecture OCI build, then failed at image SBOM generation with
   Syft's `application/vnd.oci.image.index.v1+json` limitation.
+- Main CI `31384162209` passed all 12 jobs at revision
+  `0f69256c1ddb0f874a12c79e7fcbda4f20a8fa9a` after the per-platform SBOM
+  workflow fix.
+- Release run `31384939856` for immutable tag `v0.3.0-rc.4` passed the full
+  required quality gate and the `Build and verify RC package` job. GitHub
+  published the non-draft prerelease at
+  `https://github.com/guiyi-labs/aiops-platform/releases/tag/v0.3.0-rc.4`.
+- The prerelease contains 20 assets: 16 payloads covered by `SHA256SUMS`, the
+  checksum root, and its Cosign bundle, certificate, and detached signature.
+  All 16 release-asset digests match the checksum entries.
+- `release-manifest.json` binds the release to the exact RC tag and revision,
+  two multi-architecture OCI archives, and four per-platform SPDX SBOMs. The
+  published certificate SAN is the exact workflow identity
+  `https://github.com/guiyi-labs/aiops-platform/.github/workflows/release.yml@refs/tags/v0.3.0-rc.4`.
 
 ## Risks / Notes
 
-- `v0.3.0-rc.1`, `v0.3.0-rc.2`, and `v0.3.0-rc.3` remain immutable. The next
-  fixed release attempt must use a new RC tag after the updated workflow
-  passes main CI.
+- `v0.3.0-rc.1`, `v0.3.0-rc.2`, and `v0.3.0-rc.3` remain immutable failure
+  evidence. `v0.3.0-rc.4` is the completed hosted RC evidence.
 - Performance duration and memory thresholds remain report-only. Correctness
   invariants remain hard failures.
+- GitHub reports Node.js 20 deprecation annotations for several pinned
+  third-party actions while forcing them onto Node.js 24. These warnings did
+  not weaken or skip any required result but remain a maintenance follow-up.
 - M89 OIDC/MFA and M90 WAL/PITR/HA remain external blockers. This recovery
   does not support GA, production identity, production HA, or
   production-ready claims.

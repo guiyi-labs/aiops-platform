@@ -1,7 +1,7 @@
 # M97 Release Candidate Supply-Chain Closure
 
 - Date: 2026-08-10
-- Status: Local strict package and final lifecycle verified; hosted quality gates recovered; release rerun pending a new RC tag
+- Status: Complete for RC scope; local lifecycle and hosted signed prerelease verified
 - Scope: Unified RC manifest, offline package, deployment lifecycle rehearsal and fail-closed publishing
 
 ## Context
@@ -87,10 +87,22 @@ Hosted run `31376784927` completed with failure at revision
   no GitHub Release was created.
 
 The initial failures remain evidence for immutable `v0.3.0-rc.1`. Their
-follow-up repair and hosted rerun are tracked in
+follow-up repair and hosted reruns are tracked in
 [`2026-08-10-m97-hosted-ci-recovery.md`](2026-08-10-m97-hosted-ci-recovery.md).
-Local Gate C evidence remains valid for the original tagged revision until a
-new RC tag completes hosted keyless identity and GitHub Release verification.
+Main CI `31384162209` passed all 12 jobs at revision
+`0f69256c1ddb0f874a12c79e7fcbda4f20a8fa9a`. Release run `31384939856` for
+immutable tag `v0.3.0-rc.4` then passed the full required quality gate,
+multi-architecture packaging, per-platform SBOM generation, final manifest
+verification, keyless Cosign signing, artifact upload, and GitHub prerelease
+publication.
+
+The published prerelease contains 20 assets. `SHA256SUMS` covers all 16
+payload assets with digests matching GitHub's release metadata; the remaining
+assets are the checksum root's Cosign bundle, certificate, and detached
+signature. `release-manifest.json` binds the RC to the exact revision, both
+OCI platforms, four SPDX SBOMs, M89/M90 release blockers, and the exact tag
+workflow certificate identity. This completes Gate C for the RC scope without
+changing the GA boundary.
 
 ## Risks / Notes
 

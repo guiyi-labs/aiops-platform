@@ -15,6 +15,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 修正 M96 Pod 虚拟列表滚动高度不变量的跨平台判定：以末行起点可覆盖为硬边界，避免 Chromium 表格布局的亚行级高度差导致 CI 假失败，同时保留窗口、滚动、筛选与 console 硬检查。
 - 修复 RC 发布工作流中不存在的 Docker QEMU/Buildx action SHA，并让 Release 调用强制执行完整运行时质量门禁。
 - Hosted Release 改为从四个单平台 OCI 输入生成 backend/frontend SPDX SBOM，规避 Syft 无法直接解析多架构 OCI index 的限制，同时保留双架构发布归档。
+- `v0.3.0-rc.4` 的 Hosted Release 全部通过并发布非草稿 prerelease；20 个发布资产包含 16 个 checksum 覆盖的 payload、四份平台 SBOM 和完整 Cosign 签名证据。
 - See [M97 hosted CI recovery record](docs/changes/2026-08-10-m97-hosted-ci-recovery.md).
 
 ### Added - M97 Release Candidate Supply-Chain Closure
@@ -27,7 +28,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - OCI 清单检查器递归解析 Buildx 外层与内层 index，校验 blob digest、排除 attestation manifest，并从真实镜像 manifest 收集 amd64/arm64 平台。
 - 新增 kind 生命周期演练入口，覆盖全新环境安装、升级、回滚、健康检查、认证和清理；数据库迁移回滚边界保持显式。
 - 修复 Helm 升级演练丢失首次安装值的问题；演练端口改为动态分配，失败路径也会写入脱敏结构化证据；前端静态资源构建阶段固定使用宿主架构，解除本地 arm64 OCI 构建卡死。
-- M89/M90 未完成且远端 GitHub Release 尚未取得本轮证据时，版本保持 RC，不宣称 GA 或 production-ready。
+- 远端 GitHub Release 与 keyless Cosign 已取得 `v0.3.0-rc.4` 证据；M89/M90 仍未完成，因此版本保持 RC，不宣称 GA 或 production-ready。
 - See [M97 release candidate change record](docs/changes/2026-08-10-m97-release-candidate-closure.md).
 
 ### Added - M96 Deterministic Scale Fixture

@@ -251,7 +251,9 @@ $evidence = [ordered]@{
     }
 }
 $evidencePath = Join-Path $EvidenceDir ("m97-release-$timestamp.json")
-[IO.File]::WriteAllText($evidencePath, ($evidence | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+$evidenceJson = $evidence | ConvertTo-Json -Depth 8
+[IO.File]::WriteAllText($evidencePath, $evidenceJson, [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $EvidenceDir 'm97-release-latest.json'), $evidenceJson, [Text.UTF8Encoding]::new($false))
 Remove-Item -LiteralPath $WorkDir -Recurse -Force
 Write-Output "Release candidate package verified at $OutDir"
 Write-Output "Evidence: $evidencePath"

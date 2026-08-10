@@ -1,7 +1,7 @@
 # M97 Release Candidate Supply-Chain Closure
 
 - Date: 2026-08-10
-- Status: Local strict package and lifecycle verified; hosted release evidence deferred to remote workflow
+- Status: Local strict package and final lifecycle verified; hosted release evidence deferred to remote workflow
 - Scope: Unified RC manifest, offline package, deployment lifecycle rehearsal and fail-closed publishing
 
 ## Context
@@ -53,21 +53,22 @@ evidence.
 The local Kustomize and Helm install/upgrade/rollback/health/login/cleanup
 rehearsal passed in:
 
-- `.artifacts/m97-release/lifecycle-aiops-m97-helmfix.json`
+- `.artifacts/m97-release/lifecycle-aiops-m97-final.json`
 - `.artifacts/m97-release/frontend-multiarch-smoke-oci.tar` (SHA-256
   `11cd90a326cd45a2871c9192d78e745dcd30547681a3361ce47e993855dc4094`)
 - `.artifacts/m97-release/m97-release-20260810-061402.json` (non-strict
   local-key rehearsal package)
-- `.artifacts/m97-release/m97-release-20260810-092613.json` (strict
+- `.artifacts/m97-release/m97-release-latest.json` (strict
   multi-architecture package, four platform SBOMs and verified local-key
-  signature at revision `9606e4d15c839c58fcb3a3875d77e963d2d43582`)
+  signature; timestamped copies remain beside it)
 
 The initial Helm rehearsal timed out during upgrade because the command did not
 retain the initial repository and namespace values; the fixed rehearsal passed
 after adding `--reuse-values`. The first strict package attempt also exposed
 Syft's multi-architecture OCI index limitation; the per-platform SBOM input fix
-above addresses that local tooling boundary. A final clean-revision rerun is
-required before tagging so manifest revision and HEAD remain identical. Hosted
+above addresses that local tooling boundary. The latest evidence binds the
+manifest revision to the clean HEAD used for the final package; the baseline
+and RC tags are created only after this verification. Hosted
 GitHub Release creation and keyless Cosign verification remain dependent on
 remote access and organization workflow permissions; a failed remote
 submission is not treated as local evidence.

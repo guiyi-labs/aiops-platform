@@ -48,7 +48,9 @@ function Get-ToolVersion {
         $output = @(& $Name @Arguments 2>&1)
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) { return "error:$exitCode" }
-        $firstLine = $output | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Select-Object -First 1
+        $lines = @($output | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ })
+        $firstLine = $lines | Where-Object { $_ -match '(?i)(^|\s)(git)?version(\s|:)' } | Select-Object -First 1
+        if (-not $firstLine) { $firstLine = $lines | Select-Object -First 1 }
         if ($firstLine) { return $firstLine }
         return 'no-output'
     } finally {

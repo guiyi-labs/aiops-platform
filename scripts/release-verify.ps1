@@ -49,7 +49,8 @@ function Get-ToolVersion {
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) { return "error:$exitCode" }
         $firstLine = $output | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Select-Object -First 1
-        return if ($firstLine) { $firstLine } else { 'no-output' }
+        if ($firstLine) { return $firstLine }
+        return 'no-output'
     } finally {
         $ErrorActionPreference = $previousErrorAction
     }

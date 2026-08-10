@@ -18,6 +18,9 @@ test.afterEach(() => {
 
 test('App shell renders the operations console', async ({ page }) => {
   await page.goto('/')
+  await expect(page.locator('.app-shell')).toHaveCount(1)
+  await expect(page.locator('aside.sidebar')).toHaveCount(1)
+  await expect(page.locator('header.topbar')).toHaveCount(1)
   await expect(page.locator('aside, nav[aria-label*="主导航"], nav[aria-label*="导航"]').first()).toBeVisible()
   await expect(page).toHaveURL(/\/(login|search|topology|events|diagnoses|$)/)
 })
@@ -25,6 +28,7 @@ test('App shell renders the operations console', async ({ page }) => {
 test('Login page presents auth form when unauthenticated', async ({ page }) => {
   await mockAnonymousAuth(page)
   await page.goto('/login')
+  await expect(page.locator('.app-shell')).toHaveCount(0)
   await expect(page.locator('button[type="submit"], button:has-text("登录")').first()).toBeVisible()
   const capabilities = page.locator('.login-capabilities')
   await expect(capabilities).toHaveAttribute('aria-label', '平台核心能力')
@@ -161,6 +165,12 @@ test('Sidebar collapse state persists and remains reversible', async ({ page }) 
   await expect(shell).toHaveClass(/sidebar-collapsed/)
   await expect(page.locator('.brand-copy')).toBeHidden()
   await expect(page.locator('.nav-item span').first()).toBeHidden()
+
+  await page.goto('/clusters')
+  await expect(page).toHaveURL('/clusters')
+  await expect(shell).toHaveClass(/sidebar-collapsed/)
+  await expect(page.locator('header.topbar')).toHaveCount(1)
+  await expect(page.locator('h1')).toContainText('集群接入')
 
   await page.reload()
   await expect(shell).toHaveClass(/sidebar-collapsed/)

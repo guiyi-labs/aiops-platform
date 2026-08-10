@@ -1,7 +1,7 @@
 ﻿# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-10 · 维护人：开发 Agent
-> 当前功能基线：M96 前端规模证据增量（M96-A/B 后端基线与 M96 前端 50k Pod DOM/交互报告已落地；认证壳层与主题收敛仍进行中）
+> 当前功能基线：M96 Gate B 本地聚合通过（50k Pod DOM/交互报告、认证单壳层与 active CSS layer 基线已落地；Hosted CI 汇总待运行）
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -12,7 +12,7 @@
 |---|---|
 | 仓库 | `k8s-aiops`（Go 后端 `backend/` + Vue 前端 `frontend/`） |
 | 默认模块路径 | `k8s-aiops.local/backend` |
-| 最新功能基线 | M96 确定性规模 fixture、后端 report-mode 基准与前端 50k Pod DOM/交互报告（前端增量见 `2026-08-10-m96-frontend-scale-budget.md`） |
+| 最新功能基线 | M96 确定性规模 fixture、后端 report-mode 基准、前端 50k Pod DOM/交互报告、认证单壳层与 Gate B 聚合器（见 `2026-08-10-m96-gate-b-evidence-aggregation.md`） |
 | 里程碑范围 | **M1 – M96 + W10–W12**（M93-C 科技主题、M93-B2 登录性能预算、M94 诊断叙事/行动区/深链、M95 统一证据模型及 M96 规模证据） |
 | 远程同步 | M95b `main` + tag 已同步；功能 CI `31348763940` 全绿（head `b0db833`）；后端 M95 CI `31344072666` 为前一基线 |
 | Go / Node | go 1.26.5 / node 22（前端构建用镜像内 pnpm 11.7.0） |
@@ -63,9 +63,9 @@
 | M94（第二步） | 行动区：类型化只读建议/受控动作（dry-run+确认）、无权限与依赖降级提示、OpenAPI `DiagnosisAction`、Playwright 46/46 |
 | M94（第三步） | 深链：资源详情/工作负载与相关事件/审计入口，纯只读导航，Playwright 50/50 |
 | M95 | 统一证据模型：`FindingDetail v2`（规则身份/证据引用/类型化建议/版本信息）、v1→v2 兼容层、共享严重度映射、按资源合并保留规则来源、golden DatasetVersion 1.2 + 迁移提示；前端 Posture/Optimization/Diagnosis/Inspection 共享证据组件；11 posture 分析器 + finops schema parity；前端门禁 135 单测 / 56 浏览器回归 |
-| M96-A/B/C | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准与前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）；嵌套路由壳层和主题收敛仍在进行 |
+| M96-A/B/C/D + Gate B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准、前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）、认证单壳层与 active CSS layer 基线（56/56 浏览器回归）；本地 Gate B 聚合 PASS，Hosted CI 待运行 |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2 已关闭、M94 第三步（根因卡 + 证据时间线 + 行动区 + 深链）已落地、M95 后端 FindingDetail v2 与前端统一证据组件均已落地；M96-A/B/C 已落地确定性规模 fixture、后端 report-mode 基准和前端 50k Pod DOM/交互报告，继续认证壳层与主题收敛；
+> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2 已关闭、M94 第三步（根因卡 + 证据时间线 + 行动区 + 深链）已落地、M95 后端 FindingDetail v2 与前端统一证据组件均已落地；M96-A/B/C/D 与本地 Gate B 聚合已完成，下一步是提交后运行 Hosted CI Gate B，再决定是否进入 M97；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。
 
 ---

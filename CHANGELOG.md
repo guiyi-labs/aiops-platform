@@ -31,6 +31,25 @@ Detailed change records for each milestone live under `docs/changes/`.
   DOM, scroll, filter and console invariants are hard checks.
 - See [M96 frontend scale budget record](docs/changes/2026-08-10-m96-frontend-scale-budget.md).
 
+### Changed — M96 Authenticated Console Shell
+
+- Authenticated routes now share one stable sidebar/topbar shell; view title
+  metadata and named actions update through a page bridge while login remains
+  shell-free.
+- Added desktop/mobile assertions for one shell, route title replacement and
+  persisted sidebar collapse; removed the unreferenced `kubesphere-theme.css`
+  layer and added a report-mode active CSS layer audit.
+- See [M96 console shell convergence record](docs/changes/2026-08-10-m96-console-shell-convergence.md).
+
+### Added — M96 Gate B Evidence Aggregation
+
+- Added a versioned report-mode Gate B aggregator that binds the `m96-v1`
+  fixture, backend scale report, frontend 50k Pod samples and active CSS audit
+  to their hashes, commit metadata and hard invariants.
+- CI now downloads the independent M96 artifacts into a clean Gate B job and
+  retains the combined JSON/Markdown report; hosted thresholds remain report-only.
+- See [M96 Gate B evidence aggregation record](docs/changes/2026-08-10-m96-gate-b-evidence-aggregation.md).
+
 ### Added — M95 Frontend Finding Evidence Surface
 
 - Posture、Optimization（11 个 analyzer tab）、Diagnoses 和 Inspection 统一使用 `FindingDetailV2` 前端适配器与可折叠证据链组件，展示规则来源、证据引用、缺失语义和建议能力。

@@ -156,7 +156,9 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 **目标**：证明大规模 fleet 可控，同时处理当前路由壳层和主题覆盖的结构性技术债。
 
-**进度（2026-08-10，M96-A/B/C）**：已落地 `m96-v1` 确定性 fixture 配置、流式 gzip NDJSON 生成/校验器、包含 P50/P95/P99/heap/goroutine/分页/取消/超时/背压的后端 report-mode 基准，以及桌面/移动端各 3 次 50k Pod 前端 DOM/交互基线；后续仍需完成嵌套路由壳层与主题覆盖收敛，并在连续稳定周期后决定是否升级性能阈值。
+**进度（2026-08-10，M96-A/B/C/D + Gate B local）**：已落地 `m96-v1` 确定性 fixture 配置、流式 gzip NDJSON 生成/校验器、包含 P50/P95/P99/heap/goroutine/分页/取消/超时/背压的后端 report-mode 基准、桌面/移动端各 3 次 50k Pod 前端 DOM/交互基线，以及认证单壳层和四层 active CSS report-mode 基线；新增 Gate B 聚合器并在本地验证通过。Hosted CI 仍需在提交后的完整 artifact 下载链路中通过，性能阈值继续保持 report mode。
+
+**Gate B 当前状态**：本地 `m96-gate-b.json` 已通过 fixture identity、backend invariants、frontend 6-sample hard invariants 和 CSS layer audit；Hosted CI job 已接入但尚未运行，因此 M97 尚未启动。
 
 **规模范围**：
 
@@ -387,5 +389,5 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 2. M93-B2 关闭后立即编写 M94 证据时间 ADR，并冻结四条黄金场景。
 3. M94 合并前准备 M95 `FindingDetail v2` 草案，但不并行修改公共契约。
 4. M95 关闭后再启动 M96 壳层重构与大规模 fixture，避免产品模型和基础架构同时震荡。
-5. Gate B 通过后进入 M97 Release Candidate；RC 后执行 release freeze。
+5. Hosted CI Gate B 通过后进入 M97 Release Candidate；在此之前保留 M96 Gate B pending 状态。
 6. M89/M90 从现在开始准备授权与环境，但其完成状态独立于本地主线，最终只在 Gate D 汇合。

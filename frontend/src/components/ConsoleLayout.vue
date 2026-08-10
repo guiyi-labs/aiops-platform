@@ -33,15 +33,28 @@ import {
   Wallet,
   Workflow,
 } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed, inject, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
 
-defineProps<{ eyebrow: string; title: string }>()
+const props = defineProps<{ eyebrow?: string; title?: string; shell?: boolean }>()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const shellContextKey = Symbol.for('aiops.console-shell')
+type ShellContext = { eyebrow: typeof shellEyebrow; title: typeof shellTitle }
+const shellEyebrow = ref(props.eyebrow ?? '')
+const shellTitle = ref(props.title ?? '')
+const parentShellContext = inject<ShellContext | null>(shellContextKey, null)
+if (props.shell) {
+  provide(shellContextKey, { eyebrow: shellEyebrow, title: shellTitle })
+} else if (parentShellContext) {
+  watch(() => [props.eyebrow, props.title] as const, ([eyebrow, title]) => {
+    parentShellContext.eyebrow.value = eyebrow ?? ''
+    parentShellContext.title.value = title ?? ''
+  }, { immediate: true })
+}
 const sidebarCollapsed = ref(window.localStorage.getItem('aiops.sidebar.collapsed') === '1')
 
 watch(sidebarCollapsed, (collapsed) => {
@@ -129,7 +142,13 @@ async function navigate(path: string) {
 </script>
 
 <template>
-  <div :class="['app-shell', { 'sidebar-collapsed': sidebarCollapsed }]">
+  <template v-if="!props.shell">
+    <Teleport v-if="parentShellContext" to="#console-topbar-actions">
+      <slot name="actions" />
+    </Teleport>
+    <slot />
+  </template>
+  <div v-else :class="['app-shell', { 'sidebar-collapsed': sidebarCollapsed }]" data-testid="console-shell">
     <aside id="primary-sidebar" class="sidebar">
       <div class="brand">
         <span class="brand-mark"><Boxes :size="20" /></span>
@@ -173,8 +192,8 @@ async function navigate(path: string) {
           <PanelLeftOpen v-if="sidebarCollapsed" :size="18" />
           <PanelLeftClose v-else :size="18" />
         </button>
-        <div class="topbar-title"><p class="context-label">{{ eyebrow }}</p><h1>{{ title }}</h1></div>
-        <div class="topbar-actions">
+        <div class="topbar-title"><p class="context-label">{{ shellEyebrow }}</p><h1>{{ shellTitle }}</h1></div>
+        <div id="console-topbar-actions" class="topbar-actions">
           <slot name="actions" />
           <div class="topbar-user"><strong>{{ auth.user?.display_name }}</strong><span>{{ roleLabel }}</span></div>
           <span class="avatar" aria-label="当前用户">{{ auth.userInitials }}</span>

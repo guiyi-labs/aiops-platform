@@ -212,12 +212,18 @@ jobs:
       - name: Build
         working-directory: frontend
         run: pnpm build
+      - name: Active CSS layer audit (M96, report mode)
+        working-directory: frontend
+        run: pnpm style:audit
       - name: Bundle size gate (W11)
         working-directory: frontend
         run: pnpm bundle:gate
       - name: Install Playwright browser (M93-B2 perf probe)
         working-directory: frontend
         run: npx playwright install chromium
+      - name: Browser regression (M96 shell)
+        working-directory: frontend
+        run: pnpm test:e2e
       - name: Login performance probe (M93-B2, report mode)
         working-directory: frontend
         run: pnpm perf:login
@@ -242,6 +248,41 @@ jobs:
             frontend/.artifacts/pod-scale-perf/
           if-no-files-found: warn
           retention-days: 7
+      - name: Upload active CSS audit artifact (M96)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: style-audit-${{ github.run_id }}
+          path: |
+            frontend/.artifacts/style-audit/
+          if-no-files-found: warn
+          retention-days: 7
+
+  gate-b:
+    name: M96 Gate B
+    needs: [changes, backend, frontend]
+    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend.result == 'success' && needs.frontend.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download M96 evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: '*-${{ github.run_id }}'
+          path: .artifacts/m96-gate-b/input
+          merge-multiple: true
+      - name: Aggregate M96 Gate B evidence
+        run: node scripts/m96-gate-b.mjs --root .artifacts/m96-gate-b/input --output .artifacts/m96-gate-b/m96-gate-b.json --expected-commit "${GITHUB_SHA}"
+      - name: Upload M96 Gate B report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: m96-gate-b-${{ github.run_id }}
+          path: .artifacts/m96-gate-b/
+          if-no-files-found: error
+          retention-days: 14
 
   manifests:
     name: Manifests
@@ -448,7 +489,7 @@ jobs:
   result:
     name: CI result
     if: always()
-    needs: [changes, backend, race, frontend, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
+    needs: [changes, backend, race, frontend, gate-b, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -457,6 +498,7 @@ jobs:
       BACKEND_RESULT: ${{ needs.backend.result }}
       RACE_RESULT: ${{ needs.race.result }}
       FRONTEND_RESULT: ${{ needs.frontend.result }}
+      GATE_B_RESULT: ${{ needs.gate-b.result }}
       MANIFESTS_RESULT: ${{ needs.manifests.result }}
       CREDENTIAL_RESULT: ${{ needs.credential-drill.result }}
       AUDIT_RESULT: ${{ needs.audit-drill.result }}
@@ -471,7 +513,7 @@ jobs:
             exit 1
           fi
           if [ "$RUNTIME_REQUIRED" = true ]; then
-            for result in "$RACE_RESULT" "$FRONTEND_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
+            for result in "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
               if [ "$result" != success ]; then
                 exit 1
               fi

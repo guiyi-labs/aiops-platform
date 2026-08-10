@@ -111,6 +111,23 @@ jobs:
         run: |
           go test -run '^Fuzz' -count=1 ./internal/metricshistory/ ./internal/deprecatedapi/ ./internal/apiquery/ ./internal/netpolicy/ ./internal/namespaceposture/ ./internal/optimization/ ./internal/kubernetes/ ./internal/posture/ ./internal/topology/
           go test -bench . -benchtime 5x -run '^$' ./internal/metricshistory/ ./internal/topology/ ./internal/posture/ ./internal/capability/
+      - name: Generate and verify M96 scale fixture (report mode)
+        working-directory: backend
+        run: |
+          mkdir -p .artifacts/scale-fixture
+          go run ./cmd/scale-fixture -config testdata/scale/m96-v1.json -output .artifacts/scale-fixture/m96-v1 > .artifacts/scale-fixture/m96-generation.json
+          go run ./cmd/scale-fixture -verify .artifacts/scale-fixture/m96-v1 > .artifacts/scale-fixture/m96-verification.json
+      - name: Upload M96 scale fixture manifest
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: scale-fixture-${{ github.run_id }}
+          path: |
+            backend/.artifacts/scale-fixture/m96-v1/manifest.json
+            backend/.artifacts/scale-fixture/m96-generation.json
+            backend/.artifacts/scale-fixture/m96-verification.json
+          if-no-files-found: warn
+          retention-days: 7
       - name: Build server
         working-directory: backend
         run: |
@@ -119,6 +136,7 @@ jobs:
           go build -trimpath -ldflags "-s -w -X k8s-aiops.local/backend/internal/buildinfo.Version=${GITHUB_SHA}" -o /tmp/audit-archive ./cmd/audit-archive
           go build -trimpath -ldflags "-s -w" -o /tmp/identity-readiness ./cmd/identity-readiness
           go build -trimpath -ldflags "-s -w" -o /tmp/recovery-readiness ./cmd/recovery-readiness
+          go build -trimpath -ldflags "-s -w" -o /tmp/scale-fixture ./cmd/scale-fixture
       - name: Verify clean working tree
         run: git diff --exit-code
       - name: OpenAPI breaking-change check

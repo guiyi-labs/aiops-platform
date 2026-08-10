@@ -1,0 +1,13 @@
+{
+  "schema_version": "aiops.scale-fixture/v1",
+  "dataset_version": "m96-v1",
+  "seed": 20260810,
+  "cluster_id": 1,
+  "observed_at": "2026-08-10T00:00:00Z",
+  "node_count": 500,
+  "namespace_count": 100,
+  "pod_count": 50000,
+  "event_count": 100000,
+  "pods_per_workload": 10,
+  "history_points": 6
+}

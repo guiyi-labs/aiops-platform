@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M96 Deterministic Scale Fixture
+
+- 新增版本化 `m96-v1` 规模 fixture 配置和 `scale-fixture` CLI，流式生成 500 Node、50,000 Pod、100,000 Event，并覆盖 workload、topology、global search 与 metrics history 映射。
+- 生成器输出确定性 gzip NDJSON 和带计数、字节数、SHA-256、配置哈希及覆盖范围的 manifest；校验器逐条读取并拒绝缺失、篡改、额外文件或计数漂移。
+- CI 以 report 模式生成并校验完整 fixture，仅上传 manifest 与生成/校验清单，不把大数据集提交到仓库。
+- See [M96 scale fixture change record](docs/changes/2026-08-10-m96-scale-fixture.md).
+
 ### Added — M95 Frontend Finding Evidence Surface
 
 - Posture、Optimization（11 个 analyzer tab）、Diagnoses 和 Inspection 统一使用 `FindingDetailV2` 前端适配器与可折叠证据链组件，展示规则来源、证据引用、缺失语义和建议能力。

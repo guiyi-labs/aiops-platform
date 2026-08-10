@@ -45,10 +45,11 @@ function Get-ToolVersion {
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $output = & $Name @Arguments 2>&1 | Select-Object -First 1
+        $output = @(& $Name @Arguments 2>&1)
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) { return "error:$exitCode" }
-        return [string]$output
+        $firstLine = $output | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ } | Select-Object -First 1
+        return if ($firstLine) { $firstLine } else { 'no-output' }
     } finally {
         $ErrorActionPreference = $previousErrorAction
     }

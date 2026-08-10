@@ -184,7 +184,7 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 ### M97：Release Candidate 与供应链闭环（5–7 天）
 
-**进度（2026-08-10，local lifecycle and multi-architecture smoke verified）**：已实现 RC-only tag 校验、`aiops.release-manifest/v1`、OCI archive digest 绑定、SPDX SBOM 输入、provenance、Helm/Kustomize/离线包、严格 checksum/Cosign 入口和 kind 生命周期演练脚本。Kustomize 与 Helm 的安装、升级、回滚、健康检查、认证和清理已通过；前端 amd64/arm64 OCI smoke build 已通过。最终状态以 `.artifacts/m97-release/` 的最终干净修订证据和 Hosted GitHub Release 结果为准；缺少远端证据时保持 `Blocked/Deferred`，不创建 GA 声明。
+**进度（2026-08-10，local Gate C verified）**：已实现 RC-only tag 校验、`aiops.release-manifest/v1`、递归 OCI archive digest/平台绑定、四份平台 SPDX SBOM、provenance、Helm/Kustomize/离线包、严格 checksum/Cosign 入口和 kind 生命周期演练脚本。本地严格供应链包以及 Kustomize/Helm 的安装、升级、回滚、健康检查、认证和清理已通过。最终状态以 `.artifacts/m97-release/` 的最终干净修订证据和 Hosted GitHub Release 结果为准；缺少远端证据时保持 `Blocked/Deferred`，不创建 GA 声明。
 
 **目标**：产出可以安装、验证、升级和回滚的 RC，而不是只创建一个标签。
 

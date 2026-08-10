@@ -1,7 +1,7 @@
 ﻿# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-10 · 维护人：开发 Agent
-> 当前功能基线：M97 RC 发布工具链已落地；本地双路径生命周期与前端双架构构建已验证，严格包和 Hosted GitHub Release 证据待最终干净提交收尾
+> 当前功能基线：M97 RC 本地严格供应链包与双路径生命周期已验证；Hosted GitHub Release 与 keyless 身份证据待远端工作流
 > 适用场景：项目阶段性收尾，准备打包迁移到新环境继续开发。
 
 ---
@@ -64,9 +64,9 @@
 | M94（第三步） | 深链：资源详情/工作负载与相关事件/审计入口，纯只读导航，Playwright 50/50 |
 | M95 | 统一证据模型：`FindingDetail v2`（规则身份/证据引用/类型化建议/版本信息）、v1→v2 兼容层、共享严重度映射、按资源合并保留规则来源、golden DatasetVersion 1.2 + 迁移提示；前端 Posture/Optimization/Diagnosis/Inspection 共享证据组件；11 posture 分析器 + finops schema parity；前端门禁 135 单测 / 56 浏览器回归 |
 | M96-A/B/C/D + Gate B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准、前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）、认证单壳层与 active CSS layer 基线（56/56 浏览器回归）；本地 Gate B 聚合 PASS，Hosted CI 待运行 |
-| M97 | `aiops.release-manifest/v1`、RC-only workflow、OCI 镜像 digest、SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 入口与 kind 生命周期演练脚本；本地 Kustomize/Helm 生命周期和前端双架构 OCI 已通过，M89/M90 与远端 GitHub Release 证据仍为 Blocked/Deferred |
+| M97 | `aiops.release-manifest/v1`、RC-only workflow、双架构 OCI、四份平台 SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 与 kind 生命周期；本地 Gate C 证据已通过，M89/M90 与 Hosted GitHub Release/keyless 证据仍为 Blocked/Deferred |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95 和 M96 本地 Gate B 已归档；本轮正在收尾 M97 严格 RC 包与远端同步，远端提交失败按当前任务要求跳过；
+> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 本地 Gate B 与 M97 本地 Gate C 已归档；本轮只剩最终干净 revision 复验与远端同步，远端提交失败按当前任务要求跳过；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。
 
 ---

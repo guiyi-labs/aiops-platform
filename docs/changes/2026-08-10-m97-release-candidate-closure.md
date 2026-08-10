@@ -1,7 +1,7 @@
 # M97 Release Candidate Supply-Chain Closure
 
 - Date: 2026-08-10
-- Status: Local lifecycle and multi-architecture build verified; strict package and hosted release evidence pending final clean revision
+- Status: Local strict package and lifecycle verified; hosted release evidence deferred to remote workflow
 - Scope: Unified RC manifest, offline package, deployment lifecycle rehearsal and fail-closed publishing
 
 ## Context
@@ -45,6 +45,8 @@ evidence.
 - OCI inspection now follows nested Buildx indexes, validates each referenced
   blob digest, ignores attestation manifests for platform coverage, and has a
   focused nested-index fixture test.
+- Tool version evidence now captures complete native output before selecting a
+  summary line, avoiding false `error:-1` values caused by a closed pipeline.
 
 ## Verification
 
@@ -56,16 +58,19 @@ rehearsal passed in:
   `11cd90a326cd45a2871c9192d78e745dcd30547681a3361ce47e993855dc4094`)
 - `.artifacts/m97-release/m97-release-20260810-061402.json` (non-strict
   local-key rehearsal package)
+- `.artifacts/m97-release/m97-release-20260810-092613.json` (strict
+  multi-architecture package, four platform SBOMs and verified local-key
+  signature at revision `9606e4d15c839c58fcb3a3875d77e963d2d43582`)
 
 The initial Helm rehearsal timed out during upgrade because the command did not
 retain the initial repository and namespace values; the fixed rehearsal passed
 after adding `--reuse-values`. The first strict package attempt also exposed
 Syft's multi-architecture OCI index limitation; the per-platform SBOM input fix
-above addresses that local tooling boundary. The strict full package must be
-generated from the final clean revision. Hosted GitHub Release creation and
-keyless Cosign
-verification remain dependent on remote access and organization workflow
-permissions; a failed remote submission is not treated as local evidence.
+above addresses that local tooling boundary. A final clean-revision rerun is
+required before tagging so manifest revision and HEAD remain identical. Hosted
+GitHub Release creation and keyless Cosign verification remain dependent on
+remote access and organization workflow permissions; a failed remote
+submission is not treated as local evidence.
 
 ## Risks / Notes
 

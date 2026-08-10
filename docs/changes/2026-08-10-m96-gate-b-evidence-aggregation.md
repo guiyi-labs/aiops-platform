@@ -37,8 +37,8 @@ policy: observed performance thresholds are evidence, not fail-closed claims.
 - `pnpm test:e2e`: 56 passed.
 - `pnpm test -- --run`: 137 passed.
 - `pnpm lint`, `pnpm typecheck`, `pnpm build` and `pnpm style:audit`: passed.
-- Hosted CI verification is queued by the new workflow job and remains
-  pending until the next reachable remote run.
+- Hosted CI verification did not run because the remote push was unavailable;
+  the new workflow job will execute on the next reachable push.
 - `node --check scripts/m96-gate-b.mjs` and `git diff --check`: passed.
 
 ## Risks / Notes

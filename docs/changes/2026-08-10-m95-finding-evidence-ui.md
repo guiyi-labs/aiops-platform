@@ -36,7 +36,8 @@ M95 后端已经提供统一 FindingDetail v2、严重度映射、证据引用�
 - `pnpm exec playwright test e2e/finding-evidence.spec.ts`：6/6 通过（Desktop/Mobile）。
 - `pnpm exec playwright test e2e/diagnosis-timeline.spec.ts`：8/8 通过（Desktop/Mobile）。
 - `git diff --check`：通过。
-- 本地基线 tag：`baseline-m95b-finding-evidence-ui-20260810`；远端 CI 结果待推送后回填。
+- 功能提交：`b0db833341efab48d6f595083db212b57cfb0a0a`；基线 tag：`baseline-m95b-finding-evidence-ui-20260810`。
+- 远端 CI：run `31348763940` success（head `b0db833341efab48d6f595083db212b57cfb0a0a`）；main + baseline tag 已同步。
 
 ## Risks / Notes
 

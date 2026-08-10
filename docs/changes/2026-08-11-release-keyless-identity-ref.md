@@ -44,8 +44,13 @@ in the certificate, got subjects
 - `go test -p=1 -count=1 ./internal/deployment/`（backend 模块）：通过，
   工作流契约与发布资产契约均绿。
 - `git diff --check`：无空白错误。
-- 远端 Release package-only rehearsal 复跑：完成后在 change-record 补记 run
-  与证据链接。
+- 远端 Release package-only rehearsal 复跑：`31410736720`
+  （https://github.com/guiyi-labs/aiops-platform/actions/runs/31410736720）
+  全部成功：Required quality gate 全绿，“Build and verify RC package” 21 分 32 秒
+  通过，“Sign and verify immutable checksum root” 与最终
+  “Enforce complete signed RC”（此前失败的步骤）均通过，产物
+  `aiops-platform-v0.3.0-rc.6` 已上传。workflow_dispatch 正确跳过
+  “Publish immutable prerelease”，未创建 tag 或 Release。
 
 ## Risks / Notes
 

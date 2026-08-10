@@ -19,6 +19,7 @@ $Context = "kind-$ClusterName"
 $TemporaryDirectory = Join-Path ([IO.Path]::GetTempPath()) "aiops-m97-$ClusterName"
 $KustomizeDirectory = Join-Path $TemporaryDirectory 'kubernetes'
 $SecretPath = Join-Path $TemporaryDirectory 'aiops-secret.yaml'
+$PostgresDockerfile = Join-Path $TemporaryDirectory 'Postgres.Dockerfile'
 $EvidenceDirectory = Join-Path $Root '.artifacts\m97-release'
 $EvidencePath = Join-Path $EvidenceDirectory "lifecycle-$ClusterName.json"
 $PortForward = $null
@@ -78,6 +79,9 @@ images:
   - name: k8s-aiops-frontend
     newName: k8s-aiops-frontend
     newTag: $FrontendTag
+  - name: pgvector/pgvector
+    newName: aiops-postgres-m97
+    newTag: $Version
 "@
     Write-Utf8File -Path $path -Contents $contents
 }
@@ -130,7 +134,7 @@ function Apply-Helm {
         '--set', 'existingSecret=aiops-secrets',
         '--set', 'backend.image.repository=k8s-aiops-backend', '--set', "backend.image.tag=$BackendTag",
         '--set', 'frontend.image.repository=k8s-aiops-frontend', '--set', "frontend.image.tag=$FrontendTag",
-        '--set', 'postgres.image.repository=pgvector/pgvector', '--set', 'postgres.image.tag=0.8.1-pg17'
+        '--set', 'postgres.image.repository=aiops-postgres-m97', '--set', "postgres.image.tag=$Version"
     )
     Invoke-Native -FilePath 'helm' -Arguments (@('upgrade', '--install', 'aiops', $ChartPath, '--namespace', $HelmNamespace, '--create-namespace', '--wait', '--timeout', '10m') + $helmValues) | Out-Null
     Wait-Workloads -TargetNamespace $HelmNamespace
@@ -154,7 +158,9 @@ try {
     Invoke-Native -FilePath 'docker' -Arguments @('tag', $PreviousFrontendImage, "k8s-aiops-frontend:$PreviousVersion") | Out-Null
     Invoke-Native -FilePath 'docker' -Arguments @('buildx', 'build', '--platform', 'linux/amd64', '--load', '--build-arg', "VERSION=$($Version.TrimStart('v'))", '--tag', "k8s-aiops-backend:$Version", 'backend') | Out-Null
     Invoke-Native -FilePath 'docker' -Arguments @('buildx', 'build', '--platform', 'linux/amd64', '--load', '--tag', "k8s-aiops-frontend:$Version", 'frontend') | Out-Null
-    Invoke-Native -FilePath (if (Get-Command kind -ErrorAction SilentlyContinue) { 'kind' } else { Join-Path $Root '.tools\kind-v0.30.0.exe' }) -Arguments @('load', 'docker-image', 'pgvector/pgvector:0.8.1-pg17', '--name', $ClusterName) | Out-Null
+    Write-Utf8File -Path $PostgresDockerfile -Contents "FROM pgvector/pgvector:0.8.1-pg17`n"
+    Invoke-Native -FilePath 'docker' -Arguments @('buildx', 'build', '--platform', 'linux/amd64', '--load', '--file', $PostgresDockerfile, '--tag', "aiops-postgres-m97:$Version", $TemporaryDirectory) | Out-Null
+    Invoke-Native -FilePath $kind -Arguments @('load', 'docker-image', "aiops-postgres-m97:$Version", '--name', $ClusterName) | Out-Null
     Invoke-Native -FilePath $kind -Arguments @('load', 'docker-image', "k8s-aiops-backend:$PreviousVersion", "k8s-aiops-frontend:$PreviousVersion", "k8s-aiops-backend:$Version", "k8s-aiops-frontend:$Version", '--name', $ClusterName) | Out-Null
 
     Apply-Kustomize -BackendTag $PreviousVersion -FrontendTag $PreviousVersion
@@ -178,7 +184,7 @@ try {
     $results.status = 'passed'
 } finally {
     if ($null -ne $PortForward) { Stop-Process -Id $PortForward.Id -Force -ErrorAction SilentlyContinue }
-    if (-not $KeepCluster) { & $kind delete cluster --name $ClusterName 2>&1 | Out-Null }
+    if (-not $KeepCluster) { Invoke-Native -FilePath $kind -Arguments @('delete', 'cluster', '--name', $ClusterName) -AllowFailure | Out-Null }
     if (Test-Path -LiteralPath $TemporaryDirectory) { Remove-Item -LiteralPath $TemporaryDirectory -Recurse -Force }
 }
 $results.cleanup = if ($KeepCluster) { 'deferred-by-request' } else { 'passed' }

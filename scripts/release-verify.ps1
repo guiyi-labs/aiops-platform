@@ -111,10 +111,35 @@ Copy-Item (Join-Path $Root 'docs\release-candidate-operations.md') (Join-Path $O
 
 $syft = Get-Command syft -ErrorAction SilentlyContinue
 if ($syft) {
-    $backendSource = if ($IncludeImages) { "oci-archive:$backendArchive" } else { 'dir:backend' }
-    $frontendSource = if ($IncludeImages) { "oci-archive:$frontendArchive" } else { 'dir:frontend' }
-    Invoke-Native -FilePath 'syft' -Arguments @($backendSource, '--source-name', 'k8s-aiops-backend', '--source-version', $Version, '--output', "spdx-json=$OutDir\sbom-backend-$Version-spdx.json")
-    Invoke-Native -FilePath 'syft' -Arguments @($frontendSource, '--source-name', 'k8s-aiops-frontend', '--source-version', $Version, '--output', "spdx-json=$OutDir\sbom-frontend-$Version-spdx.json")
+    $sbomInputs = @()
+    if ($IncludeImages) {
+        foreach ($platform in @('linux/amd64', 'linux/arm64')) {
+            $platformSlug = $platform.Replace('/', '-')
+            foreach ($image in @(
+                [ordered]@{ name = 'backend'; context = 'backend'; tag = "k8s-aiops-backend:$Version" },
+                [ordered]@{ name = 'frontend'; context = 'frontend'; tag = "k8s-aiops-frontend:$Version" }
+            )) {
+                $sbomArchive = Join-Path $WorkDir "sbom-$($image.name)-$platformSlug.oci.tar"
+                $buildArguments = @('buildx', 'build', '--platform', $platform)
+                if ($image.name -eq 'backend') { $buildArguments += @('--build-arg', "VERSION=$ImageVersion") }
+                $buildArguments += @('--tag', $image.tag, '--output', "type=oci,dest=$sbomArchive", $image.context)
+                Invoke-Native -FilePath 'docker' -Arguments $buildArguments
+                $sbomInputs += [ordered]@{
+                    source = "oci-archive:$sbomArchive"
+                    output = Join-Path $OutDir "sbom-$($image.name)-$Version-$platformSlug-spdx.json"
+                }
+            }
+        }
+    } else {
+        $sbomInputs = @(
+            [ordered]@{ source = 'dir:backend'; output = Join-Path $OutDir "sbom-backend-$Version-spdx.json" },
+            [ordered]@{ source = 'dir:frontend'; output = Join-Path $OutDir "sbom-frontend-$Version-spdx.json" }
+        )
+    }
+    foreach ($input in $sbomInputs) {
+        $sourceName = if ($input.source -match 'backend') { 'k8s-aiops-backend' } else { 'k8s-aiops-frontend' }
+        Invoke-Native -FilePath 'syft' -Arguments @($input.source, '--source-name', $sourceName, '--source-version', $Version, '--output', "spdx-json=$($input.output)")
+    }
 } elseif ($StrictSupplyChain) {
     throw 'syft is required by -StrictSupplyChain'
 }

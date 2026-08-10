@@ -94,12 +94,30 @@ jobs:
       - name: Generate image SBOMs
         shell: bash
         run: |
-          syft "oci-archive:.artifacts/release/aiops-platform-backend-$VERSION-linux-multiarch-oci.tar" \
-            --source-name k8s-aiops-backend --source-version "$VERSION" \
-            --output "spdx-json=.artifacts/release/sbom-backend-$VERSION-spdx.json"
-          syft "oci-archive:.artifacts/release/aiops-platform-frontend-$VERSION-linux-multiarch-oci.tar" \
-            --source-name k8s-aiops-frontend --source-version "$VERSION" \
-            --output "spdx-json=.artifacts/release/sbom-frontend-$VERSION-spdx.json"
+          mkdir -p .artifacts/sbom-inputs
+          image_version="${VERSION#v}"
+          for platform in linux/amd64 linux/arm64; do
+            platform_slug="${platform//\//-}"
+            backend_input=".artifacts/sbom-inputs/backend-$platform_slug-oci.tar"
+            frontend_input=".artifacts/sbom-inputs/frontend-$platform_slug-oci.tar"
+            docker buildx build \
+              --platform "$platform" \
+              --build-arg "VERSION=$image_version" \
+              --tag "k8s-aiops-backend:$VERSION" \
+              --output "type=oci,dest=$backend_input" \
+              backend
+            docker buildx build \
+              --platform "$platform" \
+              --tag "k8s-aiops-frontend:$VERSION" \
+              --output "type=oci,dest=$frontend_input" \
+              frontend
+            syft "oci-archive:$backend_input" \
+              --source-name k8s-aiops-backend --source-version "$VERSION" \
+              --output "spdx-json=.artifacts/release/sbom-backend-$VERSION-$platform_slug-spdx.json"
+            syft "oci-archive:$frontend_input" \
+              --source-name k8s-aiops-frontend --source-version "$VERSION" \
+              --output "spdx-json=.artifacts/release/sbom-frontend-$VERSION-$platform_slug-spdx.json"
+          done
       - name: Validate and package deployment assets
         shell: bash
         run: |

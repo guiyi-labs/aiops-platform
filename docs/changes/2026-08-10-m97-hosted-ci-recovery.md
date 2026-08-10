@@ -32,7 +32,9 @@ last-Pod filtering, and zero console errors.
 - `.github/workflows/ci.yml`: add the `force_runtime` reusable-workflow input
   so Release tags cannot downgrade to documentation-only quality gates.
 - `.github/workflows/release.yml`: pass `force_runtime: true` and pin the
-  Docker actions to their verified upstream commits.
+  Docker actions to their verified upstream commits. Generate four SPDX SBOMs
+  from cached single-platform OCI inputs because the pinned Syft version does
+  not consume a multi-architecture OCI index.
 
 ## Verification
 
@@ -58,11 +60,16 @@ last-Pod filtering, and zero console errors.
   passed.
 - RC rerun `31380408636` passed its quality gate but stopped before package
   execution because the pinned QEMU and Buildx action SHAs did not exist.
+- Main CI `31381359114` passed all 12 jobs after the workflow correction.
+- RC rerun `31382016265` proved the forced full quality gate and
+  multi-architecture OCI build, then failed at image SBOM generation with
+  Syft's `application/vnd.oci.image.index.v1+json` limitation.
 
 ## Risks / Notes
 
-- `v0.3.0-rc.1` and `v0.3.0-rc.2` remain immutable. The next fixed release
-  attempt must use a new RC tag after the updated workflow passes main CI.
+- `v0.3.0-rc.1`, `v0.3.0-rc.2`, and `v0.3.0-rc.3` remain immutable. The next
+  fixed release attempt must use a new RC tag after the updated workflow
+  passes main CI.
 - Performance duration and memory thresholds remain report-only. Correctness
   invariants remain hard failures.
 - M89 OIDC/MFA and M90 WAL/PITR/HA remain external blockers. This recovery

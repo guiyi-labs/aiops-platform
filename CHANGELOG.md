@@ -14,6 +14,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 修复发布工作流顺序测试的静态检查表达式，并删除规模 fixture 校验器中遗留的未使用辅助函数，使 Backend `golangci-lint` 恢复通过。
 - 修正 M96 Pod 虚拟列表滚动高度不变量的跨平台判定：以末行起点可覆盖为硬边界，避免 Chromium 表格布局的亚行级高度差导致 CI 假失败，同时保留窗口、滚动、筛选与 console 硬检查。
 - 修复 RC 发布工作流中不存在的 Docker QEMU/Buildx action SHA，并让 Release 调用强制执行完整运行时质量门禁。
+- Hosted Release 改为从四个单平台 OCI 输入生成 backend/frontend SPDX SBOM，规避 Syft 无法直接解析多架构 OCI index 的限制，同时保留双架构发布归档。
 - See [M97 hosted CI recovery record](docs/changes/2026-08-10-m97-hosted-ci-recovery.md).
 
 ### Added - M97 Release Candidate Supply-Chain Closure

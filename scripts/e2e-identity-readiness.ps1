@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$BackendImage
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -8,7 +10,8 @@ $ProgressPreference = 'SilentlyContinue'
 $Root = Split-Path -Parent $PSScriptRoot
 $ArtifactDirectory = Join-Path $Root '.artifacts\identity-readiness'
 $RunID = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 6))
-$Image = "aiops-identity-readiness:$RunID"
+$BuildBackendImage = [string]::IsNullOrWhiteSpace($BackendImage)
+$Image = if ($BuildBackendImage) { "aiops-identity-readiness:$RunID" } else { $BackendImage }
 $TemporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $TemporaryDirectory = [IO.Path]::GetFullPath((Join-Path $TemporaryRoot "aiops-identity-readiness-$RunID"))
 $FixtureDirectory = Join-Path $Root 'backend\internal\identityreadiness\testdata'
@@ -57,9 +60,15 @@ try {
         [IO.File]::Copy((Join-Path $FixtureDirectory $name), (Join-Path $TemporaryDirectory $name), $false)
     }
 
-    Write-Host '[1/5] Building the production image with the offline readiness command'
-    $build = Invoke-NativeResult -File 'docker' -Arguments @('build', '--tag', $Image, '--build-arg', "VERSION=identity-readiness-$RunID", (Join-Path $Root 'backend'))
-    if ($build.ExitCode -ne 0) { throw "identity readiness image build failed: $($build.Output)" }
+    if ($BuildBackendImage) {
+        Write-Host '[1/5] Building the production image with the offline readiness command'
+        $build = Invoke-NativeResult -File 'docker' -Arguments @('build', '--tag', $Image, '--build-arg', "VERSION=identity-readiness-$RunID", (Join-Path $Root 'backend'))
+        if ($build.ExitCode -ne 0) { throw "identity readiness image build failed: $($build.Output)" }
+    } else {
+        Write-Host "[1/5] Reusing prebuilt backend image: $Image"
+        $inspect = Invoke-NativeResult -File 'docker' -Arguments @('image', 'inspect', $Image)
+        if ($inspect.ExitCode -ne 0) { throw "prebuilt identity readiness image is unavailable: $($inspect.Output)" }
+    }
 
     Write-Host '[2/5] Accepting the complete synthetic OIDC and MFA contract without network access'
     $accepted = Invoke-Readiness -Policy 'policy.json' -Discovery 'discovery.json' -ExpectedExitCode 0

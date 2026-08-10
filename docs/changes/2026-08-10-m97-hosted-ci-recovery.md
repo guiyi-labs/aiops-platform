@@ -45,6 +45,17 @@ last-Pod filtering, and zero console errors.
   Docker actions to their verified upstream commits. Generate four SPDX SBOMs
   from cached single-platform OCI inputs because the pinned Syft version does
   not consume a multi-architecture OCI index.
+- `.github/workflows/ci.yml`: build the Backend image once in a dedicated
+  runtime job, retain it as a one-day artifact, and load it in the four
+  readiness drills and Compose runtime. Compose now builds only the frontend
+  and starts with `--no-build`.
+- `scripts/e2e-credential-reencryption.ps1`,
+  `scripts/e2e-audit-archive.ps1`, `scripts/e2e-identity-readiness.ps1`, and
+  `scripts/e2e-recovery-readiness.ps1`: accept `-BackendImage`, inspect the
+  prebuilt image, and preserve standalone-build behavior when omitted.
+- `backend/internal/deployment/ci_workflows_test.go` and
+  `backend/internal/deployment/delivery_assets_test.go`: lock the shared-image,
+  frontend-only Compose build, and prebuilt-drill contracts.
 
 ## Verification
 
@@ -64,6 +75,17 @@ last-Pod filtering, and zero console errors.
 - `go test -cover -p=1 -count=1 -coverprofile=<temp> ./internal/deployment`:
   passed, confirming the merged test/coverage command shape.
 - `git diff --check`: passed.
+- PowerShell AST parsing for all four drill scripts: passed.
+- Shared Backend image build: passed once in 58.4 seconds; saved artifact size
+  was 43,619,328 bytes.
+- Prebuilt-image drills: Identity 2.5 seconds, Recovery readiness 2.2 seconds
+  after backup/restore, Audit archive 10.3 seconds, and Credential
+  re-encryption 13.5 seconds; all passed and cleaned up their containers,
+  networks, and loaded images.
+- Isolated Compose validation: shared Backend image loaded, frontend-only
+  build 2.9 seconds, startup with `--no-build` 12.5 seconds, all three
+  services healthy, Backend readiness returned `status=ready`, and the
+  frontend request succeeded.
 - Local Pod scale evidence:
   `frontend/.artifacts/pod-scale-perf/m96-pod-scale-samples-v1.json` and
   `frontend/.artifacts/pod-scale-perf/m96-pod-scale-report.md`.

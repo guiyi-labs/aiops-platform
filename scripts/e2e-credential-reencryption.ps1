@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PostgresImage = 'pgvector/pgvector:0.8.1-pg17',
-    [int]$ReadyTimeoutSeconds = 120
+    [int]$ReadyTimeoutSeconds = 120,
+    [string]$BackendImage
 )
 
 Set-StrictMode -Version Latest
@@ -14,7 +15,10 @@ $RunID = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().T
 $Network = "aiops-credential-rotation-$RunID"
 $DatabaseContainer = "aiops-credential-db-$RunID"
 $BackendContainer = "aiops-credential-api-$RunID"
-$BackendImage = "aiops-credential-rotation:$RunID"
+$BuildBackendImage = [string]::IsNullOrWhiteSpace($BackendImage)
+if ($BuildBackendImage) {
+    $BackendImage = "aiops-credential-rotation:$RunID"
+}
 $DatabaseName = 'aiops_credential_rotation'
 $DatabaseUser = 'aiops_rotation'
 
@@ -242,10 +246,15 @@ try {
     $env:AI_ENABLED = 'false'
     $env:NOTIFICATION_ENABLED = 'false'
 
-    Write-Host '[1/8] Building the isolated backend and credential command image'
-    Invoke-NativeText -File 'docker' -Arguments @(
-        'build', '--tag', $BackendImage, '--build-arg', "VERSION=credential-rotation-$RunID", (Join-Path $Root 'backend')
-    ) | Out-Null
+    if ($BuildBackendImage) {
+        Write-Host '[1/8] Building the isolated backend and credential command image'
+        Invoke-NativeText -File 'docker' -Arguments @(
+            'build', '--tag', $BackendImage, '--build-arg', "VERSION=credential-rotation-$RunID", (Join-Path $Root 'backend')
+        ) | Out-Null
+    } else {
+        Write-Host "[1/8] Reusing prebuilt backend image: $BackendImage"
+        Invoke-NativeText -File 'docker' -Arguments @('image', 'inspect', $BackendImage) | Out-Null
+    }
 
     Write-Host '[2/8] Starting isolated PostgreSQL and v1 backend'
     Invoke-NativeText -File 'docker' -Arguments @('network', 'create', '--label', 'io.guiyi.aiops.purpose=credential-reencryption-drill', $Network) | Out-Null

@@ -26,6 +26,7 @@ env:
   PNPM_VERSION: 11.7.0
   KUBECTL_VERSION: v1.34.0
   HELM_VERSION: v3.16.3
+  CI_BACKEND_IMAGE: aiops-ci-backend:${{ github.sha }}
 
 jobs:
   changes:
@@ -63,6 +64,29 @@ jobs:
             fi
           fi
           printf 'runtime_required=%s\n' "$runtime_required" >>"$GITHUB_OUTPUT"
+
+  backend-image:
+    name: Backend image
+    needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build shared backend image
+        run: |
+          docker build --tag "$CI_BACKEND_IMAGE" --build-arg "VERSION=$GITHUB_SHA" backend
+          mkdir -p .artifacts/ci-backend-image
+          docker image save --output .artifacts/ci-backend-image/backend-image.tar "$CI_BACKEND_IMAGE"
+      - name: Upload shared backend image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-backend-image-${{ github.run_id }}
+          path: .artifacts/ci-backend-image/backend-image.tar
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 1
 
   backend:
     name: Backend
@@ -327,16 +351,23 @@ jobs:
 
   credential-drill:
     name: Credential drill
-    needs: changes
-    if: needs.changes.outputs.runtime_required == 'true'
+    needs: [changes, backend-image]
+    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend-image.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download shared backend image
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-backend-image-${{ github.run_id }}
+          path: .artifacts/ci-backend-image
+      - name: Load shared backend image
+        run: docker image load --input .artifacts/ci-backend-image/backend-image.tar
       - name: Drill isolated credential key re-encryption
         shell: pwsh
-        run: ./scripts/e2e-credential-reencryption.ps1
+        run: ./scripts/e2e-credential-reencryption.ps1 -BackendImage $env:CI_BACKEND_IMAGE
       - name: Upload credential evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -348,16 +379,23 @@ jobs:
 
   audit-drill:
     name: Audit archive drill
-    needs: changes
-    if: needs.changes.outputs.runtime_required == 'true'
+    needs: [changes, backend-image]
+    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend-image.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download shared backend image
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-backend-image-${{ github.run_id }}
+          path: .artifacts/ci-backend-image
+      - name: Load shared backend image
+        run: docker image load --input .artifacts/ci-backend-image/backend-image.tar
       - name: Drill signed audit archive
         shell: pwsh
-        run: ./scripts/e2e-audit-archive.ps1
+        run: ./scripts/e2e-audit-archive.ps1 -BackendImage $env:CI_BACKEND_IMAGE
       - name: Upload audit evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -369,16 +407,23 @@ jobs:
 
   identity-drill:
     name: Identity readiness drill
-    needs: changes
-    if: needs.changes.outputs.runtime_required == 'true'
+    needs: [changes, backend-image]
+    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend-image.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download shared backend image
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-backend-image-${{ github.run_id }}
+          path: .artifacts/ci-backend-image
+      - name: Load shared backend image
+        run: docker image load --input .artifacts/ci-backend-image/backend-image.tar
       - name: Evaluate synthetic OIDC and MFA readiness
         shell: pwsh
-        run: ./scripts/e2e-identity-readiness.ps1
+        run: ./scripts/e2e-identity-readiness.ps1 -BackendImage $env:CI_BACKEND_IMAGE
       - name: Upload identity evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -390,19 +435,26 @@ jobs:
 
   recovery-drill:
     name: Recovery readiness drill
-    needs: changes
-    if: needs.changes.outputs.runtime_required == 'true'
+    needs: [changes, backend-image]
+    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend-image.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download shared backend image
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-backend-image-${{ github.run_id }}
+          path: .artifacts/ci-backend-image
+      - name: Load shared backend image
+        run: docker image load --input .artifacts/ci-backend-image/backend-image.tar
       - name: Drill isolated PostgreSQL backup and restore
         shell: pwsh
         run: ./scripts/e2e-postgres-backup-restore.ps1
       - name: Evaluate recovery policy readiness
         shell: pwsh
-        run: ./scripts/e2e-recovery-readiness.ps1
+        run: ./scripts/e2e-recovery-readiness.ps1 -BackendImage $env:CI_BACKEND_IMAGE
       - name: Upload recovery evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -416,13 +468,20 @@ jobs:
 
   runtime:
     name: Compose runtime
-    needs: [changes, backend, frontend, manifests]
-    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend.result == 'success' && needs.frontend.result == 'success' && needs.manifests.result == 'success' }}
+    needs: [changes, backend-image, backend, frontend, manifests]
+    if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend-image.result == 'success' && needs.backend.result == 'success' && needs.frontend.result == 'success' && needs.manifests.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download shared backend image
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-backend-image-${{ github.run_id }}
+          path: .artifacts/ci-backend-image
+      - name: Load shared backend image
+        run: docker image load --input .artifacts/ci-backend-image/backend-image.tar
       - name: Generate ephemeral runtime configuration
         shell: bash
         run: |
@@ -439,8 +498,11 @@ jobs:
             'CREDENTIAL_DECRYPTION_KEYS={}' \
             'AI_ENABLED=false' \
             'NOTIFICATION_ENABLED=false' >.env
-      - name: Build and start Compose runtime
-        run: docker compose up -d --build
+      - name: Build frontend and start Compose runtime from shared backend
+        run: |
+          docker image tag "$CI_BACKEND_IMAGE" k8s-aiops-backend
+          docker compose build frontend
+          docker compose up -d --no-build
       - name: Wait for healthy services
         shell: bash
         run: |
@@ -494,12 +556,13 @@ jobs:
   result:
     name: CI result
     if: always()
-    needs: [changes, backend, race, frontend, gate-b, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
+    needs: [changes, backend-image, backend, race, frontend, gate-b, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       RUNTIME_REQUIRED: ${{ needs.changes.outputs.runtime_required }}
       CHANGE_SCOPE_RESULT: ${{ needs.changes.result }}
+      BACKEND_IMAGE_RESULT: ${{ needs.backend-image.result }}
       BACKEND_RESULT: ${{ needs.backend.result }}
       RACE_RESULT: ${{ needs.race.result }}
       FRONTEND_RESULT: ${{ needs.frontend.result }}
@@ -519,14 +582,14 @@ jobs:
           fi
           case "$RUNTIME_REQUIRED" in
             true)
-              for result in "$BACKEND_RESULT" "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
+              for result in "$BACKEND_IMAGE_RESULT" "$BACKEND_RESULT" "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
                 if [ "$result" != success ]; then
                   exit 1
                 fi
               done
               ;;
             false)
-              for result in "$BACKEND_RESULT" "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
+              for result in "$BACKEND_IMAGE_RESULT" "$BACKEND_RESULT" "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
                 if [ "$result" != skipped ]; then
                   exit 1
                 fi

@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$EvidencePath
+    [string]$EvidencePath,
+    [string]$BackendImage
 )
 
 Set-StrictMode -Version Latest
@@ -10,7 +11,8 @@ $ProgressPreference = 'SilentlyContinue'
 $Root = Split-Path -Parent $PSScriptRoot
 $ArtifactDirectory = Join-Path $Root '.artifacts\recovery-readiness'
 $RunID = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 6))
-$Image = "aiops-recovery-readiness:$RunID"
+$BuildBackendImage = [string]::IsNullOrWhiteSpace($BackendImage)
+$Image = if ($BuildBackendImage) { "aiops-recovery-readiness:$RunID" } else { $BackendImage }
 $TemporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
 $TemporaryDirectory = [IO.Path]::GetFullPath((Join-Path $TemporaryRoot "aiops-recovery-readiness-$RunID"))
 $FixturePolicy = Join-Path $Root 'backend\internal\recoveryreadiness\testdata\policy.json'
@@ -66,9 +68,15 @@ try {
     [IO.File]::Copy($FixturePolicy, (Join-Path $TemporaryDirectory 'policy.json'), $false)
     [IO.File]::Copy($EvidencePath, (Join-Path $TemporaryDirectory 'evidence.json'), $false)
 
-    Write-Host '[1/5] Building the production image with the offline recovery readiness command'
-    $build = Invoke-NativeResult -File 'docker' -Arguments @('build', '--tag', $Image, '--build-arg', "VERSION=recovery-readiness-$RunID", (Join-Path $Root 'backend'))
-    if ($build.ExitCode -ne 0) { throw "recovery readiness image build failed: $($build.Output)" }
+    if ($BuildBackendImage) {
+        Write-Host '[1/5] Building the production image with the offline recovery readiness command'
+        $build = Invoke-NativeResult -File 'docker' -Arguments @('build', '--tag', $Image, '--build-arg', "VERSION=recovery-readiness-$RunID", (Join-Path $Root 'backend'))
+        if ($build.ExitCode -ne 0) { throw "recovery readiness image build failed: $($build.Output)" }
+    } else {
+        Write-Host "[1/5] Reusing prebuilt backend image: $Image"
+        $inspect = Invoke-NativeResult -File 'docker' -Arguments @('image', 'inspect', $Image)
+        if ($inspect.ExitCode -ne 0) { throw "prebuilt recovery readiness image is unavailable: $($inspect.Output)" }
+    }
 
     Write-Host '[2/5] Accepting the synthetic recovery policy against the latest real logical restore evidence'
     $accepted = Invoke-Readiness -Policy 'policy.json' -Evidence 'evidence.json' -ExpectedExitCode 0

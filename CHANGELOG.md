@@ -18,6 +18,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - `v0.3.0-rc.4` 的 Hosted Release 全部通过并发布非草稿 prerelease；20 个发布资产包含 16 个 checksum 覆盖的 payload、四份平台 SBOM 和完整 Cosign 签名证据。
 - CI 文档快速路径现在包含 `CHANGELOG.md`，并在文档范围下跳过 Backend 与全部运行时任务；最终汇总对 `true`/`false` 范围均保持 fail-closed，Release 的 `force_runtime: true` 不受影响。
 - 合并 Backend 的普通测试与全局覆盖率测试，消除对全部 Go package 的一次重复执行，同时保留 60% 全局覆盖率、核心包覆盖率、race、fuzz 和 benchmark 门禁。
+- CI 新增一次性的共享 Backend 镜像构建与短期 artifact；四项演练和 Compose runtime 复用该镜像，Compose 仅构建 frontend，避免重复执行 Backend Docker build。
 - See [M97 hosted CI recovery record](docs/changes/2026-08-10-m97-hosted-ci-recovery.md).
 
 ### Added - M97 Release Candidate Supply-Chain Closure

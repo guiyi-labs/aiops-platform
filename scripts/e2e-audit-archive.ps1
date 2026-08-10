@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PostgresImage = 'pgvector/pgvector:0.8.1-pg17',
-    [int]$ReadyTimeoutSeconds = 120
+    [int]$ReadyTimeoutSeconds = 120,
+    [string]$BackendImage
 )
 
 Set-StrictMode -Version Latest
@@ -13,7 +14,10 @@ $ArtifactDirectory = Join-Path $Root '.artifacts\audit-archive'
 $RunID = '{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 6))
 $Network = "aiops-audit-archive-$RunID"
 $DatabaseContainer = "aiops-audit-db-$RunID"
-$BackendImage = "aiops-audit-archive:$RunID"
+$BuildBackendImage = [string]::IsNullOrWhiteSpace($BackendImage)
+if ($BuildBackendImage) {
+    $BackendImage = "aiops-audit-archive:$RunID"
+}
 $DatabaseName = 'aiops_audit_archive'
 $DatabaseUser = 'aiops_audit'
 $TemporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
@@ -147,8 +151,13 @@ try {
     $env:AI_ENABLED = 'false'
     $env:NOTIFICATION_ENABLED = 'false'
 
-    Write-Host '[1/6] Building isolated audit archive image'
-    Invoke-NativeText -File 'docker' -Arguments @('build', '--tag', $BackendImage, '--build-arg', "VERSION=audit-archive-$RunID", (Join-Path $Root 'backend')) | Out-Null
+    if ($BuildBackendImage) {
+        Write-Host '[1/6] Building isolated audit archive image'
+        Invoke-NativeText -File 'docker' -Arguments @('build', '--tag', $BackendImage, '--build-arg', "VERSION=audit-archive-$RunID", (Join-Path $Root 'backend')) | Out-Null
+    } else {
+        Write-Host "[1/6] Reusing prebuilt backend image: $BackendImage"
+        Invoke-NativeText -File 'docker' -Arguments @('image', 'inspect', $BackendImage) | Out-Null
+    }
     Write-Host '[2/6] Starting isolated PostgreSQL'
     Invoke-NativeText -File 'docker' -Arguments @('network', 'create', '--label', 'io.guiyi.aiops.purpose=audit-archive-drill', $Network) | Out-Null
     Invoke-NativeText -File 'docker' -Arguments @('run', '--detach', '--name', $DatabaseContainer, '--label', 'io.guiyi.aiops.purpose=audit-archive-drill', '--network', $Network, '--env', 'POSTGRES_DB', '--env', 'POSTGRES_USER', '--env', 'POSTGRES_PASSWORD', $PostgresImage) | Out-Null

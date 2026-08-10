@@ -34,14 +34,17 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				"go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...", "go test -race -p=1 -count=1 ./...", "pnpm install --frozen-lockfile",
 				"golangci-lint@v2.12.2", "pnpm lint",
 				"Test and coverage baseline", "git diff --exit-code", "oasdiff",
-				"Change scope", "runtime_required", "credential-drill:", "audit-drill:",
+				"Change scope", "runtime_required", "backend-image:", "Backend image", "CI_BACKEND_IMAGE", "docker image save",
+				"Download shared backend image", "-BackendImage $env:CI_BACKEND_IMAGE", "BACKEND_IMAGE_RESULT",
+				"credential-drill:", "audit-drill:",
 				"identity-drill:", "recovery-drill:", "CI result", "Detect documentation-only changes",
 				"force_runtime", "FORCE_RUNTIME",
-				"e2e-postgres-backup-restore.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "docker compose up -d --build",
+				"e2e-postgres-backup-restore.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1",
+				"docker compose build frontend", "docker compose up -d --no-build",
 				".artifacts/postgres-recovery/", ".artifacts/audit-archive/", ".artifacts/identity-readiness/", ".artifacts/recovery-readiness/", "docker compose down --volumes --remove-orphans",
 				"HELM_VERSION:", "helm lint --strict", "deploy/helm/aiops-platform", "Install checksum-verified helm",
 			},
-			forbidden: []string{"pull_request_target", "secrets.", "contents: write"},
+			forbidden: []string{"pull_request_target", "secrets.", "contents: write", "docker compose up -d --build"},
 		},
 		{
 			name: ".github/workflows/release.yml",
@@ -139,6 +142,9 @@ func TestCIWorkflowScopeKeepsDocumentationFastAndRuntimeFailClosed(t *testing.T)
 	if got := workflow.Jobs["backend"].If; got != "needs.changes.outputs.runtime_required == 'true'" {
 		t.Fatalf("backend job condition = %q, want documentation-aware runtime gate", got)
 	}
+	if got := workflow.Jobs["backend-image"].If; got != "needs.changes.outputs.runtime_required == 'true'" {
+		t.Fatalf("backend image job condition = %q, want documentation-aware runtime gate", got)
+	}
 
 	stepRun := func(jobName, stepName string) string {
 		for _, step := range workflow.Jobs[jobName].Steps {
@@ -159,6 +165,27 @@ func TestCIWorkflowScopeKeepsDocumentationFastAndRuntimeFailClosed(t *testing.T)
 	for _, marker := range []string{`case "$RUNTIME_REQUIRED" in`, `true)`, `false)`, `"$result" != success`, `"$result" != skipped`} {
 		if !strings.Contains(resultRun, marker) {
 			t.Errorf("CI result gate is missing %q", marker)
+		}
+	}
+}
+
+func TestHostedDrillsCanReusePrebuiltBackendImage(t *testing.T) {
+	root := repositoryRoot(t)
+	for _, script := range []string{
+		"scripts/e2e-credential-reencryption.ps1",
+		"scripts/e2e-audit-archive.ps1",
+		"scripts/e2e-identity-readiness.ps1",
+		"scripts/e2e-recovery-readiness.ps1",
+	} {
+		contents, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(script)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := string(contents)
+		for _, marker := range []string{"[string]$BackendImage", "$BuildBackendImage", "Reusing prebuilt backend image", "'image', 'inspect'"} {
+			if !strings.Contains(text, marker) {
+				t.Errorf("%s is missing prebuilt-image contract %q", script, marker)
+			}
 		}
 	}
 }

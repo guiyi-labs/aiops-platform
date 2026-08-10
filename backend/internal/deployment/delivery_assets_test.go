@@ -176,7 +176,8 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		".github/workflows/ci.yml": {
 			"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
 			"runtime_required", "credential-drill:", "audit-drill:", "identity-drill:", "recovery-drill:", "CI result",
-			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "e2e-metrics-history.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
+			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "e2e-metrics-history.ps1",
+			"docker image save", "docker compose build frontend", "docker compose up -d --no-build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
 			"v*.*.*-rc.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",

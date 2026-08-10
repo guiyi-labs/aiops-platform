@@ -11,8 +11,8 @@ func TestDatasetVersion(t *testing.T) {
 	if DatasetVersion == "" {
 		t.Fatal("DatasetVersion must be non-empty")
 	}
-	if DatasetVersion != "1.1" {
-		t.Errorf("DatasetVersion = %q, want %q", DatasetVersion, "1.0")
+	if DatasetVersion != "1.2" {
+		t.Errorf("DatasetVersion = %q, want %q", DatasetVersion, "1.2")
 	}
 }
 
@@ -337,4 +337,19 @@ func findScenario(ds Dataset, id ScenarioID) (Scenario, bool) {
 		}
 	}
 	return Scenario{}, false
+}
+
+// TestDatasetMigrationHint verifies old snapshots remain readable and produce a
+// migration hint when their dataset version predates the current unified
+// evidence model (M95 acceptance: DatasetVersion upgrades keep old snapshots
+// readable with a migration hint).
+func TestDatasetMigrationHint(t *testing.T) {
+	if got := DatasetMigrationHint(DatasetVersion); got != "" {
+		t.Errorf("current version must produce no hint, got %q", got)
+	}
+	for _, old := range []string{"1.1", "1.0", "0.9", ""} {
+		if got := DatasetMigrationHint(old); got == "" {
+			t.Errorf("old version %q must produce a migration hint", old)
+		}
+	}
 }

@@ -104,6 +104,28 @@ type QualitySummary struct {
 	TotalSteps       int `json:"total_steps"`
 }
 
+// DatasetMigrationHint returns a human-readable upgrade hint when the loaded
+// dataset version is older than the current compiled-in DatasetVersion. Older
+// snapshots remain readable (backward compatible), and the hint tells the
+// reviewer which dataset generation produced them and how to interpret the
+// unified evidence model introduced by M95.
+func DatasetMigrationHint(loadedVersion string) string {
+	if loadedVersion == "" {
+		return "quality report missing dataset version; treat as legacy pre-M82 snapshot"
+	}
+	if loadedVersion == DatasetVersion {
+		return ""
+	}
+	switch loadedVersion {
+	case "1.1":
+		return "snapshot was generated with the M82-M94 dataset (v1.1); findings legacy, unified v2 model added in M95"
+	case "1.0":
+		return "snapshot was generated with the pre-M82 dataset (v1.0); findings legacy, unified v2 model added in M95"
+	default:
+		return "snapshot dataset version " + loadedVersion + " predates the current " + DatasetVersion + " unified evidence model; findings remain readable via v1 contract"
+	}
+}
+
 // ClassifyDelta returns the delta classification for a scenario.
 func ClassifyDelta(passedBefore, passedAfter bool) string {
 	switch {

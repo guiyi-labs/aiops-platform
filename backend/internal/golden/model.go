@@ -20,7 +20,7 @@ package golden
 // DatasetVersion is the version of the golden dataset. Bumped when a
 // scenario is added, removed, or its expected outcomes change. A bump
 // requires a quality report (before/after) per the M45 plan.
-const DatasetVersion = "1.1"
+const DatasetVersion = "1.2"
 
 // ScenarioVersion is the per-scenario version. Scenarios may evolve
 // independently; the dataset version is the max of all scenario versions.

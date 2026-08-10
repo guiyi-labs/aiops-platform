@@ -128,7 +128,12 @@ flowchart LR
 - API 契约、领域单测、Playwright 关键旅程、axe 和 kind E2E 全部通过。
 - 不新增任意命令、Pod exec、WebShell 或绕过确认的写操作。
 
-### M95：统一 Finding 与证据模型（5–7 天）
+### M95：统一 Finding 与证据模型（5–7 天）— ✅ 后端统一证据模型已落地（2026-08-10，`baseline-m95-finding-detail-v2-20260810`）
+
+**当前状态**：后端 `FindingDetail v2`（规则身份/证据引用/类型化建议/版本信息）、v1→v2 兼容层、
+共享严重度映射（`SeverityRank`/`NormalizeSeverity`/`MaxSeverity`）、按资源合并保留规则来源、
+golden `DatasetVersion` 1.2 + 迁移提示已完成并归档；前端四个面共享同一证据组件渲染为 M95
+后续增量（新 change-record 归档）。
 
 **目标**：让 18 个分析器、诊断、巡检和治理态势共享“规则 → 证据 → 建议”的稳定模型。
 

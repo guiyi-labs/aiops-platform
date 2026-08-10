@@ -290,14 +290,9 @@ func Domains() []Domain {
 }
 
 func severityRank(sev string) int {
-	switch sev {
-	case finding.SeverityCritical:
-		return 0
-	case finding.SeverityWarning:
-		return 1
-	default:
-		return 2
-	}
+	// Delegate to the canonical severity mapping (M95 unified evidence model)
+	// so the aggregate and every analyzer share one ordering.
+	return finding.SeverityRank(sev)
 }
 
 func statusFrom(domain Domain, total, failed int, bySeverity map[string]int) DomainStatus {

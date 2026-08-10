@@ -9,6 +9,22 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — M95 Unified Finding & Evidence Model (FindingDetail v2)
+
+- 后端定义 `FindingDetail v2` 统一证据模型：规则身份（rule_id/framework/source/version）、
+  资源引用、严重度、稳定证据引用、类型化建议与版本信息；内嵌并保留全部 v1 Finding 字段。
+- 提供 v1→v2 兼容层（`FromV1` / `ToV1`）：v2 → v1 扁平化与原始 v1 JSON 字节一致，
+  旧 API 消费者继续工作；同一资源的重复 finding 经 `MergeDistinct` 合并展示并保留每条
+  规则来源与原始 ID。
+- 建议类型 `advisory` / `controlled_action_available` / `manual_only`，默认不自动执行；
+  共享严重度映射 `SeverityRank` / `NormalizeSeverity` / `MaxSeverity` 统一 posture /
+  optimization / diagnosis / inspection。
+- golden `DatasetVersion` 1.1 → 1.2；`DatasetMigrationHint` 保证旧快照（v1.0/v1.1）
+  仍可读取并给出迁移提示。
+- 新增 schema-parity 与序列化快照测试：11 个 posture 分析器 + finops 均使用规范
+  `finding.Finding`；v1 JSON wire contract 字节级锁定。
+- See [M95 change record](docs/changes/2026-08-10-m95-finding-detail-v2.md).
+
 ### Added — M94 Diagnosis Deep Links
 
 - 诊断详情抽屉新增“关联入口”：从诊断直达资源详情（Pod/Service/Node/Deployment/Ingress/PVC）、

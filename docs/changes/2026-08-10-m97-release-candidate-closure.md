@@ -42,6 +42,9 @@ evidence.
 - Strict image SBOM generation now scans per-platform OCI views because the
   pinned Syft version does not consume a multi-architecture OCI index; those
   temporary views are excluded from the published asset set.
+- OCI inspection now follows nested Buildx indexes, validates each referenced
+  blob digest, ignores attestation manifests for platform coverage, and has a
+  focused nested-index fixture test.
 
 ## Verification
 
@@ -59,7 +62,8 @@ retain the initial repository and namespace values; the fixed rehearsal passed
 after adding `--reuse-values`. The first strict package attempt also exposed
 Syft's multi-architecture OCI index limitation; the per-platform SBOM input fix
 above addresses that local tooling boundary. The strict full package must be
-generated from the final clean revision. Hosted GitHub Release creation and keyless Cosign
+generated from the final clean revision. Hosted GitHub Release creation and
+keyless Cosign
 verification remain dependent on remote access and organization workflow
 permissions; a failed remote submission is not treated as local evidence.
 

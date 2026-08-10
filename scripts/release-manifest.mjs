@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process'
 
 const MANIFEST_SCHEMA = 'aiops.release-manifest/v1'
 const PROVENANCE_TYPE = 'https://slsa.dev/provenance/v1'
+const OCI_INDEX_MEDIA_TYPE = 'application/vnd.oci.image.index.v1+json'
+const OCI_MANIFEST_MEDIA_TYPE = 'application/vnd.oci.image.manifest.v1+json'
 const RC_VERSION = /^v\d+\.\d+\.\d+-rc\.\d+$/
 const REVISION = /^[0-9a-f]{40}$/
 const GENERATED_FILES = new Set([
@@ -150,19 +152,51 @@ async function inspectOCIArchive(archivePath) {
   if (index.schemaVersion !== 2 || !Array.isArray(index.manifests) || index.manifests.length === 0) {
     throw new Error(`OCI archive ${archivePath} must contain an OCI image index`)
   }
-  const manifestDigests = index.manifests.map(descriptor => descriptor.digest)
-  if (manifestDigests.some(digest => !/^sha256:[0-9a-f]{64}$/.test(digest ?? ''))) {
-    throw new Error(`OCI archive ${archivePath} has an invalid manifest digest`)
+
+  const manifestDigests = []
+  const platforms = []
+  const visited = new Set()
+  async function walkDescriptor(descriptor) {
+    if (!/^sha256:[0-9a-f]{64}$/.test(descriptor.digest ?? '')) {
+      throw new Error(`OCI archive ${archivePath} has an invalid manifest digest`)
+    }
+    if (visited.has(descriptor.digest)) return
+    visited.add(descriptor.digest)
+
+    const blobPath = `blobs/sha256/${descriptor.digest.slice('sha256:'.length)}`
+    const blobBytes = await readTarEntry(archivePath, blobPath)
+    if (!blobBytes) throw new Error(`OCI archive ${archivePath} is missing ${blobPath}`)
+    const actualDigest = `sha256:${createHash('sha256').update(blobBytes).digest('hex')}`
+    if (actualDigest !== descriptor.digest) {
+      throw new Error(`OCI archive ${archivePath} has a digest mismatch for ${blobPath}`)
+    }
+
+    const document = JSON.parse(blobBytes.toString('utf8'))
+    if (descriptor.mediaType === OCI_INDEX_MEDIA_TYPE) {
+      if (document.schemaVersion !== 2 || !Array.isArray(document.manifests) || document.manifests.length === 0) {
+        throw new Error(`OCI archive ${archivePath} contains an invalid nested image index`)
+      }
+      for (const child of document.manifests) await walkDescriptor(child)
+      return
+    }
+    if (descriptor.mediaType !== OCI_MANIFEST_MEDIA_TYPE || document.schemaVersion !== 2) {
+      throw new Error(`OCI archive ${archivePath} contains unsupported media type ${descriptor.mediaType}`)
+    }
+    if (descriptor.annotations?.['vnd.docker.reference.type'] === 'attestation-manifest') return
+
+    manifestDigests.push(descriptor.digest)
+    const platform = descriptor.platform
+    if (platform?.os && platform?.architecture && platform.os !== 'unknown' && platform.architecture !== 'unknown') {
+      platforms.push(`${platform.os}/${platform.architecture}${platform.variant ? `/${platform.variant}` : ''}`)
+    }
   }
-  const platforms = index.manifests
-    .map(item => item.platform)
-    .filter(Boolean)
-    .map(platform => `${platform.os}/${platform.architecture}${platform.variant ? `/${platform.variant}` : ''}`)
-    .sort()
+  for (const descriptor of index.manifests) await walkDescriptor(descriptor)
+  if (manifestDigests.length === 0) throw new Error(`OCI archive ${archivePath} contains no image manifests`)
+
   return {
     indexDigest: `sha256:${createHash('sha256').update(indexBytes).digest('hex')}`,
-    manifestDigests,
-    platforms,
+    manifestDigests: manifestDigests.sort(),
+    platforms: [...new Set(platforms)].sort(),
   }
 }
 

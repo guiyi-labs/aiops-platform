@@ -6,11 +6,14 @@ import * as clusterAPI from '../api/clusters'
 import { getPostureReport } from '../api/optimization'
 import { getInsightRunbook } from '../api/insight'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
 import { useCountUp } from '../composables/useCountUp'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type { PostureDomain, PostureDomainStatus, PostureFinding, PostureReport } from '../types/optimization'
+import type { FindingDetailV2 } from '../types/finding'
 import type { InsightRunbook } from '../types/insight'
+import { fromOptimizationFinding, mergeFindingDetails } from '../utils/finding-detail'
 
 // M80 aggregated governance posture view.
 //
@@ -50,7 +53,22 @@ function severityLabel(severity: string): string {
 }
 
 /** Findings already arrive risk-sorted from the API; keep them as-is for display. */
-const sortedFindings = computed<PostureFinding[]>(() => report.value?.findings ?? [])
+type PostureFindingView = PostureFinding & { findingDetail: FindingDetailV2 }
+
+const sortedFindings = computed<PostureFindingView[]>(() => {
+  const findings = report.value?.findings ?? []
+  const details = mergeFindingDetails(findings.map((finding) => fromOptimizationFinding(finding, { framework: 'posture', source: finding.domain })))
+  return details.map((detail) => ({
+    domain: (detail.rule.source || 'cis') as PostureDomain,
+    severity: detail.severity,
+    code: detail.code,
+    summary: detail.summary,
+    resource: detail.resource,
+    details: detail.details,
+    observed_at: detail.observed_at,
+    findingDetail: detail,
+  }))
+})
 
 const criticalCount = computed(() => report.value?.by_severity?.critical ?? 0)
 const warningCount = computed(() => report.value?.by_severity?.warning ?? 0)
@@ -232,6 +250,7 @@ onMounted(async () => {
                 {{ domainLabel(finding.domain) }} · {{ finding.resource.kind }} {{ finding.resource.namespace ? `${finding.resource.namespace}/` : '' }}{{ finding.resource.name }}
               </p>
               <p v-if="finding.code" class="posture-finding-code">{{ finding.code }}</p>
+              <FindingEvidencePanel :finding="finding.findingDetail" compact />
               <button type="button" class="posture-insight-toggle" :disabled="Boolean(insightLoading[findingKey(finding, index)])" @click="toggleInsight(finding, index)">
                 <Route :size="14" />
                 {{ insightLoading[findingKey(finding, index)] ? '加载中…' : (hasInsight(finding, index) ? '收起闭环' : '查看闭环') }}

@@ -25,12 +25,14 @@ import {
 import * as clusterAPI from '../api/clusters'
 import * as optimizationAPI from '../api/optimization'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type {
   CapacityStatus,
   CISStatus,
   DeprecatedAPIStatus,
+  FinOpsRecommendation,
   FinOpsWasteSummary,
   GitOpsStatus,
   HPAStatus,
@@ -41,6 +43,7 @@ import type {
   PDBStatus,
   PolicyStatus,
 } from '../types/optimization'
+import { fromFinOpsRecommendation, fromOptimizationFinding } from '../utils/finding-detail'
 
 // Read-only optimization console (M66) over the M61-M70 analyzers.
 //
@@ -137,6 +140,14 @@ function formatTimestamp(value: string | undefined): string {
 }
 
 const selectedCluster = computed(() => clusters.value.find((c) => c.id === selectedClusterID.value) ?? null)
+
+function findingDetail(finding: OptimizationFinding, source: string) {
+  return fromOptimizationFinding(finding, { framework: 'optimization', source })
+}
+
+function finopsFindingDetail(recommendation: FinOpsRecommendation) {
+  return fromFinOpsRecommendation(recommendation, finops.value?.evaluated_at)
+}
 
 /** CIS findings ordered critical → warning → info so the worst surface first. */
 const cisFindings = computed<OptimizationFinding[]>(() => {
@@ -496,6 +507,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ rec.workload_name }}</div>
                       <div class="cell-sub muted">{{ rec.workload_kind }} · {{ rec.namespace }}</div>
+                      <FindingEvidencePanel :finding="finopsFindingDetail(rec)" compact />
                     </td>
                     <td>{{ rec.container_name }}</td>
                     <td>{{ formatCPU(rec.suggested_requests.cpu_request) }}</td>
@@ -575,6 +587,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'cis')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -675,7 +688,10 @@ onMounted(() => void loadClusters())
                     </td>
                     <td><code>{{ item.details?.api_version ?? '—' }}</code></td>
                     <td><code>{{ item.details?.replacement ?? '—' }}</code></td>
-                    <td>{{ item.summary }}</td>
+                    <td>
+                      <div class="cell-main">{{ item.summary }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'deprecated_api')" compact />
+                    </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
                   </tr>
                 </tbody>
@@ -747,6 +763,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'network')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -824,6 +841,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'image')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -905,6 +923,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <div v-if="item.details?.field_count" class="cell-sub muted">{{ item.details.field_count }} 个字段不一致</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'gitops')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -989,6 +1008,7 @@ onMounted(() => void loadClusters())
                         当前 {{ pct(item.details.current_pct) }} → 预计 {{ pct(item.details.projected_pct) }}
                         <template v-if="item.details.days_to_saturation !== 'inf'"> · {{ item.details.days_to_saturation }} 天后耗尽</template>
                       </div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'capacity')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1066,6 +1086,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'policy')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1145,6 +1166,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'hpa')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1225,6 +1247,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'pdb')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1304,6 +1327,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
+                      <FindingEvidencePanel :finding="findingDetail(item, 'ingress')" compact />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1347,9 +1371,11 @@ onMounted(() => void loadClusters())
 .optimization-tabs {
   display: flex;
   gap: 4px;
-  width: fit-content;
+  width: 100%;
+  min-width: 0;
   margin-top: 14px;
   padding: 4px;
+  overflow-x: auto;
   background: var(--bg-tertiary);
   border-radius: var(--radius-md);
 }
@@ -1359,6 +1385,7 @@ onMounted(() => void loadClusters())
   align-items: center;
   gap: 7px;
   min-height: 34px;
+  flex: 0 0 auto;
   padding: 0 16px;
   color: var(--text-secondary);
   font-size: 12px;
@@ -1380,6 +1407,13 @@ onMounted(() => void loadClusters())
 
 .optimization-tab .panel {
   margin-top: 16px;
+}
+
+.optimization-tab,
+.optimization-tab .panel,
+.table-scroll {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .deprecated-toolbar {

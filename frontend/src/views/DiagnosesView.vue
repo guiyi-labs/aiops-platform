@@ -8,10 +8,12 @@ import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, execut
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, DiagnosisActionItem, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisStatus, FeedbackVerdict, RemediationPlan } from '../types/diagnosis'
 import type { UserProfile } from '../types/auth'
+import { fromDiagnosis } from '../utils/finding-detail'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -292,6 +294,7 @@ onMounted(initialize)
     </section>
 
     <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span><span v-if="detail.assignee" class="assignee-badge"><UserCheck :size="13" />{{ detail.assignee.name }}</span><span class="sla-badge" :class="{ overdue: detail.overdue }">{{ slaLabel(detail) }}</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }} · 截止 {{ formatTime(detail.sla_due_at) }}</p>
+      <FindingEvidencePanel :finding="fromDiagnosis(detail)" />
       <section v-if="detail.root_cause_card" class="root-cause-card">
         <header><span class="root-cause-label">根因结论</span><span class="root-cause-confidence">{{ detail.root_cause_card.confidence }}</span></header>
         <p class="root-cause-conclusion">{{ detail.root_cause_card.conclusion }}</p>

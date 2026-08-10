@@ -81,6 +81,14 @@ test('Diagnosis detail shows root cause card and evidence timeline', async ({ pa
   const drawer = page.locator('.diagnosis-drawer')
   await expect(drawer).toBeVisible()
 
+  const evidencePanel = drawer.locator('.finding-evidence-panel')
+  await expect(evidencePanel).toBeVisible()
+  await expect(evidencePanel.locator('.finding-evidence-count')).toContainText('2 条')
+  await evidencePanel.getByRole('button', { name: /证据链/ }).click()
+  await expect(evidencePanel.locator('.finding-evidence-body')).toBeVisible()
+  await expect(evidencePanel.locator('.finding-evidence-list')).toContainText('Ready = False')
+  await expect(evidencePanel.locator('.finding-evidence-list')).toContainText('MemoryPressure = True')
+
   const card = drawer.locator('.root-cause-card')
   await expect(card).toBeVisible()
   await expect(card).toContainText('Node 未处于 Ready 状态')

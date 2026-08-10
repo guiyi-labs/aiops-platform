@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added — M95 Frontend Finding Evidence Surface
+
+- Posture、Optimization（11 个 analyzer tab）、Diagnoses 和 Inspection 统一使用 `FindingDetailV2` 前端适配器与可折叠证据链组件，展示规则来源、证据引用、缺失语义和建议能力。
+- 同资源 finding 合并后保留完整 `origin_ids` 与去重后的证据引用；Posture 不再将合并结果重新降级为 legacy finding。
+- 新增 Desktop/Mobile 真实响应 Playwright fixture，覆盖面板展开、建议展示和移动端视口边界；修正优化页移动端 tab/表格横向滚动约束。
+- See [M95 frontend change record](docs/changes/2026-08-10-m95-finding-evidence-ui.md).
+
 ### Added — M95 Unified Finding & Evidence Model (FindingDetail v2)
 
 - 后端定义 `FindingDetail v2` 统一证据模型：规则身份（rule_id/framework/source/version）、

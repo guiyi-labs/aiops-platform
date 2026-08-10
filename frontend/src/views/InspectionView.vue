@@ -23,10 +23,12 @@ import {
 import { listClusters } from '../api/clusters'
 import { APIError } from '../api/auth'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { CreateInspectionPlanRequest } from '../types/inspection'
 import type { InspectionPlanView, InspectionResultView, InspectionRule, InspectionTaskView } from '../types/inspection'
 import type { Cluster } from '../types/cluster'
+import { fromInspectionResult } from '../utils/finding-detail'
 
 const auth = useAuthStore()
 
@@ -502,6 +504,7 @@ onMounted(async () => {
                 <th>命名空间</th>
                 <th>资源</th>
                 <th>观测时间</th>
+                <th>证据</th>
               </tr>
             </thead>
             <tbody>
@@ -512,6 +515,7 @@ onMounted(async () => {
                 <td>{{ item.namespace || '—' }}</td>
                 <td class="mono">{{ item.resource_kind ? `${item.resource_kind}/${item.resource_name || ''}` : '—' }}</td>
                 <td>{{ formatTime(item.observed_at) }}</td>
+                <td><FindingEvidencePanel :finding="fromInspectionResult(item)" compact /></td>
               </tr>
             </tbody>
           </table>

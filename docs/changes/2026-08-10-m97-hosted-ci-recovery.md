@@ -31,6 +31,16 @@ last-Pod filtering, and zero console errors.
   overscan, position, filter, and console invariants remain fail-closed.
 - `.github/workflows/ci.yml`: add the `force_runtime` reusable-workflow input
   so Release tags cannot downgrade to documentation-only quality gates.
+- `.github/workflows/ci.yml`: include `CHANGELOG.md` in the documentation-only
+  scope, skip Backend together with the runtime jobs for that scope, and make
+  the final result validate both the all-success runtime path and the
+  all-skipped documentation path fail-closed.
+- `.github/workflows/ci.yml`: merge the duplicate Backend test and global
+  coverage executions into one `go test -cover` pass. Core-package coverage,
+  race, fuzz, benchmark, build, scale, frontend, drill, manifest, and Compose
+  gates remain unchanged.
+- `backend/internal/deployment/ci_workflows_test.go`: pin the documentation
+  scope, Backend condition, and final result semantics as workflow contracts.
 - `.github/workflows/release.yml`: pass `force_runtime: true` and pin the
   Docker actions to their verified upstream commits. Generate four SPDX SBOMs
   from cached single-platform OCI inputs because the pinned Syft version does
@@ -49,6 +59,11 @@ last-Pod filtering, and zero console errors.
 - `pnpm bundle:gate`: passed.
 - `pnpm style:audit`: report generated successfully.
 - `pnpm perf:pods`: 6 visits, 0 runtime failures, 0 invariant failures.
+- `go test -count=1 ./internal/deployment`: passed after the CI efficiency
+  contract update.
+- `go test -cover -p=1 -count=1 -coverprofile=<temp> ./internal/deployment`:
+  passed, confirming the merged test/coverage command shape.
+- `git diff --check`: passed.
 - Local Pod scale evidence:
   `frontend/.artifacts/pod-scale-perf/m96-pod-scale-samples-v1.json` and
   `frontend/.artifacts/pod-scale-perf/m96-pod-scale-report.md`.

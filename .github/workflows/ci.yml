@@ -58,7 +58,7 @@ jobs:
               base="$(git rev-parse HEAD^)"
             fi
             changed="$(git diff --name-only "$base" "$GITHUB_SHA")"
-            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -Ev '^(docs/|README\.md$)' >/dev/null; then
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -Ev '^(docs/|README\.md$|CHANGELOG\.md$)' >/dev/null; then
               runtime_required=false
             fi
           fi
@@ -67,6 +67,7 @@ jobs:
   backend:
     name: Backend
     needs: changes
+    if: needs.changes.outputs.runtime_required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -93,10 +94,7 @@ jobs:
         run: |
           go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
           "$(go env GOPATH)/bin/golangci-lint" run --config ../.golangci.yml ./...
-      - name: Test
-        working-directory: backend
-        run: go test -p=1 -count=1 ./...
-      - name: Coverage baseline
+      - name: Test and coverage baseline
         working-directory: backend
         run: |
           go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...
@@ -516,13 +514,25 @@ jobs:
       - name: Enforce required results
         shell: bash
         run: |
-          if [ "$CHANGE_SCOPE_RESULT" != success ] || [ "$BACKEND_RESULT" != success ]; then
+          if [ "$CHANGE_SCOPE_RESULT" != success ]; then
             exit 1
           fi
-          if [ "$RUNTIME_REQUIRED" = true ]; then
-            for result in "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
-              if [ "$result" != success ]; then
-                exit 1
-              fi
-            done
-          fi
+          case "$RUNTIME_REQUIRED" in
+            true)
+              for result in "$BACKEND_RESULT" "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
+                if [ "$result" != success ]; then
+                  exit 1
+                fi
+              done
+              ;;
+            false)
+              for result in "$BACKEND_RESULT" "$RACE_RESULT" "$FRONTEND_RESULT" "$GATE_B_RESULT" "$MANIFESTS_RESULT" "$CREDENTIAL_RESULT" "$AUDIT_RESULT" "$IDENTITY_RESULT" "$RECOVERY_RESULT" "$RUNTIME_RESULT"; do
+                if [ "$result" != skipped ]; then
+                  exit 1
+                fi
+              done
+              ;;
+            *)
+              exit 1
+              ;;
+          esac

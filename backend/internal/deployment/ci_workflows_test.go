@@ -31,9 +31,9 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			required: []string{
 				"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
 				checkoutAction, setupGoAction, setupNodeAction, setupPnpmAction, uploadArtifactAction,
-				"go test -p=1 -count=1 ./...", "go test -race -p=1 -count=1 ./...", "pnpm install --frozen-lockfile",
+				"go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...", "go test -race -p=1 -count=1 ./...", "pnpm install --frozen-lockfile",
 				"golangci-lint@v2.12.2", "pnpm lint",
-				"Coverage baseline", "git diff --exit-code", "oasdiff",
+				"Test and coverage baseline", "git diff --exit-code", "oasdiff",
 				"Change scope", "runtime_required", "credential-drill:", "audit-drill:",
 				"identity-drill:", "recovery-drill:", "CI result", "Detect documentation-only changes",
 				"force_runtime", "FORCE_RUNTIME",
@@ -113,6 +113,53 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCIWorkflowScopeKeepsDocumentationFastAndRuntimeFailClosed(t *testing.T) {
+	root := repositoryRoot(t)
+	contents, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var workflow struct {
+		Jobs map[string]struct {
+			If    string `yaml:"if"`
+			Steps []struct {
+				Name string `yaml:"name"`
+				Run  string `yaml:"run"`
+			} `yaml:"steps"`
+		} `yaml:"jobs"`
+	}
+	if err := yaml.Unmarshal(contents, &workflow); err != nil {
+		t.Fatalf("invalid CI workflow YAML: %v", err)
+	}
+
+	if got := workflow.Jobs["backend"].If; got != "needs.changes.outputs.runtime_required == 'true'" {
+		t.Fatalf("backend job condition = %q, want documentation-aware runtime gate", got)
+	}
+
+	stepRun := func(jobName, stepName string) string {
+		for _, step := range workflow.Jobs[jobName].Steps {
+			if step.Name == stepName {
+				return step.Run
+			}
+		}
+		t.Fatalf("job %q is missing step %q", jobName, stepName)
+		return ""
+	}
+
+	scopeRun := stepRun("changes", "Detect documentation-only changes")
+	if !strings.Contains(scopeRun, `CHANGELOG\.md$`) {
+		t.Fatal("documentation-only detection must include CHANGELOG.md")
+	}
+
+	resultRun := stepRun("result", "Enforce required results")
+	for _, marker := range []string{`case "$RUNTIME_REQUIRED" in`, `true)`, `false)`, `"$result" != success`, `"$result" != skipped`} {
+		if !strings.Contains(resultRun, marker) {
+			t.Errorf("CI result gate is missing %q", marker)
+		}
 	}
 }
 

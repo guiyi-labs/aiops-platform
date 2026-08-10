@@ -56,6 +56,12 @@ last-Pod filtering, and zero console errors.
 - `backend/internal/deployment/ci_workflows_test.go` and
   `backend/internal/deployment/delivery_assets_test.go`: lock the shared-image,
   frontend-only Compose build, and prebuilt-drill contracts.
+- `.github/workflows/ci.yml` and `.github/workflows/release.yml`: upgrade
+  `actions/download-artifact` to `v8.0.1` and Docker QEMU/Buildx setup to
+  `v4.2.0`, pinned to reviewed immutable commits. All three actions use the
+  Node.js 24 runtime; artifact digest mismatches remain fail-closed.
+- `backend/internal/deployment/ci_workflows_test.go`: pin the reviewed Node.js
+  24 action commits and explicitly reject the superseded Node.js 20 commits.
 
 ## Verification
 
@@ -134,8 +140,9 @@ last-Pod filtering, and zero console errors.
 - Performance duration and memory thresholds remain report-only. Correctness
   invariants remain hard failures.
 - GitHub reports Node.js 20 deprecation annotations for several pinned
-  third-party actions while forcing them onto Node.js 24. These warnings did
-  not weaken or skip any required result but remain a maintenance follow-up.
+  third-party actions while forcing them onto Node.js 24 in the archived RC
+  evidence. The maintained workflows now pin native Node.js 24 action builds;
+  hosted verification is recorded above.
 - M89 OIDC/MFA and M90 WAL/PITR/HA remain external blockers. This recovery
   does not support GA, production identity, production HA, or
   production-ready claims.

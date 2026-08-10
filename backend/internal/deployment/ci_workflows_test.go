@@ -11,13 +11,14 @@ import (
 
 func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 	const (
-		checkoutAction       = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
-		setupGoAction        = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e"
-		setupNodeAction      = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
-		setupPnpmAction      = "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271"
-		uploadArtifactAction = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-		setupQemuAction      = "docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392"
-		setupBuildxAction    = "docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435"
+		checkoutAction         = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+		setupGoAction          = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e"
+		setupNodeAction        = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
+		setupPnpmAction        = "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271"
+		uploadArtifactAction   = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+		downloadArtifactAction = "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+		setupQemuAction        = "docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8"
+		setupBuildxAction      = "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c"
 	)
 
 	root := repositoryRoot(t)
@@ -30,7 +31,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			name: ".github/workflows/ci.yml",
 			required: []string{
 				"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
-				checkoutAction, setupGoAction, setupNodeAction, setupPnpmAction, uploadArtifactAction,
+				checkoutAction, setupGoAction, setupNodeAction, setupPnpmAction, uploadArtifactAction, downloadArtifactAction,
 				"go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...", "go test -race -p=1 -count=1 ./...", "pnpm install --frozen-lockfile",
 				"golangci-lint@v2.12.2", "pnpm lint",
 				"Test and coverage baseline", "git diff --exit-code", "oasdiff",
@@ -44,7 +45,10 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				".artifacts/postgres-recovery/", ".artifacts/audit-archive/", ".artifacts/identity-readiness/", ".artifacts/recovery-readiness/", "docker compose down --volumes --remove-orphans",
 				"HELM_VERSION:", "helm lint --strict", "deploy/helm/aiops-platform", "Install checksum-verified helm",
 			},
-			forbidden: []string{"pull_request_target", "secrets.", "contents: write", "docker compose up -d --build"},
+			forbidden: []string{
+				"pull_request_target", "secrets.", "contents: write", "docker compose up -d --build",
+				"actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+			},
 		},
 		{
 			name: ".github/workflows/release.yml",
@@ -65,6 +69,8 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			forbidden: []string{
 				"pull_request_target", "secrets.", "docker push", "SHA256SUMS.tmp", "attest-blob", "structural placeholder",
 				"syft \"oci-archive:.artifacts/release/aiops-platform-backend", "syft \"oci-archive:.artifacts/release/aiops-platform-frontend",
+				"docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392",
+				"docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435",
 			},
 		},
 		{

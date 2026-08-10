@@ -156,9 +156,9 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 **目标**：证明大规模 fleet 可控，同时处理当前路由壳层和主题覆盖的结构性技术债。
 
-**进度（2026-08-10，M96-A/B/C/D + Gate B local）**：已落地 `m96-v1` 确定性 fixture 配置、流式 gzip NDJSON 生成/校验器、包含 P50/P95/P99/heap/goroutine/分页/取消/超时/背压的后端 report-mode 基准、桌面/移动端各 3 次 50k Pod 前端 DOM/交互基线，以及认证单壳层和四层 active CSS report-mode 基线；新增 Gate B 聚合器并在本地验证通过。Hosted CI 仍需在提交后的完整 artifact 下载链路中通过，性能阈值继续保持 report mode。
+**进度（2026-08-10，M96-A/B/C/D + Gate B hosted verified）**：已落地 `m96-v1` 确定性 fixture 配置、流式 gzip NDJSON 生成/校验器、包含 P50/P95/P99/heap/goroutine/分页/取消/超时/背压的后端 report-mode 基准、桌面/移动端各 3 次 50k Pod 前端 DOM/交互基线，以及认证单壳层和四层 active CSS report-mode 基线；新增 Gate B 聚合器并在本地与 Hosted CI `31378870337` 验证通过，性能阈值继续保持 report mode。
 
-**Gate B 当前状态**：本地 `m96-gate-b.json` 已通过 fixture identity、backend invariants、frontend 6-sample hard invariants 和 CSS layer audit；Hosted CI job 已接入但尚未运行。M97 工具链已实现，本轮只收尾本地 RC 演练和归档，不推进后续里程碑。
+**Gate B 当前状态**：本地 `m96-gate-b.json` 与 Hosted CI `31378870337` 均已通过 fixture identity、backend invariants、frontend 6-sample hard invariants 和 CSS layer audit。M97 工具链已实现，本轮只收尾 RC 发布验证和归档，不推进后续里程碑。
 
 **规模范围**：
 
@@ -184,7 +184,7 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 ### M97：Release Candidate 与供应链闭环（5–7 天）
 
-**进度（2026-08-10，local Gate C verified; hosted release blocked）**：已实现 RC-only tag 校验、`aiops.release-manifest/v1`、递归 OCI archive digest/平台绑定、四份平台 SPDX SBOM、provenance、Helm/Kustomize/离线包、严格 checksum/Cosign 入口和 kind 生命周期演练脚本。本地严格供应链包以及 Kustomize/Helm 的安装、升级、回滚、健康检查、认证和清理已通过，baseline 与 RC tag 已推送。Hosted run `31376784927` 因既有 Backend lint 和 M96 前端规模 invariant 失败而跳过发布包，未创建 GitHub Release；该远端结果保持 `Blocked`，不创建 GA 声明。
+**进度（2026-08-10，local Gate C verified; hosted quality gates recovered）**：已实现 RC-only tag 校验、`aiops.release-manifest/v1`、递归 OCI archive digest/平台绑定、四份平台 SPDX SBOM、provenance、Helm/Kustomize/离线包、严格 checksum/Cosign 入口和 kind 生命周期演练脚本。本地严格供应链包以及 Kustomize/Helm 的安装、升级、回滚、健康检查、认证和清理已通过，baseline 与 `v0.3.0-rc.1` 已推送。Hosted run `31376784927` 的原始失败已由 `ec3da0c` 修复，main CI run `31378870337` 的 12 个作业全部通过；原标签的发布包仍未创建，待新 RC 标签重跑 Release，不创建 GA 声明。
 
 **目标**：产出可以安装、验证、升级和回滚的 RC，而不是只创建一个标签。
 

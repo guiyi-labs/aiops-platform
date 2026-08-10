@@ -1,7 +1,7 @@
 # M97 Release Candidate Supply-Chain Closure
 
 - Date: 2026-08-10
-- Status: Local strict package and final lifecycle verified; hosted release blocked by required remote quality gates
+- Status: Local strict package and final lifecycle verified; hosted quality gates recovered; release rerun pending a new RC tag
 - Scope: Unified RC manifest, offline package, deployment lifecycle rehearsal and fail-closed publishing
 
 ## Context

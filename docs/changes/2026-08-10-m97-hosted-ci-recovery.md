@@ -1,7 +1,7 @@
 # M97 Hosted CI Recovery
 
 - Date: 2026-08-10
-- Status: Local verification complete; hosted rerun pending
+- Status: Complete
 - Scope: Repair the Backend lint and M96 Pod scale invariant failures that blocked the first hosted RC workflow.
 
 ## Context
@@ -48,11 +48,15 @@ last-Pod filtering, and zero console errors.
   `frontend/.artifacts/pod-scale-perf/m96-pod-scale-report.md`.
 - Failed hosted evidence: run `31376784927`, artifact
   `pod-scale-perf-31376784927` (`9058311251`).
+- Fixed-code hosted verification: main CI run `31378870337` completed
+  successfully at commit `ec3da0c6d878a0a4b8fcef49826d02ff67b1a3d9`; Backend,
+  Backend race, Frontend, M96 Gate B, Compose runtime, and final CI result all
+  passed.
 
 ## Risks / Notes
 
 - `v0.3.0-rc.1` remains immutable and retains its failed hosted evidence. A
-  fixed release attempt must use a new RC tag.
+  fixed release attempt must use a new RC tag, which has not yet been created.
 - Performance duration and memory thresholds remain report-only. Correctness
   invariants remain hard failures.
 - M89 OIDC/MFA and M90 WAL/PITR/HA remain external blockers. This recovery

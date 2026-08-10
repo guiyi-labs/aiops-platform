@@ -32,7 +32,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			required: []string{
 				"pull_request:", "workflow_call:", "contents: read", "ubuntu-24.04",
 				checkoutAction, setupGoAction, setupNodeAction, setupPnpmAction, uploadArtifactAction, downloadArtifactAction,
-				"go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...", "go test -race -p=1 -count=1 ./...", "pnpm install --frozen-lockfile",
+				"go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...", "go test -race -p=2 -count=1 ./...", "pnpm install --frozen-lockfile",
 				"golangci-lint@v2.12.2", "pnpm lint",
 				"Test and coverage baseline", "git diff --exit-code", "oasdiff",
 				"Change scope", "runtime_required", "backend-image:", "Backend image", "CI_BACKEND_IMAGE", "docker image save",

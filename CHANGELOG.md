@@ -19,6 +19,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - CI 文档快速路径现在包含 `CHANGELOG.md`，并在文档范围下跳过 Backend 与全部运行时任务；最终汇总对 `true`/`false` 范围均保持 fail-closed，Release 的 `force_runtime: true` 不受影响。
 - 合并 Backend 的普通测试与全局覆盖率测试，消除对全部 Go package 的一次重复执行，同时保留 60% 全局覆盖率、核心包覆盖率、race、fuzz 和 benchmark 门禁。
 - CI 新增一次性的共享 Backend 镜像构建与短期 artifact；四项演练和 Compose runtime 复用该镜像，Compose 仅构建 frontend，避免重复执行 Backend Docker build。
+- Race detector gate 从串行 (-p=1) 切换到 2 路并行 (-p=2)；远端 A/B 实验 (run 31413981487) 显示墙钟由 6m14s 降至 4m6s (~33%)，未出现 OOM 或竞态漏检。
 - GitHub Actions artifact 下载及 Release 的 QEMU/Buildx setup 升级到固定 SHA 的 Node.js 24 版本，清除 hosted runner 的 Node.js 20 弃用注解。
 - 修复 `TestJWKECPublicKey` 偶发失败：测试辅助 `ecJWK` 现将 P-256 X/Y 坐标填充至固定 32 字节，避免前导零字节导致生产解析器拒绝签名密钥。
 - 修复 Release 演练在 `workflow_dispatch` 下 Cosign keyless 身份不匹配：发布清单现在记录实际触发 ref（tag push 为 `refs/tags/<version>`，手动演练为分支 ref），签名与严格校验使用同一身份。

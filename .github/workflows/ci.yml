@@ -200,7 +200,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - name: Race detector
         working-directory: backend
-        run: go test -race -p=1 -count=1 ./...
+        run: go test -race -p=2 -count=1 ./...
 
   frontend:
     name: Frontend

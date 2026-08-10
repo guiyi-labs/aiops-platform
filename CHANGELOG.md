@@ -13,8 +13,10 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 - 新增版本化 `m96-v1` 规模 fixture 配置和 `scale-fixture` CLI，流式生成 500 Node、50,000 Pod、100,000 Event，并覆盖 workload、topology、global search 与 metrics history 映射。
 - 生成器输出确定性 gzip NDJSON 和带计数、字节数、SHA-256、配置哈希及覆盖范围的 manifest；校验器逐条读取并拒绝缺失、篡改、额外文件或计数漂移。
-- CI 以 report 模式生成并校验完整 fixture，仅上传 manifest 与生成/校验清单，不把大数据集提交到仓库。
+- 新增 `scale-bench` fixture-backed 基准器，记录拓扑派生、全局搜索、Pod/Event 分页、历史查询/评估和背压流的 P50/P95/P99、heap、goroutine、取消与超时行为。
+- CI 以 report 模式生成、校验和基准完整 fixture，仅上传 manifest 与结构化报告，不把大数据集提交到仓库；性能阈值尚未 fail-closed。
 - See [M96 scale fixture change record](docs/changes/2026-08-10-m96-scale-fixture.md).
+- See [M96 backend scale benchmark record](docs/changes/2026-08-10-m96-backend-scale-benchmark.md).
 
 ### Added — M95 Frontend Finding Evidence Surface
 

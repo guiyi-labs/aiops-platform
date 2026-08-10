@@ -117,15 +117,21 @@ jobs:
           mkdir -p .artifacts/scale-fixture
           go run ./cmd/scale-fixture -config testdata/scale/m96-v1.json -output .artifacts/scale-fixture/m96-v1 > .artifacts/scale-fixture/m96-generation.json
           go run ./cmd/scale-fixture -verify .artifacts/scale-fixture/m96-v1 > .artifacts/scale-fixture/m96-verification.json
-      - name: Upload M96 scale fixture manifest
+      - name: Run M96 backend scale benchmark (report mode)
+        working-directory: backend
+        run: |
+          go run ./cmd/scale-bench -config testdata/scale/m96-v1.json -fixture .artifacts/scale-fixture/m96-v1 -output .artifacts/scale-bench/m96-backend-baseline-v1.json -commit "${GITHUB_SHA}"
+      - name: Upload M96 scale evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: scale-fixture-${{ github.run_id }}
+          name: scale-evidence-${{ github.run_id }}
           path: |
             backend/.artifacts/scale-fixture/m96-v1/manifest.json
             backend/.artifacts/scale-fixture/m96-generation.json
             backend/.artifacts/scale-fixture/m96-verification.json
+            backend/.artifacts/scale-bench/m96-backend-baseline-v1.json
+            backend/.artifacts/scale-bench/m96-backend-baseline-v1.md
           if-no-files-found: warn
           retention-days: 7
       - name: Build server
@@ -137,6 +143,7 @@ jobs:
           go build -trimpath -ldflags "-s -w" -o /tmp/identity-readiness ./cmd/identity-readiness
           go build -trimpath -ldflags "-s -w" -o /tmp/recovery-readiness ./cmd/recovery-readiness
           go build -trimpath -ldflags "-s -w" -o /tmp/scale-fixture ./cmd/scale-fixture
+          go build -trimpath -ldflags "-s -w" -o /tmp/scale-bench ./cmd/scale-bench
       - name: Verify clean working tree
         run: git diff --exit-code
       - name: OpenAPI breaking-change check

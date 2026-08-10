@@ -64,7 +64,7 @@
 | M94（第三步） | 深链：资源详情/工作负载与相关事件/审计入口，纯只读导航，Playwright 50/50 |
 | M95 | 统一证据模型：`FindingDetail v2`（规则身份/证据引用/类型化建议/版本信息）、v1→v2 兼容层、共享严重度映射、按资源合并保留规则来源、golden DatasetVersion 1.2 + 迁移提示；前端 Posture/Optimization/Diagnosis/Inspection 共享证据组件；11 posture 分析器 + finops schema parity；前端门禁 135 单测 / 56 浏览器回归 |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2 已关闭、M94 第三步（根因卡 + 证据时间线 + 行动区 + 深链）已落地、M95 后端 FindingDetail v2 与前端统一证据组件均已落地；M96-A 确定性规模 fixture 已落地，继续 M96 基准、前端 DOM 预算与壳层收敛；
+> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2 已关闭、M94 第三步（根因卡 + 证据时间线 + 行动区 + 深链）已落地、M95 后端 FindingDetail v2 与前端统一证据组件均已落地；M96-A/B 确定性规模 fixture 与后端 report-mode 基准已落地，继续前端 DOM 预算与壳层收敛；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。
 
 ---

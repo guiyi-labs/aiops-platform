@@ -63,7 +63,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				"sbom-backend-$VERSION-$platform_slug-spdx.json", "sbom-frontend-$VERSION-$platform_slug-spdx.json",
 				"helm lint --strict", "kubectl kustomize", "aiops-platform-kustomize-$VERSION.tar.gz",
 				"aiops-platform-offline-$VERSION", "OFFLINE-SHA256SUMS", "release-manifest.mjs",
-				"provenance", "--signature-mode keyless", "--require-signatures",
+				"provenance", "--signature-mode keyless", "--identity-ref \"$GITHUB_REF\"", "--require-signatures",
 				"SHA256SUMS.bundle", "certificate-identity", "license-allowlist.json",
 			},
 			forbidden: []string{

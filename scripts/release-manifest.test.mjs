@@ -122,6 +122,43 @@ test('rejects non-RC versions', async () => {
   })
 })
 
+test('defaults keyless identity to the immutable tag ref', async () => {
+  await withDirectory(async directory => {
+    await writeFile(join(directory, 'openapi.yaml'), 'openapi: 3.0.3\n')
+    const { manifest } = await createManifest({
+      directory,
+      version: 'v0.3.0-rc.1',
+      revision,
+      repository: 'guiyi-labs/aiops-platform',
+      signatureMode: 'keyless',
+      strict: false,
+    })
+    assert.equal(
+      manifest.verification.signature.certificateIdentity,
+      'https://github.com/guiyi-labs/aiops-platform/.github/workflows/release.yml@refs/tags/v0.3.0-rc.1',
+    )
+  })
+})
+
+test('records an explicit identity ref for workflow_dispatch rehearsals', async () => {
+  await withDirectory(async directory => {
+    await writeFile(join(directory, 'openapi.yaml'), 'openapi: 3.0.3\n')
+    const { manifest } = await createManifest({
+      directory,
+      version: 'v0.3.0-rc.1',
+      revision,
+      repository: 'guiyi-labs/aiops-platform',
+      signatureMode: 'keyless',
+      identityRef: 'refs/heads/main',
+      strict: false,
+    })
+    assert.equal(
+      manifest.verification.signature.certificateIdentity,
+      'https://github.com/guiyi-labs/aiops-platform/.github/workflows/release.yml@refs/heads/main',
+    )
+  })
+})
+
 test('reads platforms through a nested OCI index and ignores attestations', async () => {
   await withDirectory(async directory => {
     const archive = join(directory, 'aiops-platform-backend-v0.3.0-rc.1-linux-multiarch-oci.tar')

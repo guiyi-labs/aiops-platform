@@ -70,8 +70,9 @@ platforms. Local key signing uses `COSIGN_PRIVATE_KEY` and
 rehearsal package rather than a publishable RC.
 
 The release workflow is fail-closed: it generates provenance before the final
-checksum root, signs that root with keyless Cosign, verifies the exact tag
-identity and runs the strict manifest verifier before upload or publication.
+checksum root, signs that root with keyless Cosign, verifies the exact workflow
+identity (the tag ref for tag pushes, or the branch ref for manual package
+rehearsals) and runs the strict manifest verifier before upload or publication.
 It never rewrites `SHA256SUMS` after signing.
 ## Release Procedure
 

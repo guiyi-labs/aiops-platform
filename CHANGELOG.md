@@ -20,6 +20,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 合并 Backend 的普通测试与全局覆盖率测试，消除对全部 Go package 的一次重复执行，同时保留 60% 全局覆盖率、核心包覆盖率、race、fuzz 和 benchmark 门禁。
 - CI 新增一次性的共享 Backend 镜像构建与短期 artifact；四项演练和 Compose runtime 复用该镜像，Compose 仅构建 frontend，避免重复执行 Backend Docker build。
 - GitHub Actions artifact 下载及 Release 的 QEMU/Buildx setup 升级到固定 SHA 的 Node.js 24 版本，清除 hosted runner 的 Node.js 20 弃用注解。
+- 修复 Release 演练在 `workflow_dispatch` 下 Cosign keyless 身份不匹配：发布清单现在记录实际触发 ref（tag push 为 `refs/tags/<version>`，手动演练为分支 ref），签名与严格校验使用同一身份。
 - See [M97 hosted CI recovery record](docs/changes/2026-08-10-m97-hosted-ci-recovery.md).
 
 ### Added - M97 Release Candidate Supply-Chain Closure

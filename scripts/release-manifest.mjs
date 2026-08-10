@@ -271,7 +271,7 @@ function findAsset(assets, kind) {
   return assets.find(asset => asset.kind === kind)?.path ?? null
 }
 
-function signatureConfiguration({ signatureMode, repository, version }) {
+function signatureConfiguration({ signatureMode, repository, version, identityRef }) {
   if (signatureMode === 'key') {
     return {
       mode: 'key',
@@ -288,7 +288,7 @@ function signatureConfiguration({ signatureMode, repository, version }) {
     certificate: 'SHA256SUMS.cert.pem',
     bundle: 'SHA256SUMS.bundle',
     oidcIssuer: 'https://token.actions.githubusercontent.com',
-    certificateIdentity: `https://github.com/${repository}/.github/workflows/release.yml@refs/tags/${version}`,
+    certificateIdentity: `https://github.com/${repository}/.github/workflows/release.yml@${identityRef || `refs/tags/${version}`}`,
   }
 }
 
@@ -518,6 +518,7 @@ async function main() {
       revision: requireOption(args, 'revision'),
       repository: requireOption(args, 'repository'),
       signatureMode: args['signature-mode'] || 'keyless',
+      identityRef: args['identity-ref'],
       strict: Boolean(args.strict),
     })
     process.stdout.write(`Created release-manifest.json and SHA256SUMS for ${result.checksums.length} files\n`)

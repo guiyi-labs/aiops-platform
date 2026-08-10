@@ -170,6 +170,7 @@ jobs:
             --version "$VERSION" \
             --revision "$GITHUB_SHA" \
             --repository "$GITHUB_REPOSITORY" \
+            --identity-ref "$GITHUB_REF" \
             --signature-mode keyless \
             --strict
           node scripts/release-manifest.mjs verify \

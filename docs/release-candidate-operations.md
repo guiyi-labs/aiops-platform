@@ -7,8 +7,9 @@ production identity and M90 WAL/PITR/HA tracks remain unverified.
 ## Verify Before Use
 
 Verify the checksum root before opening any archive, then verify its Cosign
-signature against the exact tag workflow identity recorded in
-`release-manifest.json`:
+signature against the exact workflow identity recorded in
+`release-manifest.json` (the immutable tag ref for tag pushes, or the
+triggering branch ref for manual package rehearsals):
 
 ```bash
 sha256sum -c SHA256SUMS

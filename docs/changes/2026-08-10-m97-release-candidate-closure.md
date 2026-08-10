@@ -1,7 +1,7 @@
 # M97 Release Candidate Supply-Chain Closure
 
 - Date: 2026-08-10
-- Status: Local strict package and final lifecycle verified; hosted release evidence deferred to remote workflow
+- Status: Local strict package and final lifecycle verified; hosted release blocked by required remote quality gates
 - Scope: Unified RC manifest, offline package, deployment lifecycle rehearsal and fail-closed publishing
 
 ## Context
@@ -72,6 +72,23 @@ and RC tags are created only after this verification. Hosted
 GitHub Release creation and keyless Cosign verification remain dependent on
 remote access and organization workflow permissions; a failed remote
 submission is not treated as local evidence.
+
+Remote synchronization succeeded for `main`,
+`baseline-m97-release-candidate-tooling-20260810`, and `v0.3.0-rc.1`.
+Hosted run `31376784927` completed with failure at revision
+`94e403bb4e9a68b4c5fa5c387104a09eb4e45314`:
+
+- Backend `golangci-lint` reported `QF1001` in
+  `internal/deployment/ci_workflows_test.go` and an unused
+  `sortedArtifactNames` function in `internal/scalefixture/verify.go`.
+- The M96 frontend Pod scale report sampled six visits with zero runtime
+  failures but six invariant failures.
+- The required CI result failed, so the hosted RC package job was skipped and
+  no GitHub Release was created.
+
+Per the task boundary, these remote failures are recorded and not repaired in
+the M97 release closure. Local Gate C evidence remains valid for the tagged
+revision; hosted keyless identity and GitHub Release evidence remain blocked.
 
 ## Risks / Notes
 

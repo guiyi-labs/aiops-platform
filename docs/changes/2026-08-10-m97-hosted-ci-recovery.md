@@ -1,7 +1,7 @@
 # M97 Hosted CI Recovery
 
 - Date: 2026-08-10
-- Status: Complete
+- Status: In progress; main CI recovery verified, RC package workflow follow-up pending
 - Scope: Repair the Backend lint and M96 Pod scale invariant failures that blocked the first hosted RC workflow.
 
 ## Context
@@ -29,6 +29,10 @@ last-Pod filtering, and zero console errors.
   cover the final row's start offset instead of the idealized bottom edge of
   every table row. Existing fixture, DOM, virtual-window, scroll-target,
   overscan, position, filter, and console invariants remain fail-closed.
+- `.github/workflows/ci.yml`: add the `force_runtime` reusable-workflow input
+  so Release tags cannot downgrade to documentation-only quality gates.
+- `.github/workflows/release.yml`: pass `force_runtime: true` and pin the
+  Docker actions to their verified upstream commits.
 
 ## Verification
 
@@ -52,11 +56,13 @@ last-Pod filtering, and zero console errors.
   successfully at commit `ec3da0c6d878a0a4b8fcef49826d02ff67b1a3d9`; Backend,
   Backend race, Frontend, M96 Gate B, Compose runtime, and final CI result all
   passed.
+- RC rerun `31380408636` passed its quality gate but stopped before package
+  execution because the pinned QEMU and Buildx action SHAs did not exist.
 
 ## Risks / Notes
 
-- `v0.3.0-rc.1` remains immutable and retains its failed hosted evidence. A
-  fixed release attempt must use a new RC tag, which has not yet been created.
+- `v0.3.0-rc.1` and `v0.3.0-rc.2` remain immutable. The next fixed release
+  attempt must use a new RC tag after the updated workflow passes main CI.
 - Performance duration and memory thresholds remain report-only. Correctness
   invariants remain hard failures.
 - M89 OIDC/MFA and M90 WAL/PITR/HA remain external blockers. This recovery

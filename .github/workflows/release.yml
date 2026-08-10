@@ -45,6 +45,8 @@ jobs:
   quality:
     name: Required quality gate
     uses: ./.github/workflows/ci.yml
+    with:
+      force_runtime: true
 
   package:
     name: Build and verify RC package
@@ -64,9 +66,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Set up QEMU for multi-architecture builds
-        uses: docker/setup-qemu-action@29109295f2e67eea35e81f9c32f4f414b7f7c398 # v3.6.2
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd480 # v3.11.1
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
       - name: Build multi-architecture OCI archives
         shell: bash
         run: |

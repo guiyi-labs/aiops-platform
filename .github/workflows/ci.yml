@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      force_runtime:
+        description: Run all runtime quality gates even for documentation-only diffs
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,9 +46,10 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          FORCE_RUNTIME: ${{ inputs.force_runtime }}
         run: |
           runtime_required=true
-          if [ "$EVENT_NAME" = push ] || [ "$EVENT_NAME" = pull_request ]; then
+          if [ "$FORCE_RUNTIME" != true ] && { [ "$EVENT_NAME" = push ] || [ "$EVENT_NAME" = pull_request ]; }; then
             base="$BEFORE_SHA"
             if [ "$EVENT_NAME" = pull_request ]; then
               base="$PR_BASE_SHA"

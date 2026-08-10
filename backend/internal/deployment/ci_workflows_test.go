@@ -16,6 +16,8 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 		setupNodeAction      = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
 		setupPnpmAction      = "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271"
 		uploadArtifactAction = "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+		setupQemuAction      = "docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392"
+		setupBuildxAction    = "docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435"
 	)
 
 	root := repositoryRoot(t)
@@ -34,6 +36,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				"Coverage baseline", "git diff --exit-code", "oasdiff",
 				"Change scope", "runtime_required", "credential-drill:", "audit-drill:",
 				"identity-drill:", "recovery-drill:", "CI result", "Detect documentation-only changes",
+				"force_runtime", "FORCE_RUNTIME",
 				"e2e-postgres-backup-restore.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "docker compose up -d --build",
 				".artifacts/postgres-recovery/", ".artifacts/audit-archive/", ".artifacts/identity-readiness/", ".artifacts/recovery-readiness/", "docker compose down --volumes --remove-orphans",
 				"HELM_VERSION:", "helm lint --strict", "deploy/helm/aiops-platform", "Install checksum-verified helm",
@@ -47,6 +50,7 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				checkoutAction, uploadArtifactAction,
 				"v*.*.*-rc.*", "SHA256SUMS", "--verify-tag", "--prerelease", "gh release create", "contents: write",
 				"docker/setup-qemu-action", "docker/setup-buildx-action",
+				setupQemuAction, setupBuildxAction, "force_runtime: true",
 				"--platform linux/amd64,linux/arm64",
 				"syft", "spdx-json", "sbom-backend-$VERSION-spdx.json", "sbom-frontend-$VERSION-spdx.json",
 				"helm lint --strict", "kubectl kustomize", "aiops-platform-kustomize-$VERSION.tar.gz",

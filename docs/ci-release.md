@@ -7,7 +7,7 @@
 | Workflow | Trigger | Runner | Result |
 |---|---|---|---|
 | `CI` | push to `main`, pull request, manual, reusable call | GitHub-hosted Ubuntu 24.04 | backend/frontend/manifests, race detector, golangci-lint, ESLint, 50% coverage baseline, `oasdiff` breaking-change check, offline identity/recovery readiness, isolated audit signing, credential re-encryption, PostgreSQL recovery and Compose runtime gates plus seven-day sanitized evidence |
-| `Release` | semantic-version tag or manual rehearsal | GitHub-hosted Ubuntu 24.04 | multi-architecture (`linux/amd64` + `linux/arm64`) OCI images, SPDX SBOM, official Helm chart, license allowlist, SHA256 manifest and checksummed versioned package; tagged runs create a GitHub Release |
+| `Release` | semantic RC tag or manual rehearsal | GitHub-hosted Ubuntu 24.04 | multi-architecture (`linux/amd64` + `linux/arm64`) OCI images, image SPDX SBOM, Helm/Kustomize/offline assets, release manifest, provenance, signed SHA256 root and GitHub prerelease |
 | `Real kind E2E` | Saturday 18:17 UTC schedule or manual suite choice | self-hosted Windows `aiops-kind` | disposable diagnosis/fleet/search and M23-M31 release/backup/governance/maintenance/restore evidence retained for 14 days |
 
 All referenced marketplace actions are pinned to full commit SHAs. Dependabot
@@ -52,66 +52,67 @@ runtime. It uploads only sanitized counts/hashes/status and service logs, never
 identity/recovery inputs, archive payloads, manifests or keys, and removes the
 runtime, volume and `.env` in `always()` steps.
 
-## Local Release Verification (M88)
+## Local Release Verification (M97)
 
 Before asking CI to create a tagged release, verify the package on the host
 that holds the checked-out HEAD:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1 -Version v0.2.0
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-verify.ps1 -Version v0.3.0-rc.1 -IncludeImages -StrictSupplyChain -StrictSignatures
 ```
 
-The script asserts the semantic version, assembles source/contract/license/
-Helm artifacts, writes `release-metadata.json` and `SHA256SUMS`, then verifies
-every checksum locally. When `cosign` is on PATH and `COSIGN_PRIVATE_KEY` /
-`COSIGN_PUBLIC_KEY` are set, it performs a real `sign-blob` + `verify-blob`
-loop; otherwise it writes `SIGNING_SKIPPED` and fails loudly if strict signing
-was requested. Multi-architecture OCI archives are produced by CI
-(`-IncludeImages` is only for hosts that intend the full multi-arch build).
+The script requires a clean revision, asserts the semantic RC version,
+assembles source/contract/license/Helm/Kustomize/offline assets and image SPDX
+SBOMs, writes `release-manifest.json` plus `SHA256SUMS`, and verifies every
+manifest entry. Strict mode requires both OCI archives and both Linux
+platforms. Local key signing uses `COSIGN_PRIVATE_KEY` and
+`COSIGN_PUBLIC_KEY`; without those inputs the directory is explicitly a
+rehearsal package rather than a publishable RC.
 
-The release workflow is now fail-closed: `cosign attest-blob` exits non-zero
-on failure and the `Publish immutable tagged release` step is preceded by an
-`Enforce signed release assets` gate that refuses to publish when
-`SHA256SUMS.sig` / `SHA256SUMS.cert.pem` / provenance signature are missing.
+The release workflow is fail-closed: it generates provenance before the final
+checksum root, signs that root with keyless Cosign, verifies the exact tag
+identity and runs the strict manifest verifier before upload or publication.
+It never rewrites `SHA256SUMS` after signing.
 ## Release Procedure
 
 1. Confirm the working branch is merged and all required checks passed.
 2. Run the local `scripts/verify.ps1` gate and review the sanitized artifact.
-3. Create an annotated semantic version tag such as `v0.2.0` from the reviewed
+3. Create an annotated semantic RC tag such as `v0.3.0-rc.1` from the reviewed
    revision and push only that tag.
 4. The release workflow reruns the complete reusable CI before packaging.
 5. Download the workflow artifact and verify `sha256sum -c SHA256SUMS` on a
    trusted Linux host.
-6. For tag runs, verify the GitHub Release points at the same revision recorded
-   in `release-metadata.json`.
-7. Verify the multi-architecture OCI manifest, SPDX SBOM and bundled Helm chart
-   are attached to the release (M38C). Cosign image signing remains deferred
-   pending an authorized signing identity.
+6. For tag runs, verify the GitHub prerelease points at the same revision
+   recorded in `release-manifest.json`.
+7. Run `scripts/m97-release-rehearsal.ps1` against a new kind cluster and retain
+   only its redacted JSON evidence.
 
-A manual `workflow_dispatch` with a semantic version is a package rehearsal;
+A manual `workflow_dispatch` with a semantic RC version is a package rehearsal;
 it cannot call `gh release create`. Release packages contain:
 
-- versioned backend and frontend Docker image archives for `linux/amd64` and
+- versioned backend and frontend OCI image archives for `linux/amd64` and
   `linux/arm64` (M38C multi-architecture build via `docker buildx`/QEMU);
-- SPDX SBOM generated by `syft v1.27.0` (M38C);
+- SPDX SBOM generated from each OCI archive by `syft v1.27.0`;
 - the official Helm 3 chart bundle from `deploy/helm/aiops-platform/`
   (M38B);
+- the Kustomize baseline and an offline bundle containing images, deployment
+  assets, the Secret template, SBOMs, runbook and `OFFLINE-SHA256SUMS`;
 - the enforceable license allowlist at
   `docs/security/license-allowlist.json` (M38C);
 - a source archive from the exact Git revision;
 - the OpenAPI contract and production dependency-license inventory;
-- revision/run metadata and SHA-256 checksums.
+- `release-manifest.json`, in-toto provenance, revision metadata and the
+  signed SHA-256 checksum root.
 
-Cosign image signing, `helm lint --strict` as a mandatory CI job and the
-Helm upgrade/rollback matrix on real kind are deferred pending an authorized
-hosted CI signing identity and runner capacity. The license allowlist
+The release workflow signs the checksum root with its keyless identity and the
+strict manifest verifier checks the signing bundle before upload. The license allowlist
 admits `MIT`/`ISC`/`BSD-2-Clause`/`BSD-3-Clause`/`Apache-2.0` only and is
 enforced by `backend/internal/deployment/license_allowlist_test.go`.
 
-The current phase does not publish a container registry tag; multi-architecture
-OCI image archives and SPDX SBOMs are bundled as release artifacts, while
-cosign image signing and SLSA provenance attestation remain deferred pending
-an authorized signing identity.
+The current phase does not publish a container registry tag. The GitHub
+Release is a prerelease containing OCI archives; operators must mirror them to
+an approved registry or use an environment-specific OCI import path. M89/M90
+remain outside the RC verification boundary.
 
 ## Helm Chart
 

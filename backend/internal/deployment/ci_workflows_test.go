@@ -45,13 +45,16 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 			required: []string{
 				"tags:", "workflow_dispatch:", "uses: ./.github/workflows/ci.yml",
 				checkoutAction, uploadArtifactAction,
-				"SHA256SUMS", "--verify-tag", "gh release create", "contents: write",
+				"v*.*.*-rc.*", "SHA256SUMS", "--verify-tag", "--prerelease", "gh release create", "contents: write",
 				"docker/setup-qemu-action", "docker/setup-buildx-action",
 				"--platform linux/amd64,linux/arm64",
-				"syft", "spdx-json", "sbom-backend-spdx.json", "sbom-frontend-spdx.json",
-				"license-allowlist.json", "aiops-platform-helm",
+				"syft", "spdx-json", "sbom-backend-$VERSION-spdx.json", "sbom-frontend-$VERSION-spdx.json",
+				"helm lint --strict", "kubectl kustomize", "aiops-platform-kustomize-$VERSION.tar.gz",
+				"aiops-platform-offline-$VERSION", "OFFLINE-SHA256SUMS", "release-manifest.mjs",
+				"provenance", "--signature-mode keyless", "--require-signatures",
+				"SHA256SUMS.bundle", "certificate-identity", "license-allowlist.json",
 			},
-			forbidden: []string{"pull_request_target", "secrets.", "docker push"},
+			forbidden: []string{"pull_request_target", "secrets.", "docker push", "SHA256SUMS.tmp", "attest-blob", "structural placeholder"},
 		},
 		{
 			name: ".github/workflows/real-kind-e2e.yml",
@@ -102,6 +105,29 @@ func TestCIWorkflowContractsAreParseableAndBounded(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestReleaseWorkflowSignsBeforeUploadAndNeverRewritesChecksumRoot(t *testing.T) {
+	root := repositoryRoot(t)
+	contents, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(contents)
+	manifestIndex := strings.Index(text, "Generate provenance and release manifest")
+	signIndex := strings.Index(text, "Sign and verify immutable checksum root")
+	verifyIndex := strings.Index(text, "Enforce complete signed RC")
+	uploadIndex := strings.Index(text, "Upload signed RC artifact")
+	publishIndex := strings.Index(text, "Publish immutable prerelease")
+	if manifestIndex < 0 || signIndex < 0 || verifyIndex < 0 || uploadIndex < 0 || publishIndex < 0 {
+		t.Fatal("release workflow is missing an M97 package stage")
+	}
+	if !(manifestIndex < signIndex && signIndex < verifyIndex && verifyIndex < uploadIndex && uploadIndex < publishIndex) {
+		t.Fatalf("release stages must be manifest -> sign -> strict verify -> upload -> publish")
+	}
+	if strings.Contains(text[signIndex:], "SHA256SUMS.tmp") || strings.Contains(text[signIndex:], ">SHA256SUMS") {
+		t.Fatal("the signed SHA256SUMS root must never be rewritten")
 	}
 }
 

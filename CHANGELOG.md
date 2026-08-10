@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M97 Release Candidate Supply-Chain Closure
+
+- 新增 `aiops.release-manifest/v1` 统一发布清单，绑定 RC tag、完整 revision、OCI archive index digest、Helm、Kustomize、离线包、SBOM、provenance、SHA256SUMS 与验证命令。
+- 发布包新增双架构 OCI 镜像、镜像 SBOM、Kustomize/Helm/离线部署资产和内部 `OFFLINE-SHA256SUMS`；离线包不包含 Secret 值。
+- 发布校验改为严格检查最终 checksum root、provenance subject、镜像平台和签名状态；修复签名后重写 `SHA256SUMS` 的一致性缺陷。
+- 新增 kind 生命周期演练入口，覆盖全新环境安装、升级、回滚、健康检查、认证和清理；数据库迁移回滚边界保持显式。
+- M89/M90 未完成且远端 GitHub Release 尚未取得本轮证据时，版本保持 RC，不宣称 GA 或 production-ready。
+- See [M97 release candidate change record](docs/changes/2026-08-10-m97-release-candidate-closure.md).
+
 ### Added - M96 Deterministic Scale Fixture
 
 - 新增版本化 `m96-v1` 规模 fixture 配置和 `scale-fixture` CLI，流式生成 500 Node、50,000 Pod、100,000 Event，并覆盖 workload、topology、global search 与 metrics history 映射。

@@ -158,7 +158,7 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 **进度（2026-08-10，M96-A/B/C/D + Gate B local）**：已落地 `m96-v1` 确定性 fixture 配置、流式 gzip NDJSON 生成/校验器、包含 P50/P95/P99/heap/goroutine/分页/取消/超时/背压的后端 report-mode 基准、桌面/移动端各 3 次 50k Pod 前端 DOM/交互基线，以及认证单壳层和四层 active CSS report-mode 基线；新增 Gate B 聚合器并在本地验证通过。Hosted CI 仍需在提交后的完整 artifact 下载链路中通过，性能阈值继续保持 report mode。
 
-**Gate B 当前状态**：本地 `m96-gate-b.json` 已通过 fixture identity、backend invariants、frontend 6-sample hard invariants 和 CSS layer audit；Hosted CI job 已接入但尚未运行，因此 M97 尚未启动。
+**Gate B 当前状态**：本地 `m96-gate-b.json` 已通过 fixture identity、backend invariants、frontend 6-sample hard invariants 和 CSS layer audit；Hosted CI job 已接入但尚未运行。M97 工具链已实现，本轮只收尾本地 RC 演练和归档，不推进后续里程碑。
 
 **规模范围**：
 
@@ -183,6 +183,8 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 - 样式体积和选择器数量不高于 M93-C 基线；删除的规则由视觉回归证明无行为损失。
 
 ### M97：Release Candidate 与供应链闭环（5–7 天）
+
+**进度（2026-08-10，tooling implementation）**：已实现 RC-only tag 校验、`aiops.release-manifest/v1`、OCI archive digest 绑定、SPDX SBOM 输入、provenance、Helm/Kustomize/离线包、严格 checksum/Cosign 入口和 kind 生命周期演练脚本。最终状态以 `.artifacts/m97-release/` 的本地证据和 Hosted GitHub Release 结果为准；缺少远端证据时保持 `Blocked/Deferred`，不创建 GA 声明。
 
 **目标**：产出可以安装、验证、升级和回滚的 RC，而不是只创建一个标签。
 

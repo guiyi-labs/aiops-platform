@@ -179,8 +179,21 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 			"e2e-credential-reencryption.ps1", "e2e-audit-archive.ps1", "e2e-identity-readiness.ps1", "e2e-recovery-readiness.ps1", "e2e-metrics-history.ps1", "docker compose up -d --build", "docker compose down --volumes --remove-orphans",
 		},
 		".github/workflows/release.yml": {
-			"v*.*.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",
-			"gh release create", "--verify-tag",
+			"v*.*.*-rc.*", "uses: ./.github/workflows/ci.yml", "SHA256SUMS",
+			"release-manifest.mjs", "aiops-platform-offline-$VERSION", "--require-signatures",
+			"gh release create", "--verify-tag", "--prerelease",
+		},
+		"scripts/release-manifest.mjs": {
+			"aiops.release-manifest/v1", "release_candidate", "productionReady: false",
+			"OCI archive", "SHA256SUMS", "requireSignatures", "cosign",
+		},
+		"scripts/release-verify.ps1": {
+			"StrictSupplyChain", "StrictSignatures", "OFFLINE-SHA256SUMS",
+			"release-manifest.mjs", "verified-local-key", "m97-release-rehearsal/v1",
+		},
+		"docs/release-candidate-operations.md": {
+			"release-manifest.json", "Helm Install And Upgrade", "Kustomize Install And Upgrade",
+			"Offline Package", "SHA256SUMS.bundle", "productionReady=false",
 		},
 		".github/workflows/real-kind-e2e.yml": {
 			"schedule:", "self-hosted", "aiops-kind", "e2e-diagnosis-kind.ps1", "e2e-m21-history-kind.ps1",

@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 )
 
 func Verify(ctx context.Context, outputDir string) (Manifest, error) {
@@ -192,13 +191,4 @@ func verifyArtifact(ctx context.Context, outputDir string, artifact Artifact) er
 		return fmt.Errorf("%s metadata mismatch: records=%d bytes=%d sha256=%s", artifact.Name, records, bytes, actualHash)
 	}
 	return nil
-}
-
-func sortedArtifactNames(manifest Manifest) []string {
-	names := make([]string, 0, len(manifest.Artifacts))
-	for _, artifact := range manifest.Artifacts {
-		names = append(names, artifact.Name)
-	}
-	sort.Strings(names)
-	return names
 }

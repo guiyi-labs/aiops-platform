@@ -86,9 +86,11 @@ Hosted run `31376784927` completed with failure at revision
 - The required CI result failed, so the hosted RC package job was skipped and
   no GitHub Release was created.
 
-Per the task boundary, these remote failures are recorded and not repaired in
-the M97 release closure. Local Gate C evidence remains valid for the tagged
-revision; hosted keyless identity and GitHub Release evidence remain blocked.
+The initial failures remain evidence for immutable `v0.3.0-rc.1`. Their
+follow-up repair and hosted rerun are tracked in
+[`2026-08-10-m97-hosted-ci-recovery.md`](2026-08-10-m97-hosted-ci-recovery.md).
+Local Gate C evidence remains valid for the original tagged revision until a
+new RC tag completes hosted keyless identity and GitHub Release verification.
 
 ## Risks / Notes
 

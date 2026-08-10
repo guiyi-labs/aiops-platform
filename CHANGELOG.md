@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - M97 Hosted CI Recovery
+
+- 修复发布工作流顺序测试的静态检查表达式，并删除规模 fixture 校验器中遗留的未使用辅助函数，使 Backend `golangci-lint` 恢复通过。
+- 修正 M96 Pod 虚拟列表滚动高度不变量的跨平台判定：以末行起点可覆盖为硬边界，避免 Chromium 表格布局的亚行级高度差导致 CI 假失败，同时保留窗口、滚动、筛选与 console 硬检查。
+- See [M97 hosted CI recovery record](docs/changes/2026-08-10-m97-hosted-ci-recovery.md).
+
 ### Added - M97 Release Candidate Supply-Chain Closure
 
 - 新增 `aiops.release-manifest/v1` 统一发布清单，绑定 RC tag、完整 revision、OCI archive index digest、Helm、Kustomize、离线包、SBOM、provenance、SHA256SUMS 与验证命令。

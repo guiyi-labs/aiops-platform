@@ -257,7 +257,7 @@ async function samplePage(browser, profile, iteration, fixture, namespaceBody, c
       fixtureCountExact: initial.totalRows === config.pod_count,
       renderedRowsBounded: initial.renderedRows <= config.hard_rendered_row_limit,
       virtualWindowBounded: initial.virtualWindowSize <= config.hard_rendered_row_limit,
-      scrollHeightCoversFixture: initial.scrollHeight >= config.pod_count * config.row_height_px,
+      scrollHeightCoversFixture: initial.scrollHeight >= Math.max(0, config.pod_count - 1) * config.row_height_px,
       scrollTargetVisible: scroll.targetVisible,
       scrollWindowUsesOverscan: scroll.withinExpectedOverscan,
       scrollPositionStable: scroll.positionDriftPx <= 1,

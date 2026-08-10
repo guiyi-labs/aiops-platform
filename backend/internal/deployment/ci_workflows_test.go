@@ -123,7 +123,7 @@ func TestReleaseWorkflowSignsBeforeUploadAndNeverRewritesChecksumRoot(t *testing
 	if manifestIndex < 0 || signIndex < 0 || verifyIndex < 0 || uploadIndex < 0 || publishIndex < 0 {
 		t.Fatal("release workflow is missing an M97 package stage")
 	}
-	if !(manifestIndex < signIndex && signIndex < verifyIndex && verifyIndex < uploadIndex && uploadIndex < publishIndex) {
+	if manifestIndex >= signIndex || signIndex >= verifyIndex || verifyIndex >= uploadIndex || uploadIndex >= publishIndex {
 		t.Fatalf("release stages must be manifest -> sign -> strict verify -> upload -> publish")
 	}
 	if strings.Contains(text[signIndex:], "SHA256SUMS.tmp") || strings.Contains(text[signIndex:], ">SHA256SUMS") {

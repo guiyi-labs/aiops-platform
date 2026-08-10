@@ -25,7 +25,11 @@ job 串行执行（-p=1）耗时约 6m14s，是唯一剩余的显著墙钟瓶颈
   `31413981487`）：race job 墙钟 4m6s（基线 -p=1 为 6m14s），节省约 2 分钟
   （~33%）；全部 Go package 均通过 `ok`，无 DATA RACE 检出，无 OOM 或内存相关
   错误。
-- 合并回 main 后的完整 CI 验证待执行。
+- 合并回 main 后的完整 CI（run `31415944207`，重跑后通过）：全部 job 绿，
+  Backend race 3m55s，与基线 -p=1（6m46s）相比节省约 2m51s（~42%）。
+  注：首次执行时 Compose runtime job 因 Docker Hub 拉取 `nginx:1.27-alpine`/
+  `node:22.13.1-alpine3.21` 偶发超时失败（`dial tcp ...:443: i/o timeout`），
+  与本次改动无关，重跑同一 run 后通过。
 - `node --test scripts/release-manifest.test.mjs`：6/6 通过。
 - `go test -p=1 -count=1 ./internal/deployment/`（backend 模块）：通过。
 

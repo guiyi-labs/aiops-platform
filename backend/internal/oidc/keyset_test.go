@@ -24,6 +24,16 @@ func rsaJWK(t *testing.T, kid, alg string) (JWK, *rsa.PrivateKey) {
 	}, key
 }
 
+func fixedWidthBytes(value *big.Int, width int) []byte {
+	raw := value.Bytes()
+	if len(raw) >= width {
+		return raw
+	}
+	out := make([]byte, width)
+	copy(out[width-len(raw):], raw)
+	return out
+}
+
 func ecJWK(t *testing.T, kid, alg string) (JWK, *ecdsa.PrivateKey) {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -32,8 +42,8 @@ func ecJWK(t *testing.T, kid, alg string) (JWK, *ecdsa.PrivateKey) {
 	}
 	return JWK{
 		KTY: "EC", Use: "sig", Alg: alg, KID: kid, Crv: "P-256",
-		X: base64.RawURLEncoding.EncodeToString(key.X.Bytes()),
-		Y: base64.RawURLEncoding.EncodeToString(key.Y.Bytes()),
+		X: base64.RawURLEncoding.EncodeToString(fixedWidthBytes(key.X, 32)),
+		Y: base64.RawURLEncoding.EncodeToString(fixedWidthBytes(key.Y, 32)),
 	}, key
 }
 

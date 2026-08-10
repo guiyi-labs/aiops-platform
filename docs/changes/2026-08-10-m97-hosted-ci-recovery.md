@@ -107,6 +107,14 @@ last-Pod filtering, and zero console errors.
 - Main CI `31392971966` passed all 12 jobs at revision
   `62cb133e4aae1261e8823f15a075f70e4bf786cc`, validating the merged Backend
   test/coverage command and the unchanged full runtime quality path.
+- Main CI `31397284342` passed all 13 jobs at revision
+  `2251f176b7c5d0bf7fdecd966fbcb5a821225987`, validating the shared Backend
+  image across all four drills and Compose runtime. Wall time fell from 458
+  seconds to 376 seconds (82 seconds, 17.9%). Identity fell from 89 to 25
+  seconds, Audit from 113 to 30, Credential from 103 to 36, Recovery from 116
+  to 38, and Compose from 145 to 78; the dedicated Backend image job took 91
+  seconds. Backend, race, Frontend, M96 Gate B, manifests, all drills, Compose,
+  and final CI result remained successful.
 - Release run `31384939856` for immutable tag `v0.3.0-rc.4` passed the full
   required quality gate and the `Build and verify RC package` job. GitHub
   published the non-draft prerelease at

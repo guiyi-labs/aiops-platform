@@ -82,6 +82,9 @@ last-Pod filtering, and zero console errors.
 - Main CI `31384162209` passed all 12 jobs at revision
   `0f69256c1ddb0f874a12c79e7fcbda4f20a8fa9a` after the per-platform SBOM
   workflow fix.
+- Main CI `31392971966` passed all 12 jobs at revision
+  `62cb133e4aae1261e8823f15a075f70e4bf786cc`, validating the merged Backend
+  test/coverage command and the unchanged full runtime quality path.
 - Release run `31384939856` for immutable tag `v0.3.0-rc.4` passed the full
   required quality gate and the `Build and verify RC package` job. GitHub
   published the non-draft prerelease at

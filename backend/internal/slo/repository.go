@@ -120,7 +120,13 @@ func (NopRepository) ListEvaluations(context.Context, EvaluationFilter) ([]Evalu
 
 func (r *GormRepository) CreateDefinition(ctx context.Context, def *Definition) error {
 	row := definitionToRow(def)
-	return r.db.WithContext(ctx).Create(&row).Error
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	// gorm assigns the generated ID to the row; propagate it back so the
+	// created definition returned to the caller carries its identity.
+	def.ID = row.ID
+	return nil
 }
 
 func (r *GormRepository) GetDefinition(ctx context.Context, id int64) (Definition, error) {

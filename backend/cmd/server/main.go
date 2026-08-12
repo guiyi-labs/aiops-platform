@@ -118,7 +118,10 @@ func main() {
 		Enabled: cfg.MetricsHistoryEnabled, CollectionInterval: cfg.MetricsCollectionInterval,
 		PerClusterTimeout: cfg.MetricsCollectionTimeout, CleanupInterval: cfg.MetricsCleanupInterval,
 		MaxClusters: cfg.MetricsMaxClusters, MaxConcurrentClusters: cfg.MetricsMaxConcurrency, MaxSamples: 1800,
-	}, clusterService, kubernetesService, metricsHistoryService, logger)
+	}, clusterService, kubernetesService, metricsHistoryService, logger,
+		// M99-B: record per-Deployment readiness gauges for the SLO
+		// workload_readiness source.
+		metricshistory.WithWorkloadReadinessSource(kubernetesService))
 	if err != nil {
 		logger.Fatal("configure metrics history collector", zap.Error(err))
 	}
@@ -147,12 +150,13 @@ func main() {
 	// M39-M42 AIOps signal, SLO and correlation services. Wired into the
 	// production server so the aiops routes (signals / slos / correlation)
 	// are live; the SLO burn-alert sink normalizes burn transitions into
-	// signal occurrences (M99). The evaluator source is nil until a metrics
-	// provider adapter is configured (M99-B); until then evaluations report
-	// StateUnavailable and no burn signals are emitted.
+	// signal occurrences (M99). The evaluator reads workload readiness from
+	// metrics history (M99-B); request-ratio templates report honest no-data
+	// until a traffic metrics provider is configured.
 	signalService := signalsvc.NewService(signalsvc.ServiceOptions{Repository: signalsvc.NewGormRepository(database.GORM())})
 	sloRepository := slo.NewGormRepository(database.GORM())
-	sloService := slo.NewService(sloRepository, slo.NewEvaluator(nil),
+	sloService := slo.NewService(sloRepository,
+		slo.NewEvaluator(slo.NewMetricshistorySource(metricsHistoryService)),
 		slo.WithBurnAlertSink(signalsvc.NewSLOBurnSignalSink(signalService, sloRepository)))
 	correlationService := correlation.NewService(correlation.NewGormRepository(database.GORM()), nil, nil)
 	authzRepo := authz.NewGormRepository(database.GORM())

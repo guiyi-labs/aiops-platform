@@ -276,3 +276,94 @@ func podMetric(namespace, name string, now time.Time) k8sgateway.PodMetric {
 func testCollectorConfig() CollectorConfig {
 	return CollectorConfig{Enabled: true, CollectionInterval: time.Minute, PerClusterTimeout: time.Second, CleanupInterval: time.Hour, MaxClusters: 20, MaxConcurrentClusters: 4, MaxSamples: 1800}
 }
+
+type collectorReadinessStub struct {
+	deployments func(context.Context, int64, string, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Deployment], error)
+}
+
+func (s collectorReadinessStub) Deployments(ctx context.Context, clusterID int64, namespace string, query apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Deployment], error) {
+	return s.deployments(ctx, clusterID, namespace, query)
+}
+
+func TestCollectorRecordsWorkloadReadinessSamples(t *testing.T) {
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	history := &collectorHistoryStub{}
+	c, err := NewCollector(CollectorConfig{
+		Enabled: true, CollectionInterval: time.Minute, PerClusterTimeout: time.Second,
+		CleanupInterval: time.Hour, MaxClusters: 20, MaxConcurrentClusters: 4, MaxSamples: 1800,
+	}, collectorClusterStub{items: []cluster.Cluster{{ID: 1, Enabled: true}}},
+		collectorMetricsStub{
+			nodes: func(context.Context, int64, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.NodeMetric], error) {
+				return apiquery.ListResponse[k8sgateway.NodeMetric]{Items: []k8sgateway.NodeMetric{}}, nil
+			},
+			pods: func(context.Context, int64, string, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.PodMetric], error) {
+				return apiquery.ListResponse[k8sgateway.PodMetric]{Items: []k8sgateway.PodMetric{}}, nil
+			},
+		},
+		history, nil,
+		WithWorkloadReadinessSource(collectorReadinessStub{deployments: func(context.Context, int64, string, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Deployment], error) {
+			dep := k8sgateway.Deployment{Metadata: k8sgateway.ObjectMeta{Name: "web", Namespace: "default", UID: "dep-1"}}
+			dep.Status.Replicas = 3
+			dep.Status.ReadyReplicas = 3
+			return apiquery.ListResponse[k8sgateway.Deployment]{Items: []k8sgateway.Deployment{dep}, Total: 1}, nil
+		}}))
+	if err != nil {
+		t.Fatalf("NewCollector err=%v", err)
+	}
+	c.now = func() time.Time { return now }
+	if _, err := c.CollectOnce(context.Background()); err != nil {
+		t.Fatalf("CollectOnce err=%v", err)
+	}
+	if len(history.collections) != 1 {
+		t.Fatalf("collections = %d, want 1", len(history.collections))
+	}
+	var readiness []SampleInput
+	for _, s := range history.collections[0].Samples {
+		if s.MetricName == MetricReadinessReady || s.MetricName == MetricReadinessTotal {
+			readiness = append(readiness, s)
+		}
+	}
+	if len(readiness) != 2 {
+		t.Fatalf("readiness samples = %d, want 2 (ready+total)", len(readiness))
+	}
+	if readiness[0].MetricName != MetricReadinessReady || readiness[0].Value != 3 {
+		t.Errorf("ready sample = %+v", readiness[0])
+	}
+	if readiness[1].MetricName != MetricReadinessTotal || readiness[1].Value != 3 {
+		t.Errorf("total sample = %+v", readiness[1])
+	}
+	if readiness[0].ResourceKind != "Deployment" || readiness[0].ResourceName != "web" || readiness[0].ResourceUID != "dep-1" {
+		t.Errorf("readiness resource = %+v", readiness[0])
+	}
+}
+
+func TestCollectorReadinessSourceFailureYieldsNoSamples(t *testing.T) {
+	history := &collectorHistoryStub{}
+	c, err := NewCollector(CollectorConfig{
+		Enabled: true, CollectionInterval: time.Minute, PerClusterTimeout: time.Second,
+		CleanupInterval: time.Hour, MaxClusters: 20, MaxConcurrentClusters: 4, MaxSamples: 1800,
+	}, collectorClusterStub{items: []cluster.Cluster{{ID: 1, Enabled: true}}},
+		collectorMetricsStub{
+			nodes: func(context.Context, int64, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.NodeMetric], error) {
+				return apiquery.ListResponse[k8sgateway.NodeMetric]{Items: []k8sgateway.NodeMetric{}}, nil
+			},
+			pods: func(context.Context, int64, string, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.PodMetric], error) {
+				return apiquery.ListResponse[k8sgateway.PodMetric]{Items: []k8sgateway.PodMetric{}}, nil
+			},
+		},
+		history, nil,
+		WithWorkloadReadinessSource(collectorReadinessStub{deployments: func(context.Context, int64, string, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Deployment], error) {
+			return apiquery.ListResponse[k8sgateway.Deployment]{}, errors.New("k8s unavailable")
+		}}))
+	if err != nil {
+		t.Fatalf("NewCollector err=%v", err)
+	}
+	if _, err := c.CollectOnce(context.Background()); err != nil {
+		t.Fatalf("CollectOnce err=%v", err)
+	}
+	for _, s := range history.collections[0].Samples {
+		if s.MetricName == MetricReadinessReady || s.MetricName == MetricReadinessTotal {
+			t.Fatalf("readiness sample must not be recorded on source failure: %+v", s)
+		}
+	}
+}

@@ -213,6 +213,8 @@ func validSeriesShape(kind, namespace, name, container string) bool {
 		return namespace == "" && container == ""
 	case ResourcePod:
 		return namespace != "" && container != ""
+	case ResourceDeployment:
+		return namespace != "" && container == ""
 	default:
 		return false
 	}
@@ -224,6 +226,8 @@ func metricUnit(metric string) (string, bool) {
 		return UnitNanocores, true
 	case MetricMemory:
 		return UnitBytes, true
+	case MetricReadinessReady, MetricReadinessTotal:
+		return UnitCount, true
 	default:
 		return "", false
 	}

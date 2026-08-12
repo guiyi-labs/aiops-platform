@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M99B Metricshistory SLO Source
+
+- metricshistory 采集器新增 Deployment readiness 采样（`readiness_ready` / `readiness_total`），支持 Deployment 资源与 count 单位。
+- 新增 `slo.MetricshistorySource`：`workload_readiness` 模板基于历史 readiness 计算滚动窗口就绪占比（累计计数器转换、缺配对样本如实丢弃）；request_* 模板如实返回 no-data。
+- 生产接线：采集器接入 kubernetesService，SLO 求值器改用 metricshistory 源；Deployment 变更导致就绪率下降时可触发真实 burn 信号。
+- 修复 `POST /aiops/slos` 返回 `id: 0`：gorm 创建后回写数据库生成的 ID。
+- See [M99-B change record](docs/changes/2026-08-12-m99b-metricshistory-slo-source.md).
+
 ### Added - M99A SLO Burn Signal Pipeline
 
 - 新增 SLO 错误预算燃烧信号化管道：`slo.burn.fast.v1` / `slo.burn.slow.v1` / `slo.burn.recovery.v1` 信号码，`SLOBurnSignalSink` 把 burn 状态转换规范化为 signal 事件（指纹去重、coverage 透传、`slo_burn_window` 证据哈希）。

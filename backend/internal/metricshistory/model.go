@@ -5,12 +5,22 @@ import "time"
 const (
 	ResourceNode = "Node"
 	ResourcePod  = "Pod"
+	// ResourceDeployment carries M99-B workload readiness gauges. Namespace is
+	// required; container must be empty (the sample is workload-scoped).
+	ResourceDeployment = "Deployment"
 
 	MetricCPU    = "cpu"
 	MetricMemory = "memory"
+	// Workload readiness gauges (M99-B): per-collection-run replica counts
+	// for the SLO workload_readiness source. readiness_ready counts ready
+	// replicas; readiness_total counts desired replicas. Both are sampled at
+	// collection time and converted to cumulative counters by the SLO source.
+	MetricReadinessReady = "readiness_ready"
+	MetricReadinessTotal = "readiness_total"
 
 	UnitNanocores = "nanocores"
 	UnitBytes     = "bytes"
+	UnitCount     = "count"
 
 	SourceSucceeded   = "succeeded"
 	SourceUnavailable = "unavailable"

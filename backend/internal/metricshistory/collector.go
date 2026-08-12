@@ -51,28 +51,49 @@ type metricsSource interface {
 	PodMetrics(context.Context, int64, string, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.PodMetric], error)
 }
 
+// workloadReadinessSource optionally supplies Deployment replica status so the
+// collector can record readiness gauges for the M99-B SLO source. It is
+// optional: when unset the collector records usage samples only.
+type workloadReadinessSource interface {
+	Deployments(context.Context, int64, string, apiquery.ListQuery) (apiquery.ListResponse[k8sgateway.Deployment], error)
+}
+
 type historyStore interface {
 	Record(context.Context, CollectionInput) (CollectionRun, error)
 	Cleanup(context.Context, time.Time) (int64, error)
 }
 
 type Collector struct {
-	config   CollectorConfig
-	clusters clusterSource
-	metrics  metricsSource
-	history  historyStore
-	logger   *zap.Logger
-	now      func() time.Time
+	config    CollectorConfig
+	clusters  clusterSource
+	metrics   metricsSource
+	readiness workloadReadinessSource
+	history   historyStore
+	logger    *zap.Logger
+	now       func() time.Time
 }
 
-func NewCollector(config CollectorConfig, clusters clusterSource, metrics metricsSource, history historyStore, logger *zap.Logger) (*Collector, error) {
+// CollectorOption configures a Collector at construction.
+type CollectorOption func(*Collector)
+
+// WithWorkloadReadinessSource enables per-Deployment readiness samples
+// (readiness_ready / readiness_total) recorded at each collection run.
+func WithWorkloadReadinessSource(src workloadReadinessSource) CollectorOption {
+	return func(c *Collector) { c.readiness = src }
+}
+
+func NewCollector(config CollectorConfig, clusters clusterSource, metrics metricsSource, history historyStore, logger *zap.Logger, opts ...CollectorOption) (*Collector, error) {
 	if clusters == nil || metrics == nil || history == nil || !validCollectorConfig(config) {
 		return nil, ErrInvalidCollectorConfig
 	}
 	if logger == nil {
 		logger = zap.NewNop()
 	}
-	return &Collector{config: config, clusters: clusters, metrics: metrics, history: history, logger: logger, now: time.Now}, nil
+	c := &Collector{config: config, clusters: clusters, metrics: metrics, history: history, logger: logger, now: time.Now}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c, nil
 }
 
 func (c *Collector) Run(ctx context.Context) {
@@ -163,7 +184,8 @@ func (c *Collector) collectCluster(parent context.Context, clusterID int64) erro
 
 	var nodes apiquery.ListResponse[k8sgateway.NodeMetric]
 	var pods apiquery.ListResponse[k8sgateway.PodMetric]
-	var nodeErr, podErr error
+	var deployments apiquery.ListResponse[k8sgateway.Deployment]
+	var nodeErr, podErr, deployErr error
 	var wait sync.WaitGroup
 	wait.Add(2)
 	go func() {
@@ -174,6 +196,13 @@ func (c *Collector) collectCluster(parent context.Context, clusterID int64) erro
 		defer wait.Done()
 		pods, podErr = c.metrics.PodMetrics(ctx, clusterID, "", query)
 	}()
+	if c.readiness != nil {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			deployments, deployErr = c.readiness.Deployments(ctx, clusterID, "", query)
+		}()
+	}
 	wait.Wait()
 	if parent.Err() != nil {
 		return parent.Err()
@@ -182,6 +211,11 @@ func (c *Collector) collectCluster(parent context.Context, clusterID int64) erro
 	nodeSnapshot := nodeSourceSnapshot(nodes, nodeErr)
 	podSnapshot := podSourceSnapshot(pods, podErr)
 	samples, nodeSampled, podSampled, limited := allocateSamples(nodeSnapshot.bundles, podSnapshot.bundles, c.config.MaxSamples)
+	readinessSamples := c.readinessSamples(deployments, deployErr, startedAt)
+	if len(samples)+len(readinessSamples) > c.config.MaxSamples {
+		readinessSamples = readinessSamples[:maxInt(0, c.config.MaxSamples-len(samples))]
+	}
+	samples = append(samples, readinessSamples...)
 	nodeCoverage := coverageFor(nodeSnapshot, nodeSampled)
 	podCoverage := coverageFor(podSnapshot, podSampled)
 	failureCode := collectionFailureCode(nodeSnapshot, podSnapshot, nodeCoverage, podCoverage, limited)
@@ -190,6 +224,42 @@ func (c *Collector) collectCluster(parent context.Context, clusterID int64) erro
 		StartedAt: startedAt, CompletedAt: c.now().UTC(), Samples: samples,
 	})
 	return err
+}
+
+// readinessSamples converts a Deployment status snapshot into readiness gauge
+// samples. A failed or absent deployment list yields no readiness samples —
+// the SLO source treats the missing window as incomplete, never as healthy.
+func (c *Collector) readinessSamples(deployments apiquery.ListResponse[k8sgateway.Deployment], err error, at time.Time) []SampleInput {
+	if err != nil || c.readiness == nil {
+		return nil
+	}
+	if deployments.Total < 0 || deployments.Total < len(deployments.Items) {
+		return nil
+	}
+	out := make([]SampleInput, 0, 2*len(deployments.Items))
+	for _, d := range deployments.Items {
+		if d.Metadata.Name == "" {
+			continue
+		}
+		base := SampleInput{
+			ResourceKind: ResourceDeployment, ResourceNamespace: d.Metadata.Namespace,
+			ResourceName: d.Metadata.Name, ResourceUID: d.Metadata.UID,
+			SourceTimestamp: at.UTC(), Window: time.Minute,
+		}
+		ready := base
+		ready.MetricName, ready.Value = MetricReadinessReady, int64(d.Status.ReadyReplicas)
+		total := base
+		total.MetricName, total.Value = MetricReadinessTotal, int64(d.Status.Replicas)
+		out = append(out, ready, total)
+	}
+	return out
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 type sampleBundle struct{ samples []SampleInput }

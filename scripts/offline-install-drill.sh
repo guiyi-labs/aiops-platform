@@ -56,7 +56,8 @@ backend_ready() {
 BUNDLE="$WORK/aiops-platform-offline-$VERSION"
 BUNDLE_STABLE="$ARTIFACTS/bundle/aiops-platform-offline-$VERSION"
 COMPOSE="$BUNDLE/deploy/compose.offline.yaml"
-mkdir -p "$BUNDLE"/{images,deploy,config,docs}
+mkdir -p "$BUNDLE"/{images,deploy,config,docs,migrations}
+cp "$ROOT/backend/migrations/000001_init_schema.up.sql" "$BUNDLE/migrations/000001_init_schema.sql"
 
 # ---------- 1. bundle assemble ----------
 
@@ -90,7 +91,7 @@ services:
       - "$PG_PORT:5432"
     volumes:
       - "$PROJECT-pgdata:/var/lib/postgresql/data"
-      - "$ROOT/backend/migrations/000001_init_schema.up.sql:/docker-entrypoint-initdb.d/000001_init_schema.sql:ro"
+      - "../migrations/000001_init_schema.sql:/docker-entrypoint-initdb.d/000001_init_schema.sql:ro"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aiops -d aiops"]
       interval: 5s

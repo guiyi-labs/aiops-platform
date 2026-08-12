@@ -69,7 +69,7 @@
 | M100（M100-A/B/C/D）✅ | 安全与租户治理：路由权限矩阵生成与差异门禁（`docs/security/permission-matrix.md`）；`/aiops` 查询维度集群/命名空间授权强制；会话失效旅程补齐（auth_version bump，4 旅程单测 + 14 项冒烟）；敏感字段扫描 + 日志/审计脱敏契约（运行时 0 泄漏）；供应链门禁（govulncheck 2→0、pnpm audit 0、许可证 allowlist、镜像基础层漂移、SBOM 差异）。M100 里程碑封口（`baseline-m100-20260812`） |
 | M101（本地数据轨）✅ | `scripts/wal-pitr-drill.sh` 8 场景确定性演练（无损 PITR、时间点恢复、缺 WAL 快速失败、迁移前逻辑备份、SIGKILL 崩溃注入、流式备库/故障切换、网络分区、归档目标故障），报告 `.artifacts/wal-pitr-drill/`，`baseline-m101-wal-pitr-local-20260812`。真实磁盘压力与跨主机 HA 依赖 M90 授权轨，保持 Deferred |
 | M89（身份轨本地预研）✅ | 仓库内 OIDC Provider（`backend/cmd/oidc-provider`）+ `scripts/oidc-login-drill.sh` 全链路 14/14 场景（真实 OIDC 登录 + 缺预关联 403、nonce/state 篡改、MFA 证据缺失/不接受、组无映射、轮换密钥、过期/unsigned、Provider 下线 502/启动 fail-fast、审计落库），`baseline-m89-oidc-local-20260812`。真实 Provider 验收依赖组织授权，保持 Deferred |
-| M102（本地轨道第一步）🔄 | `scripts/dual-env-compose-drill.sh` 双全新隔离环境以同一不可变 digest 安装 + 关键旅程 + 数据持久化 + 清理，10/10 PASS（`report-20260812-213243-bf91f0.json`）。跨 digest 升级/回滚仍需组织环境补齐；M89/M90 未完成前保持 RC |
+| M102（本地轨道 v2）🔄 | `scripts/dual-env-compose-drill.sh` 双全新隔离环境：install/关键旅程/数据持久化/清理 10/10（`report-20260812-213243-bf91f0.json`）；设置 `APP_UPGRADE_BACKEND_IMAGE`（离线构建 `k8s-aiops-backend:v0.3.0-rc.5-local`）后跨 digest 升级（version dev→rc.5）与回滚 14/14（`report-20260812-214043-17a17c.json`）。真实组织 kind/Helm 生命周期与 M89/M90 仍需授权后补齐，未完成前保持 RC |
 
 > 当前执行入口：`docs/next-long-term-plan.md`。M93-B2–M97（Gate B/C）、M98、M99、M100、M101 本地数据轨、M89 身份轨本地预研、M102 本地轨道第一步均已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
 > M89 生产身份、M90 数据可靠性与 M102 跨 digest 第二环境升级/回滚继续作为组织授权轨，未完成时版本保持 RC，不宣称 GA。

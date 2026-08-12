@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# M102 (local track): dual fresh-environment compose installation/lifecycle drill.
+# M102 (local track): dual fresh-environment compose installation/upgrade/rollback drill.
 #
 # Proves the same immutable image products can be installed on two fully isolated
 # fresh environments and both serve the same key journeys, using a reproducible
@@ -11,13 +11,13 @@
 #   1. creates a fresh named volume + launches postgres/backend/frontend (install)
 #   2. waits for backend ready, verifies frontend serves the SPA, admin login ->
 #      /me -> system_admin (key journey)
-#   3. writes a deterministic audit/user marker into the shared postgres
-#   4. recreates the stack to the SAME immutable image digest and verifies the
+#   3. writes a deterministic audit marker into the shared postgres
+#   4. recreates the stack to the SAME immutable backend digest and verifies the
 #      marker persisted (data durability across restart on the same product set)
-#   5. tears down fully with -v (fresh, reproducible next run)
-#
-# The environment variables APP_DB_PORT / APP_BACKEND_PORT / APP_FRONTEND_PORT are
-# exported per environment by the script so each iteration is isolated.
+#   5. when APP_UPGRADE_BACKEND_IMAGE is set: upgrade backend to a DIFFERENT
+#      immutable digest, verify health + marker + backend version changed,
+#      then roll back to the baseline digest and verify again (upgrade/rollback)
+#   6. tears down fully with -v (fresh, reproducible next run)
 #
 # Exit 0 when every assertion passes on both environments; exit 1 otherwise.
 # Report: .artifacts/dual-env-compose-drill/report-<run>.json
@@ -31,6 +31,7 @@ WORK="$ARTIFACTS/tmp-$RUN_ID"
 BACKEND_IMAGE="${APP_BACKEND_IMAGE:-k8s-aiops-backend:latest}"
 FRONTEND_IMAGE="${APP_FRONTEND_IMAGE:-k8s-aiops-frontend:latest}"
 PG_IMAGE="${APP_PG_IMAGE:-pgvector/pgvector:0.8.1-pg17}"
+UPGRADE_BACKEND_IMAGE="${APP_UPGRADE_BACKEND_IMAGE:-}"
 JWT_KEY="dual-env-jwt-signing-key-0123456789abcdef0123456789abcdef"
 CRED_KEY="ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE="
 
@@ -60,9 +61,13 @@ backend_ready() {
   return 1
 }
 
-write_isolated_compose() { # outfile project postgres_port backend_port frontend_port
-  local out="$1" project="$2" pg_port="$3" backend_port="$4" fe_port="$5"
-  mkdir -p "$(dirname "$out")"
+# backend_version <base_url> -> e.g. "dev"
+backend_version() {
+  curl -s -m 5 "$1/api/v1/health/ready" | jq -r '.version // empty' 2>/dev/null || true
+}
+
+write_isolated_compose() { # outfile project backend_image postgres_port backend_port frontend_port
+  local out="$1" project="$2" backend_image="$3" pg_port="$4" backend_port="$5" fe_port="$6"
   cat > "$out" <<YAML
 name: $project
 services:
@@ -84,7 +89,7 @@ services:
       retries: 10
     restart: unless-stopped
   backend:
-    image: $BACKEND_IMAGE
+    image: $backend_image
     environment:
       APP_ENV: development
       HTTP_ADDR: :8080
@@ -130,15 +135,43 @@ volumes:
 YAML
 }
 
+# compose_phase <compose_file> <project> <backend_image> <method> <job> <logtag>
+#   method = up | recreate
+compose_phase() {
+  local compose_file="$1" project="$2" backend_image="$3" method="$4" job="$5" logtag="$6"
+  local log="$WORK/$project-$logtag.log"
+  if [[ "$method" == "recreate" ]]; then
+    docker compose -f "$compose_file" up -d --force-recreate backend > "$log" 2>&1
+  else
+    docker compose -f "$compose_file" up -d > "$log" 2>&1
+  fi
+  return $?
+}
+
+wait_healthy() { # compose_file
+  local compose_file="$1"
+  docker compose -f "$compose_file" ps --status running >/dev/null 2>&1 || true
+  local attempt
+  for attempt in $(seq 1 60); do
+    if docker compose -f "$compose_file" ps --status running --format '{{.Service}} {{.Health}}' 2>/dev/null | grep -q '^backend healthy'; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
 run_environment() { # project pg_5000 backend_5000 frontend_5001
   local project="$1" pg="$2" be="$3" fe="$4"
   local base="http://127.0.0.1:$be"
   local compose_file="$WORK/$project-compose.yaml"
   scenario "Environment $project"
-  write_isolated_compose "$compose_file" "$project" "$pg" "$be" "$fe"
 
-  if ! docker compose -f "$compose_file" up -d > "$WORK/$project-up1.log" 2>&1; then
-    fail "$project-install" "compose up failed: $(tail -3 "$WORK/$project-up1.log")"
+  write_isolated_compose "$compose_file" "$project" "$BACKEND_IMAGE" "$pg" "$be" "$fe"
+
+  # -- install --
+  if ! compose_phase "$compose_file" "$project" "$BACKEND_IMAGE" up install install; then
+    fail "$project-install" "compose up failed: $(tail -3 "$WORK/$project-install.log")"
     docker compose -f "$compose_file" down -v >/dev/null 2>&1 || true
     return
   fi
@@ -148,9 +181,11 @@ run_environment() { # project pg_5000 backend_5000 frontend_5001
     docker compose -f "$compose_file" down -v >/dev/null 2>&1 || true
     return
   fi
-  pass "$project-install" "compose stack installed; backend ready (db=$pg backend=$be frontend=$fe)"
+  local v_install
+  v_install="$(backend_version "$base")"
+  pass "$project-install" "compose stack installed; backend ready (db=$pg backend=$be frontend=$fe) version=$v_install"
 
-  # -- key journey: frontend serves SPA, admin login, /me roles --
+  # -- key journey --
   local fe_code attempt
   fe_code=""
   for attempt in $(seq 1 30); do
@@ -173,7 +208,7 @@ run_environment() { # project pg_5000 backend_5000 frontend_5001
     fail "$project-journey" "frontend=$fe_code token=${#token} uname=$uname role=$role"
   fi
 
-  # -- durable marker across restart (same immutable image) --
+  # -- durable marker + restart on SAME baseline digest --
   if docker compose -f "$compose_file" exec -T postgres psql -U aiops -d aiops -tAc \
       "INSERT INTO audit_logs (action, resource_type, result, request_id, details) VALUES ('dualenvironment.drill','DualEnv','success','$project','{}') ON CONFLICT DO NOTHING;" \
       >/dev/null 2>&1; then
@@ -182,19 +217,54 @@ run_environment() { # project pg_5000 backend_5000 frontend_5001
     fail "$project-marker" "could not write audit marker"
   fi
 
-  if ! docker compose -f "$compose_file" up -d --force-recreate > "$WORK/$project-up2.log" 2>&1; then
-    fail "$project-restart" "recreate failed: $(tail -3 "$WORK/$project-up2.log")"
+  if ! compose_phase "$compose_file" "$project" "$BACKEND_IMAGE" recreate restart restart; then
+    fail "$project-restart" "recreate failed: $(tail -3 "$WORK/$project-restart.log")"
+  elif ! backend_ready "$base"; then
+    fail "$project-restart" "backend not ready after recreate"
   else
-    if ! backend_ready "$base"; then
-      fail "$project-restart" "backend not ready after recreate"
+    local count
+    count="$(docker compose -f "$compose_file" exec -T postgres psql -U aiops -d aiops -tAc \
+      "SELECT count(*) FROM audit_logs WHERE action='dualenvironment.drill' AND request_id='$project'" | tr -d '[:space:]' || true)"
+    if [[ "$count" == "1" ]]; then
+      pass "$project-restart" "marker persisted across stack recreate (count=$count)"
     else
-      local count
-      count="$(docker compose -f "$compose_file" exec -T postgres psql -U aiops -d aiops -tAc \
+      fail "$project-restart" "marker missing after recreate (count=$count)"
+    fi
+  fi
+
+  # -- optional cross-digest upgrade + rollback --
+  if [[ -n "$UPGRADE_BACKEND_IMAGE" ]]; then
+    local v_before v_after v_rollback up_count
+    v_before="$(backend_version "$base")"
+    write_isolated_compose "$compose_file" "$project" "$UPGRADE_BACKEND_IMAGE" "$pg" "$be" "$fe"
+    if ! compose_phase "$compose_file" "$project" "$UPGRADE_BACKEND_IMAGE" recreate upgrade upgrade; then
+      fail "$project-upgrade" "upgrade failed: $(tail -3 "$WORK/$project-upgrade.log")"
+    elif ! backend_ready "$base"; then
+      fail "$project-upgrade" "backend not ready after upgrade"
+    else
+      v_after="$(backend_version "$base")"
+      up_count="$(docker compose -f "$compose_file" exec -T postgres psql -U aiops -d aiops -tAc \
         "SELECT count(*) FROM audit_logs WHERE action='dualenvironment.drill' AND request_id='$project'" | tr -d '[:space:]' || true)"
-      if [[ "$count" == "1" ]]; then
-        pass "$project-restart" "marker persisted across stack recreate (count=$count)"
+      if [[ "$v_after" != "$v_before" ]] && [[ "$v_after" != "" ]] && [[ "$up_count" == "1" ]]; then
+        pass "$project-upgrade" "upgrade to $UPGRADE_BACKEND_IMAGE OK: version $v_before -> $v_after, marker intact"
       else
-        fail "$project-restart" "marker missing after recreate (count=$count)"
+        fail "$project-upgrade" "version unchanged ($v_before -> $v_after) or marker lost ($up_count)"
+      fi
+    fi
+
+    write_isolated_compose "$compose_file" "$project" "$BACKEND_IMAGE" "$pg" "$be" "$fe"
+    if ! compose_phase "$compose_file" "$project" "$BACKEND_IMAGE" recreate rollback rollback; then
+      fail "$project-rollback" "rollback failed: $(tail -3 "$WORK/$project-rollback.log")"
+    elif ! backend_ready "$base"; then
+      fail "$project-rollback" "backend not ready after rollback"
+    else
+      v_rollback="$(backend_version "$base")"
+      up_count="$(docker compose -f "$compose_file" exec -T postgres psql -U aiops -d aiops -tAc \
+        "SELECT count(*) FROM audit_logs WHERE action='dualenvironment.drill' AND request_id='$project'" | tr -d '[:space:]' || true)"
+      if [[ "$v_rollback" == "$v_before" ]] && [[ "$up_count" == "1" ]]; then
+        pass "$project-rollback" "rollback to $BACKEND_IMAGE OK: version $v_after -> $v_rollback, marker intact"
+      else
+        fail "$project-rollback" "version=$v_rollback (want $v_before) or marker lost ($up_count)"
       fi
     fi
   fi
@@ -209,6 +279,7 @@ scenario "Preflight"
 BACKEND_DIGEST="$(docker image inspect "$BACKEND_IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
 FRONTEND_DIGEST="$(docker image inspect "$FRONTEND_IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
 PG_DIGEST="$(docker image inspect "$PG_IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
+UPG_DIGEST=""
 if [[ -z "$BACKEND_DIGEST" || -z "$FRONTEND_DIGEST" || -z "$PG_DIGEST" ]]; then
   die "one or more required images are missing locally (backend=$BACKEND_IMAGE frontend=$FRONTEND_IMAGE pg=$PG_IMAGE)"
 fi
@@ -216,6 +287,15 @@ echo "  immutable products:"
 echo "    backend  $BACKEND_IMAGE $BACKEND_DIGEST"
 echo "    frontend $FRONTEND_IMAGE $FRONTEND_DIGEST"
 echo "    postgres $PG_IMAGE $PG_DIGEST"
+if [[ -n "$UPGRADE_BACKEND_IMAGE" ]]; then
+  UPG_DIGEST="$(docker image inspect "$UPGRADE_BACKEND_IMAGE" --format '{{.Id}}' 2>/dev/null || true)"
+  if [[ -z "$UPG_DIGEST" ]]; then
+    die "APP_UPGRADE_BACKEND_IMAGE image missing locally: $UPGRADE_BACKEND_IMAGE"
+  fi
+  echo "    upgrade  $UPGRADE_BACKEND_IMAGE $UPG_DIGEST"
+else
+  echo "    upgrade  (not configured; run with APP_UPGRADE_BACKEND_IMAGE to enable upgrade/rollback)"
+fi
 
 run_environment aiops-dual-env-a 25432 28080 28081
 run_environment aiops-dual-env-b 26432 29080 29081
@@ -229,25 +309,28 @@ cat > "$REPORT" <<JSON
   "immutable_products": {
     "backend": {"image": "$BACKEND_IMAGE", "digest": "$BACKEND_DIGEST"},
     "frontend": {"image": "$FRONTEND_IMAGE", "digest": "$FRONTEND_DIGEST"},
-    "postgres": {"image": "$PG_IMAGE", "digest": "$PG_DIGEST"}
+    "postgres": {"image": "$PG_IMAGE", "digest": "$PG_DIGEST"},
+    "upgrade_backend": {"image": "${UPGRADE_BACKEND_IMAGE:-}", "digest": "${UPG_DIGEST:-}"}
   },
   "environments": {
     "a": {
-      "project": "aiops-dual-env-a",
       "install": {"result": "$(status_of aiops-dual-env-a-install)", "observed": "$(detail_of aiops-dual-env-a-install)"},
       "key_journey": {"result": "$(status_of aiops-dual-env-a-journey)", "observed": "$(detail_of aiops-dual-env-a-journey)"},
       "data_durability": {"result": "$(status_of aiops-dual-env-a-restart)", "observed": "$(detail_of aiops-dual-env-a-restart)"},
+      "upgrade": {"result": "$(status_of aiops-dual-env-a-upgrade)", "observed": "$(detail_of aiops-dual-env-a-upgrade)"},
+      "rollback": {"result": "$(status_of aiops-dual-env-a-rollback)", "observed": "$(detail_of aiops-dual-env-a-rollback)"},
       "cleanup": {"result": "$(status_of aiops-dual-env-a-cleanup)", "observed": "$(detail_of aiops-dual-env-a-cleanup)"}
     },
     "b": {
-      "project": "aiops-dual-env-b",
       "install": {"result": "$(status_of aiops-dual-env-b-install)", "observed": "$(detail_of aiops-dual-env-b-install)"},
       "key_journey": {"result": "$(status_of aiops-dual-env-b-journey)", "observed": "$(detail_of aiops-dual-env-b-journey)"},
       "data_durability": {"result": "$(status_of aiops-dual-env-b-restart)", "observed": "$(detail_of aiops-dual-env-b-restart)"},
+      "upgrade": {"result": "$(status_of aiops-dual-env-b-upgrade)", "observed": "$(detail_of aiops-dual-env-b-upgrade)"},
+      "rollback": {"result": "$(status_of aiops-dual-env-b-rollback)", "observed": "$(detail_of aiops-dual-env-b-rollback)"},
       "cleanup": {"result": "$(status_of aiops-dual-env-b-cleanup)", "observed": "$(detail_of aiops-dual-env-b-cleanup)"}
     }
   },
-  "notes": "Local offline drill only. Two fully isolated fresh environments (project names, ports, postgres volumes and networks) install the same immutable image digests and pass the same key journey. Upgrade/rollback across distinct digests is covered by the CI release lifecycle (M97); this drill establishes second-fresh-environment consistency."
+  "notes": "Local offline drill only. Two fully isolated fresh environments install the same immutable baseline products. When a distinct upgrade backend image is supplied, both environments additionally prove a cross-digest upgrade (version change + marker intact) and a rollback to the baseline digest. Not a production install claim."
 }
 JSON
 echo

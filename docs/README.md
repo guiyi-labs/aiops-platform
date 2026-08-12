@@ -46,7 +46,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-12-m100d-dependency-and-supply-chain-gates.md`：M100-D 依赖漏洞修复（pgx/quic-go/nanoid）与 govulncheck、pnpm audit、许可证 allowlist、镜像基础层漂移、SBOM 差异门禁。
 - `docs/changes/2026-08-12-m101-wal-pitr-drill.md`：M101 本地数据轨——WAL 归档 + PITR + 流式备库 + 故障注入 8 场景确定性演练（无损/时间点/缺 WAL/迁移前逻辑备份/SIGKILL 崩溃/备库故障切换/网络分区/归档目标故障），实测 RPO/RTO 观测值与归档链路恢复。
 - `docs/changes/2026-08-12-m89-oidc-local-drill.md`：M89 身份轨本地预研——仓库内 OIDC Provider（`backend/cmd/oidc-provider`）+ 全链路登录演练（`scripts/oidc-login-drill.sh`）14/14 场景，真实 Authorization Code + PKCE + acr MFA 证据 + 各项 fail-closed（缺预关联 403、nonce/state 篡改、MFA 证据缺失/不接受、组无映射、轮换密钥、过期/unsigned token、Provider 下线）与审计落库、启动期 fail-fast。
-- `docs/changes/2026-08-12-m102-dual-env-compose-drill.md`：M102 本地轨道第一步——双全新隔离环境以同一不可变镜像 digest 安装并断言 install/关键旅程（登录+system_admin）/审计数据持久化/清理一致性（`scripts/dual-env-compose-drill.sh`，10/10 PASS）。
+- `docs/changes/2026-08-12-m102-dual-env-compose-drill.md`：M102 本地轨道——双全新隔离环境 install/关键旅程/数据持久化/清理（10/10 PASS）与跨 digest 升级回滚（14/14 PASS，`scripts/dual-env-compose-drill.sh`，含离线构建的第二镜像 `k8s-aiops-backend:v0.3.0-rc.5-local`）。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

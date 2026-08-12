@@ -18,6 +18,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 回放模式浏览器通道 e2e 闭环：`diagnosis-timeline.spec.ts` 新增 2 项双视口测试（replay-panel 正常链路 seek/筛选/播放 + replay API 不可用降级），全量 e2e 68/68。
 - 契约同步：M94 OpenAPI 增量重新生成 `frontend/src/api/openapi.d.ts`（typegen sync 门禁无 diff）。
 - 离线包自包含化：迁移文件入 bundle（`migrations/000001_init_schema.sql`），compose initdb 由宿主绝对路径改为 bundle 相对挂载，离线安装不再依赖仓库源码；SHA256SUMS 6→7 文件，offline-install-drill 10/10。
+- 离线演练闭环：`docker load` 与安装/清理改用已发布离线包（`$BUNDLE_STABLE`），发布产物被真实安装验证（10/10，`report-20260812-230945-4bb47d.json`）。
 - See [offline bundle self-contained change record](docs/changes/2026-08-12-m102-offline-bundle-self-contained.md)、[openapi typegen sync change record](docs/changes/2026-08-12-m94-openapi-typegen-sync.md)、[replay e2e browser change record](docs/changes/2026-08-12-m94-replay-e2e-browser.md) 与 [rc.5-replay dual-env evidence](docs/changes/2026-08-12-m102-rc5-replay-dual-env-evidence.md).
 
 ## [Unreleased]

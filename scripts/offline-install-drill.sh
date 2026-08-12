@@ -198,11 +198,15 @@ else
   fail bundle-publish "bundle publish failed"
 fi
 
-# ---------- 3. load images from bundle ----------
+# Install from the PUBLISHED bundle (not the temporary assemble dir) so the
+# reusable kit is what actually gets loaded and installed.
+COMPOSE="$BUNDLE_STABLE/deploy/compose.offline.yaml"
 
-scenario "Load images from bundle (docker load)"
+# ---------- 3. load images from published bundle ----------
+
+scenario "Load images from published bundle (docker load)"
 LOAD_OK=1
-for tar in "$BUNDLE"/images/*.tar; do
+for tar in "$BUNDLE_STABLE"/images/*.tar; do
   out="$(docker load -i "$tar" 2>&1 || true)"
   if ! grep -q "Loaded image" <<<"$out"; then
     LOAD_OK=0
@@ -224,7 +228,7 @@ fi
 
 # ---------- 4. install from bundle (pull_policy: never) ----------
 
-scenario "Install from bundle (no network required)"
+scenario "Install from published bundle (no network required)"
 if ! docker compose -f "$COMPOSE" up -d > "$WORK/up.log" 2>&1; then
   fail install "compose up failed: $(tail -3 "$WORK/up.log")"
 else

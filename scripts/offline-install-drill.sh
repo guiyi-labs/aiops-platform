@@ -8,6 +8,8 @@
 # bundle with `pull_policy: never` so a missing local image fails loudly —
 # i.e. the install provably needs no network.
 #
+# The published bundle is also a reusable offline install kit at
+# .artifacts/offline-install-drill/bundle/aiops-platform-offline-<version>/.
 # The fresh environment is fully isolated (own project name, ports
 # 22432/22080/22081, volume and network) and torn down with -v at the end.
 # Report: .artifacts/offline-install-drill/report-<run>.json
@@ -52,6 +54,7 @@ backend_ready() {
 }
 
 BUNDLE="$WORK/aiops-platform-offline-$VERSION"
+BUNDLE_STABLE="$ARTIFACTS/bundle/aiops-platform-offline-$VERSION"
 COMPOSE="$BUNDLE/deploy/compose.offline.yaml"
 mkdir -p "$BUNDLE"/{images,deploy,config,docs}
 
@@ -173,6 +176,27 @@ else
   fail sha256-verify "$(tail -3 "$WORK/verify.log")"
 fi
 
+# ---------- 2b. publish reusable bundle ----------
+
+scenario "Publish reusable offline install kit"
+python3 - "$BUNDLE" "$BUNDLE_STABLE" <<'PYEOF'
+import os, shutil, sys
+src, dst = sys.argv[1], sys.argv[2]
+tmp = dst + ".tmp"
+if os.path.exists(tmp):
+    shutil.rmtree(tmp)
+shutil.copytree(src, tmp)
+if os.path.exists(dst):
+    shutil.rmtree(dst)
+os.replace(tmp, dst)
+print("published " + dst)
+PYEOF
+if [[ -f "$BUNDLE_STABLE/OFFLINE-SHA256SUMS" ]] && (cd "$BUNDLE_STABLE" && shasum -a 256 -c OFFLINE-SHA256SUMS >/dev/null 2>&1); then
+  pass bundle-publish "reusable offline kit: $BUNDLE_STABLE"
+else
+  fail bundle-publish "bundle publish failed"
+fi
+
 # ---------- 3. load images from bundle ----------
 
 scenario "Load images from bundle (docker load)"
@@ -273,6 +297,7 @@ FAILED="$(grep -c '|fail|' "$WORK/results.txt" || true)"
   echo "  \"schema\": \"aiops.offline-install-drill/v1\","
   echo "  \"run_id\": \"$RUN_ID\","
   echo "  \"bundle\": \"aiops-platform-offline-$VERSION\","
+  echo "  \"bundle_stable\": \"$BUNDLE_STABLE\","
   echo "  \"images\": {"
   echo "    \"backend\": \"$BACKEND_IMAGE\","
   echo "    \"frontend\": \"$FRONTEND_IMAGE\","
@@ -298,6 +323,7 @@ FAILED="$(grep -c '|fail|' "$WORK/results.txt" || true)"
 echo
 echo "RESULT offline-install-drill: PASS=$PASSED FAIL=$FAILED"
 echo "Report: $REPORT"
+echo "Offline kit: $BUNDLE_STABLE"
 if [[ "$fail_any" == "1" || "$FAILED" != "0" ]]; then
   exit 1
 fi

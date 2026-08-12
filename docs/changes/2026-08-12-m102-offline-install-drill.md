@@ -32,3 +32,11 @@ M97 release 已产出离线包（`aiops-platform-offline-<version>`：images/ + 
 
 - bundle 用 `docker save` 普通 tar（非 buildx OCI 格式）；与 release 工作流的 `*-oci.tar` 布局对齐但格式不同，均兼容 `docker load`。真实发布离线包仍以 release 资产为准。
 - 演练证明「同一 daemon 内 bundle→load→install」链路与离线充分性；跨主机传输、真实 kind/Helm 生命周期与 M89/M90 授权轨仍需组织环境补齐；未完成前版本保持 RC，不宣称 GA。
+
+## v2 更新（2026-08-12，可复用离线安装包）
+
+- `scripts/offline-install-drill.sh`：新增 bundle 稳定发布——校验通过后将 bundle 复制到固定路径 `.artifacts/offline-install-drill/bundle/aiops-platform-offline-<version>/`（幂等覆盖，报告含 `bundle_stable`），作为可直接分发/拷贝到空气隔离环境的离线安装包；新增 `bundle-publish` 断言（副本再次 SHA256 校验）。
+
+### Verification（v2）
+
+- `./scripts/offline-install-drill.sh`：**10/10 PASS**（报告 `report-20260812-222730-5165f1.json`），稳定离线包落在 `.artifacts/offline-install-drill/bundle/aiops-platform-offline-v0.3.0-rc.4-local/`（images/*.tar + deploy/compose.offline.yaml + config/env.example + docs/runbook + OFFLINE-SHA256SUMS）。

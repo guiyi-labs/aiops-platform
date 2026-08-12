@@ -200,6 +200,14 @@ func (r *GormRepository) UpdateUser(ctx context.Context, id int64, update UserUp
 			}
 		}
 		if securityChanged {
+			// M100-B: a security-relevant change (disable or role change)
+			// bumps auth_version so every outstanding access token is
+			// rejected immediately, and revokes all refresh sessions so the
+			// user must re-authenticate. This matches the invalidation
+			// contract of ChangePassword/ResetPassword.
+			if err := tx.Model(&User{}).Where("id = ?", id).Update("auth_version", gorm.Expr("auth_version + 1")).Error; err != nil {
+				return err
+			}
 			if err := tx.Model(&RefreshToken{}).Where("user_id = ? AND revoked_at IS NULL", id).Update("revoked_at", time.Now().UTC()).Error; err != nil {
 				return err
 			}

@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M100B Session Invalidation Journeys
+
+- 补齐安全变更失效契约：`UpdateUser` 的 `securityChanged` 分支（禁用用户、角色变更）新增 `auth_version + 1`，与 `ResetPassword`/`ChangePassword` 对齐——存量 access token 立即以 `ErrInvalidAccessToken` 拒绝，refresh session 全部撤销，用户必须重新认证（此前角色变更后旧 token 仍携带旧角色被中间件信任）。
+- 新增 4 个会话失效旅程测试（禁用 / 角色变更 / 本人改密 / 管理员重置），`repositoryStub` 建模仓库失效契约；运行时冒烟 14 项旅程全部符合预期（改密/重置后旧 token 401、旧 refresh 401、旧密码失效；禁用后存量 token 403、登录 403）。
+- See [M100-B change record](docs/changes/2026-08-12-m100b-session-invalidation-journeys.md).
+
 ### Added - M100A Permission Matrix & AIOps Query Scope Enforcement
 
 - 新增路由权限矩阵生成器（`BuildPermissionMatrix` + 确定性 Markdown 渲染）与差异门禁：`docs/security/permission-matrix.md` 必须与实时 RouteDescriptor 注册表一致（`-update` 重新生成），279 条路由按角色/scope（workspace/cluster/namespace/none）/审计动作归档。

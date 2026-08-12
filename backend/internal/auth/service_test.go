@@ -69,14 +69,42 @@ func (r *repositoryStub) UpdateUser(_ context.Context, _ int64, update UserUpdat
 	if r.updateErr != nil {
 		return User{}, r.updateErr
 	}
+	// M100-B: model the repository invalidation contract — a security-relevant
+	// change (disable or role change) bumps auth_version and revokes every
+	// refresh session.
+	if (update.Status != nil && *update.Status == StatusDisabled) || update.Roles != nil {
+		if r.updatedUser.ID != 0 {
+			r.updatedUser.AuthVersion++
+		}
+		if r.user.ID != 0 {
+			r.user.AuthVersion++
+			if update.Status != nil {
+				r.user.Status = *update.Status
+			}
+		}
+		r.sessions = nil
+	}
 	return r.updatedUser, nil
 }
 func (r *repositoryStub) ResetPassword(_ context.Context, _ int64, passwordHash string, _ time.Time) (User, error) {
 	r.resetHash = passwordHash
+	// M100-B: model the repository contract — reset bumps auth_version and
+	// revokes all refresh sessions for the stored user.
+	if r.user.ID != 0 {
+		r.user.PasswordHash = passwordHash
+		r.user.AuthVersion++
+		r.sessions = nil
+		r.resetUser = r.user
+	}
 	return r.resetUser, r.resetErr
 }
 func (r *repositoryStub) ChangePassword(_ context.Context, _ int64, expectedHash, passwordHash string, _ time.Time) error {
 	r.changedExpected, r.changedHash = expectedHash, passwordHash
+	// M100-B: model the repository contract — change bumps auth_version and
+	// revokes all refresh sessions for the stored user.
+	r.user.PasswordHash = passwordHash
+	r.user.AuthVersion++
+	r.sessions = nil
 	return r.changeErr
 }
 func (r *repositoryStub) UpdateLastLogin(context.Context, int64, time.Time) error { return nil }
@@ -343,5 +371,144 @@ func TestIssueSessionForUserFailsClosedForMissingUser(t *testing.T) {
 
 	if _, err := service.IssueSessionForUser(context.Background(), 99, "agent", "ip"); !errors.Is(err, ErrUserDisabled) {
 		t.Fatalf("IssueSessionForUser() missing user error = %v, want ErrUserDisabled", err)
+	}
+}
+
+func TestServiceSecurityJourneyDisableRevokesSessionsAndRejectsTokens(t *testing.T) {
+	hasher := NewPasswordHasher()
+	currentHash, _ := hasher.Hash("correct-password")
+	repository := &repositoryStub{
+		user: User{ID: 7, Username: "operator", DisplayName: "Platform Operator",
+			PasswordHash: currentHash, Status: StatusActive, AuthVersion: 1, Roles: []Role{{Code: OperationsAdmin}}},
+		sessions: []RefreshToken{{ID: 1, UserID: 7, TokenHash: HashRefreshToken("existing-refresh"), ExpiresAt: time.Now().Add(time.Hour)}},
+	}
+	service := NewService(repository, hasher, NewTokenManager("test-signing-key-that-is-long-enough", time.Minute), time.Hour)
+
+	session, err := service.Login(context.Background(), "operator", "correct-password", "agent", "10.0.0.1")
+	if err != nil {
+		t.Fatalf("Login() error=%v", err)
+	}
+	if _, err := service.Authenticate(context.Background(), session.AccessToken); err != nil {
+		t.Fatalf("Authenticate() before disable error=%v", err)
+	}
+
+	disabled := StatusDisabled
+	if _, err := service.UpdateUser(context.Background(), 7, 1, UpdateUserInput{Status: &disabled}); err != nil {
+		t.Fatalf("UpdateUser() disable error=%v", err)
+	}
+	if repository.user.AuthVersion != 2 {
+		t.Fatalf("auth_version=%d after disable, want 2", repository.user.AuthVersion)
+	}
+	if repository.sessions != nil {
+		t.Fatalf("refresh sessions were not revoked after disable: %#v", repository.sessions)
+	}
+	if _, err := service.Authenticate(context.Background(), session.AccessToken); !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("Authenticate() after disable error=%v, want ErrUserDisabled", err)
+	}
+	if _, err := service.Login(context.Background(), "operator", "correct-password", "agent", "10.0.0.1"); !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("Login() after disable error=%v, want ErrUserDisabled", err)
+	}
+}
+
+func TestServiceSecurityJourneyRoleChangeInvalidatesOutstandingAccessTokens(t *testing.T) {
+	manager := NewTokenManager("test-signing-key-that-is-long-enough", time.Minute)
+	repository := &repositoryStub{
+		user:     User{ID: 7, Username: "operator", Status: StatusActive, AuthVersion: 1, Roles: []Role{{Code: OperationsAdmin}}},
+		sessions: []RefreshToken{{ID: 1, UserID: 7, TokenHash: HashRefreshToken("existing-refresh"), ExpiresAt: time.Now().Add(time.Hour)}},
+	}
+	service := NewService(repository, NewPasswordHasher(), manager, time.Hour)
+
+	token, _, err := manager.IssueAccessToken(User{ID: 7, Username: "operator", AuthVersion: 1, Roles: []Role{{Code: OperationsAdmin}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Authenticate(context.Background(), token); err != nil {
+		t.Fatalf("Authenticate() before role change error=%v", err)
+	}
+
+	roles := []string{Viewer}
+	if _, err := service.UpdateUser(context.Background(), 7, 1, UpdateUserInput{Roles: &roles}); err != nil {
+		t.Fatalf("UpdateUser() role change error=%v", err)
+	}
+	if repository.user.AuthVersion != 2 {
+		t.Fatalf("auth_version=%d after role change, want 2", repository.user.AuthVersion)
+	}
+	if repository.sessions != nil {
+		t.Fatalf("refresh sessions were not revoked after role change: %#v", repository.sessions)
+	}
+	if _, err := service.Authenticate(context.Background(), token); !errors.Is(err, ErrInvalidAccessToken) {
+		t.Fatalf("Authenticate() after role change error=%v, want ErrInvalidAccessToken", err)
+	}
+}
+
+func TestServiceSecurityJourneyPasswordChangeRevokesRefreshAndRejectsOldPassword(t *testing.T) {
+	hasher := NewPasswordHasher()
+	currentHash, _ := hasher.Hash("current-password")
+	repository := &repositoryStub{
+		user: User{ID: 7, Username: "operator", PasswordHash: currentHash,
+			Status: StatusActive, AuthVersion: 1, Roles: []Role{{Code: OperationsAdmin}}},
+		sessions: []RefreshToken{{ID: 1, UserID: 7, TokenHash: HashRefreshToken("existing-refresh"), ExpiresAt: time.Now().Add(time.Hour)}},
+	}
+	service := NewService(repository, hasher, NewTokenManager("test-signing-key-that-is-long-enough", time.Minute), time.Hour)
+
+	session, err := service.Login(context.Background(), "operator", "current-password", "agent", "10.0.0.1")
+	if err != nil {
+		t.Fatalf("Login() error=%v", err)
+	}
+	if err := service.ChangePassword(context.Background(), 7, "current-password", "replacement-password"); err != nil {
+		t.Fatalf("ChangePassword() error=%v", err)
+	}
+	if repository.user.AuthVersion != 2 {
+		t.Fatalf("auth_version=%d after password change, want 2", repository.user.AuthVersion)
+	}
+	if repository.sessions != nil {
+		t.Fatalf("refresh sessions were not revoked after password change: %#v", repository.sessions)
+	}
+	if _, err := service.Authenticate(context.Background(), session.AccessToken); !errors.Is(err, ErrInvalidAccessToken) {
+		t.Fatalf("Authenticate() old access token error=%v, want ErrInvalidAccessToken", err)
+	}
+	if _, err := service.Login(context.Background(), "operator", "current-password", "agent", "10.0.0.1"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Login() old password error=%v, want ErrInvalidCredentials", err)
+	}
+	newsession, err := service.Login(context.Background(), "operator", "replacement-password", "agent", "10.0.0.1")
+	if err != nil {
+		t.Fatalf("Login() new password error=%v", err)
+	}
+	if _, err := service.Authenticate(context.Background(), newsession.AccessToken); err != nil {
+		t.Fatalf("Authenticate() after re-login error=%v", err)
+	}
+}
+
+func TestServiceSecurityJourneyAdminResetBumpsAuthVersionAndRevokesSessions(t *testing.T) {
+	hasher := NewPasswordHasher()
+	currentHash, _ := hasher.Hash("old-password")
+	repository := &repositoryStub{
+		user: User{ID: 9, Username: "operator", PasswordHash: currentHash,
+			Status: StatusActive, AuthVersion: 1, Roles: []Role{{Code: OperationsAdmin}}},
+		sessions: []RefreshToken{{ID: 2, UserID: 9, TokenHash: HashRefreshToken("existing-refresh"), ExpiresAt: time.Now().Add(time.Hour)}},
+	}
+	service := NewService(repository, hasher, NewTokenManager("test-signing-key-that-is-long-enough", time.Minute), time.Hour)
+
+	session, err := service.Login(context.Background(), "operator", "old-password", "agent", "10.0.0.1")
+	if err != nil {
+		t.Fatalf("Login() error=%v", err)
+	}
+	if _, err := service.ResetPassword(context.Background(), 9, 1, "new-admin-password"); err != nil {
+		t.Fatalf("ResetPassword() error=%v", err)
+	}
+	if repository.user.AuthVersion != 2 {
+		t.Fatalf("auth_version=%d after reset, want 2", repository.user.AuthVersion)
+	}
+	if repository.sessions != nil {
+		t.Fatalf("refresh sessions were not revoked after reset: %#v", repository.sessions)
+	}
+	if _, err := service.Authenticate(context.Background(), session.AccessToken); !errors.Is(err, ErrInvalidAccessToken) {
+		t.Fatalf("Authenticate() old access token error=%v, want ErrInvalidAccessToken", err)
+	}
+	if _, err := service.Login(context.Background(), "operator", "old-password", "agent", "10.0.0.1"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Login() old password error=%v, want ErrInvalidCredentials", err)
+	}
+	if _, err := service.Login(context.Background(), "operator", "new-admin-password", "agent", "10.0.0.1"); err != nil {
+		t.Fatalf("Login() reset password error=%v", err)
 	}
 }

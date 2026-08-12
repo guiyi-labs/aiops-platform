@@ -41,6 +41,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-12-m99c-correlation-provider-worker.md`：M99-C correlation 生产输入源与周期关联 worker、`diagnosis.ListFilter.Since` 时间过滤。
 - `docs/changes/2026-08-12-m99d-data-visibility.md`：M99-D SLO/信号/关联案例的缺样本与数据延迟显式展示、`SignalLink` 数据元数据与迁移 `000041`。
 - `docs/changes/2026-08-12-m100a-permission-matrix-and-aiops-scope.md`：M100-A 路由权限矩阵生成与差异门禁、`/aiops` 查询维度集群/命名空间授权强制。
+- `docs/changes/2026-08-12-m100b-session-invalidation-journeys.md`：M100-B 会话/密码/auth_version 失效旅程补齐（`UpdateUser` 禁用/角色变更 bump `auth_version`）与 4 旅程单测 + 14 项运行时冒烟复验。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

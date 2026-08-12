@@ -1,7 +1,7 @@
-﻿# 下一阶段项目推进长计划：M93-B2–M102
+# 下一阶段项目推进长计划：M93-B2–M102
 
 - Status: Active（当前唯一执行入口）
-- Updated: 2026-08-10
+- Updated: 2026-08-12
 - Planning horizon: 12–16 个有效开发周，不含组织授权等待时间
 - Baseline: M93-C（commit `97bff3f`；tag `baseline-m93c-tech-console-20260809`；CI `31322604425` 全绿）
 - 上位路线：[`long-term-roadmap.md`](long-term-roadmap.md)
@@ -204,6 +204,8 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 ### M98：事故工作空间与协作闭环（5–8 天）
 
+**状态：✅ 已完成（2026-08-12）**，交付证据见 `docs/changes/2026-08-12-m98-incident-workspace.md`。
+
 **目标**：把单条诊断提升为可交接、可追踪、可复盘的事故工作空间。
 
 **范围**：
@@ -309,7 +311,7 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 | Week 4–5 | M95 统一证据模型 | M100 权限矩阵生成器预研 | Gate A 完成 |
 | Week 6–8 | M96 规模与前端架构 | M89/M90 授权准备 | Gate B 完成 |
 | Week 9 | M97 Release Candidate | M98 领域模型 ADR | Gate C 完成 |
-| Week 10–11 | M98 事故工作空间 | M100 安全治理 | 协作闭环 |
+| Week 10–11 | M98 事故工作空间 ✅（已完成 2026-08-12） | M100 安全治理 | 协作闭环 |
 | Week 12–13 | M99 信号关联与 SLO | M100 收口；M101 外部演练 | 影响分析闭环 |
 | Week 14–15 | M101 生产韧性集成 | M102 证据矩阵准备 | Gate D 候选 |
 | Week 16 | M102 GA 证据封口 | 文档、演示、迁移复验 | GA 或保持 RC |
@@ -391,5 +393,5 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 2. M93-B2 关闭后立即编写 M94 证据时间 ADR，并冻结四条黄金场景。
 3. M94 合并前准备 M95 `FindingDetail v2` 草案，但不并行修改公共契约。
 4. M95 关闭后再启动 M96 壳层重构与大规模 fixture，避免产品模型和基础架构同时震荡。
-5. M96 Hosted Gate B 与 M97 Gate C 已由 `v0.3.0-rc.4` 证据关闭；本轮在 RC 归档后暂停，不进入 M98。
+5. M96 Hosted Gate B 与 M97 Gate C 已由 `v0.3.0-rc.4` 证据关闭；M98 事故工作空间已于 2026-08-12 交付，本轮推进 M99 信号关联与 SLO（`SignalRef`、Deployment 变更→错误预算黄金场景、关联结果 golden replay）。
 6. M89/M90 从现在开始准备授权与环境，但其完成状态独立于本地主线，最终只在 Gate D 汇合。

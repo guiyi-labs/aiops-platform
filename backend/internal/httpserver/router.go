@@ -28,6 +28,7 @@ import (
 	"k8s-aiops.local/backend/internal/gitops"
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/golden"
+	"k8s-aiops.local/backend/internal/incident"
 	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"
@@ -50,11 +51,14 @@ import (
 )
 
 type Options struct {
-	Probe            readinessProbe
-	Auth             *auth.Service
-	Clusters         *cluster.Service
-	Kubernetes       *k8sgateway.Service
-	Diagnosis        *diagnosis.Service
+	Probe      readinessProbe
+	Auth       *auth.Service
+	Clusters   *cluster.Service
+	Kubernetes *k8sgateway.Service
+	Diagnosis  *diagnosis.Service
+	// M98 incident workspace service. When nil the incident routes are not
+	// registered.
+	Incidents        *incident.Service
 	Audit            *audit.Service
 	AIExplanation    *aiexplain.Service
 	SecureCookies    bool
@@ -496,6 +500,24 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/ai/explanations/:explanation_id/feedback", AuthRequired: true, Handler: aiAPI.feedback, AuditAction: "ai_explanation.feedback.create", AuditResource: "AIExplanationFeedback"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/:diagnosis_id/explanations", AuthRequired: true, Handler: aiAPI.list})
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/diagnoses/:diagnosis_id/explanations", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: aiAPI.generate, AuditAction: "diagnosis.ai_explanation.create", AuditResource: "DiagnosisAIExplanation"})
+					}
+					// M98 incident workspace: collaborative wrapper around a
+					// diagnosis or client-observed finding with a stable number,
+					// assignee, followers, timeline, status machine and a
+					// read-only postmortem view.
+					if options.Incidents != nil {
+						incidentAPI := incidentHandler{service: options.Incidents}
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents", AuthRequired: true, Handler: incidentAPI.list})
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/summary", AuthRequired: true, Handler: incidentAPI.summary})
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id", AuthRequired: true, Handler: incidentAPI.get})
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/export", AuthRequired: true, Handler: incidentAPI.export, AuditAction: "incident.export", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.create, AuditAction: "incident.create", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "PATCH", Path: "/incidents/:incident_id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.transition, AuditAction: "incident.status.update", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "PATCH", Path: "/incidents/:incident_id/assignment", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.assign, AuditAction: "incident.assignment.update", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents/:incident_id/followers", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.addFollower, AuditAction: "incident.follower.add", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "DELETE", Path: "/incidents/:incident_id/followers/:user_id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.removeFollower, AuditAction: "incident.follower.remove", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents/:incident_id/notes", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.addNote, AuditAction: "incident.note.create", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "PUT", Path: "/incidents/:incident_id/postmortem", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.setPostmortem, AuditAction: "incident.postmortem.update", AuditResource: "Incident"})
 					}
 				}
 			}

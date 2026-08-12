@@ -15,6 +15,7 @@ tags:
   - name: clusters
   - name: kubernetes
   - name: diagnoses
+  - name: incidents
   - name: ai
   - name: notifications
   - name: remediation
@@ -726,6 +727,26 @@ paths:
   /api/v1/diagnoses/{diagnosis_id}/explanations:
     get: { tags: [ai], summary: List cited AI explanations, operationId: listExplanations, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
     post: { tags: [ai], summary: Generate cited AI explanation, operationId: generateExplanation, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '201': { $ref: '#/components/responses/Ok' }, '429': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents:
+    get: { tags: [incidents], summary: List incident workspaces, operationId: listIncidents, security: [{ bearerAuth: [] }], parameters: [{ name: cluster_id, in: query, schema: { type: integer, format: int64 } }, { name: status, in: query, schema: { type: string, enum: [open, confirmed, resolved, dismissed] } }, { name: assignee_id, in: query, schema: { type: integer, format: int64 } }, { name: follower_id, in: query, schema: { type: integer, format: int64 } }, { $ref: '#/components/parameters/Limit' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    post: { tags: [incidents], summary: Open an incident workspace, operationId: createIncident, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentCreateRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/summary:
+    get: { tags: [incidents], summary: Incident count board, operationId: incidentSummary, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/incidents/{incident_id}:
+    get: { tags: [incidents], summary: Incident detail, operationId: getIncident, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+    patch: { tags: [incidents], summary: Transition incident status, operationId: transitionIncident, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentTransitionRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/{incident_id}/export:
+    get: { tags: [incidents], summary: Export one incident as CSV, operationId: exportIncident, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: CSV snapshot } } }
+  /api/v1/incidents/{incident_id}/assignment:
+    patch: { tags: [incidents], summary: Hand off incident assignee, operationId: assignIncident, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentAssignmentRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/{incident_id}/followers:
+    post: { tags: [incidents], summary: Add an incident follower, operationId: addIncidentFollower, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentFollowerRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/{incident_id}/followers/{user_id}:
+    delete: { tags: [incidents], summary: Remove an incident follower, operationId: removeIncidentFollower, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }, { name: user_id, in: path, required: true, schema: { type: integer, format: int64 } }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/{incident_id}/notes:
+    post: { tags: [incidents], summary: Append an incident note, operationId: addIncidentNote, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentNoteRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/{incident_id}/postmortem:
+    put: { tags: [incidents], summary: Write the incident postmortem, operationId: setIncidentPostmortem, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentPostmortemRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '409': { $ref: '#/components/responses/Error' } } }
   /api/v1/ai/status:
     get: { tags: [ai], summary: AI runtime status, operationId: aiStatus, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/ai/quality:
@@ -2515,6 +2536,7 @@ components:
     UserID: { name: user_id, in: path, required: true, schema: { type: integer, format: int64 } }
     SessionID: { name: session_id, in: path, required: true, schema: { type: integer, format: int64 } }
     DiagnosisID: { name: diagnosis_id, in: path, required: true, schema: { type: integer, format: int64 } }
+    IncidentID: { name: incident_id, in: path, required: true, schema: { type: integer, format: int64 } }
     ExplanationID: { name: explanation_id, in: path, required: true, schema: { type: integer, format: int64 } }
     DeliveryID: { name: delivery_id, in: path, required: true, schema: { type: integer, format: int64 } }
     RemediationID: { name: remediation_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -2967,6 +2989,13 @@ components:
         containers: { type: array, items: { $ref: '#/components/schemas/PodContainerLog' } }
         previous: { type: boolean }
     DiagnosisRequest: { type: object, required: [resource_kind, name], properties: { resource_kind: { type: string, enum: [Pod, Service, Node, Deployment, Ingress, PersistentVolumeClaim, HorizontalPodAutoscaler] }, namespace: { type: string, description: Required for namespaced resources; empty for Node }, name: { type: string } } }
+    IncidentCreateRequest: { type: object, required: [source_type, source_ref, cluster_id], properties: { source_type: { type: string, enum: [diagnosis, finding] }, source_ref: { type: string, description: diagnosis:<id> for diagnosis sources, otherwise a stable finding identity }, cluster_id: { type: integer, format: int64 }, title: { type: string, maxLength: 500 }, severity: { type: string, enum: [info, warning, high, critical] }, summary: { type: string, maxLength: 4000 }, observed_at: { type: string, format: date-time }, resource: { $ref: '#/components/schemas/IncidentResource' } } }
+    IncidentResource: { type: object, properties: { kind: { type: string }, namespace: { type: string }, name: { type: string }, uid: { type: string } } }
+    IncidentTransitionRequest: { type: object, required: [expected_version, status], properties: { expected_version: { type: integer, format: int64 }, status: { type: string, enum: [open, confirmed, resolved, dismissed] }, comment: { type: string, maxLength: 2000 } } }
+    IncidentAssignmentRequest: { type: object, required: [expected_version, assignee_user_id], properties: { expected_version: { type: integer, format: int64 }, assignee_user_id: { type: integer, format: int64 }, comment: { type: string, maxLength: 2000 } } }
+    IncidentFollowerRequest: { type: object, required: [user_id], properties: { user_id: { type: integer, format: int64 } } }
+    IncidentNoteRequest: { type: object, required: [expected_version, content], properties: { expected_version: { type: integer, format: int64 }, content: { type: string, maxLength: 4000 } } }
+    IncidentPostmortemRequest: { type: object, required: [expected_version], properties: { expected_version: { type: integer, format: int64 }, content: { type: string, maxLength: 10000 } } }
     DiagnosisTimelineEntry:
       type: object
       description: One normalized evidence item on the diagnosis timeline (M94 read-only projection)

@@ -37,6 +37,7 @@ import (
 	"k8s-aiops.local/backend/internal/gitops"
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/golden"
+	"k8s-aiops.local/backend/internal/incident"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/metricshistory"
@@ -75,11 +76,14 @@ func TestRegisteredRoutesMatchOpenAPI(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	authzRepo := &openAPITestAuthzRepo{}
 	engine, ok := New(zaptest.NewLogger(t), Options{
-		Probe:            probeStub{},
-		Auth:             &auth.Service{},
-		Clusters:         &cluster.Service{},
-		Kubernetes:       &k8sgateway.Service{},
-		Diagnosis:        &diagnosis.Service{},
+		Probe:      probeStub{},
+		Auth:       &auth.Service{},
+		Clusters:   &cluster.Service{},
+		Kubernetes: &k8sgateway.Service{},
+		Diagnosis:  &diagnosis.Service{},
+		// M98 incident workspace: non-nil so the incident routes are
+		// registered and covered by the route contract test.
+		Incidents:        incident.NewService(nil),
 		Audit:            &audit.Service{},
 		AIExplanation:    &aiexplain.Service{},
 		Notifications:    notification.NewService(notification.ServiceConfig{}, nil, nil),

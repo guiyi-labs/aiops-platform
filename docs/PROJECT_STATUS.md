@@ -1,4 +1,4 @@
-﻿# 项目进度与交接状态（Project Status & Handoff）
+# 项目进度与交接状态（Project Status & Handoff）
 
 > 生成时间：2026-08-10 · 维护人：开发 Agent
 > 当前功能基线：M97 Gate C 已完成；`v0.3.0-rc.4` 的本地生命周期、Hosted required CI、签名供应链和 GitHub prerelease 均已验证
@@ -65,8 +65,9 @@
 | M95 | 统一证据模型：`FindingDetail v2`（规则身份/证据引用/类型化建议/版本信息）、v1→v2 兼容层、共享严重度映射、按资源合并保留规则来源、golden DatasetVersion 1.2 + 迁移提示；前端 Posture/Optimization/Diagnosis/Inspection 共享证据组件；11 posture 分析器 + finops schema parity；前端门禁 135 单测 / 56 浏览器回归 |
 | M96-A/B/C/D + Gate B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准、前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）、认证单壳层与 active CSS layer 基线（56/56 浏览器回归）；本地与 Hosted Gate B 均 PASS |
 | M97 | `aiops.release-manifest/v1`、RC-only workflow、双架构 OCI、四份平台 SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 与 kind 生命周期；`v0.3.0-rc.4` 本地与 Hosted Gate C 均通过，M89/M90 外部证据继续为 Blocked/Deferred |
+| M98 | 事故工作空间与协作闭环：incident 领域模块（状态机/SLA/CAS/时间线/CSV 脱敏导出）、`000040_incidents` 迁移、REST+OpenAPI、前端 `/incidents` 视图与侧栏入口；Desktop/Mobile Playwright 8/8，前后端门禁全绿 |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 Gate B 与 M97 Gate C 已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变，本轮不进入 M98；
+> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 Gate B、M97 Gate C 与 M98 已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。
 
 ---

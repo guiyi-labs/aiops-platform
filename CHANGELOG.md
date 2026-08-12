@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to the aiops-platform project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -8,6 +8,23 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
+
+### Added - M98 Incident Workspace
+
+- 新增事故工作空间全链路：事故编号、负责人、关注者、显式状态机（确认/解决/驳回/重开）、SLA 截止与逾期、append-only 时间线（系统事件与人工备注分离）。
+- 后端新增 `internal/incident` 领域模块（model/repository/service + 单测）、`000040_incidents` 迁移、REST 处理器与诊断来源解析；写操作限定 `system_ops_admin` 角色。
+- 更新 OpenAPI 契约与 typegen；前端新增 `/incidents` 路由、侧栏入口、IncidentsView（汇总面板/列表/详情抽屉/新建表单）与 CSV 导出。
+- Playwright e2e 覆盖列表、创建校验、完整工作流（确认/移交/备注/解决/复盘/重开）与 viewer 无权限路径，Desktop + Mobile 共 8/8 通过。
+- See [M98 incident workspace record](docs/changes/2026-08-12-m98-incident-workspace.md).
+
+### Fixed - M98 Incident Workspace
+
+- 修复时间线系统事件 `actor_user_id=0` 违反外键；`ID<=0` 时写入 NULL。
+- 修复 Transition/Assign/SetPostmortem 版本条件参数顺序与 Transition 未递增 version，消除偶发 409 与版本漂移。
+- 错误码 `USER_NOT_FOUND` 改为 `INCIDENT_USER_NOT_FOUND`，恢复错误码审计唯一性。
+- 修复 CSV 导出按 `Limit:1` 导出最后一行的问题；改为按 ID 定位后导出单条。
+- 前端 Dockerfile 的 `pnpm install` 增加 `--network-concurrency 4 --fetch-retries 5`，降低镜像构建网络抖动。
+- 移动端适配：incident 表格横向滚动容器 + drawer/form 全宽 + action-row 纵向堆叠，修复窄屏下 fixed overlay 拦截点击。
 
 ### Fixed - M97 Hosted CI Recovery
 

@@ -33,6 +33,7 @@ import (
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/golden"
 	"k8s-aiops.local/backend/internal/httpserver"
+	"k8s-aiops.local/backend/internal/incident"
 	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"
@@ -123,6 +124,11 @@ func main() {
 	savedFilterService := globalsearch.NewSavedFilterService(globalsearch.NewSavedFilterGormRepository(database.GORM()))
 	diagnosisService := diagnosis.NewService(kubernetesService, diagnosis.NewGormRepository(database.GORM())).WithMetricEvaluator(metricsHistoryService)
 	remediationService := remediation.NewService(diagnosisService, kubernetesService, remediation.NewGormRepository(database.GORM()))
+	// M98 incident workspace: a collaborative wrapper around a diagnosis (or a
+	// client-observed finding) with a stable number, assignee, followers,
+	// timeline, status machine and a read-only postmortem view.
+	incidentService := incident.NewService(incident.NewGormRepository(database.GORM())).
+		WithResolver(&diagnosisIncidentResolver{records: diagnosis.NewGormRepository(database.GORM())})
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
 	appCatalogService := appcatalog.NewService(kubernetesService, appcatalog.NewGormRepository(database.GORM()))
 	// M58: GitOps read-only adapter (ArgoCD Application browse) + interactive
@@ -436,6 +442,7 @@ func main() {
 			SavedFilters:              savedFilterService,
 			MetricsHistory:            metricsHistoryService,
 			Diagnosis:                 diagnosisService,
+			Incidents:                 incidentService,
 			AIExplanation:             aiExplanationService,
 			Audit:                     auditService,
 			Notifications:             notificationService,

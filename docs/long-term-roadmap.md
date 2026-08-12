@@ -1,4 +1,4 @@
-﻿# 长远计划：把 AIOps 平台打磨到业内最高水准
+# 长远计划：把 AIOps 平台打磨到业内最高水准
 
 - Status: Active（执行基线）
 - Updated: 2026-08-10（对齐 Post-M93-C M93-B2–M102 执行计划）
@@ -115,7 +115,7 @@
 3. **M95 洞察可解释分层**：规则 → 证据 → 建议三层下钻，打通 posture / diagnosis / inspection。
 4. **M96 规模与性能证据**：500 节点 / 50k Pod fixture、P95 API 与前端渲染预算入 CI。
 5. **M97 Release Candidate**：SBOM、签名/provenance、离线安装、升级与回滚，不提前宣称 GA。
-6. **M98–M99 产品深化**：事故工作空间、信号关联、SLO 与影响分析，形成可交接和可复盘闭环。
+6. **M98–M99 产品深化**：事故工作空间已交付（M98 ✅，见 `docs/changes/2026-08-12-m98-incident-workspace.md`）；继续信号关联、SLO 与影响分析，形成可交接和可复盘闭环。
 7. **M100–M101 生产治理**：本地权限/会话/审计加固，并在授权后集成 OIDC/MFA、WAL/PITR/HA。
 8. **M102 GA 证据封口**：Gate A–D、两套全新环境演练和统一 release manifest 全部通过才准入。
 

@@ -2274,6 +2274,161 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List incident workspaces */
+        get: operations["listIncidents"];
+        put?: never;
+        /** Open an incident workspace */
+        post: operations["createIncident"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Incident count board */
+        get: operations["incidentSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Incident detail */
+        get: operations["getIncident"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Transition incident status */
+        patch: operations["transitionIncident"];
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export one incident as CSV */
+        get: operations["exportIncident"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/assignment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Hand off incident assignee */
+        patch: operations["assignIncident"];
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/followers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add an incident follower */
+        post: operations["addIncidentFollower"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/followers/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an incident follower */
+        delete: operations["removeIncidentFollower"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append an incident note */
+        post: operations["addIncidentNote"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/postmortem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Write the incident postmortem */
+        put: operations["setIncidentPostmortem"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/status": {
         parameters: {
             query?: never;
@@ -4710,6 +4865,55 @@ export interface components {
             namespace?: string;
             name: string;
         };
+        IncidentCreateRequest: {
+            /** @enum {string} */
+            source_type: "diagnosis" | "finding";
+            /** @description diagnosis:<id> for diagnosis sources */
+            source_ref: string;
+            /** Format: int64 */
+            cluster_id: number;
+            title?: string;
+            /** @enum {string} */
+            severity?: "info" | "warning" | "high" | "critical";
+            summary?: string;
+            /** Format: date-time */
+            observed_at?: string;
+            resource?: components["schemas"]["IncidentResource"];
+        };
+        IncidentResource: {
+            kind?: string;
+            namespace?: string;
+            name?: string;
+            uid?: string;
+        };
+        IncidentTransitionRequest: {
+            /** Format: int64 */
+            expected_version: number;
+            /** @enum {string} */
+            status: "open" | "confirmed" | "resolved" | "dismissed";
+            comment?: string;
+        };
+        IncidentAssignmentRequest: {
+            /** Format: int64 */
+            expected_version: number;
+            /** Format: int64 */
+            assignee_user_id: number;
+            comment?: string;
+        };
+        IncidentFollowerRequest: {
+            /** Format: int64 */
+            user_id: number;
+        };
+        IncidentNoteRequest: {
+            /** Format: int64 */
+            expected_version: number;
+            content: string;
+        };
+        IncidentPostmortemRequest: {
+            /** Format: int64 */
+            expected_version: number;
+            content?: string;
+        };
         /** @description One normalized evidence item on the diagnosis timeline (M94 read-only projection) */
         DiagnosisTimelineEntry: {
             index: number;
@@ -6701,6 +6905,7 @@ export interface components {
         UserID: number;
         SessionID: number;
         DiagnosisID: number;
+        IncidentID: number;
         ExplanationID: number;
         DeliveryID: number;
         RemediationID: string;
@@ -9458,6 +9663,201 @@ export interface operations {
         responses: {
             201: components["responses"]["Ok"];
             429: components["responses"]["Error"];
+        };
+    };
+    listIncidents: {
+        parameters: {
+            query?: {
+                cluster_id?: number;
+                status?: "open" | "confirmed" | "resolved" | "dismissed";
+                assignee_id?: number;
+                follower_id?: number;
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
+        };
+    };
+    createIncident: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentCreateRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["Ok"];
+            400: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    incidentSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
+        };
+    };
+    getIncident: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
+            404: components["responses"]["Error"];
+        };
+    };
+    transitionIncident: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentTransitionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Ok"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
+    exportIncident: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    assignIncident: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentAssignmentRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Ok"];
+            409: components["responses"]["Error"];
+        };
+    };
+    addIncidentFollower: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentFollowerRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["Ok"];
+            409: components["responses"]["Error"];
+        };
+    };
+    removeIncidentFollower: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+                user_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
+            404: components["responses"]["Error"];
+        };
+    };
+    addIncidentNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentNoteRequest"];
+            };
+        };
+        responses: {
+            201: components["responses"]["Ok"];
+            409: components["responses"]["Error"];
+        };
+    };
+    setIncidentPostmortem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentPostmortemRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Ok"];
+            409: components["responses"]["Error"];
         };
     };
     aiStatus: {

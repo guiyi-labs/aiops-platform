@@ -5,7 +5,7 @@ ARG PNPM_VERSION=11.7.0
 RUN npm install --global pnpm@${PNPM_VERSION}
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --network-concurrency 4 --fetch-retries 5
 
 COPY . .
 RUN pnpm build

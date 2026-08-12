@@ -2,7 +2,7 @@
 
 - Date: 2026-08-12
 - Status: RC 基线证据汇编（M102 本地轨道）
-- 适用范围：`v0.3.0-rc.4` / 本地 HEAD `ae65c90`（tag `baseline-m102-demo-drill-20260812`）
+- 适用范围：本地 `v0.3.0-rc.5-replay`（含 M94 回放）演练产物；本地 HEAD `1124ce2`
 - 声明边界：以下矩阵汇总**当前可验证的证据**。真实组织 kind/Helm 生命周期、WAL/PITR、OIDC/MFA 验收（M89/M90 授权轨）未完成前，版本保持 RC，本矩阵不构成 GA 声明。
 
 ## 1. 分层概览
@@ -26,11 +26,11 @@
 | 演练 | 脚本 | 场景数 | 覆盖 | 报告 |
 |---|---|---|---|---|
 | WAL/PITR 本地数据轨 | `scripts/wal-pitr-drill.sh` | 8 | 无损 PITR、时间点恢复、缺 WAL 快速失败、迁移前逻辑备份、SIGKILL 崩溃注入、流式备库/故障切换、网络分区重连、归档目标故障排空 | `.artifacts/wal-pitr-drill/`（连续两轮一致） |
-| 双全新环境安装 | `scripts/dual-env-compose-drill.sh` | 10（环境 a/b 各 5） | install、关键旅程、数据持久化、清理 | `report-20260812-213243-bf91f0.json` |
-| 跨 digest 升级/回滚 | 同上（`APP_UPGRADE_BACKEND_IMAGE`） | 14 | 升级 version 变更 + 标记保持、回滚还原 | `report-20260812-214043-17a17c.json` |
-| 第三环境逻辑备份/恢复 | 同上（`APP_BACKUP_RESTORE=1`） | 16 | `pg_dump` 备份 + 全新空库还原 + 标记/登录复验 | `report-20260812-215101-1fcddd.json` |
-| 可复现闭环演示 | `scripts/demo-drill.sh` | 15 | 登录→态势→根因→证据→受控动作→验证→事故复盘（平台真实 API + 仓库内 mock k8s） | `report-20260812-221752-b358d9.json`、`report-20260812-221935-a2784a.json`（连续两轮 15/15） |
-| 离线安装包全链路 | `scripts/offline-install-drill.sh` | 10 | bundle 组装（docker save + `pull_policy: never` manifest + SHA256SUMS）、完整性校验、可复用离线包发布、docker load（digest 不变）、全新隔离环境安装、关键旅程、持久化、清理 | `report-20260812-222730-5165f1.json` 等（连续多轮 10/10） |
+| 双全新环境安装 | `scripts/dual-env-compose-drill.sh` | 10（环境 a/b 各 5） | install、关键旅程、数据持久化、清理 | `report-20260812-225042-e68b90.json`（rc.4 基线，含升级/回滚/恢复同轮全 PASS） |
+| 跨 digest 升级/回滚 | 同上（`APP_UPGRADE_BACKEND_IMAGE`） | 14 | 升级 version 变更 + 标记保持、回滚还原（rc.4 → rc.5-replay → rc.4） | `report-20260812-225042-e68b90.json` |
+| 第三环境逻辑备份/恢复 | 同上（`APP_BACKUP_RESTORE=1`） | 16 | `pg_dump` 备份 + 全新空库还原 + 标记/登录复验 | `report-20260812-225042-e68b90.json` |
+| 可复现闭环演示 | `scripts/demo-drill.sh` | 17 | 登录→态势→根因→证据→**回放（动作前/后）**→受控动作→验证→事故复盘（平台真实 API + 仓库内 mock k8s） | `report-20260812-224548-acb7f5.json`（17/17） |
+| 离线安装包全链路 | `scripts/offline-install-drill.sh` | 10 | bundle 组装（docker save + `pull_policy: never` manifest + SHA256SUMS）、完整性校验、可复用离线包发布（`aiops-platform-offline-v0.3.0-rc.5-replay`）、docker load（digest 不变）、全新隔离环境安装、关键旅程、持久化、清理 | `report-20260812-224624-c93190.json`（10/10） |
 | OIDC 本地身份轨 | `scripts/oidc-login-drill.sh` | 14 | PKCE 登录、nonce/state/issuer/audience 校验、组角色映射、acr MFA、9 种失败注入 fail-closed、审计落库 | `.artifacts/oidc-drill/` |
 
 ## 3. 关键用户旅程覆盖（浏览器 + API 双通道）
@@ -42,6 +42,7 @@
 | 根因（Node/Pod 诊断） | `demo-drill.sh` root-cause（`node.not_ready.v1`、`pod.oom_killed.v1`） | `e2e/diagnosis-timeline.spec.ts` |
 | 证据时间线 | `demo-drill.sh` evidence（5 项 / `container_termination`） | `e2e/diagnosis-timeline.spec.ts`、`e2e/finding-evidence.spec.ts` |
 | 受控动作（确认 → preview → execute） | `demo-drill.sh` action（`deployment.rollout_restart`，`succeeded`，mock 记录 PATCH） | —（动作 API 层验证） |
+| 回放模式（只读 insight 链路） | `demo-drill.sh` replay-before / replay-after（`GET /diagnoses/:id/replay`，阶段/类型/时间排序） | —（前端 `replay-panel` 已接入 `DiagnosesView.vue`，Playwright 断言待后续补充） |
 | 事故工作区（create→note→resolve→postmortem→export） | `demo-drill.sh` incident-journey | `e2e/incidents.spec.ts` |
 | 双视口关键界面 | — | 42/42（M93-C 基线，Desktop/Mobile） |
 

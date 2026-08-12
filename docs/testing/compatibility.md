@@ -21,7 +21,7 @@
 | Kubernetes 清单 | `deploy/kubernetes/`（`kubectl kustomize` 离线渲染门禁） | 支持 |
 | Helm 3 | `deploy/helm/aiops-platform/`（Chart.yaml、values.schema.json、templates/） | 支持（组织环境生命周期演练待授权） |
 | kind 真实集群 e2e | `deploy/kind/` + `scripts/e2e-*.ps1` | CI `real-kind-e2e.yml` |
-| 离线包 / OCI 资产 | M97 release（Helm/Kustomize/离线包、SHA256SUMS、SBOM、provenance、签名） | `v0.3.0-rc.4` 发布 |
+| 离线包 / OCI 资产 | M97 release（Helm/Kustomize/离线包、SHA256SUMS、SBOM、provenance、签名） | `v0.3.0-rc.4` 发布；本地演练产物 `v0.3.0-rc.5-replay` 离线包（`.artifacts/offline-install-drill/bundle/`） |
 | 镜像架构 | 双架构（amd64/arm64）release 资产；本地离线镜像 arm64 | M97 |
 
 ## 3. 环境变量与配置面（`compose.yaml` / 后端 env）

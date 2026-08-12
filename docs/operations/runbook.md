@@ -12,7 +12,7 @@ curl -s http://127.0.0.1:8080/api/v1/health/ready   # {"status":"ready","version
 # 打开 http://localhost:18080，使用 BOOTSTRAP_ADMIN_USERNAME/PASSWORD 登录
 
 # 2) 可复现闭环演示（隔离离线环境 21432/21080/21081，含 mock k8s）
-./scripts/demo-drill.sh                             # 15/15 PASS
+./scripts/demo-drill.sh                             # 17/17 PASS（含回放场景）
 
 # 3) 停止并清理
 docker compose down -v
@@ -52,7 +52,7 @@ docker compose up -d --force-recreate backend frontend
 # 回滚：切回原 digest 后再次 --force-recreate 并复验
 ```
 
-- 跨 digest 一致性证据：`scripts/dual-env-compose-drill.sh`（`APP_UPGRADE_BACKEND_IMAGE`，14/14；`APP_BACKUP_RESTORE=1` 16/16）。
+- 跨 digest 一致性证据：`scripts/dual-env-compose-drill.sh`（`APP_UPGRADE_BACKEND_IMAGE`，14/14；`APP_BACKUP_RESTORE=1` 16/16）；最近一轮以 `v0.3.0-rc.4` 基线 + `v0.3.0-rc.5-replay` 升级目标复跑，install/upgrade/rollback/restore 全 PASS（`report-20260812-225042-e68b90.json`）。
 - 升级前必须先做逻辑备份（见下节）；升级后验证审计/告警等写入路径。
 
 ## 4. 备份与恢复
@@ -76,7 +76,7 @@ docker compose up -d --force-recreate backend frontend
 3. 根因与证据：`POST /api/v1/clusters/:id/diagnoses`（Node/Pod）→ `GET /api/v1/diagnoses/:id`（evidence/root_causes/recommendations）。
 4. 受控动作：诊断 `PATCH` → `confirmed` → `POST /diagnoses/:id/remediations/preview` → 携带 `Idempotency-Key` `POST /remediations/:id/execute` → `succeeded`；随后在集群侧验证变更已落地。
 5. 事故复盘：`POST /api/v1/incidents` → note → resolve → postmortem → `GET /incidents/:id/export`（CSV）。
-- 自动化验收：`./scripts/demo-drill.sh` 全链路 15 项断言。
+- 自动化验收：`./scripts/demo-drill.sh` 全链路 17 项断言（含 M94 回放动作前/后各一组）。
 
 ## 6. 日志、审计与安全运维
 

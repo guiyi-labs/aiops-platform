@@ -15,7 +15,7 @@
 
 - `backend/cmd/demo-kube-mock` 只模拟演示旅程涉及的最小 Kubernetes API 面（nodes/pods/deployments/events/replicasets/metrics/`/version`）；不含 admission、watch、分批滚动状态等完整行为，**不得用于承载真实工作负载的验证**。
 - `backend/cmd/oidc-provider` 是本地演练 IdP，仅驱动平台真实登录链路，**绝不可用于生产**。
-- `k8s-aiops-backend:v0.3.0-rc.5-local` 等本地离线构建镜像为演练产物，不入库、不作为发布资产。
+- `k8s-aiops-backend:v0.3.0-rc.5-local`、`v0.3.0-rc.5-replay` 等本地离线构建镜像为演练产物，不入库、不作为发布资产。
 
 ## 3. 本地环境约束（非产品限制）
 

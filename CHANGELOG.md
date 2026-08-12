@@ -17,6 +17,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 - M101 数据轨本地第一步；网络中断/磁盘压力故障注入与多副本 HA 演练仍依赖组织授权（M90 授权轨），保持 Deferred。
 - See [M101 WAL/PITR drill change record](docs/changes/2026-08-12-m101-wal-pitr-drill.md).
 
+### Added - M89 OIDC Local Login Drill (Identity Track)
+
+- 新增本地 OIDC Provider 驱动工具 `backend/cmd/oidc-provider`（运行于 HTTPS，自签证书；discovery/JWKS/authorize/token/logout 端点，RS256 + PKCE S256 + 一次性 authorization code + nonce/state 回显 + acr MFA 证据；支持 9 种 `?fail=` 注入模式）与进程内测试。
+- 新增全链路演练 `scripts/oidc-login-drill.sh`：起仓库内 IdP + 第二个带 OIDC 的平台后端（读同一本地 PostgreSQL），curl 驱动真实 Authorization Code + PKCE 登录，14/14 场景通过并落报告 `.artifacts/oidc-drill/report-*.json`：happy path（login 302 → callback 200 → `/me` 200 且 `operations_admin`）、缺预关联 403 `OIDC_SUBJECT_NOT_PRELINKED`、nonce/state 篡改 502、缺/不接受 MFA 证据 502、组无角色映射 502、轮换密钥 502、过期/unsigned token 502、审计落库、Provider 运行中 token 端点不可达 502、Provider 下线后 discovery 缓存过期 502 `OIDC_UNAVAILABLE`、Provider 启动期不可达导致 server 启动失败退出。
+- macOS 依赖 Keychain 信任自签证书（`security add-trusted-cert`/`delete-certificate`，退出自动清理）；演练在宿主机另起后端进程，不干扰运行中 compose 栈。真实 OIDC/MFA 验收仍需组织授权 Provider，状态保持 Deferred。
+- See [M89 OIDC local drill change record](docs/changes/2026-08-12-m89-oidc-local-drill.md).
+
 ### Added - M100D Dependency & Supply-Chain Gates
 
 - 修复首次扫描发现的真实漏洞：`pgx/v5` v5.6.0→v5.9.2（GO-2026-5004 SQL 注入）、`quic-go` v0.59.0→v0.59.1（GO-2026-5676 HTTP/3 内存耗尽）；前端 `pnpm-workspace.yaml` overrides `nanoid` 3.3.17（GHSA-2v37-7h3g-55p8）。govulncheck 可达漏洞 2→0，`pnpm audit --prod` 无已知漏洞。

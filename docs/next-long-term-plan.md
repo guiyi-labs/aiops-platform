@@ -271,11 +271,11 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 **目标**：把 M89/M90 的外部能力接入真实环境并形成可重复演练证据。
 
-**M89 身份轨**：
+**M89 身份轨**（本地预研已建证据）：
 
-- 真实 OIDC discovery/JWKS、issuer/audience/nonce/state 校验、角色/Workspace 映射。
-- MFA 由身份 Provider 执行，平台只消费已验证声明，不自行保存 OTP seed。
-- Provider 不可用时新登录 fail-closed；既有会话策略按 ADR 执行。
+- 本地 OIDC 全链路演练（`scripts/oidc-login-drill.sh`，14/14 场景通过，2026-08-12）：仓库内 OIDC Provider（`backend/cmd/oidc-provider`）驱动平台真实 Authorization Code + PKCE 登录；验证 discovery/JWKS、issuer/audience/nonce/state 校验、组到角色映射、acr MFA 证据、缺预关联 403、Provider 下线（token 端点不可达 502 `OIDC_LOGIN_FAILED`、discovery 缓存过期 502 `OIDC_UNAVAILABLE`、启动期不可达导致 server 启动失败）、轮换密钥/过期/unsigned token 全部 fail-closed；审计落库成功。报告与记录见 `.artifacts/oidc-drill/` 与 `docs/changes/2026-08-12-m89-oidc-local-drill.md`。
+- 真实组织批准的 Provider 验收（M89 acceptance）仍未授权，状态保持 Deferred；该 Provider 为本地演练驱动工具，绝不用于生产。
+- 待授权验收范围（沿用 M89 身份轨目标）：真实 OIDC discovery/JWKS、issuer/audience/nonce/state 校验、角色/Workspace 映射；MFA 由身份 Provider 执行，平台只消费已验证声明，不自行保存 OTP seed；Provider 不可用时新登录 fail-closed；既有会话策略按 ADR 执行。
 
 **M90 数据轨**：
 

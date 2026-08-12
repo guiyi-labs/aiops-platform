@@ -65,6 +65,18 @@ jobs:
           fi
           printf 'runtime_required=%s\n' "$runtime_required" >>"$GITHUB_OUTPUT"
 
+  sensitive-scan:
+    name: Sensitive-field scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Scan tracked files for secret material
+        shell: bash
+        run: |
+          ./scripts/scan-sensitive-fields.sh
+
   backend-image:
     name: Backend image
     needs: changes

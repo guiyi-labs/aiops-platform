@@ -1,0 +1,7 @@
+# M100-C: sensitive-field scan allowlist.
+#
+# One extended regex per line, matched against "path:lineno" locations.
+# - "path:lineno" (e.g. "docs/adr/0012-example.md:42") allows one line.
+# - a bare "path" allows every line of that file.
+# - "#" lines and trailing "# comments" are ignored.
+# Entries must document why the material is safe.

@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M100C Sensitive-Field Scan & Log Redaction Gates
+
+- 新增敏感字段静态扫描门禁 `scripts/scan-sensitive-fields.sh` + allowlist：扫描全部 git-tracked 文件，fail-closed 检出私钥块、内联 kubeconfig 凭据数据、云/API token（AKIA/ghp_/xoxb-/sk-/AIza）、JWT、被跟踪的密钥文件与非占位符 `PASSWORD=` 赋值；CI 新增 `sensitive-scan` job（含文档-only 变更也执行）。
+- 新增 3 个日志/审计脱敏契约测试：请求日志永不输出 query/header/Cookie/body 中的凭据；审计条目 `Details` 为 method/path_template/cluster_id 固定闭集；`/audit-logs/export` CSV 全链路不含凭据值。
+- 运行时复验：重建 backend 镜像后角色变更使旧 access token 立即 401；容器日志与 190 行审计导出对冒烟密码/管理密码 0 命中。
+- See [M100-C change record](docs/changes/2026-08-12-m100c-sensitive-field-scan-and-log-redaction.md).
+
 ### Added - M100B Session Invalidation Journeys
 
 - 补齐安全变更失效契约：`UpdateUser` 的 `securityChanged` 分支（禁用用户、角色变更）新增 `auth_version + 1`，与 `ResetPassword`/`ChangePassword` 对齐——存量 access token 立即以 `ErrInvalidAccessToken` 拒绝，refresh session 全部撤销，用户必须重新认证（此前角色变更后旧 token 仍携带旧角色被中间件信任）。

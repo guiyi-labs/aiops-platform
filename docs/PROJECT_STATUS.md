@@ -67,7 +67,7 @@
 | M97 | `aiops.release-manifest/v1`、RC-only workflow、双架构 OCI、四份平台 SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 与 kind 生命周期；`v0.3.0-rc.4` 本地与 Hosted Gate C 均通过，M89/M90 外部证据继续为 Blocked/Deferred |
 | M98 | 事故工作空间与协作闭环：incident 领域模块（状态机/SLA/CAS/时间线/CSV 脱敏导出）、`000040_incidents` 迁移、REST+OpenAPI、前端 `/incidents` 视图与侧栏入口；Desktop/Mobile Playwright 8/8，前后端门禁全绿 |
 | M99（M99-A/B/C/D）✅ | 信号关联全闭环：SLO burn 信号化管道与 `rollout_causes_slo_burn` 规则（11 场景黄金回放）（A）；metricshistory workload_readiness 指标源（B）；生产 correlation InputProvider + 周期关联 worker（C）；SLO/信号/关联案例三处显式展示覆盖度（缺样本）与数据延迟，无样本 fail-closed 不视为健康（D）。M99 验收全部达成，里程碑封口 |
-| M100（M100-A/B） | 安全与租户治理：路由权限矩阵生成与差异门禁（`docs/security/permission-matrix.md`，279 路由按角色/scope/审计归档）；`/aiops` 查询维度集群/命名空间授权强制（`requireClusterQueryAccess`，无授权 viewer 探测 signals/slos/correlation 由返回数据变 404）；会话失效旅程补齐并复验（A：`UpdateUser` 禁用/角色变更 bump `auth_version` + 撤销会话，4 个旅程单测 + 14 项运行时冒烟，改密/重置/禁用后旧 token/旧 refresh/旧密码全部按契约失效）；M100-C/D（敏感字段扫描、依赖/SBOM 差异）待续 |
+| M100（M100-A/B/C） | 安全与租户治理：路由权限矩阵生成与差异门禁（`docs/security/permission-matrix.md`，279 路由按角色/scope/审计归档）；`/aiops` 查询维度集群/命名空间授权强制（`requireClusterQueryAccess`）；会话失效旅程补齐并复验（`UpdateUser` 禁用/角色变更 bump `auth_version` + 撤销会话，4 个旅程单测 + 14 项运行时冒烟）；敏感字段静态扫描门禁（`scripts/scan-sensitive-fields.sh`，CI 全量执行，1167 文件 0 命中）+ 日志/审计脱敏契约测试（请求日志/审计条目/审计导出不含凭据，运行时 0 泄漏）；M100-D（依赖/SBOM 差异）待续 |
 
 > 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 Gate B、M97 Gate C、M98 与 M99 已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。

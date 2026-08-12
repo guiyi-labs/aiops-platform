@@ -20,12 +20,16 @@ fi
 if command -v govulncheck >/dev/null 2>&1; then
   (
     cd "$ROOT/backend"
+    set +e
     output="$(govulncheck -mode=source ./... 2>&1)"
-    if grep -qE "Your code is affected by [1-9][0-9]* vulnerabilities" <<<"$output"; then
-      printf '%s\n' "$output"
+    gv_exit=$?
+    set -e
+    # Always surface the scanner output so CI logs are actionable when the
+    # gate fails; both a non-zero scanner exit and a reachable-vulnerability
+    # verdict mark the gate failed.
+    printf '%s\n' "$output"
+    if [[ "$gv_exit" != "0" ]] || grep -qE "Your code is affected by [1-9][0-9]* vulnerabilities" <<<"$output"; then
       fail=1
-    else
-      printf '%s\n' "$output" | tail -4
     fi
   )
 else

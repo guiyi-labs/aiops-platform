@@ -9,8 +9,8 @@ func fixtureNode() map[string]any {
 		"metadata": map[string]any{
 			"name": "demo-node", "uid": "demo-node-uid-0001", "resourceVersion": "10",
 			"labels": map[string]any{
-				"kubernetes.io/hostname":          "demo-node",
-				"node-role.kubernetes.io/worker": "",
+				"kubernetes.io/hostname":           "demo-node",
+				"node-role.kubernetes.io/worker":   "",
 				"node.kubernetes.io/instance-type": "t3.large",
 			},
 			"annotations": map[string]any{"k8s-aiops.local/demo": "node-not-ready"},
@@ -116,7 +116,7 @@ func fixtureReplicaSet() map[string]any {
 				"kind": "Deployment", "name": "demo-app", "uid": "demo-app-uid-0001", "apiVersion": "apps/v1",
 			}},
 		},
-		"spec": map[string]any{"replicas": 2, "selector": map[string]any{"matchLabels": map[string]any{"app": "demo-app", "pod-template-hash": "abc123"}}},
+		"spec":   map[string]any{"replicas": 2, "selector": map[string]any{"matchLabels": map[string]any{"app": "demo-app", "pod-template-hash": "abc123"}}},
 		"status": map[string]any{"replicas": 2, "readyReplicas": 1, "availableReplicas": 1},
 	}
 }
@@ -126,17 +126,17 @@ func fixtureEvents() []map[string]any {
 		{
 			"kind": "Event", "apiVersion": "v1",
 			"metadata": map[string]any{"name": "demo-pod-oom.001", "namespace": "demo", "resourceVersion": "30", "creationTimestamp": "2026-08-12T06:11:00Z"},
-			"type": "Warning", "reason": "OOMKilling",
+			"type":     "Warning", "reason": "OOMKilling",
 			"message": "Container app of Pod demo-pod in namespace demo was OOMKilled: memory usage exceeds limit",
-			"count": 12, "firstTimestamp": "2026-08-12T06:05:00Z", "lastTimestamp": "2026-08-12T06:11:00Z",
+			"count":   12, "firstTimestamp": "2026-08-12T06:05:00Z", "lastTimestamp": "2026-08-12T06:11:00Z",
 			"involvedObject": map[string]any{"kind": "Pod", "namespace": "demo", "name": "demo-pod", "uid": "demo-pod-uid-0001"},
 		},
 		{
 			"kind": "Event", "apiVersion": "v1",
 			"metadata": map[string]any{"name": "demo-node-notready.001", "namespace": "demo", "resourceVersion": "31", "creationTimestamp": "2026-08-12T06:30:00Z"},
-			"type": "Warning", "reason": "NodeNotReady",
+			"type":     "Warning", "reason": "NodeNotReady",
 			"message": "Node demo-node status is now: NodeNotReady",
-			"count": 3, "firstTimestamp": "2026-08-12T06:30:00Z", "lastTimestamp": "2026-08-12T06:32:00Z",
+			"count":   3, "firstTimestamp": "2026-08-12T06:30:00Z", "lastTimestamp": "2026-08-12T06:32:00Z",
 			"involvedObject": map[string]any{"kind": "Node", "namespace": "", "name": "demo-node", "uid": "demo-node-uid-0001"},
 		},
 	}
@@ -145,7 +145,7 @@ func fixtureEvents() []map[string]any {
 func fixtureNodeMetric() map[string]any {
 	return map[string]any{
 		"kind": "NodeMetrics", "apiVersion": "metrics.k8s.io/v1beta1",
-		"metadata": map[string]any{"name": "demo-node", "resourceVersion": "50"},
+		"metadata":  map[string]any{"name": "demo-node", "resourceVersion": "50"},
 		"timestamp": "2026-08-12T07:00:00Z", "window": "30s",
 		"usage": map[string]any{"cpu": "3500m", "memory": "10Gi"},
 	}
@@ -154,7 +154,7 @@ func fixtureNodeMetric() map[string]any {
 func fixturePodMetric() map[string]any {
 	return map[string]any{
 		"kind": "PodMetrics", "apiVersion": "metrics.k8s.io/v1beta1",
-		"metadata": map[string]any{"name": "demo-pod", "namespace": "demo", "resourceVersion": "51"},
+		"metadata":  map[string]any{"name": "demo-pod", "namespace": "demo", "resourceVersion": "51"},
 		"timestamp": "2026-08-12T07:00:00Z", "window": "30s",
 		"containers": []any{map[string]any{
 			"name": "app", "usage": map[string]any{"cpu": "250m", "memory": "300Mi"},

@@ -24,13 +24,13 @@ func replayTestRouter(repo diagnosis.Repository) *gin.Engine {
 func replaySampleRecord() diagnosis.Record {
 	observed := time.Date(2026, 8, 12, 8, 0, 0, 0, time.UTC)
 	return diagnosis.Record{
-		ID:        7,
-		ClusterID: 1,
-		RuleID:    "node.not_ready.v1",
-		Severity:  "critical",
-		Status:    "confirmed",
-		Resource:  diagnosis.ResourceRef{Kind: "Node", Name: "demo-node"},
-		Summary:   "Node 未处于 Ready 状态。",
+		ID:         7,
+		ClusterID:  1,
+		RuleID:     "node.not_ready.v1",
+		Severity:   "critical",
+		Status:     "confirmed",
+		Resource:   diagnosis.ResourceRef{Kind: "Node", Name: "demo-node"},
+		Summary:    "Node 未处于 Ready 状态。",
 		ObservedAt: observed,
 		Evidence: []diagnosis.Evidence{
 			{Type: "node_condition", Source: "kubelet", Content: map[string]any{"type": "Ready", "status": "False", "last_transition_time": "2026-08-12T07:30:00Z"}},

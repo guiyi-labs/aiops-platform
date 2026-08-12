@@ -59,7 +59,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case method == http.MethodGet && path == "/api":
 		writeJSON(w, http.StatusOK, map[string]any{
 			"kind": "APIVersions", "apiVersion": "v1",
-			"versions":                 []string{"v1"},
+			"versions":                   []string{"v1"},
 			"serverAddressByClientCIDRs": []any{},
 		})
 	case method == http.MethodGet && path == "/apis":
@@ -264,9 +264,9 @@ func conflictStatus(message string) map[string]any {
 func notFoundWithMessage(w http.ResponseWriter, kind, name string) {
 	writeJSON(w, http.StatusNotFound, map[string]any{
 		"kind": "Status", "apiVersion": "v1", "metadata": map[string]any{},
-		"status": "Failure",
+		"status":  "Failure",
 		"message": fmt.Sprintf("%s %q not found", kind, name),
-		"reason": "NotFound", "code": 404,
+		"reason":  "NotFound", "code": 404,
 	})
 }
 
@@ -300,7 +300,7 @@ func apiGroup(name, version string) map[string]any {
 		"versions": []map[string]any{{
 			"groupVersion": version, "version": strings.TrimPrefix(version, name+"/"),
 		}},
-		"preferredVersion": map[string]any{"groupVersion": version, "version": strings.TrimPrefix(version, name+"/")},
+		"preferredVersion":           map[string]any{"groupVersion": version, "version": strings.TrimPrefix(version, name+"/")},
 		"serverAddressByClientCIDRs": []any{},
 	}
 }

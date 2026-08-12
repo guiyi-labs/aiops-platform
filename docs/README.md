@@ -52,6 +52,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-12-m94-replay-demo-drill-and-offline-refresh.md`：重建含回放的 rc.5-replay 双镜像；demo-drill 回放断言（17/17）；offline-install 刷新离线包（10/10）。
 - `docs/changes/2026-08-12-m102-rc5-replay-dual-env-evidence.md`：rc.4→rc.5-replay 双环境跨 digest 升级/回滚/备份恢复证据刷新。
 - `docs/changes/2026-08-12-m94-replay-e2e-browser.md`：回放模式浏览器通道 e2e（replay-panel 双视口 + 降级路径），全量 e2e 68/68。
+- `docs/changes/2026-08-12-m94-openapi-typegen-sync.md`：M94 OpenAPI typegen 产物刷新，CI sync 门禁闭环。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

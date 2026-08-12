@@ -2035,6 +2035,23 @@ export interface paths {
         patch: operations["transitionDiagnosis"];
         trace?: never;
     };
+    "/api/v1/diagnoses/{diagnosis_id}/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read-only M81 insight-chain replay */
+        get: operations["getDiagnosisReplay"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/diagnoses/{diagnosis_id}/assignment": {
         parameters: {
             query?: never;
@@ -4933,8 +4950,64 @@ export interface components {
             occurred_at?: string;
             /** @description True when evidence is explicitly absent, e.g. a missing Ready condition */
             missing: boolean;
-            missing_reason?: string;
+        };
+        /** @description One replayable event on the diagnosis insight chain (M94 replay mode; assembled strictly from stored artifacts) */
+        DiagnosisReplayStep: {
+            index: number;
+            /**
+             * @description M81 insight-chain stage
+             * @enum {string}
+             */
+            stage: "diagnosis_created" | "evidence" | "activity" | "ai_explanation" | "remediation";
+            /** @enum {string} */
+            category?: "resource_state" | "event" | "log" | "alert" | "change" | "automation";
+            /** @description Step kind */
+            type: string;
             summary: string;
+            /** @description SHA-256 hex when the step carries evidence content */
+            integrity?: string;
+            /** @description Immutable step reference */
+            ref: string;
+            /**
+             * Format: date-time
+             * @description RFC3339 event time; omitted when unknown
+             */
+            occurred_at?: string;
+            /** @description True when the evidence is explicitly absent */
+            missing?: boolean;
+            missing_reason?: string;
+            /** @description Optional step metadata (actor */
+            detail?: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description Stage summary of a replay */
+        DiagnosisReplayStage: {
+            /** @enum {string} */
+            stage: "diagnosis_created" | "evidence" | "activity" | "ai_explanation" | "remediation";
+            label: string;
+            count: number;
+        };
+        /** @description Read-only replay projection of a diagnosis (M94 replay mode) */
+        DiagnosisReplayView: {
+            /** @enum {string} */
+            schema: "aiops.diagnosis-replay/v1";
+            /** Format: int64 */
+            diagnosis_id: number;
+            rule_id: string;
+            severity: string;
+            resource: {
+                kind?: string;
+                namespace?: string;
+                name?: string;
+                uid?: string;
+            };
+            /** Format: date-time */
+            observed_at: string;
+            steps: components["schemas"]["DiagnosisReplayStep"][];
+            stages: components["schemas"]["DiagnosisReplayStage"][];
+            missing_reason?: string;
+            summary?: string;
         };
         /** @description First-screen diagnosis summary: conclusion, severity, first observation and key evidence refs (M94) */
         RootCauseCard: {
@@ -9395,6 +9468,29 @@ export interface operations {
                 content?: never;
             };
             409: components["responses"]["Error"];
+        };
+    };
+    getDiagnosisReplay: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                diagnosis_id: components["parameters"]["DiagnosisID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Replay view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosisReplayView"];
+                };
+            };
+            404: components["responses"]["Error"];
         };
     };
     assignDiagnosis: {

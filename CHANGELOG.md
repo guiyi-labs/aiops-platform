@@ -8,6 +8,16 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
+## [Unreleased]
+
+### Added - M102 Reproducible Demo Drill (Local Track)
+
+- 新增离线 mock Kubernetes API 服务 `backend/cmd/demo-kube-mock`（HTTPS + 启动时自签证书）：覆盖演示旅程所需最小 API 面（`/version` 探活、nodes、namespaces、pods、events、deployments、replicasets、metrics），确定性 fixture（Node `demo-node` Ready=False + 压力条件、Pod `demo-pod` 容器 OOMKilled + 警告事件、Deployment `demo-app`）；PATCH 按 strategic-merge 语义合并并支持 `dryRun=All`，`/mock/mutations` 记录已落地的变更供验证。演练/开发工具，绝不作生产 Kubernetes API。
+- 新增 bash 版可复现闭环演示 `scripts/demo-drill.sh`：完全隔离的离线 compose 环境（pg 21432 / backend 21080 / frontend 21081，与开发栈及双环境演练零共享）驱动平台真实 API 完成「登录 → 态势 → 根因 → 证据 → 受控动作 → 验证 → 事故复盘」15 项断言，15/15 PASS（报告 `.artifacts/demo-drill/report-20260812-221752-b358d9.json`）。
+- 全链路证据：Node 诊断 `node.not_ready.v1`（critical）与 Pod 诊断 `pod.oom_killed.v1`（critical，含 `container_termination` 证据）；诊断确认 → `deployment.rollout_restart` preview（confirmation token）→ 带 `Idempotency-Key` 执行 `succeeded` → mock 记录真实 PATCH（`k8s-aiops.local/restarted-at` + `remediation-id`）；事故工作区 create → confirmed → note → resolved → postmortem → CSV export。
+- mock 镜像用宿主机交叉编译 + `FROM scratch` 封包，全部本地镜像离线复现；`go test ./...` 通过、`bash -n` 语法通过、结束后无残留容器/卷/网络。
+- See [M102 demo drill change record](docs/changes/2026-08-12-m102-demo-drill.md).
+
 
 ### Added - M101 WAL/PITR Local Data-Track Drill
 

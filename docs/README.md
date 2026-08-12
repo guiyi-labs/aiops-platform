@@ -24,6 +24,7 @@
 | `api/` | API 契约和错误码 |
 | `database/` | 数据模型与迁移说明 |
 | `security/` | 身份源就绪合同、安全策略模板、接入运行手册与 M102 安全声明（`security-statement.md`） |
+| `authorization-gate-prep.md` | M89/M90 授权轨准备材料：最小授权包、验收范围、本地证据引用与授权后执行顺序 |
 | `testing/` | 测试策略、M102 测试矩阵（`test-matrix.md`）、已知限制（`known-limitations.md`）、兼容范围（`compatibility.md`）与演示场景 |
 | `thesis/` | 论文图表、实验数据和答辩材料 |
 

@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M100A Permission Matrix & AIOps Query Scope Enforcement
+
+- 新增路由权限矩阵生成器（`BuildPermissionMatrix` + 确定性 Markdown 渲染）与差异门禁：`docs/security/permission-matrix.md` 必须与实时 RouteDescriptor 注册表一致（`-update` 重新生成），279 条路由按角色/scope（workspace/cluster/namespace/none）/审计动作归档。
+- 修复真实授权缺口：`/aiops` 读路由新增 `requireClusterQueryAccess` 中间件，`?cluster_id=`/`?namespace=` 按集群/命名空间授权校验，拒绝返回 404（M35 反泄漏）；无授权 viewer 探测任意集群的 signals/slos/correlation 由“返回数据”变为 404。
+- 提取完整生产路由 harness（`buildFullEngine`）供 OpenAPI 契约测试与权限矩阵测试共享。
+- See [M100-A change record](docs/changes/2026-08-12-m100a-permission-matrix-and-aiops-scope.md).
+
 ### Added - M99D Data Visibility (coverage / latency)
 
 - 关联案例信号链路携带数据元数据：`SignalLink` 新增 coverage/freshness/window_start/window_end，迁移 `000041` 落列，引擎在构建触发链接时拷贝（freshness 零值存 NULL）。

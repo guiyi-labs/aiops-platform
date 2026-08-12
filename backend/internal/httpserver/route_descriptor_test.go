@@ -8,23 +8,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap/zaptest"
 
-	"k8s-aiops.local/backend/internal/aiexplain"
-	"k8s-aiops.local/backend/internal/audit"
 	"k8s-aiops.local/backend/internal/auth"
-	"k8s-aiops.local/backend/internal/backup"
-	"k8s-aiops.local/backend/internal/cluster"
-	"k8s-aiops.local/backend/internal/diagnosis"
-	"k8s-aiops.local/backend/internal/fleet"
-	"k8s-aiops.local/backend/internal/globalsearch"
-	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
-	"k8s-aiops.local/backend/internal/maintenance"
-	"k8s-aiops.local/backend/internal/namespaceposture"
-	"k8s-aiops.local/backend/internal/notification"
-	"k8s-aiops.local/backend/internal/promotion"
-	"k8s-aiops.local/backend/internal/remediation"
-	"k8s-aiops.local/backend/internal/restore"
 )
 
 // validRoles is the closed set of platform roles allowed inside
@@ -42,33 +27,7 @@ var auditActionPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)
 // the routeTable is populated exactly as in production.
 func buildDescriptorEngine(t *testing.T) *gin.Engine {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
-	engine, ok := New(zaptest.NewLogger(t), Options{
-		Probe:            probeStub{},
-		Auth:             &auth.Service{},
-		Clusters:         &cluster.Service{},
-		Kubernetes:       &k8sgateway.Service{},
-		Diagnosis:        &diagnosis.Service{},
-		Audit:            &audit.Service{},
-		AIExplanation:    &aiexplain.Service{},
-		Notifications:    notification.NewService(notification.ServiceConfig{}, nil, nil),
-		Remediation:      remediation.NewService(nil, nil, nil),
-		Promotion:        promotion.NewService(nil, nil),
-		Fleet:            fleet.NewService(fleet.Config{}, nil, nil),
-		GlobalSearch:     globalsearch.NewService(globalsearch.Config{}, nil, nil),
-		SavedFilters:     globalsearch.NewSavedFilterService(nil),
-		MetricsHistory:   mustMetricsHistoryService(t),
-		Alert:            mustAlertService(t),
-		Backup:           backup.NewService(nil, nil),
-		Maintenance:      maintenance.NewService(nil, nil),
-		NamespacePosture: namespaceposture.NewService(nil),
-		Restore:          restore.NewService(nil, nil),
-		Version:          "route-descriptor-test",
-	}).(*gin.Engine)
-	if !ok {
-		t.Fatal("http server is not a gin engine")
-	}
-	return engine
+	return buildFullEngine(t)
 }
 
 // TestRouteTableCoversAllGinRoutes verifies every Gin-registered route has a

@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -121,6 +122,58 @@ func ResolvedNamespaceScope(c *gin.Context) authz.ClusterScope {
 		}
 	}
 	return authz.ClusterScope{AllNamespaces: true}
+}
+
+// requireClusterQueryAccess validates the `cluster_id` query parameter on
+// routes that are not nested under /clusters/:cluster_id (e.g. the /aiops
+// group). When cluster_id is present the caller must hold a grant for that
+// cluster; when a namespace query parameter is also present, the caller must
+// additionally hold a namespace grant for it. Denials return 404, not 403, so
+// an unauthorized target cannot be distinguished from a missing one (M35
+// anti-leakage). When cluster_id is absent the request passes through: the
+// route's handler decides whether the query is valid (M100 follow-up keeps
+// grant-scoped filtering for unscoped reads layered in the service).
+func requireClusterQueryAccess(service *authz.Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if service == nil {
+			c.Next()
+			return
+		}
+		raw := c.Query("cluster_id")
+		if raw == "" {
+			c.Next()
+			return
+		}
+		clusterID, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || clusterID <= 0 {
+			// Shape validation is the handler's job (400); scope checks only
+			// apply to well-formed cluster references.
+			c.Next()
+			return
+		}
+		metadata, _ := requestctx.MetadataFrom(c.Request.Context())
+		decision, err := service.CanAccessCluster(c.Request.Context(), metadata.ActorID, metadata.Roles, clusterID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+			return
+		}
+		if !decision.Allowed {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "resource_not_found"})
+			return
+		}
+		if namespace := c.Query("namespace"); namespace != "" {
+			nsDecision, err := service.CanAccessNamespace(c.Request.Context(), metadata.ActorID, metadata.Roles, clusterID, namespace)
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+				return
+			}
+			if !nsDecision.Allowed {
+				c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "resource_not_found"})
+				return
+			}
+		}
+		c.Next()
+	}
 }
 
 // authorizedClusterFilter returns the visible cluster IDs for the authenticated

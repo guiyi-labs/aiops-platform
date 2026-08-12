@@ -609,7 +609,10 @@ func New(logger *zap.Logger, options Options) http.Handler {
 	// under `if options.SignalService != nil`, which silently dropped
 	// inspection/golden/automation/etc. whenever the signal service was
 	// unwired.
-	aiopsRoutes := v1.Group("/aiops", withAuthentication(options.Auth))
+	// M100: the aiops group validates cluster_id/namespace query parameters
+	// against the caller's grants (404 on denial, anti-leakage) so signals,
+	// SLOs and correlation cases cannot be probed by cluster ID.
+	aiopsRoutes := v1.Group("/aiops", withAuthentication(options.Auth), requireClusterQueryAccess(options.Authz))
 
 	// M39 AIOps signal model
 	if options.SignalService != nil {

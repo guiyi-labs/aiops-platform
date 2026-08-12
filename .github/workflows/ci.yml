@@ -112,7 +112,9 @@ jobs:
       - name: SBOM diff self-test
         run: |
           set -e
-          out="$(node scripts/sbom-diff.mjs scripts/testdata/sbom/baseline.spdx.json scripts/testdata/sbom/current.spdx.json || true)"
+          # baseline vs current must fail closed: diff on stdout + gate line on stderr,
+          # so capture both with 2>&1 before asserting.
+          out="$({ node scripts/sbom-diff.mjs scripts/testdata/sbom/baseline.spdx.json scripts/testdata/sbom/current.spdx.json || true; } 2>&1)"
           printf '%s\n' "$out" | grep -q 'quic-go/quic-go@v0.59.1'
           printf '%s\n' "$out" | grep -q 'fail-closed'
           node scripts/sbom-diff.mjs scripts/testdata/sbom/baseline.spdx.json scripts/testdata/sbom/baseline.spdx.json

@@ -1,8 +1,10 @@
-# CI：Dependency 扫描作业补全 pnpm，并修复 SDK 暴露的 license 与 lint 失败
+# CI：恢复 main CI 全绿——pnpm、license-scan、ineffassign、SBOM self-test
 
 - Date: 2026-08-13
 - Status: Complete
-- Scope: 恢复 main CI 全绿——`dependency-scan` 前端 `pnpm audit` 可执行；license allowlist 对含第三方 LICENSE 子目录的模块（sonic）正确归类；oidc-provider 测试 lint 修复
+- Scope: 恢复 main CI 全绿——`dependency-scan` 前端 `pnpm audit` 可执行；license allowlist
+  对含第三方 LICENSE 子目录的模块（sonic）正确归类；oidc-provider 测试 lint 修复；
+  SBOM diff self-test 正确断言 fail-closed
 
 ## Context
 
@@ -17,6 +19,9 @@ docs-only 跳过路径掩盖了后续步骤）：
    实际许可证为 Apache-2.0。
 3. `oidc-provider/main_test.go` 的 PKCE 缺失断言存在 ineffectual assignment（`badURL`
    被 `authorizeURL(...)` 赋值后立即覆盖），golangci-lint ineffassign 失败。
+4. `dependency-scan` 的 SBOM diff self-test 用 `$(...)` 只捕获 stdout，但
+   `sbom-diff.mjs` 的 `SBOM diff gate: … fail-closed` 发往 stderr；`grep -q 'fail-closed'`
+   永远匹配不上，步骤必失败（M100-D 起即存在的潜在缺陷，被前三步失败掩盖）。
 
 ## What Changed
 
@@ -33,10 +38,15 @@ docs-only 跳过路径掩盖了后续步骤）：
 - 移除 PKCE 缺失断言中被立即覆盖的 `badURL := authorizeURL(...)` 首次赋值，保留
   显式构造的（无 code_challenge）URL，修复 ineffassign；断言语义不变。
 
+### .github/workflows/ci.yml
+- SBOM diff self-test 改用 `{ node sbom-diff.mjs … || true; } 2>&1` 同时捕获 stdout 与
+  stderr，使 `fail-closed` 门线可被断言；保持 identical-inputs 调用必须 exit 0。
+
 ## Verification
 
 - `./scripts/license-scan.sh`：`license scan: clean`（含 sonic 判为 Apache-2.0）。
 - `go vet ./cmd/oidc-provider/`：通过；`go test ./cmd/oidc-provider/`：`ok`。
+- SBOM diff self-test 复用修正后的命令串在本地执行：`SELF-TEST OK`。
 - 触发 push 后等待 GitHub Actions 全作业通过（含 dependency、backend、backend race）。
 
 ## Risks / Notes

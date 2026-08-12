@@ -20,6 +20,9 @@ Detailed change records for each milestone live under `docs/changes/`.
   （Apache-2.0）在 CI 上被误判 UNKNOWN 的环境依赖失败。
 - `backend/cmd/oidc-provider/main_test.go` 移除 PKCE 缺失断言中 ineffectual 的
   `badURL` 首次赋值，修复 golangci-lint ineffassign。
+- `dependency-scan` 的 SBOM diff self-test 改为同时捕获 stdout 与 stderr（`2>&1`），
+  使 `sbom-diff.mjs` 发往 stderr 的 `fail-closed` 门线可被正确断言（该断言自 M100-D
+  起因仅捕获 stdout 而永远无法命中）。
 - See [dependency-scan pnpm change record](docs/changes/2026-08-13-ci-dependency-scan-pnpm.md)。
 
 ### Added - M94 Replay Demo Drill & Offline Bundle Refresh (v0.3.0-rc.5-replay)

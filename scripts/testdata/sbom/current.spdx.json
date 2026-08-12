@@ -1,0 +1,6 @@
+{"spdxVersion":"SPDX-2.3","packages":[
+  {"name":"gin-gonic/gin","versionInfo":"v1.10.1"},
+  {"name":"golang-jwt/jwt","versionInfo":"v5.2.2"},
+  {"name":"jackc/pgx","versionInfo":"v5.9.2"},
+  {"name":"quic-go/quic-go","versionInfo":"v0.59.1"}
+]}

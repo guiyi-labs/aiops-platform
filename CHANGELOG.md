@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M100D Dependency & Supply-Chain Gates
+
+- 修复首次扫描发现的真实漏洞：`pgx/v5` v5.6.0→v5.9.2（GO-2026-5004 SQL 注入）、`quic-go` v0.59.0→v0.59.1（GO-2026-5676 HTTP/3 内存耗尽）；前端 `pnpm-workspace.yaml` overrides `nanoid` 3.3.17（GHSA-2v37-7h3g-55p8）。govulncheck 可达漏洞 2→0，`pnpm audit --prod` 无已知漏洞。
+- 新增供应链门禁：`scripts/dependency-vuln-scan.sh`（govulncheck + pnpm audit 生产依赖 fail-closed）、`scripts/license-scan.sh`（Go/前端许可证 allowlist，UNKNOWN fail）、`scripts/image-base-drift.sh` + `docs/security/image-base-manifest.md`（4 基础镜像 digest 漂移 fail-closed）、`scripts/sbom-diff.mjs`（SPDX 差异，新增包默认 fail-closed）；CI 新增 `dependency-scan` job。
+- 追踪例外：`golang.org/x/crypto` openpgp（GO-2026-5932，未调用、无修复版）与 4 个前端 dev 工具链告警（不进入产物），随 Dependabot 主版本窗口复评。
+- See [M100-D change record](docs/changes/2026-08-12-m100d-dependency-and-supply-chain-gates.md).
+
 ### Added - M100C Sensitive-Field Scan & Log Redaction Gates
 
 - 新增敏感字段静态扫描门禁 `scripts/scan-sensitive-fields.sh` + allowlist：扫描全部 git-tracked 文件，fail-closed 检出私钥块、内联 kubeconfig 凭据数据、云/API token（AKIA/ghp_/xoxb-/sk-/AIza）、JWT、被跟踪的密钥文件与非占位符 `PASSWORD=` 赋值；CI 新增 `sensitive-scan` job（含文档-only 变更也执行）。

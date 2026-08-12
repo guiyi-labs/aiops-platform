@@ -246,7 +246,7 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 ### M100：安全、租户与运行治理加固（5–8 天）
 
-**进度**：M100-A 已完成（2026-08-12，`docs/changes/2026-08-12-m100a-permission-matrix-and-aiops-scope.md`）——路由权限矩阵生成器与差异门禁（`docs/security/permission-matrix.md`）、`/aiops` 查询维度集群/命名空间授权强制；M100-B 已完成（2026-08-12，`docs/changes/2026-08-12-m100b-session-invalidation-journeys.md`）——会话/密码/auth_version 失效旅程补齐（`UpdateUser` 禁用/角色变更 bump `auth_version`）并复验（4 个旅程单测 + 14 项运行时冒烟）；M100-C 已完成（2026-08-12，`docs/changes/2026-08-12-m100c-sensitive-field-scan-and-log-redaction.md`）——敏感字段静态扫描门禁（`scripts/scan-sensitive-fields.sh` + CI job）与日志/审计脱敏契约测试（请求日志/审计条目/审计导出不含凭据，运行时 0 泄漏）；M100-D 待续。
+**进度**：M100-A 已完成（2026-08-12，`docs/changes/2026-08-12-m100a-permission-matrix-and-aiops-scope.md`）——路由权限矩阵生成器与差异门禁（`docs/security/permission-matrix.md`）、`/aiops` 查询维度集群/命名空间授权强制；M100-B 已完成（2026-08-12，`docs/changes/2026-08-12-m100b-session-invalidation-journeys.md`）——会话/密码/auth_version 失效旅程补齐并复验；M100-C 已完成（2026-08-12，`docs/changes/2026-08-12-m100c-sensitive-field-scan-and-log-redaction.md`）——敏感字段静态扫描门禁与日志/审计脱敏契约测试；M100-D 已完成（2026-08-12，`docs/changes/2026-08-12-m100d-dependency-and-supply-chain-gates.md`）——依赖漏洞修复（pgx/quic-go）与 govulncheck/pnpm audit/许可证/镜像基础层/SBOM 差异门禁。**M100 里程碑全部完成**，待 tag `baseline-m100-20260812` 后进入 M101。
 
 **目标**：在不等待外部身份 Provider 的前提下，完成可本地验证的生产治理工作。
 

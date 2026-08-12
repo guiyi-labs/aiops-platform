@@ -19,7 +19,7 @@ Count: 28
 | github.com/go-playground/validator/v10 | v10.20.0 | MIT |
 | github.com/jackc/pgpassfile | v1.0.0 | MIT |
 | github.com/jackc/pgservicefile | v0.0.0-20240606120523-5a60cdf6a761 | MIT |
-| github.com/jackc/pgx/v5 | v5.6.0 | MIT |
+| github.com/jackc/pgx/v5 | v5.9.2 | MIT |
 | github.com/jackc/puddle/v2 | v2.2.2 | MIT |
 | github.com/jinzhu/inflection | v1.0.0 | MIT |
 | github.com/jinzhu/now | v1.1.5 | MIT |
@@ -72,7 +72,7 @@ Count: 39
 | lucide-vue-next | 0.525.0 | ISC |
 | magic-string | 0.30.21 | MIT |
 | mitt | 3.0.1 | MIT |
-| nanoid | 3.3.16 | MIT |
+| nanoid | 3.3.17 | MIT |
 | perfect-debounce | 1.0.0 | MIT |
 | picocolors | 1.1.1 | ISC |
 | pinia | 3.0.4 | MIT |

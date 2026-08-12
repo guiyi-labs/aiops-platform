@@ -5,3 +5,10 @@
 # - a bare "path" allows every line of that file.
 # - "#" lines and trailing "# comments" are ignored.
 # Entries must document why the material is safe.
+
+# The scanner script itself defines the detection patterns (BEGIN ... PRIVATE
+# KEY, client-*-data:, token formats); self-reference is intentional.
+scripts/scan-sensitive-fields.sh
+
+# Change records quote the scanner's own pattern list for documentation.
+docs/changes/2026-08-12-m100c-sensitive-field-scan-and-log-redaction.md:16

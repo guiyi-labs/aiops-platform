@@ -10,6 +10,20 @@ Detailed change records for each milestone live under `docs/changes/`.
 ## [Unreleased]
 ## [Unreleased]
 
+### Added - M102 Final Delivery Documents (Test Matrix / Limitations / Compatibility / Runbook / Security Statement)
+
+- 新增 M102 最终交付文档五件套：
+  - `docs/testing/test-matrix.md`：分层测试矩阵（Go 单元/集成 74 包 / 205 测试文件、覆盖率 60.03%、OpenAPI↔路由双向契约、vitest 25、Playwright 双视口 26 用例 + 42/42 回归基线、axe、静态安全扫描、kind e2e、release 供应链）与本地确定性演练汇总（WAL/PITR 8、双环境 10/14/16、闭环演示 15、OIDC 14），含关键用户旅程 API+浏览器双通道证据与「未覆盖/待组织环境项」。
+  - `docs/testing/known-limitations.md`：身份/数据韧性授权轨（M89/M90）、真实 kind/Helm 生命周期、演练工具边界（demo-kube-mock / oidc-provider）、本地环境约束、功能/契约限制与文档证据缺口。
+  - `docs/testing/compatibility.md`：工具链（Go 1.26 / Node 22 / client-go 0.36 / PG17+pgvector / Vue 3）、部署形态（compose / kustomize / Helm / kind / 离线包 / 双架构镜像）、环境变量配置面、端口约定、数据恢复兼容与明确不兼容项。
+  - `docs/operations/runbook.md`：快速开始、健康就绪端点、升级回滚、备份恢复（pg_dump + WAL/PITR）、关键旅程验收、日志/审计/供应链门禁、故障排查与演练清理不变量。
+  - `docs/security/security-statement.md`：身份与访问（2D 授权、404 防泄漏、OIDC/MFA fail-closed）、数据保护（凭据加密、脱敏、签名审计）、受控运维边界、供应链门禁、前端安全与 GA 前已知例外。
+- 同步更新 `docs/README.md` 文档索引（testing/security/operations 行）。
+- 结论：M89/M90 与真实组织演练未关闭前版本保持 RC，不宣称 GA。
+- See [M102 final documents change record](docs/changes/2026-08-12-m102-final-docs.md).
+
+## [Unreleased]
+
 ### Added - M102 Reproducible Demo Drill (Local Track)
 
 - 新增离线 mock Kubernetes API 服务 `backend/cmd/demo-kube-mock`（HTTPS + 启动时自签证书）：覆盖演示旅程所需最小 API 面（`/version` 探活、nodes、namespaces、pods、events、deployments、replicasets、metrics），确定性 fixture（Node `demo-node` Ready=False + 压力条件、Pod `demo-pod` 容器 OOMKilled + 警告事件、Deployment `demo-app`）；PATCH 按 strategic-merge 语义合并并支持 `dryRun=All`，`/mock/mutations` 记录已落地的变更供验证。演练/开发工具，绝不作生产 Kubernetes API。

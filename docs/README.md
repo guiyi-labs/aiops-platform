@@ -15,6 +15,7 @@
 | `roadmap.md` | M19-M32 产品优化顺序、阶段状态、范围边界和发布前置条件 |
 | `ci-release.md` | CI 分层、分支保护、RC tag 发布、产物校验和自托管 kind runner 运维合同 |
 | `release-candidate-operations.md` | RC 在线/离线安装、升级、回滚、健康检查、认证和清理运行手册 |
+| `operations/` | M102 运维手册（`runbook.md`）：起停、健康、升级回滚、备份恢复、验收、审计与故障排查 |
 | `conventions/` | 目录、命名、接口和提交规范 |
 | `architecture/` | 系统架构、模块和数据流设计 |
 | `adr/` | 重要技术决策及其原因 |
@@ -22,8 +23,8 @@
 | `references/` | 外部项目的可追溯分析与采用边界 |
 | `api/` | API 契约和错误码 |
 | `database/` | 数据模型与迁移说明 |
-| `security/` | 身份源就绪合同、安全策略模板和接入运行手册 |
-| `testing/` | 测试策略、报告和演示场景 |
+| `security/` | 身份源就绪合同、安全策略模板、接入运行手册与 M102 安全声明（`security-statement.md`） |
+| `testing/` | 测试策略、M102 测试矩阵（`test-matrix.md`）、已知限制（`known-limitations.md`）、兼容范围（`compatibility.md`）与演示场景 |
 | `thesis/` | 论文图表、实验数据和答辩材料 |
 
 M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后曾使用的

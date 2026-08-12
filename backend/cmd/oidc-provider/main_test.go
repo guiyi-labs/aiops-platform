@@ -191,8 +191,7 @@ func TestLocalIdPSingleUseAndPKCEEnforcement(t *testing.T) {
 	}
 
 	// The /authorize endpoint must reject a missing PKCE challenge.
-	badURL := authorizeURL(server.URL, "state-3", "nonce-3", "")
-	badURL = server.URL + "/authorize?" + "response_type=code&client_id=aiops-platform&redirect_uri=" +
+	badURL := server.URL + "/authorize?" + "response_type=code&client_id=aiops-platform&redirect_uri=" +
 		url.QueryEscape(testRedirectURI) + "&scope=openid%20profile&state=state-3&nonce=nonce-3"
 	badResponse, err := client.Get(badURL)
 	if err != nil {

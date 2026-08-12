@@ -39,8 +39,11 @@ while IFS= read -r line; do
   mod_ver="$(echo "$line" | cut -f2)"
   mod_dir="$(echo "$line" | cut -f3)"
   [[ -z "$mod_path" || -z "$mod_dir" ]] && continue
+  # Use the module's own license at the module root only; deeper third-party
+  # license files (e.g. sonic's licenses/) must not be mistaken for the module
+  # license, and matching the licenses/ directory yields UNKNOWN.
   license_file=""
-  license_file="$(find "$mod_dir" -maxdepth 2 \( -iname 'LICENSE*' -o -iname 'COPYING*' \) 2>/dev/null | head -1)"
+  license_file="$(find "$mod_dir" -maxdepth 1 -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' \) 2>/dev/null | head -1)"
   if [[ -z "$license_file" ]]; then
     license=UNKNOWN
   else

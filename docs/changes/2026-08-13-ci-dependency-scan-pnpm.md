@@ -1,34 +1,45 @@
-# CI：Dependency 扫描作业补全 pnpm，修复 `pnpm not found` 失败
+# CI：Dependency 扫描作业补全 pnpm，并修复 SDK 暴露的 license 与 lint 失败
 
 - Date: 2026-08-13
 - Status: Complete
-- Scope: CI `dependency-scan`（Dependency & supply chain）作业可正常执行前端 `pnpm audit --prod`
+- Scope: 恢复 main CI 全绿——`dependency-scan` 前端 `pnpm audit` 可执行；license allowlist 对含第三方 LICENSE 子目录的模块（sonic）正确归类；oidc-provider 测试 lint 修复
 
 ## Context
 
-M100-D（`scripts/dependency-vuln-scan.sh` + `dependency-scan` CI 作业）新增前端
-`pnpm audit --prod` 门禁，但该作业只 `setup-go` 而未安装 pnpm/Node，导致每次运行时
-脚本命中 `command -v pnpm` 失败并输出 `pnpm not found`，作业必然失败。
+主框架回归链中连续暴露三个运行前被掩盖的 CI 失败（此前 gofmt/govulncheck 先行失败与
+docs-only 跳过路径掩盖了后续步骤）：
 
-此前该缺陷被掩盖：gofmt 与 govulncheck 主分支失败先行暴露、之后的 runtime 作业走了
-docs-only 跳过路径，`dependency-scan` 从未在完整 runtime 下真正通过。本次 gofmt 与
-go.mod toolchain（1.26.5）修复后，`dependency-scan` 成为首个暴露此回归的作业。
+1. M100-D 为 `dependency-scan` 接入前端 `pnpm audit --prod`，但该作业只 `setup-go`，
+   `command -v pnpm` 失败 → 每次运行必红。
+2. `license-scan.sh` 用 `find -iname 'LICENSE*'` 匹配模块目录，会把 `licenses/` 子目录
+   当作 license 文件（`tr < 目录` 读取不到文本 → UNKNOWN）。CI 上 `find` 返回顺序随文件系统
+   而异，`bytedance/sonic@v1.15.0` 这类带 `licenses/` 第三方子授权的模块被误判 UNKNOWN，
+   实际许可证为 Apache-2.0。
+3. `oidc-provider/main_test.go` 的 PKCE 缺失断言存在 ineffectual assignment（`badURL`
+   被 `authorizeURL(...)` 赋值后立即覆盖），golangci-lint ineffassign 失败。
 
 ## What Changed
 
 ### .github/workflows/ci.yml
-- `dependency-scan` 作业新增两步：`pnpm/action-setup`（复用顶层 `PNPM_VERSION`）
-  与 `actions/setup-node`（复用 `NODE_VERSION`，含 `frontend/pnpm-lock.yaml` 缓存），
-  与 `frontend` 作业配置保持一致。`pnpm audit` 仅读取 lockfile，无需 `pnpm install`，
-  避免在依赖扫描作业重复安装 node_modules。
+- `dependency-scan` 作业新增 `pnpm/action-setup` 与 `actions/setup-node`（复用
+  `PNPM_VERSION`/`NODE_VERSION`，含 lockfile 缓存），与 `frontend` 作业一致；`pnpm audit`
+  仅读 lockfile，不重复安装 node_modules。
+
+### scripts/license-scan.sh
+- 模块许可证发现收敛到模块根（`-maxdepth 1 -type f`），只读取模块自身的 LICENSE/COPYING，
+  不再把 `licenses/` 子目录或第三方 LICENSE 文件误当模块许可证，消除环境依赖的 UNKNOWN。
+
+### backend/cmd/oidc-provider/main_test.go
+- 移除 PKCE 缺失断言中被立即覆盖的 `badURL := authorizeURL(...)` 首次赋值，保留
+  显式构造的（无 code_challenge）URL，修复 ineffassign；断言语义不变。
 
 ## Verification
 
-- 本地 `bash -n .github/workflows/ci.yml` YAML 语法校验。
-- 触发 `fix(ci)` push 后等待 GitHub Actions `dependency-scan` 作业通过（govulncheck 0 affected、
-  `pnpm audit --prod` 使用真实 lockfile）。
+- `./scripts/license-scan.sh`：`license scan: clean`（含 sonic 判为 Apache-2.0）。
+- `go vet ./cmd/oidc-provider/`：通过；`go test ./cmd/oidc-provider/`：`ok`。
+- 触发 push 后等待 GitHub Actions 全作业通过（含 dependency、backend、backend race）。
 
 ## Risks / Notes
 
-- `pnpm audit` 依赖 lockfile 与允许的 registry 可达；若 registry 不可达会失败为 gate，
-  属预期的 fail-closed 行为。
+- license 收敛到模块根：个别依赖若真正的 LICENSE 也在根目录则不受影响；若仅存在于更深层
+  才可能漏检，但本仓库当前依赖矩阵扫描 clean。

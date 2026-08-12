@@ -9,12 +9,17 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
-### Fixed - CI Dependency Scan Missing pnpm
+### Fixed - Main CI Restoration (pnpm / license-scan / ineffassign)
 
 - `dependency-scan` (Dependency & supply chain) 作业补全 `pnpm/action-setup` 与
   `actions/setup-node`，修复前端 `pnpm audit --prod` 因 `pnpm not found` 必然失败
   的回归（该作业自 M100-D 引入以来从未在完整 runtime 下通过，此前被 gofmt/govulncheck
   先行失败与 docs-only 跳过路径掩盖）。govulncheck 与 pnpm audit 现均按真实环境执行。
+- `scripts/license-scan.sh` 将模块许可证发现收敛到模块根（`-maxdepth 1 -type f`），
+  不再把 `licenses/` 子目录或第三方 LICENSE 误当模块许可证，修复 `bytedance/sonic`
+  （Apache-2.0）在 CI 上被误判 UNKNOWN 的环境依赖失败。
+- `backend/cmd/oidc-provider/main_test.go` 移除 PKCE 缺失断言中 ineffectual 的
+  `badURL` 首次赋值，修复 golangci-lint ineffassign。
 - See [dependency-scan pnpm change record](docs/changes/2026-08-13-ci-dependency-scan-pnpm.md)。
 
 ### Added - M94 Replay Demo Drill & Offline Bundle Refresh (v0.3.0-rc.5-replay)

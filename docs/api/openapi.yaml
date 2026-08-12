@@ -698,6 +698,8 @@ paths:
   /api/v1/diagnoses/{diagnosis_id}:
     get: { tags: [diagnoses], summary: Diagnosis detail, operationId: getDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
     patch: { tags: [diagnoses], summary: Transition diagnosis status, operationId: transitionDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '204': { description: Updated }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/diagnoses/{diagnosis_id}/replay:
+    get: { tags: [diagnoses], summary: Read-only M81 insight-chain replay, operationId: getDiagnosisReplay, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '200': { description: Replay view, content: { application/json: { schema: { $ref: '#/components/schemas/DiagnosisReplayView' } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/diagnoses/{diagnosis_id}/assignment:
     patch: { tags: [diagnoses], summary: Assign diagnosis, operationId: assignDiagnosis, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DiagnosisID' }], responses: { '204': { description: Assigned } } }
   /api/v1/diagnoses/{diagnosis_id}/feedback:
@@ -3009,6 +3011,43 @@ components:
         integrity: { type: string, description: SHA-256 hex of the canonical evidence JSON }
         occurred_at: { type: string, format: date-time, description: 'RFC3339 observation time when extractable, otherwise omitted' }
         missing: { type: boolean, description: 'True when evidence is explicitly absent, e.g. a missing Ready condition' }
+    DiagnosisReplayStep:
+      type: object
+      description: One replayable event on the diagnosis insight chain (M94 replay mode; assembled strictly from stored artifacts)
+      required: [index, stage, type, summary, ref]
+      properties:
+        index: { type: integer }
+        stage: { type: string, enum: [diagnosis_created, evidence, activity, ai_explanation, remediation], description: M81 insight-chain stage }
+        category: { type: string, enum: [resource_state, event, log, alert, change, automation] }
+        type: { type: string, description: Step kind, e.g. node_condition, status_transition, ai_explanation, remediation_executed }
+        summary: { type: string }
+        integrity: { type: string, description: SHA-256 hex when the step carries evidence content }
+        ref: { type: string, description: Immutable step reference, e.g. diagnosis:<id>:evidence:<index> }
+        occurred_at: { type: string, format: date-time, description: RFC3339 event time; omitted when unknown }
+        missing: { type: boolean, description: 'True when the evidence is explicitly absent' }
+        missing_reason: { type: string }
+        detail: { type: object, additionalProperties: true, description: Optional step metadata (actor, comment, provider, model, action, status) }
+    DiagnosisReplayStage:
+      type: object
+      description: Stage summary of a replay
+      required: [stage, label, count]
+      properties:
+        stage: { type: string, enum: [diagnosis_created, evidence, activity, ai_explanation, remediation] }
+        label: { type: string }
+        count: { type: integer }
+    DiagnosisReplayView:
+      type: object
+      description: Read-only replay projection of a diagnosis (M94 replay mode)
+      required: [schema, diagnosis_id, rule_id, severity, resource, observed_at, steps, stages]
+      properties:
+        schema: { type: string, enum: [aiops.diagnosis-replay/v1] }
+        diagnosis_id: { type: integer, format: int64 }
+        rule_id: { type: string }
+        severity: { type: string }
+        resource: { type: object, properties: { kind: { type: string }, namespace: { type: string }, name: { type: string }, uid: { type: string } } }
+        observed_at: { type: string, format: date-time }
+        steps: { type: array, items: { $ref: '#/components/schemas/DiagnosisReplayStep' } }
+        stages: { type: array, items: { $ref: '#/components/schemas/DiagnosisReplayStage' } }
         missing_reason: { type: string }
         summary: { type: string }
     RootCauseCard:

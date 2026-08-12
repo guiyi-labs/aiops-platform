@@ -404,12 +404,13 @@ func New(logger *zap.Logger, options Options) http.Handler {
 					reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/namespace-postures/:namespace", Handler: postureAPI.get})
 				}
 				if options.Diagnosis != nil {
-					diagnosisAPI := diagnosisHandler{service: options.Diagnosis, users: options.Auth}
+					diagnosisAPI := diagnosisHandler{service: options.Diagnosis, users: options.Auth, explanations: options.AIExplanation, remediations: options.Remediation}
 					reg.register(resourceRoutes, RouteDescriptor{Method: "POST", Path: "/diagnoses", Handler: diagnosisAPI.create, AuditAction: "diagnosis.run", AuditResource: "Diagnosis"})
 					reg.register(resourceRoutes, RouteDescriptor{Method: "POST", Path: "/diagnoses/node_metrics", Handler: diagnosisAPI.diagnoseNodeMetrics})
 					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses", AuthRequired: true, Handler: diagnosisAPI.list})
 					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/summary", AuthRequired: true, Handler: diagnosisAPI.summary})
 					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/:diagnosis_id", AuthRequired: true, Handler: diagnosisAPI.get})
+					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/:diagnosis_id/replay", AuthRequired: true, Handler: diagnosisAPI.replay, AuditAction: "diagnosis.replay.read", AuditResource: "Diagnosis"})
 					reg.register(v1, RouteDescriptor{Method: "PATCH", Path: "/diagnoses/:diagnosis_id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: diagnosisAPI.transition, AuditAction: "diagnosis.status.update", AuditResource: "Diagnosis"})
 					reg.register(v1, RouteDescriptor{Method: "POST", Path: "/diagnoses/:diagnosis_id/feedback", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: diagnosisAPI.feedback, AuditAction: "diagnosis.feedback.create", AuditResource: "Diagnosis"})
 					reg.register(v1, RouteDescriptor{Method: "PATCH", Path: "/diagnoses/:diagnosis_id/assignment", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: diagnosisAPI.assign, AuditAction: "diagnosis.assignment.update", AuditResource: "Diagnosis"})

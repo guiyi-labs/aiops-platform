@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { AIExplanationFeedbackResult, AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, ControlledOperationRequest, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisStatus, DiagnosisSummary, DiagnoseNodeMetricsRequest, FeedbackVerdict, RemediationAction, RemediationPlan, RolloutHistory, RolloutStatus } from '../types/diagnosis'
+import type { AIExplanationFeedbackResult, AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, ControlledOperationRequest, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisReplayView, DiagnosisStatus, DiagnosisSummary, DiagnoseNodeMetricsRequest, FeedbackVerdict, RemediationAction, RemediationPlan, RolloutHistory, RolloutStatus } from '../types/diagnosis'
 
 export function diagnosePod(token: string, clusterID: number, namespace: string, name: string): Promise<DiagnosisRecord> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/diagnoses`, token, {
@@ -138,4 +138,8 @@ export function addAIExplanationFeedback(token: string, explanationID: number, v
   return authorizedRequest(`/api/v1/ai/explanations/${explanationID}/feedback`, token, {
     method: 'POST', body: JSON.stringify({ verdict, comment }),
   })
+}
+
+export function getDiagnosisReplay(token: string, diagnosisID: number): Promise<DiagnosisReplayView> {
+  return authorizedRequest(`/api/v1/diagnoses/${diagnosisID}/replay`, token)
 }

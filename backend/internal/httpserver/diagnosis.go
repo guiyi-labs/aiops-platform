@@ -8,17 +8,21 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"k8s-aiops.local/backend/internal/aiexplain"
 	"k8s-aiops.local/backend/internal/auth"
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/metricshistory"
+	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
 
 type diagnosisHandler struct {
-	service *diagnosis.Service
-	users   *auth.Service
+	service      *diagnosis.Service
+	users        *auth.Service
+	explanations *aiexplain.Service
+	remediations *remediation.Service
 }
 type diagnoseRequest struct {
 	ResourceKind string `json:"resource_kind" binding:"required"`

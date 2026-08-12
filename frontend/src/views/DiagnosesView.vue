@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Boxes, CheckCircle2, FileSearch, MessageSquareText, RefreshCw, RotateCcw, SearchCheck, Sparkles, Stethoscope, UserCheck, X, XCircle } from 'lucide-vue-next'
+import { Boxes, CheckCircle2, FileSearch, MessageSquareText, Pause, Play, RefreshCw, RotateCcw, SearchCheck, SkipBack, SkipForward, Sparkles, Stethoscope, UserCheck, X, XCircle } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
-import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, executeRemediation, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, listDiagnoses, listDiagnosisExplanations, listRemediationPlans, previewRemediation, transitionDiagnosis } from '../api/diagnosis'
+import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, executeRemediation, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisReplay, listDiagnoses, listDiagnosisExplanations, listRemediationPlans, previewRemediation, transitionDiagnosis } from '../api/diagnosis'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, DiagnosisActionItem, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisStatus, FeedbackVerdict, RemediationPlan } from '../types/diagnosis'
+import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, DiagnosisActionItem, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisReplayView, DiagnosisStatus, FeedbackVerdict, RemediationPlan } from '../types/diagnosis'
 import type { UserProfile } from '../types/auth'
+import { useDiagnosisReplay } from '../composables/useDiagnosisReplay'
 import { fromDiagnosis } from '../utils/finding-detail'
 
 const auth = useAuthStore()
@@ -48,6 +49,9 @@ const remediationIdempotencyKey = ref('')
 const remediationConfirmed = ref(false)
 const remediationBusy = ref(false)
 const remediationError = ref('')
+const replay = ref<DiagnosisReplayView | null>(null)
+const replayLoadError = ref('')
+const replayControls = reactive(useDiagnosisReplay(() => replay.value?.steps ?? []))
 
 const clusterNames = computed(() => new Map(clusters.value.map((item) => [item.id, item.name])))
 const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
@@ -74,6 +78,17 @@ async function loadRecords() {
   finally { loading.value = false }
 }
 
+async function loadReplay(diagnosisID: number) {
+  replayLoadError.value = ''
+  try {
+    replay.value = await getDiagnosisReplay(auth.accessToken, diagnosisID)
+    replayControls.reset()
+  } catch {
+    replay.value = null
+    replayLoadError.value = '回放模式不可用（当前后端可能未启用诊断回放）'
+  }
+}
+
 async function openDetail(record: DiagnosisRecord) {
   detailLoading.value = true; errorMessage.value = ''
   try {
@@ -84,6 +99,7 @@ async function openDetail(record: DiagnosisRecord) {
     pendingRemediation.value = null; remediationToken.value = ''; remediationConfirmed.value = false; remediationError.value = ''
     aiError.value = ''
     assignmentUserID.value = detail.value.assignee?.id ?? assignableUsers.value[0]?.id ?? 0
+    loadReplay(record.id)
   }
   catch { errorMessage.value = '无法加载诊断证据详情' }
   finally { detailLoading.value = false }
@@ -360,6 +376,32 @@ onMounted(initialize)
         </div>
         <small class="deep-link-hint">从诊断出发直达资源、拓扑工作台、相关事件与审计入口。</small>
       </section>
+      <section v-if="replay" class="replay-panel">
+        <h3>回放模式 · {{ replay.steps.length }} 步 <small class="replay-schema">{{ replay.schema }}</small></h3>
+        <div class="replay-controls">
+          <button type="button" class="secondary-button" :disabled="replayControls.total === 0" @click="replayControls.prev()"><SkipBack :size="14" />上一步</button>
+          <button type="button" class="primary-button replay-play" :disabled="replayControls.total === 0" @click="replayControls.toggle()">{{ replayControls.playing ? '暂停' : '播放' }}<component :is="replayControls.playing ? Pause : Play" :size="14" /></button>
+          <button type="button" class="secondary-button" :disabled="replayControls.total === 0" @click="replayControls.next()">下一步<SkipForward :size="14" /></button>
+          <input v-if="replayControls.total > 0" class="replay-scrubber" type="range" min="1" :max="replayControls.total" :value="replayControls.progress" @input="replayControls.seek(Number(($event.target as HTMLInputElement).value) - 1)" aria-label="回放进度" />
+        </div>
+        <div class="replay-stage-chips">
+          <button v-for="stage in replay.stages" :key="stage.stage" type="button" class="replay-chip" :class="{ active: replayControls.activeStage === stage.stage }" @click="replayControls.setStage(replayControls.activeStage === stage.stage ? '' : stage.stage)">{{ stage.label }} · {{ stage.count }}</button>
+          <span v-if="replayControls.total > 0" class="replay-progress">{{ replayControls.progress }} / {{ replayControls.total }}</span>
+        </div>
+        <article v-if="replayControls.current" class="replay-step">
+          <span class="timeline-category" :class="replayControls.current.category || replayControls.current.stage">{{ replayControls.current.stage }}</span>
+          <div class="timeline-entry-body">
+            <strong>{{ replayControls.current.summary }}</strong>
+            <small>{{ replayControls.current.type }} · {{ replayControls.current.ref }}</small>
+            <p v-if="replayControls.current.missing" class="timeline-missing">证据缺失 · {{ replayControls.current.missing_reason || '对象未报告该状态' }}</p>
+            <pre v-if="replayControls.current.detail && Object.keys(replayControls.current.detail).length" class="replay-detail">{{ JSON.stringify(replayControls.current.detail, null, 2) }}</pre>
+          </div>
+          <time>{{ replayControls.current.occurred_at ? formatTime(replayControls.current.occurred_at) : '时间未知' }}</time>
+        </article>
+        <p v-else-if="replayControls.total === 0" class="compact-empty">该诊断暂无回放步骤</p>
+        <p v-else class="compact-empty">按 ▶ 播放，或使用上一步/下一步/进度条开始回放</p>
+      </section>
+      <p v-else-if="replayLoadError" class="replay-error">{{ replayLoadError }}</p>
       <section v-if="detail.timeline?.length" class="evidence-timeline">
         <h3>证据时间线 · {{ detail.timeline.length }}</h3>
         <article v-for="item in detail.timeline" :key="item.ref">

@@ -63,6 +63,35 @@ export interface DiagnosisTimelineEntry {
   missing_reason?: string
   summary: string
 }
+export type DiagnosisReplayStageID = 'diagnosis_created' | 'evidence' | 'activity' | 'ai_explanation' | 'remediation'
+export interface DiagnosisReplayStep {
+  index: number
+  stage: DiagnosisReplayStageID
+  category?: 'resource_state' | 'event' | 'log' | 'alert' | 'change' | 'automation'
+  type: string
+  summary: string
+  integrity?: string
+  ref: string
+  occurred_at?: string
+  missing: boolean
+  missing_reason?: string
+  detail?: Record<string, unknown>
+}
+export interface DiagnosisReplayStage {
+  stage: DiagnosisReplayStageID
+  label: string
+  count: number
+}
+export interface DiagnosisReplayView {
+  schema: 'aiops.diagnosis-replay/v1'
+  diagnosis_id: number
+  rule_id: string
+  severity: string
+  resource: { kind: string; namespace?: string; name: string; uid?: string }
+  observed_at: string
+  steps: DiagnosisReplayStep[]
+  stages: DiagnosisReplayStage[]
+}
 export type DiagnosisActionKind = 'advisory' | 'controlled_action'
 export interface DiagnosisActionItem {
   kind: DiagnosisActionKind

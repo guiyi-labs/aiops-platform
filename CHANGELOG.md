@@ -8,6 +8,16 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
+
+### Added - M94 Diagnosis Replay Mode
+
+- 新增诊断详情只读回放模式：按事件时间重放 M81 insight 链路（诊断创建 → 证据采集 → 状态与协作 → AI 引用解释 → 受控动作），严格使用已存储产物，绝不重新生成或伪造历史 AI 结论。
+- 后端：`diagnosis` 领域新增纯函数 `BuildReplay`（schema `aiops.diagnosis-replay/v1`，五阶段、稳定时间排序、无步骤不伪造）+ `GET /api/v1/diagnoses/:diagnosis_id/replay`（AuditAction `diagnosis.replay.read`）；AI 解释/remediation 可选服务失败时自动降级为纯存储步骤，接口保持 200；OpenAPI 新增 3 个 schema + replay path，权限矩阵同步重新生成（280 路由 / 158 已审计）。
+- 前端：`useDiagnosisReplay` 状态机（播放/暂停/上一步/下一步/seek/按阶段筛选/reset）+ 诊断详情 `replay-panel`（控制条、进度条、阶段 chips、步骤卡片，置于证据时间线之前）。
+- 测试：后端 diagnosis 3 单测 + httpserver 4 单测、前端 composable 4 单测；前后端全量门禁（build/vet/test/typecheck/lint）全绿。
+- See [M94 replay mode change record](docs/changes/2026-08-12-m94-diagnosis-replay.md).
+
+## [Unreleased]
 ## [Unreleased]
 
 ### Added - M102 Offline Install Bundle Drill (Local Track)

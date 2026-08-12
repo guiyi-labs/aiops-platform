@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 279 |
+| 路由总数 | 280 |
 | 角色受限 | 83 |
-| 已审计 | 157 |
+| 已审计 | 158 |
 | scope=workspace | 13 |
 | scope=cluster | 82 |
 | scope=namespace | 32 |
-| scope=none | 152 |
+| scope=none | 153 |
 | 角色 operations_admin | 62 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 83 |
@@ -234,6 +234,7 @@
 | POST | `/api/v1/diagnoses/:diagnosis_id/feedback` | `operations_admin`, `system_admin` | none | diagnosis.feedback.create |
 | GET | `/api/v1/diagnoses/:diagnosis_id/remediations` | any | none | - |
 | POST | `/api/v1/diagnoses/:diagnosis_id/remediations/preview` | `operations_admin`, `system_admin` | none | remediation.preview |
+| GET | `/api/v1/diagnoses/:diagnosis_id/replay` | any | none | diagnosis.replay.read |
 | GET | `/api/v1/diagnoses/summary` | any | none | - |
 | DELETE | `/api/v1/federation/clusters/:cluster_id` | `operations_admin`, `system_admin` | cluster | federation.cluster.deregister |
 | POST | `/api/v1/federation/clusters/:cluster_id/demote` | `operations_admin`, `system_admin` | cluster | federation.cluster.demote |

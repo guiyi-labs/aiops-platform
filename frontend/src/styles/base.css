@@ -3592,3 +3592,19 @@ h2 {
   -webkit-overflow-scrolling: touch;
 }
 .virtual-list-scroll thead { position: sticky; top: 0; z-index: 2; background: #f7faf9; }
+
+/* M94 replay mode */
+.replay-panel { margin-top: 18px; }
+.replay-panel h3 { margin: 24px 0 10px; color: #39474e; font-size: 13px; }
+.replay-schema { color: #7c8990; font-size: 10px; font-weight: 400; }
+.replay-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.replay-controls .replay-play { display: inline-flex; align-items: center; gap: 6px; }
+.replay-scrubber { flex: 1 1 180px; min-width: 120px; accent-color: #2e7867; }
+.replay-stage-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.replay-chip { padding: 3px 9px; color: #526068; font-size: 10px; background: #eef1f3; border: 1px solid #dfe5e8; border-radius: 12px; cursor: pointer; }
+.replay-chip.active { color: #ffffff; background: #2e7867; border-color: #2e7867; }
+.replay-progress { margin-left: auto; color: #5a6672; font-size: 11px; font-weight: 700; }
+.replay-step { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; margin-top: 8px; padding: 11px 12px; align-items: center; gap: 8px; background: #fbfdfc; border: 1px solid #cfe2de; border-radius: 5px; }
+.replay-step time { color: #5a6672; font-size: 10px; white-space: nowrap; }
+.replay-detail { grid-column: 1 / -1; margin: 4px 0 0; padding: 8px; color: #52615f; font-size: 10px; line-height: 1.5; background: #eef4f3; border-radius: 4px; overflow-x: auto; }
+.replay-error { margin: 18px 0 0; padding: 9px 10px; color: #8e4c2a; font-size: 11px; background: #fff6eb; border-left: 3px solid #d98b43; }

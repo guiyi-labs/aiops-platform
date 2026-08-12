@@ -52,6 +52,7 @@ import (
 	signalsvc "k8s-aiops.local/backend/internal/signal"
 	"k8s-aiops.local/backend/internal/slo"
 	"k8s-aiops.local/backend/internal/store"
+	"k8s-aiops.local/backend/internal/topology"
 	"k8s-aiops.local/backend/internal/workspace"
 	"k8s-aiops.local/backend/migrations"
 )
@@ -153,12 +154,21 @@ func main() {
 	// signal occurrences (M99). The evaluator reads workload readiness from
 	// metrics history (M99-B); request-ratio templates report honest no-data
 	// until a traffic metrics provider is configured.
-	signalService := signalsvc.NewService(signalsvc.ServiceOptions{Repository: signalsvc.NewGormRepository(database.GORM())})
+	signalRepository := signalsvc.NewGormRepository(database.GORM())
+	signalService := signalsvc.NewService(signalsvc.ServiceOptions{Repository: signalRepository})
 	sloRepository := slo.NewGormRepository(database.GORM())
 	sloService := slo.NewService(sloRepository,
 		slo.NewEvaluator(slo.NewMetricshistorySource(metricsHistoryService)),
 		slo.WithBurnAlertSink(signalsvc.NewSLOBurnSignalSink(signalService, sloRepository)))
-	correlationService := correlation.NewService(correlation.NewGormRepository(database.GORM()), nil, nil)
+	// M99-C: the production correlation provider reads signal/topology/
+	// diagnosis repositories; the periodic worker correlates every enabled
+	// cluster (per namespace, with an all-namespace fallback when the cluster
+	// is unreachable).
+	topologyRepository := topology.NewGormRepository(database.GORM())
+	diagnosisRepository := diagnosis.NewGormRepository(database.GORM())
+	correlationProvider := correlation.NewRepositoryInputProvider(signalRepository, topologyRepository, diagnosisRepository)
+	correlationService := correlation.NewService(correlation.NewGormRepository(database.GORM()), nil, correlationProvider)
+	correlationWorker := correlation.NewWorker(correlation.WorkerConfig{Interval: cfg.CorrelationInterval}, clusterService, kubernetesService, correlationService, logger)
 	authzRepo := authz.NewGormRepository(database.GORM())
 	authzService := authz.NewService(authzRepo)
 	grantManager := authz.NewGrantManager(authzRepo)
@@ -426,7 +436,7 @@ func main() {
 	backgroundContext, stopBackground := context.WithCancel(context.Background())
 	defer stopBackground()
 	var backgroundWait sync.WaitGroup
-	backgroundWait.Add(3)
+	backgroundWait.Add(4)
 	go func() {
 		defer backgroundWait.Done()
 		notificationService.Run(backgroundContext)
@@ -438,6 +448,10 @@ func main() {
 	go func() {
 		defer backgroundWait.Done()
 		alertScheduler.Run(backgroundContext)
+	}()
+	go func() {
+		defer backgroundWait.Done()
+		correlationWorker.Run(backgroundContext)
 	}()
 
 	// M60: start providers that carry background goroutines. Providers that

@@ -92,7 +92,11 @@ type ListFilter struct {
 	ClusterID int64
 	Status    string
 	Overdue   *bool
-	Limit     int
+	// Since bounds the list to records observed at or after this time. The
+	// correlation provider uses it to gather only recent diagnoses for one
+	// correlation pass.
+	Since *time.Time
+	Limit int
 }
 
 type Record struct {

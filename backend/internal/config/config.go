@@ -41,6 +41,7 @@ type Config struct {
 	MetricsCleanupInterval     time.Duration
 	MetricsMaxClusters         int
 	MetricsMaxConcurrency      int
+	CorrelationInterval        time.Duration
 	AIEnabled                  bool
 	AIBaseURL                  string
 	AIAPIKey                   string
@@ -248,6 +249,13 @@ func Load() (Config, error) {
 	if metricsMaxConcurrency > metricsMaxClusters {
 		return Config{}, fmt.Errorf("METRICS_MAX_CONCURRENCY must not exceed METRICS_MAX_CLUSTERS")
 	}
+	correlationInterval, err := durationFromEnv("CORRELATION_INTERVAL", 5*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	if correlationInterval < 30*time.Second || correlationInterval > 24*time.Hour {
+		return Config{}, fmt.Errorf("CORRELATION_INTERVAL must be between 30s and 24h")
+	}
 	aiRequestTimeout, err := durationFromEnv("AI_REQUEST_TIMEOUT", 30*time.Second)
 	if err != nil {
 		return Config{}, err
@@ -431,6 +439,7 @@ func Load() (Config, error) {
 		MetricsCleanupInterval:     metricsCleanupInterval,
 		MetricsMaxClusters:         metricsMaxClusters,
 		MetricsMaxConcurrency:      metricsMaxConcurrency,
+		CorrelationInterval:        correlationInterval,
 		AIEnabled:                  aiEnabled,
 		AIBaseURL:                  aiBaseURL,
 		AIAPIKey:                   aiAPIKey,

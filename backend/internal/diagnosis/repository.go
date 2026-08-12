@@ -100,6 +100,10 @@ func (r *GormRepository) list(ctx context.Context, filter ListFilter, orderBy st
 			conditions = append(conditions, "NOT (d.status IN ('open', 'confirmed') AND d.sla_due_at < NOW())")
 		}
 	}
+	if filter.Since != nil {
+		conditions = append(conditions, "d.observed_at >= ?")
+		args = append(args, *filter.Since)
+	}
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}

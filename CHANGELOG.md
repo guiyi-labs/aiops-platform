@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M99C Correlation Input Provider & Worker
+
+- 新增 correlation 生产输入源 `RepositoryInputProvider`：从 signal（active + lookback）、topology（有效边 + lookback 内变更）、diagnosis（lookback 内记录）仓储读取真实输入并映射为引擎类型（coverage/severity 透传、UID 缺失标 Incomplete、证据引用映射、每源读取上限）。
+- 新增周期关联 worker：按 `CORRELATION_INTERVAL`（默认 5m）遍历启用集群、按命名空间自动跑 `CorrelateNamespace`，命名空间列表失败时回退全命名空间 pass；每集群超时与 ctx 取消安全。
+- `diagnosis.ListFilter` 新增 `Since` 时间过滤（`observed_at >= ?`），向后兼容。
+- 生产 `correlation.NewService` 换用真实 provider 并启动 worker goroutine，`/api/v1/aiops/correlation/cases` 可自动产生案例。
+- See [M99-C change record](docs/changes/2026-08-12-m99c-correlation-provider-worker.md).
+
 ### Added - M99B Metricshistory SLO Source
 
 - metricshistory 采集器新增 Deployment readiness 采样（`readiness_ready` / `readiness_total`），支持 Deployment 资源与 count 单位。

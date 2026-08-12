@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - CI Dependency Scan Missing pnpm
+
+- `dependency-scan` (Dependency & supply chain) 作业补全 `pnpm/action-setup` 与
+  `actions/setup-node`，修复前端 `pnpm audit --prod` 因 `pnpm not found` 必然失败
+  的回归（该作业自 M100-D 引入以来从未在完整 runtime 下通过，此前被 gofmt/govulncheck
+  先行失败与 docs-only 跳过路径掩盖）。govulncheck 与 pnpm audit 现均按真实环境执行。
+- See [dependency-scan pnpm change record](docs/changes/2026-08-13-ci-dependency-scan-pnpm.md)。
+
 ### Added - M94 Replay Demo Drill & Offline Bundle Refresh (v0.3.0-rc.5-replay)
 
 - 重建含回放代码的镜像 `k8s-aiops-backend:v0.3.0-rc.5-replay`（宿主机交叉编译 + alpine 封包）与 `k8s-aiops-frontend:v0.3.0-rc.5-replay`（nginx 复用 + 覆盖新 dist），解决既有 latest 镜像不含 replay 代码无法端到端验证的问题。

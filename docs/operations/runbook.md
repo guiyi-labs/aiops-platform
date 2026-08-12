@@ -18,6 +18,19 @@ curl -s http://127.0.0.1:8080/api/v1/health/ready   # {"status":"ready","version
 docker compose down -v
 ```
 
+## 1.1 离线安装（空气隔离环境）
+
+```bash
+# 在可联网/镜像就绪环境组装离线包（演练布局与 M97 release 离线包对齐）
+./scripts/offline-install-drill.sh          # 9/9 PASS，产出 bundle + SHA256SUMS
+# 将 bundle 目录整体拷贝/传输到目标机后：
+cd aiops-platform-offline-<version>
+shasum -a 256 -c OFFLINE-SHA256SUMS         # 完整性校验必须全部 OK
+for f in images/*.tar; do docker load -i "$f"; done
+docker compose -f deploy/compose.offline.yaml up -d   # pull_policy: never，无需网络
+# 复验：/api/v1/health/ready、登录、/me → system_admin
+```
+
 ## 2. 健康与就绪
 
 | 端点 | 用途 |

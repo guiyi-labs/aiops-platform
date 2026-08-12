@@ -21,6 +21,7 @@ const (
 
 	SourceTypeDiagnosis = "diagnosis"
 	SourceTypeFinding   = "finding"
+	SourceTypeAlert     = "alert"
 
 	EventTypeSystem = "system"
 	EventTypeNote   = "note"
@@ -169,6 +170,12 @@ func SLADeadline(severity string, observedAt time.Time) time.Time {
 // SourceRefForDiagnosis builds the stable dedup identity for a diagnosis.
 func SourceRefForDiagnosis(diagnosisID int64) string {
 	return "diagnosis:" + strconv.FormatInt(diagnosisID, 10)
+}
+
+// SourceRefForAlert builds the stable dedup identity for a firing alert
+// instance promoted into an incident workspace.
+func SourceRefForAlert(alertID int64) string {
+	return "alert:" + strconv.FormatInt(alertID, 10)
 }
 
 // SourceRefForFinding builds the stable dedup identity for a client-observed

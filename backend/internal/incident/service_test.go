@@ -296,8 +296,8 @@ type fakeResolver struct {
 	err  error
 }
 
-func (f *fakeResolver) Resolve(_ context.Context, sourceType, _ string) (SourceInfo, error) {
-	if sourceType != SourceTypeDiagnosis {
+func (f *fakeResolver) Resolve(_ context.Context, sourceType, _ string, _ int64) (SourceInfo, error) {
+	if sourceType != SourceTypeDiagnosis && sourceType != SourceTypeAlert {
 		return SourceInfo{}, ErrInvalidSource
 	}
 	if f.err != nil {
@@ -389,6 +389,40 @@ func TestCreateFinding(t *testing.T) {
 	}
 	if incident.Severity != SeverityWarning || incident.Summary != "pod stuck in pending" {
 		t.Errorf("finding fields not preserved: %+v", incident)
+	}
+}
+
+func TestCreateFromAlert(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	service.WithResolver(&fakeResolver{info: SourceInfo{
+		Title:    "Alert demo-node NodeNotReady",
+		Summary:  "node memory pressure sustained",
+		Severity: SeverityCritical,
+		Resource: ResourceRef{Kind: "Node", Namespace: "", Name: "demo-node", UID: "uid-node"},
+	}})
+	incident, err := service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeAlert,
+		SourceRef:  SourceRefForAlert(9),
+		ClusterID:  7,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if incident.SourceType != SourceTypeAlert || incident.SourceRef != "alert:9" {
+		t.Errorf("alert source not preserved: %+v", incident)
+	}
+	if incident.Title != "Alert demo-node NodeNotReady" || incident.Severity != SeverityCritical {
+		t.Errorf("alert resolver enrichment failed: %+v", incident)
+	}
+
+	// Dedup must hold for the same alert instance.
+	_, err = service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeAlert,
+		SourceRef:  SourceRefForAlert(9),
+		ClusterID:  7,
+	})
+	if !errors.Is(err, ErrSourceAlreadyUsed) {
+		t.Errorf("duplicate alert create err = %v, want ErrSourceAlreadyUsed", err)
 	}
 }
 

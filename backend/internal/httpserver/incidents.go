@@ -110,7 +110,7 @@ func (h incidentHandler) create(c *gin.Context) {
 	}
 	switch {
 	case errors.Is(err, incident.ErrSourceAlreadyUsed):
-		writeError(c, http.StatusConflict, "SOURCE_ALREADY_USED", "this diagnosis or finding already has an incident workspace")
+		writeError(c, http.StatusConflict, "SOURCE_ALREADY_USED", "this source already has an incident workspace")
 	case errors.Is(err, incident.ErrInvalidSource), errors.Is(err, incident.ErrInvalidTitle):
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "source_type, source_ref, cluster_id, severity and resource identity are required")
 	default:

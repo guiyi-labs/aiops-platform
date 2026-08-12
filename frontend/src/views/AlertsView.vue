@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Bell, BellOff, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { Bell, BellOff, FilePlus2, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
 import { createAlertRule, deleteAlertRule, listAlertInstances, listAlertRules, patchAlertRule } from '../api/alert'
+import { createIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
@@ -17,6 +18,7 @@ const rules = ref<AlertRule[]>([])
 const instances = ref<AlertInstance[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
+const noticeMessage = ref('')
 const showCreateDialog = ref(false)
 const stateFilter = ref<AlertInstanceState | ''>('firing')
 
@@ -139,6 +141,33 @@ async function handleDelete(rule: AlertRule) {
   }
 }
 
+async function promoteToIncident(inst: AlertInstance) {
+  errorMessage.value = ''
+  noticeMessage.value = ''
+  if (inst.state !== 'firing') {
+    noticeMessage.value = '仅触发中的告警实例可创建事故工作区'
+    return
+  }
+  try {
+    const incident = await createIncident(auth.accessToken!, {
+      source_type: 'alert',
+      source_ref: `alert:${inst.id}`,
+      cluster_id: selectedClusterID.value,
+      title: '告警关联事故',
+      severity: 'high',
+      summary: `从告警实例 #${inst.id} 提升的事故工作区`,
+      resource: { kind: 'Node', name: rules.value.find(r => r.id === inst.rule_id)?.resource_name ?? '' },
+    })
+    noticeMessage.value = `已创建事故工作区 ${incident.number}`
+  } catch (err) {
+    if (err instanceof APIError && err.code === 'SOURCE_ALREADY_USED') {
+      noticeMessage.value = '该告警实例已存在关联的事故工作区'
+    } else {
+      errorMessage.value = err instanceof APIError ? err.message : '创建事故工作区失败'
+    }
+  }
+}
+
 watch(selectedClusterID, () => refresh())
 onMounted(() => loadClusters())
 </script>
@@ -165,6 +194,7 @@ onMounted(() => loadClusters())
       </div>
 
       <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon closable @close="errorMessage = ''" />
+      <el-alert v-if="noticeMessage" :title="noticeMessage" type="success" show-icon closable style="margin-bottom: 12px" @close="noticeMessage = ''" />
 
       <h3>告警规则</h3>
       <el-table :data="rules" v-loading="loading" stripe empty-text="暂无告警规则">
@@ -221,6 +251,11 @@ onMounted(() => loadClusters())
         </el-table-column>
         <el-table-column label="恢复时间" width="160">
           <template #default="{ row }">{{ row.resolved_at ? formatTime(row.resolved_at) : '-' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row }">
+            <el-button v-if="canManage && row.state === 'firing'" :icon="FilePlus2" circle size="small" type="primary" @click="promoteToIncident(row)" title="创建事故工作区" />
+          </template>
         </el-table-column>
       </el-table>
 

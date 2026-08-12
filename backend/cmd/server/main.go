@@ -134,8 +134,9 @@ func main() {
 	// M98 incident workspace: a collaborative wrapper around a diagnosis (or a
 	// client-observed finding) with a stable number, assignee, followers,
 	// timeline, status machine and a read-only postmortem view.
+	alertService := alert.NewService(alert.NewGormRepository(database.GORM()), diagnosis.NewGormRepository(database.GORM()), metricsHistoryService, cfg.AlertMinEvaluationInterval)
 	incidentService := incident.NewService(incident.NewGormRepository(database.GORM())).
-		WithResolver(&diagnosisIncidentResolver{records: diagnosis.NewGormRepository(database.GORM())})
+		WithResolver(NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService))
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
 	appCatalogService := appcatalog.NewService(kubernetesService, appcatalog.NewGormRepository(database.GORM()))
 	// M58: GitOps read-only adapter (ArgoCD Application browse) + interactive
@@ -143,7 +144,6 @@ func main() {
 	// readers (ADR 0070).
 	gitopsService := gitops.NewService(kubernetesService)
 	copyOpsService := copyops.NewService(kubernetesService, copyops.NewGormRepository(database.GORM()))
-	alertService := alert.NewService(alert.NewGormRepository(database.GORM()), diagnosis.NewGormRepository(database.GORM()), metricsHistoryService, cfg.AlertMinEvaluationInterval)
 	backupService := backup.NewService(kubernetesService, backup.NewGormRepository(database.GORM()))
 	maintenanceService := maintenance.NewService(kubernetesService, maintenance.NewGormRepository(database.GORM()))
 	namespacePostureService := namespaceposture.NewService(kubernetesService)

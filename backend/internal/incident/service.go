@@ -22,10 +22,11 @@ type SourceInfo struct {
 
 // SourceResolver resolves a source reference into the data needed to build an
 // incident. The diagnosis-backed resolver is authoritative for diagnosis
-// sources; a nil resolver (or one returning ErrInvalidSource) falls back to
-// the caller-provided finding fields.
+// sources and the alert-backed resolver for alert instances; a nil resolver
+// (or one returning ErrInvalidSource) falls back to the caller-provided
+// finding fields.
 type SourceResolver interface {
-	Resolve(ctx context.Context, sourceType, sourceRef string) (SourceInfo, error)
+	Resolve(ctx context.Context, sourceType, sourceRef string, clusterID int64) (SourceInfo, error)
 }
 
 // Service is the M98 incident workspace application service.
@@ -68,7 +69,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (Incident, erro
 	input.Resource.Name = strings.TrimSpace(input.Resource.Name)
 	input.Resource.UID = strings.TrimSpace(input.Resource.UID)
 
-	if input.SourceType != SourceTypeDiagnosis && input.SourceType != SourceTypeFinding {
+	if input.SourceType != SourceTypeDiagnosis && input.SourceType != SourceTypeFinding && input.SourceType != SourceTypeAlert {
 		return Incident{}, ErrInvalidSource
 	}
 	if input.SourceRef == "" {
@@ -79,7 +80,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (Incident, erro
 	}
 
 	if s.resolver != nil {
-		if info, err := s.resolver.Resolve(ctx, input.SourceType, input.SourceRef); err == nil {
+		if info, err := s.resolver.Resolve(ctx, input.SourceType, input.SourceRef, input.ClusterID); err == nil {
 			input.Title = info.Title
 			input.Summary = info.Summary
 			input.Severity = info.Severity

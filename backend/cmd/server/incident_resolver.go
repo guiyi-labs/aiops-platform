@@ -3,24 +3,65 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
+	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/incident"
 )
 
-// diagnosisIncidentResolver enriches incident workspaces from persisted
-// diagnosis records. Finding sources carry their own metadata and are not
-// resolvable here (ErrInvalidSource falls back to caller-provided fields).
-type diagnosisIncidentResolver struct {
-	records *diagnosis.GormRepository
+// diagnosisRecordReader reads a persisted diagnosis record by id.
+type diagnosisRecordReader interface {
+	Get(ctx context.Context, id int64) (diagnosis.Record, error)
 }
 
-func (r *diagnosisIncidentResolver) Resolve(ctx context.Context, sourceType, sourceRef string) (incident.SourceInfo, error) {
-	if sourceType != incident.SourceTypeDiagnosis {
+// incidentResolver dispatches incident source enrichment by source type:
+// diagnosis sources resolve from persisted diagnosis records; alert sources
+// resolve the linked diagnosis of a firing alert instance. Finding sources
+// carry their own metadata and are not resolvable here (ErrInvalidSource
+// falls back to caller-provided fields).
+type incidentResolver struct {
+	diagnosisRecords diagnosisRecordReader
+	alerts           alertResolver
+}
+
+// alertResolver fetches a cluster-scoped alert instance plus its rule-metric
+// label for building an incident from a firing alert.
+type alertResolver interface {
+	Get(ctx context.Context, clusterID, id int64) (alert.Instance, error)
+}
+
+// alertServiceAdapter adapts *alert.Service to the narrow alertResolver
+// interface used by the incident resolver.
+type alertServiceAdapter struct {
+	svc *alert.Service
+}
+
+func (a alertServiceAdapter) Get(ctx context.Context, clusterID, id int64) (alert.Instance, error) {
+	return a.svc.GetInstance(ctx, clusterID, id)
+}
+
+func NewIncidentResolver(records *diagnosis.GormRepository, alerts *alert.Service) *incidentResolver {
+	return &incidentResolver{
+		diagnosisRecords: records,
+		alerts:           alertServiceAdapter{svc: alerts},
+	}
+}
+
+func (r *incidentResolver) Resolve(ctx context.Context, sourceType, sourceRef string, clusterID int64) (incident.SourceInfo, error) {
+	switch sourceType {
+	case incident.SourceTypeDiagnosis:
+		return r.resolveDiagnosis(ctx, sourceRef)
+	case incident.SourceTypeAlert:
+		return r.resolveAlert(ctx, clusterID, sourceRef)
+	default:
 		return incident.SourceInfo{}, incident.ErrInvalidSource
 	}
+}
+
+func (r *incidentResolver) resolveDiagnosis(ctx context.Context, sourceRef string) (incident.SourceInfo, error) {
 	const prefix = "diagnosis:"
 	if !strings.HasPrefix(sourceRef, prefix) {
 		return incident.SourceInfo{}, incident.ErrInvalidSource
@@ -29,7 +70,7 @@ func (r *diagnosisIncidentResolver) Resolve(ctx context.Context, sourceType, sou
 	if err != nil || id < 1 {
 		return incident.SourceInfo{}, incident.ErrInvalidSource
 	}
-	record, err := r.records.Get(ctx, id)
+	record, err := r.diagnosisRecords.Get(ctx, id)
 	if err != nil {
 		if errors.Is(err, diagnosis.ErrRecordNotFound) {
 			return incident.SourceInfo{}, incident.ErrInvalidSource
@@ -48,4 +89,46 @@ func (r *diagnosisIncidentResolver) Resolve(ctx context.Context, sourceType, sou
 		},
 		ObservedAt: record.ObservedAt,
 	}, nil
+}
+
+func (r *incidentResolver) resolveAlert(ctx context.Context, clusterID int64, sourceRef string) (incident.SourceInfo, error) {
+	const prefix = "alert:"
+	if !strings.HasPrefix(sourceRef, prefix) {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	id, err := strconv.ParseInt(strings.TrimPrefix(sourceRef, prefix), 10, 64)
+	if err != nil || id < 1 {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	instance, err := r.alerts.Get(ctx, clusterID, id)
+	if err != nil {
+		if errors.Is(err, alert.ErrAlertNotFound) || errors.Is(err, alert.ErrRuleNotFound) {
+			return incident.SourceInfo{}, incident.ErrInvalidSource
+		}
+		return incident.SourceInfo{}, fmt.Errorf("resolve alert instance %d: %w", id, err)
+	}
+	// A firing alert instance is backed by a diagnosis record created at first
+	// firing; reuse it for severity, resource and narrative so the incident
+	// carries the same evidence as the underlying diagnosis.
+	if instance.DiagnosisID > 0 {
+		record, err := r.diagnosisRecords.Get(ctx, instance.DiagnosisID)
+		if err == nil {
+			return incident.SourceInfo{
+				Title:    "Alert " + record.Resource.Name + " " + record.RuleID,
+				Summary:  record.Summary,
+				Severity: record.Severity,
+				Resource: incident.ResourceRef{
+					Kind:      record.Resource.Kind,
+					Namespace: record.Resource.Namespace,
+					Name:      record.Resource.Name,
+					UID:       record.Resource.UID,
+				},
+				ObservedAt: instance.FirstFiredAt,
+			}, nil
+		}
+		if !errors.Is(err, diagnosis.ErrRecordNotFound) {
+			return incident.SourceInfo{}, fmt.Errorf("resolve alert diagnosis %d: %w", instance.DiagnosisID, err)
+		}
+	}
+	return incident.SourceInfo{}, incident.ErrInvalidSource
 }

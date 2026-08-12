@@ -128,7 +128,10 @@ services:
       METRICS_HISTORY_ENABLED: "true"
       AI_ENABLED: "false"
       NOTIFICATION_ENABLED: "false"
-      ALERT_ENABLED: "false"
+      ALERT_ENABLED: "true"
+      METRICS_COLLECTION_INTERVAL: 15s
+      ALERT_POLL_INTERVAL: 2s
+      ALERT_MIN_EVALUATION_INTERVAL: 15s
     ports:
       - "$BE_PORT:8080"
     depends_on:
@@ -414,7 +417,57 @@ else
   fi
 fi
 
-# ---------- 10. cleanup ----------
+# ---------- 10. alert -> incident (告警提升为事故) ----------
+
+scenario "Alert -> incident (告警提升为事故): firing alert rule promotes to incident workspace"
+ALERT_RULE="$(api POST "/api/v1/clusters/$CLUSTER_ID/alert-rules" "{\"display_name\":\"High CPU demo-node\",\"resource_kind\":\"Node\",\"resource_name\":\"demo-node\",\"metric_name\":\"cpu\",\"operator\":\"gte\",\"threshold\":2000000000,\"for_seconds\":60,\"minimum_points\":2}")"
+ALERT_RULE_ID="$(jq -r '.id // 0' <<<"$ALERT_RULE")"
+FIRING_INSTANCE=""
+if [[ -z "$ALERT_RULE_ID" || "$ALERT_RULE_ID" == "0" ]]; then
+  fail alert-rule-create "rule create failed: $ALERT_RULE"
+else
+  pass alert-rule-create "alert rule id=$ALERT_RULE_ID (node cpu >= 2 cores)"
+  # 后端告警调度器按 2s 轮询；mock 的 demo-node CPU 恒为 3500m (> 2 核)，必触发。
+  for attempt in $(seq 1 90); do
+    FIRING_INSTANCE="$(api GET "/api/v1/clusters/$CLUSTER_ID/alerts?state=firing&limit=50")"
+    ALERT_INSTANCE_IDS="$(jq -r --argjson rid "$ALERT_RULE_ID" '[.[] | select(.rule_id == $rid)] | length' <<<"$FIRING_INSTANCE" 2>/dev/null || echo 0)"
+    if [[ "$ALERT_INSTANCE_IDS" -ge 1 ]]; then
+      break
+    fi
+    sleep 2
+  done
+  ALERT_INST_ID="$(jq -r --argjson rid "$ALERT_RULE_ID" '.[] | select(.rule_id == $rid) | .id' <<<"$FIRING_INSTANCE" 2>/dev/null | head -1 || true)"
+  ALERT_DIAG_ID="$(jq -r --argjson rid "$ALERT_RULE_ID" '.[] | select(.rule_id == $rid) | .diagnosis_id' <<<"$FIRING_INSTANCE" 2>/dev/null | head -1 || true)"
+  if [[ -n "$ALERT_INST_ID" && "$ALERT_INST_ID" != "0" ]]; then
+    pass alert-fire "firing alert instance id=$ALERT_INST_ID diagnosis_id=$ALERT_DIAG_ID"
+    ALERT_INC="$(api POST /api/v1/incidents "{\"source_type\":\"alert\",\"source_ref\":\"alert:$ALERT_INST_ID\",\"cluster_id\":$CLUSTER_ID,\"severity\":\"high\",\"title\":\"alert promoted incident\"}")"
+    ALERT_INC_ID="$(jq -r '.id // 0' <<<"$ALERT_INC")"
+    ALERT_INC_SEV="$(jq -r '.severity // empty' <<<"$ALERT_INC")"
+    ALERT_INC_SRC="$(jq -r '.source_type // empty' <<<"$ALERT_INC")"
+    if [[ -n "$ALERT_INC_ID" && "$ALERT_INC_ID" != "0" ]] && [[ "$ALERT_INC_SRC" == "alert" ]]; then
+      pass alert-incident "incident $ALERT_INC_ID created from alert #$ALERT_INST_ID, severity=$ALERT_INC_SEV (enriched from diagnosis)"
+      if [[ "$ALERT_INC_SEV" == "high" ]]; then
+        pass alert-incident-severity "alert incident severity enriched to high from linked CPU-breach diagnosis"
+      else
+        fail alert-incident-severity "severity=$ALERT_INC_SEV expected high (CPU breach)"
+      fi
+      # 同一告警实例不可重复提升（dedup）。
+      DUP="$(api POST /api/v1/incidents "{\"source_type\":\"alert\",\"source_ref\":\"alert:$ALERT_INST_ID\",\"cluster_id\":$CLUSTER_ID,\"severity\":\"high\",\"title\":\"dup\"}")"
+      DUP_FAIL="$(jq -r '.code // empty' <<<"$DUP" 2>/dev/null || true)"
+      if [[ "$DUP_FAIL" == *"SOURCE_ALREADY_USED"* ]] || [[ "$(jq -r '.id // 0' <<<"$DUP")" == "0" ]]; then
+        pass alert-incident-dedup "duplicate alert promote rejected (SOURCE_ALREADY_USED)"
+      else
+        fail alert-incident-dedup "duplicate was not rejected: $DUP"
+      fi
+    else
+      fail alert-incident "incident create failed: $ALERT_INC"
+    fi
+  else
+    fail alert-fire "no firing alert instance after retries (rule_id=$ALERT_RULE_ID)"
+  fi
+fi
+
+# ---------- 11. cleanup ----------
 
 scenario "Cleanup"
 cleanup_stack

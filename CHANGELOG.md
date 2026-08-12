@@ -9,6 +9,20 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M103 Alert-to-Incident Triage (v0.3.0-m103)
+
+- 后端：`incident` 支持 `alert` 来源——`SourceTypeAlert` + `SourceRefForAlert`，
+  `incidentResolver`（接口化）按来源分发：诊断沿用 diagnosis 富集，告警查实例并
+  复用关联诊断富集严重级/资源/摘要/首触时间；`SourceResolver.Resolve` 增加
+  `clusterID`；迁移 `000042` 放开 `incidents.source_type` CHECK 增加 `'alert'`；
+  OpenAPI `IncidentCreateRequest.source_type` enum 增加 `alert`。
+- 前端：`AlertsView` 触发中实例新增「创建事故工作区」按钮（处理 `SOURCE_ALREADY_USED`
+  与仅 firing 可提升）；`IncidentsView` 创建表单增加「告警实例」来源、自动填充禁用与
+  详情友好来源标签；`IncidentSourceType` / typegen 同步含 `alert`。
+- 演示演练：`demo-drill.sh` 新增「Alert → incident」5 条断言（规则创建→触发→提升事故→
+  严重级富集 high→重复提升去重），端到端 22/22 PASS。
+- See [M103 change record](docs/changes/2026-08-13-m103-alert-incident-triage.md)。
+
 ### Fixed - Main CI Restoration (pnpm / license-scan / ineffassign)
 
 - `dependency-scan` (Dependency & supply chain) 作业补全 `pnpm/action-setup` 与

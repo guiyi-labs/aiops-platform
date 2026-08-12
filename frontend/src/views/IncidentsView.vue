@@ -46,9 +46,20 @@ const noteContent = ref('')
 const postmortemContent = ref('')
 
 const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
+const sourceRefPlaceholder = computed(() => {
+  switch (newIncident.value.source_type) {
+    case 'diagnosis': return 'diagnosis:<id>'
+    case 'alert': return 'alert:<告警实例ID>'
+    default: return 'finding:<cluster>:<code>:<kind>:<ns>:<name>'
+  }
+})
 
 function severityTone(severity: IncidentSeverity): string {
   return { info: 'info', warning: 'warning', high: 'danger', critical: 'danger' }[severity]
+}
+
+function sourceTypeLabel(sourceType: Incident['source_type']): string {
+  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例' }[sourceType]
 }
 
 function formatTime(value?: string): string {
@@ -338,7 +349,7 @@ onMounted(() => { void loadAll() })
         <p class="incident-summary">{{ detail.summary || '暂无摘要' }}</p>
 
         <dl class="incident-meta">
-          <div><dt>来源</dt><dd>{{ detail.source_type }} · {{ detail.source_ref }}</dd></div>
+          <div><dt>来源</dt><dd>{{ sourceTypeLabel(detail.source_type) }} · {{ detail.source_ref }}</dd></div>
           <div><dt>资源</dt><dd>{{ detail.resource.kind }} {{ detail.resource.namespace ? detail.resource.namespace + '/' : '' }}{{ detail.resource.name }}</dd></div>
           <div><dt>SLA 截止</dt><dd>{{ formatTime(detail.sla_due_at) }}</dd></div>
           <div><dt>创建时间</dt><dd>{{ formatTime(detail.created_at) }}</dd></div>
@@ -425,13 +436,14 @@ onMounted(() => { void loadAll() })
         <label class="form-field">
           <span>来源类型</span>
           <select v-model="newIncident.source_type" aria-label="来源类型">
-            <option value="finding">人工上报</option>
-            <option value="diagnosis">诊断记录</option>
+          <option value="finding">人工上报</option>
+          <option value="diagnosis">诊断记录</option>
+          <option value="alert">告警实例</option>
           </select>
         </label>
         <label class="form-field">
           <span>来源标识</span>
-          <input v-model="newIncident.source_ref" :placeholder="newIncident.source_type === 'diagnosis' ? 'diagnosis:<id>' : 'finding:<cluster>:<code>:<kind>:<ns>:<name>'" />
+          <input v-model="newIncident.source_ref" :placeholder="sourceRefPlaceholder" />
         </label>
         <label class="form-field">
           <span>集群 ID</span>
@@ -439,11 +451,11 @@ onMounted(() => { void loadAll() })
         </label>
         <label class="form-field">
           <span>标题</span>
-          <input v-model="newIncident.title" maxlength="500" :disabled="newIncident.source_type === 'diagnosis'" placeholder="诊断来源时自动填充" />
+          <input v-model="newIncident.title" maxlength="500" :disabled="newIncident.source_type === 'diagnosis' || newIncident.source_type === 'alert'" placeholder="诊断/告警来源时自动填充" />
         </label>
         <label class="form-field">
           <span>严重级别</span>
-          <select v-model="newIncident.severity" :disabled="newIncident.source_type === 'diagnosis'" aria-label="严重级别">
+          <select v-model="newIncident.severity" :disabled="newIncident.source_type === 'diagnosis' || newIncident.source_type === 'alert'" aria-label="严重级别">
             <option value="info">信息</option>
             <option value="warning">警告</option>
             <option value="high">高</option>
@@ -452,7 +464,7 @@ onMounted(() => { void loadAll() })
         </label>
         <label class="form-field">
           <span>摘要</span>
-          <textarea v-model="newIncident.summary" rows="2" maxlength="4000" :disabled="newIncident.source_type === 'diagnosis'" />
+          <textarea v-model="newIncident.summary" rows="2" maxlength="4000" :disabled="newIncident.source_type === 'diagnosis' || newIncident.source_type === 'alert'" />
         </label>
         <template v-if="newIncident.source_type === 'finding'">
           <label class="form-field">

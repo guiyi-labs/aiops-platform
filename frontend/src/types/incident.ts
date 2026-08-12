@@ -1,6 +1,6 @@
 export type IncidentStatus = 'open' | 'confirmed' | 'resolved' | 'dismissed'
 export type IncidentSeverity = 'info' | 'warning' | 'high' | 'critical'
-export type IncidentSourceType = 'diagnosis' | 'finding'
+export type IncidentSourceType = 'diagnosis' | 'finding' | 'alert'
 export type IncidentEventType = 'system' | 'note'
 
 export interface IncidentActor { id: number; name: string }

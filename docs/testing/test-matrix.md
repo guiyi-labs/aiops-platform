@@ -30,7 +30,7 @@
 | 跨 digest 升级/回滚 | 同上（`APP_UPGRADE_BACKEND_IMAGE`） | 14 | 升级 version 变更 + 标记保持、回滚还原 | `report-20260812-214043-17a17c.json` |
 | 第三环境逻辑备份/恢复 | 同上（`APP_BACKUP_RESTORE=1`） | 16 | `pg_dump` 备份 + 全新空库还原 + 标记/登录复验 | `report-20260812-215101-1fcddd.json` |
 | 可复现闭环演示 | `scripts/demo-drill.sh` | 15 | 登录→态势→根因→证据→受控动作→验证→事故复盘（平台真实 API + 仓库内 mock k8s） | `report-20260812-221752-b358d9.json`、`report-20260812-221935-a2784a.json`（连续两轮 15/15） |
-| 离线安装包全链路 | `scripts/offline-install-drill.sh` | 9 | bundle 组装（docker save + `pull_policy: never` manifest + SHA256SUMS）、完整性校验、docker load（digest 不变）、全新隔离环境安装、关键旅程、持久化、清理 | `report-20260812-222514-a0fbf8.json`、`report-20260812-222537-4e6c8d.json`（连续两轮 9/9） |
+| 离线安装包全链路 | `scripts/offline-install-drill.sh` | 10 | bundle 组装（docker save + `pull_policy: never` manifest + SHA256SUMS）、完整性校验、可复用离线包发布、docker load（digest 不变）、全新隔离环境安装、关键旅程、持久化、清理 | `report-20260812-222730-5165f1.json` 等（连续多轮 10/10） |
 | OIDC 本地身份轨 | `scripts/oidc-login-drill.sh` | 14 | PKCE 登录、nonce/state/issuer/audience 校验、组角色映射、acr MFA、9 种失败注入 fail-closed、审计落库 | `.artifacts/oidc-drill/` |
 
 ## 3. 关键用户旅程覆盖（浏览器 + API 双通道）

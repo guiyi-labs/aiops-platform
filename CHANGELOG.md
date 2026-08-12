@@ -12,7 +12,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ### Added - M102 Offline Install Bundle Drill (Local Track)
 
-- 新增离线安装包全链路演练 `scripts/offline-install-drill.sh`：`docker save` 三个镜像（backend/frontend/pgvector）到 bundle `images/*.tar`（布局对齐 M97 release 离线包），写入 `pull_policy: never` 的 `compose.offline.yaml` + `config/env.example` + runbook 副本 + `OFFLINE-SHA256SUMS`；`shasum -a 256 -c` 校验完整性（6 文件 OK，模拟空气隔离传输）；逐 tar `docker load` 且 digest 不变；以 `pull_policy: never` 在全新隔离环境（22432/22080/22081）安装 → backend ready → frontend 200 + admin 登录 `/me` → `system_admin` → 持久化标记跨 recreate 保持（count=1）→ `down -v` 清理，9/9 PASS（报告 `report-20260812-222514-a0fbf8.json`、`report-20260812-222537-4e6c8d.json`，连续两轮一致）。
+- 新增离线安装包全链路演练 `scripts/offline-install-drill.sh`：`docker save` 三个镜像（backend/frontend/pgvector）到 bundle `images/*.tar`（布局对齐 M97 release 离线包），写入 `pull_policy: never` 的 `compose.offline.yaml` + `config/env.example` + runbook 副本 + `OFFLINE-SHA256SUMS`；`shasum -a 256 -c` 校验完整性（6 文件 OK，模拟空气隔离传输）；逐 tar `docker load` 且 digest 不变；以 `pull_policy: never` 在全新隔离环境（22432/22080/22081）安装 → backend ready → frontend 200 + admin 登录 `/me` → `system_admin` → 持久化标记跨 recreate 保持（count=1）→ `down -v` 清理；校验后同步发布可复用离线包 `.artifacts/offline-install-drill/bundle/aiops-platform-offline-<version>/`（images/deploy/config/docs/OFFLINE-SHA256SUMS）。10/10 PASS（报告 `report-20260812-222514-a0fbf8.json`、`report-20260812-222537-4e6c8d.json`、`report-20260812-222730-5165f1.json`，连续多轮一致）。
 - 意义：补齐「只有离线包时能完成分发→加载→安装」的本地证据（此前只证明镜像已在本地时可安装）；`pull_policy: never` 使镜像缺失即失败，反证离线充分性。
 - See [M102 offline install drill change record](docs/changes/2026-08-12-m102-offline-install-drill.md).
 

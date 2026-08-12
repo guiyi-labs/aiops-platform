@@ -66,9 +66,9 @@
 | M96-A/B/C/D + Gate B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准、前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）、认证单壳层与 active CSS layer 基线（56/56 浏览器回归）；本地与 Hosted Gate B 均 PASS |
 | M97 | `aiops.release-manifest/v1`、RC-only workflow、双架构 OCI、四份平台 SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 与 kind 生命周期；`v0.3.0-rc.4` 本地与 Hosted Gate C 均通过，M89/M90 外部证据继续为 Blocked/Deferred |
 | M98 | 事故工作空间与协作闭环：incident 领域模块（状态机/SLA/CAS/时间线/CSV 脱敏导出）、`000040_incidents` 迁移、REST+OpenAPI、前端 `/incidents` 视图与侧栏入口；Desktop/Mobile Playwright 8/8，前后端门禁全绿 |
-| M99（M99-A/B/C） | 信号关联：SLO burn 信号化管道（`slo.burn.*` + `SLOBurnSignalSink`）、correlation `rollout_causes_slo_burn` 规则与 11 场景黄金回放、AIOps 路由生产接线（M99-A）；metricshistory Deployment readiness 采集 + `slo.MetricshistorySource`（M99-B）；生产 correlation `InputProvider`（signal/topology/diagnosis 真实输入映射）+ 周期关联 worker（按集群/命名空间自动跑、`CORRELATION_INTERVAL` 配置、不可达集群全命名空间回退）（M99-C）；M99-D（前端窗口/覆盖率/延迟展示）待续 |
+| M99（M99-A/B/C/D）✅ | 信号关联全闭环：SLO burn 信号化管道与 `rollout_causes_slo_burn` 规则（11 场景黄金回放）（A）；metricshistory workload_readiness 指标源（B）；生产 correlation InputProvider + 周期关联 worker（C）；SLO/信号/关联案例三处显式展示覆盖度（缺样本）与数据延迟，无样本 fail-closed 不视为健康（D）。M99 验收全部达成，里程碑封口 |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 Gate B、M97 Gate C 与 M98 已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
+> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 Gate B、M97 Gate C、M98 与 M99 已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。
 
 ---

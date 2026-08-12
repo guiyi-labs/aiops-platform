@@ -38,7 +38,10 @@ export type SignalProducer =
 
 export type SignalSeverity = 'critical' | 'warning' | 'info'
 export type SignalState = 'active' | 'resolved' | 'stale' | 'suppressed'
-export type SignalCoverage = 'complete' | 'partial' | 'missing'
+// complete | partial | missing | unavailable | truncated — 'unavailable' means
+// no samples at all (fail-closed, never treated as healthy); 'truncated' means
+// the source hit its sampling budget.
+export type SignalCoverage = 'complete' | 'partial' | 'missing' | 'unavailable' | 'truncated'
 
 export interface SignalOccurrence {
   id: number
@@ -341,6 +344,10 @@ export interface SignalLink {
   signal_id: string
   producer: string
   observed_at: string
+  coverage?: SignalCoverage
+  freshness?: string
+  window_start?: string
+  window_end?: string
   created_at: string
 }
 

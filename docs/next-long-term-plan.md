@@ -225,7 +225,7 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 ### M99：信号关联、SLO 与影响分析（6–9 天）
 
-**进度**：M99-A/B/C 已完成（2026-08-12）——SLO burn 信号管道与生产接线（`docs/changes/2026-08-12-m99a-slo-burn-signal-pipeline.md`）、metricshistory workload_readiness 指标源（`docs/changes/2026-08-12-m99b-metricshistory-slo-source.md`）、correlation 生产 InputProvider 与周期关联 worker（`docs/changes/2026-08-12-m99c-correlation-provider-worker.md`）；M99-D（前端窗口/覆盖率/延迟展示）待续。
+**进度**：M99 已全部完成（2026-08-12，`baseline-m99-20260812`）——SLO burn 信号管道（A，`docs/changes/2026-08-12-m99a-slo-burn-signal-pipeline.md`）、metricshistory workload_readiness 指标源（B，`docs/changes/2026-08-12-m99b-metricshistory-slo-source.md`）、correlation 生产 InputProvider 与周期关联 worker（C，`docs/changes/2026-08-12-m99c-correlation-provider-worker.md`）、SLO/信号/关联案例缺样本与数据延迟显式展示（D，`docs/changes/2026-08-12-m99d-data-visibility.md`）。
 
 **目标**：把事件、指标、日志、变更、拓扑和 SLO 关联到同一资源与时间窗口，减少手工跳转。
 
@@ -395,5 +395,5 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 2. M93-B2 关闭后立即编写 M94 证据时间 ADR，并冻结四条黄金场景。
 3. M94 合并前准备 M95 `FindingDetail v2` 草案，但不并行修改公共契约。
 4. M95 关闭后再启动 M96 壳层重构与大规模 fixture，避免产品模型和基础架构同时震荡。
-5. M96 Hosted Gate B 与 M97 Gate C 已由 `v0.3.0-rc.4` 证据关闭；M98 事故工作空间已于 2026-08-12 交付，本轮推进 M99 信号关联与 SLO（`SignalRef`、Deployment 变更→错误预算黄金场景、关联结果 golden replay）。
+5. M96 Hosted Gate B 与 M97 Gate C 已由 `v0.3.0-rc.4` 证据关闭；M98 事故工作空间已于 2026-08-12 交付，M99 信号关联与 SLO 已于 2026-08-12 封口（`SignalRef`、Deployment 变更→错误预算黄金场景、关联结果 golden replay、UI 缺样本/延迟显式展示），下一轮推进 M100 安全与租户治理。
 6. M89/M90 从现在开始准备授权与环境，但其完成状态独立于本地主线，最终只在 Gate D 汇合。

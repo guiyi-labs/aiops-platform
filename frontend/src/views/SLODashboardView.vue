@@ -61,6 +61,26 @@ function stateLabel(state: EvaluationState): string {
   } as const)[state]
 }
 
+function coverageLabel(coverage: string): string {
+  return ({
+    complete: '完整',
+    partial: '部分样本',
+    missing: '缺失',
+    unavailable: '无数据',
+    truncated: '截断',
+  } as Record<string, string>)[coverage] ?? coverage
+}
+
+function coverageTone(coverage: string): string {
+  switch (coverage) {
+    case 'complete': return 'var(--status-success)'
+    case 'partial':
+    case 'truncated': return 'var(--status-warning)'
+    case 'unavailable': return 'var(--text-muted)'
+    default: return 'var(--status-danger)'
+  }
+}
+
 function formatTime(value: string): string {
   if (!value) return '--'
   try {
@@ -75,6 +95,21 @@ function windowDurationLabel(item: SLOEvaluation): string {
   const end = new Date(item.window_end).getTime()
   if (Number.isNaN(start) || Number.isNaN(end)) return '--'
   return formatWindow(Math.round((end - start) / 1000))
+}
+
+function evalLatencyLabel(item: SLOEvaluation | undefined): string {
+  if (!item) return '--'
+  const end = new Date(item.window_end).getTime()
+  const at = new Date(item.evaluated_at).getTime()
+  if (Number.isNaN(end) || Number.isNaN(at) || !end) return '--'
+  const ms = Math.max(0, at - end)
+  if (ms < 60000) return `${Math.round(ms / 1000)}s`
+  if (ms < 3600000) return `${Math.round(ms / 60000)}m`
+  return `${(ms / 3600000).toFixed(1)}h`
+}
+
+function latestEval(slo: SLODefinition): SLOEvaluation | undefined {
+  return latestEvals.value.get(slo.id)
 }
 
 function budgetRemainingPercent(item: SLOEvaluation | undefined): number {
@@ -271,6 +306,13 @@ onMounted(initialize)
               <small>{{ budgetRemainingPercent(latestEvals.get(slo.id)) }}%</small>
             </div>
           </div>
+          <div class="slo-eval-meta">
+            <span class="coverage-badge" :style="{ color: coverageTone(latestEval(slo)?.coverage ?? ''), borderColor: coverageTone(latestEval(slo)?.coverage ?? '') }">
+              数据覆盖 {{ coverageLabel(latestEval(slo)?.coverage ?? '') }}
+            </span>
+            <span title="评估时间与窗口结束时间的差">评估延迟 {{ evalLatencyLabel(latestEval(slo)) }}</span>
+            <span v-if="latestEval(slo)?.state === 'unavailable'" class="no-data-hint">无样本窗口不视为健康</span>
+          </div>
         </div>
 
         <footer class="slo-card-footer">
@@ -287,7 +329,7 @@ onMounted(initialize)
           <p v-else-if="(evaluationHistory.get(slo.id) || []).length === 0" class="compact-empty">暂无评估历史</p>
           <table v-else class="history-table">
             <thead>
-              <tr><th>状态</th><th>窗口</th><th>达成率</th><th>消耗</th><th>剩余预算</th><th>评估时间</th></tr>
+              <tr><th>状态</th><th>覆盖度</th><th>窗口</th><th>达成率</th><th>消耗</th><th>剩余预算</th><th>延迟</th><th>评估时间</th></tr>
             </thead>
             <tbody>
               <tr v-for="item in evaluationHistory.get(slo.id)" :key="item.id">
@@ -296,10 +338,16 @@ onMounted(initialize)
                     <i class="state-dot" :style="{ background: stateColor(item.state) }" />{{ stateLabel(item.state) }}
                   </span>
                 </td>
+                <td>
+                  <span class="coverage-badge" :style="{ color: coverageTone(item.coverage), borderColor: coverageTone(item.coverage) }">
+                    {{ coverageLabel(item.coverage) }}
+                  </span>
+                </td>
                 <td>{{ windowDurationLabel(item) }}</td>
                 <td>{{ formatPercent(item.ratio) }}</td>
                 <td>{{ item.burn_rate == null ? '--' : `${item.burn_rate.toFixed(2)}×` }}</td>
                 <td>{{ budgetRemainingPercent(item) }}%</td>
+                <td>{{ evalLatencyLabel(item) }}</td>
                 <td>{{ formatTime(item.evaluated_at) }}</td>
               </tr>
             </tbody>
@@ -493,6 +541,31 @@ onMounted(initialize)
   border: 1px solid currentColor;
   border-radius: var(--radius-full);
   background: var(--bg-elevated);
+}
+.slo-eval-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.coverage-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-full);
+  background: var(--bg-elevated);
+  white-space: nowrap;
+}
+.no-data-hint {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 .state-pill.small {
   padding: 2px 7px;

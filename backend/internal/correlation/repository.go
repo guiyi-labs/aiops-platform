@@ -74,14 +74,18 @@ type caseRow struct {
 func (caseRow) TableName() string { return "correlation_cases" }
 
 type signalLinkRow struct {
-	ID                 int64     `gorm:"column:id;primaryKey;autoIncrement"`
-	CaseID             int64     `gorm:"column:case_id;not null"`
-	SignalOccurrenceID int64     `gorm:"column:signal_occurrence_id;not null"`
-	Relation           string    `gorm:"column:relation;not null"`
-	SignalID           string    `gorm:"column:signal_id;not null"`
-	Producer           string    `gorm:"column:producer;not null"`
-	ObservedAt         time.Time `gorm:"column:observed_at;not null"`
-	CreatedAt          time.Time `gorm:"column:created_at;not null;default:NOW()"`
+	ID                 int64      `gorm:"column:id;primaryKey;autoIncrement"`
+	CaseID             int64      `gorm:"column:case_id;not null"`
+	SignalOccurrenceID int64      `gorm:"column:signal_occurrence_id;not null"`
+	Relation           string     `gorm:"column:relation;not null"`
+	SignalID           string     `gorm:"column:signal_id;not null"`
+	Producer           string     `gorm:"column:producer;not null"`
+	ObservedAt         time.Time  `gorm:"column:observed_at;not null"`
+	Coverage           string     `gorm:"column:coverage;not null;default:complete"`
+	Freshness          *time.Time `gorm:"column:freshness"`
+	WindowStart        *time.Time `gorm:"column:window_start"`
+	WindowEnd          *time.Time `gorm:"column:window_end"`
+	CreatedAt          time.Time  `gorm:"column:created_at;not null;default:NOW()"`
 }
 
 func (signalLinkRow) TableName() string { return "correlation_signal_links" }
@@ -504,6 +508,10 @@ func signalLinkToRow(l *SignalLink) signalLinkRow {
 		SignalID:           l.SignalID,
 		Producer:           l.Producer,
 		ObservedAt:         l.ObservedAt,
+		Coverage:           l.Coverage,
+		Freshness:          l.Freshness,
+		WindowStart:        l.WindowStart,
+		WindowEnd:          l.WindowEnd,
 		CreatedAt:          l.CreatedAt,
 	}
 }
@@ -517,6 +525,10 @@ func rowToSignalLink(row *signalLinkRow) SignalLink {
 		SignalID:           row.SignalID,
 		Producer:           row.Producer,
 		ObservedAt:         row.ObservedAt,
+		Coverage:           row.Coverage,
+		Freshness:          row.Freshness,
+		WindowStart:        row.WindowStart,
+		WindowEnd:          row.WindowEnd,
 		CreatedAt:          row.CreatedAt,
 	}
 }

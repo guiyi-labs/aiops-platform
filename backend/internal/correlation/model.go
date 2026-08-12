@@ -186,7 +186,14 @@ type SignalLink struct {
 	Producer string `json:"producer"`
 	// ObservedAt copied from the occurrence at link time for timeline ordering.
 	ObservedAt time.Time `json:"observed_at"`
-	CreatedAt  time.Time `json:"created_at"`
+	// M99-D: data metadata copied from the occurrence at link time so cases
+	// expose missing samples (coverage) and data latency (freshness, window)
+	// without re-joining signal_occurrences.
+	Coverage    string     `json:"coverage,omitempty"`
+	Freshness   *time.Time `json:"freshness,omitempty"`
+	WindowStart *time.Time `json:"window_start,omitempty"`
+	WindowEnd   *time.Time `json:"window_end,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 // ResourceLink links a topology resource to a case. The topology path from

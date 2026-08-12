@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M99D Data Visibility (coverage / latency)
+
+- 关联案例信号链路携带数据元数据：`SignalLink` 新增 coverage/freshness/window_start/window_end，迁移 `000041` 落列，引擎在构建触发链接时拷贝（freshness 零值存 NULL）。
+- 前端三处显式展示缺样本与数据延迟：SLO 评估卡片与历史表新增“数据覆盖”徽标 + “评估延迟”（`evaluated_at - window_end`）+ 无样本提示；信号列表新增覆盖度（含 title 解释）/时间窗口/数据延迟（`ingested_at - observed_at`）列；关联案例信号链路新增覆盖度徽标与时间窗口列及部分覆盖提示。
+- `SignalCoverage` 类型补 `unavailable`/`truncated`，与后端取值对齐；无样本（fail-closed）与健康状态视觉分离。
+- See [M99-D change record](docs/changes/2026-08-12-m99d-data-visibility.md).
+
 ### Added - M99C Correlation Input Provider & Worker
 
 - 新增 correlation 生产输入源 `RepositoryInputProvider`：从 signal（active + lookback）、topology（有效边 + lookback 内变更）、diagnosis（lookback 内记录）仓储读取真实输入并映射为引擎类型（coverage/severity 透传、UID 缺失标 Incomplete、证据引用映射、每源读取上限）。

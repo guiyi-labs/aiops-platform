@@ -252,7 +252,44 @@ function clusterName(id: number): string {
 }
 
 function coverageLabel(c: string): string {
-  return ({ complete: '完整', partial: '部分', missing: '缺失' } as Record<string, string>)[c] ?? c
+  return (
+    { complete: '完整', partial: '部分', missing: '缺失', unavailable: '无数据', truncated: '截断' } as Record<string, string>
+  )[c] ?? c
+}
+
+function coverageTitle(c: string): string {
+  return ({
+    complete: '数据完整',
+    partial: '仅部分采样，结果可能低估真实状态',
+    missing: '缺少样本',
+    unavailable: '无样本窗口（fail-closed，不视为健康）',
+    truncated: '采样达到预算上限，窗口被截断',
+  } as Record<string, string>)[c] ?? c
+}
+
+function signalWindowLabel(s: { window_start?: string; window_end?: string }): string {
+  if (!s.window_start || !s.window_end) return '--'
+  const start = new Date(s.window_start).getTime()
+  const end = new Date(s.window_end).getTime()
+  if (Number.isNaN(start) || Number.isNaN(end)) return '--'
+  const seconds = Math.round((end - start) / 1000)
+  if (seconds <= 0) return '--'
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`
+  if (seconds % 60 === 0) return `${seconds / 60}m`
+  return `${seconds}s`
+}
+
+function signalLatencyLabel(s: { observed_at: string; ingested_at?: string }): string {
+  if (!s.ingested_at) return '--'
+  const observed = new Date(s.observed_at).getTime()
+  const ingested = new Date(s.ingested_at).getTime()
+  if (Number.isNaN(observed) || Number.isNaN(ingested)) return '--'
+  const ms = Math.max(0, ingested - observed)
+  if (ms < 1000) return '<1s'
+  if (ms < 60000) return `${Math.round(ms / 1000)}s`
+  if (ms < 3600000) return `${Math.round(ms / 60000)}m`
+  return `${(ms / 3600000).toFixed(1)}h`
 }
 
 function severityLabel(s: string): string {
@@ -570,10 +607,13 @@ onMounted(initialize)
               <th>信号代码</th>
               <th>级别</th>
               <th>状态</th>
+              <th>覆盖度</th>
               <th>资源</th>
               <th>集群</th>
               <th>命名空间</th>
               <th>观测时间</th>
+              <th>时间窗口</th>
+              <th>数据延迟</th>
             </tr>
           </thead>
           <tbody>
@@ -584,10 +624,15 @@ onMounted(initialize)
               </td>
               <td><span class="badge" :class="`badge-${s.severity}`">{{ severityLabel(s.severity) }}</span></td>
               <td><span class="badge" :class="`badge-${s.state}`">{{ stateLabel(s.state) }}</span></td>
+              <td>
+                <span class="badge" :class="`badge-${s.coverage}`" :title="coverageTitle(s.coverage)">{{ coverageLabel(s.coverage) }}</span>
+              </td>
               <td>{{ s.resource.kind }} / {{ s.resource.name }}</td>
               <td>{{ clusterName(s.cluster_id) }}</td>
               <td>{{ s.namespace || 'cluster-scoped' }}</td>
               <td>{{ formatTime(s.observed_at) }}</td>
+              <td>{{ signalWindowLabel(s) }}</td>
+              <td>{{ signalLatencyLabel(s) }}</td>
             </tr>
           </tbody>
         </table>
@@ -1031,6 +1076,8 @@ onMounted(initialize)
 .badge-complete { color: var(--status-success); background: var(--success-bg); }
 .badge-partial { color: var(--status-warning); background: var(--warning-bg); }
 .badge-missing { color: var(--status-danger); background: var(--danger-bg); }
+.badge-unavailable { color: var(--text-secondary); background: var(--bg-tertiary); }
+.badge-truncated { color: var(--status-warning); background: var(--warning-bg); }
 
 .badge-kind {
   color: var(--accent-primary);

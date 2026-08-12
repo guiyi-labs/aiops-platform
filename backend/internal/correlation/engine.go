@@ -270,12 +270,21 @@ func (e *Engine) evaluateRule(
 
 // buildTriggerLink constructs the trigger signal link for the case.
 func buildTriggerLink(sig SignalOccurrenceInput, now time.Time) SignalLink {
+	var freshness *time.Time
+	if !sig.Freshness.IsZero() {
+		f := sig.Freshness
+		freshness = &f
+	}
 	return SignalLink{
 		SignalOccurrenceID: sig.ID,
 		Relation:           SignalRelationTrigger,
 		SignalID:           sig.SignalID,
 		Producer:           sig.Producer,
 		ObservedAt:         sig.ObservedAt,
+		Coverage:           sig.Coverage,
+		Freshness:          freshness,
+		WindowStart:        sig.WindowStart,
+		WindowEnd:          sig.WindowEnd,
 		CreatedAt:          now,
 	}
 }

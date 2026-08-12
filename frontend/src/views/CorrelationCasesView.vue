@@ -73,6 +73,38 @@ function completenessPercent(value: number): string {
   return `${Math.round(value * 100)}%`
 }
 
+function coverageLabel(c: string): string {
+  return (
+    { complete: '完整', partial: '部分样本', missing: '缺失', unavailable: '无数据', truncated: '截断' } as Record<string, string>
+  )[c] ?? '--'
+}
+
+function coverageTone(c: string): string {
+  switch (c) {
+    case 'complete': return 'var(--status-success)'
+    case 'partial':
+    case 'truncated': return 'var(--status-warning)'
+    case 'unavailable': return 'var(--text-muted)'
+    default: return 'var(--status-danger)'
+  }
+}
+
+function linkWindowLabel(link: { window_start?: string; window_end?: string }): string {
+  if (!link.window_start || !link.window_end) return '--'
+  const start = new Date(link.window_start).getTime()
+  const end = new Date(link.window_end).getTime()
+  if (Number.isNaN(start) || Number.isNaN(end)) return '--'
+  const seconds = Math.round((end - start) / 1000)
+  if (seconds <= 0) return '--'
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`
+  if (seconds % 60 === 0) return `${seconds / 60}m`
+  return `${seconds}s`
+}
+
+const hasPartialSignalCoverage = computed(() =>
+  caseView.value?.signal_links.some((link) => link.coverage && link.coverage !== 'complete') ?? false,
+)
+
 async function loadCases() {
   if (!selectedClusterID.value) {
     cases.value = []
@@ -266,14 +298,24 @@ onMounted(initialize)
 
           <section v-if="caseView" class="detail-section">
             <h3><Link2 :size="15" />信号链路 · {{ caseView.signal_links.length }}</h3>
+            <p v-if="hasPartialSignalCoverage" class="coverage-hint">
+              部分信号缺样本或覆盖不完整，案例置信度已相应调整。
+            </p>
             <p v-if="caseView.signal_links.length === 0" class="compact-empty">暂无信号链路</p>
             <table v-else class="detail-table">
-              <thead><tr><th>关系</th><th>信号 ID</th><th>来源</th><th>观察时间</th></tr></thead>
+              <thead><tr><th>关系</th><th>信号 ID</th><th>来源</th><th>覆盖度</th><th>时间窗口</th><th>观察时间</th></tr></thead>
               <tbody>
                 <tr v-for="link in caseView.signal_links" :key="link.id">
                   <td>{{ link.relation }}</td>
                   <td>{{ link.signal_id }}</td>
                   <td>{{ link.producer }}</td>
+                  <td>
+                    <span v-if="link.coverage" class="mini-badge" :style="{ color: coverageTone(link.coverage), borderColor: coverageTone(link.coverage) }">
+                      {{ coverageLabel(link.coverage) }}
+                    </span>
+                    <span v-else class="mini-badge neutral">--</span>
+                  </td>
+                  <td>{{ linkWindowLabel(link) }}</td>
                   <td>{{ formatTime(link.observed_at) }}</td>
                 </tr>
               </tbody>
@@ -563,6 +605,11 @@ onMounted(initialize)
 .detail-section h3 span {
   color: var(--text-secondary);
   font-weight: 500;
+}
+.coverage-hint {
+  margin: 0 0 8px;
+  color: var(--status-warning);
+  font-size: 11px;
 }
 .detail-table {
   width: 100%;

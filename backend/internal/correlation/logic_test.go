@@ -123,3 +123,50 @@ func TestRankCompleteness(t *testing.T) {
 		t.Error("insufficient rank should be 0")
 	}
 }
+
+func TestBuildTriggerLinkCopiesSignalMetadata(t *testing.T) {
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	windowStart := now.Add(-10 * time.Minute)
+	windowEnd := now.Add(-2 * time.Minute)
+	freshness := now.Add(-time.Minute)
+	sig := SignalOccurrenceInput{
+		ID:          501,
+		SignalID:    "slo.burn.fast.v1",
+		Producer:    "slo",
+		Coverage:    "partial",
+		Freshness:   freshness,
+		WindowStart: &windowStart,
+		WindowEnd:   &windowEnd,
+		ObservedAt:  now,
+	}
+	link := buildTriggerLink(sig, now)
+	if link.SignalOccurrenceID != 501 || link.SignalID != "slo.burn.fast.v1" || link.Producer != "slo" {
+		t.Errorf("identity fields wrong: %+v", link)
+	}
+	if link.Coverage != "partial" {
+		t.Errorf("coverage = %q, want partial", link.Coverage)
+	}
+	if link.Freshness == nil || !link.Freshness.Equal(freshness) {
+		t.Errorf("freshness = %v, want %v", link.Freshness, freshness)
+	}
+	if link.WindowStart == nil || !link.WindowStart.Equal(windowStart) {
+		t.Errorf("window_start = %v, want %v", link.WindowStart, windowStart)
+	}
+	if link.WindowEnd == nil || !link.WindowEnd.Equal(windowEnd) {
+		t.Errorf("window_end = %v, want %v", link.WindowEnd, windowEnd)
+	}
+	if !link.ObservedAt.Equal(now) || !link.CreatedAt.Equal(now) {
+		t.Errorf("timestamps wrong: %+v", link)
+	}
+}
+
+func TestBuildTriggerLinkZeroFreshnessIsNil(t *testing.T) {
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	link := buildTriggerLink(SignalOccurrenceInput{ID: 502, SignalID: "diag.pod.pending.v1", Producer: "diagnosis", ObservedAt: now}, now)
+	if link.Freshness != nil {
+		t.Errorf("freshness should stay nil when input is zero, got %v", link.Freshness)
+	}
+	if link.Coverage != "" {
+		t.Errorf("coverage should be empty when input omits it, got %q", link.Coverage)
+	}
+}

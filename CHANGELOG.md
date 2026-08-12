@@ -21,6 +21,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 - 新增双全新环境离线安装/升级/回滚一致性演练 `scripts/dual-env-compose-drill.sh`：每次运行在完全隔离的两套环境（独立 project name、postgres 25432/26432、backend 28080/29080、frontend 28081/29081、独立 volume 与网络）安装同一不可变镜像 digest，断言 backend `health/ready`、frontend 200、admin 登录 + `/api/v1/auth/me` → `system_admin`、确定性 audit 标记持久、`down -v` 完整清理（10/10 PASS，报告 `report-20260812-213243-bf91f0.json`）。
 - 设置 `APP_UPGRADE_BACKEND_IMAGE`（与基线不同 digest 的后端镜像，本地离线构建 `k8s-aiops-backend:v0.3.0-rc.5-local`）后在两套环境再执行跨 digest 升级（`/api/v1/health/ready` version `dev → v0.3.0-rc.5`，audit 标记保持）与回滚（version 还原 `dev`，标记保持），14/14 PASS（报告 `report-20260812-214043-17a17c.json`）。
+- 设置 `APP_BACKUP_RESTORE=1`（配合升级镜像）后：环境 A 做 `pg_dump` 逻辑备份（244169 字节），再在**第三套全新环境**还原并断言 audit 标记 count=1 + 登录/`system_admin`，16/16 PASS（报告 `report-20260812-215101-1fcddd.json`）。
 - 全部用本地已有镜像离线复现，与运行中开发 compose 栈零共享；作为 M102「两套全新环境安装/升级/回滚」的本地完整证据。真实组织 kind/Helm 生命周期仍需授权后由 CI/组织环境补齐；M89/M90 未完成前版本保持 RC，不宣称 GA。
 - See [M102 dual-env compose drill change record](docs/changes/2026-08-12-m102-dual-env-compose-drill.md).
 

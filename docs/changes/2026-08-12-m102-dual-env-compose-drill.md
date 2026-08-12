@@ -45,3 +45,19 @@ M102 GA 封口要求「两套全新环境执行相同 release manifest 的安装
 
 - 本演练在本地两套隔离环境补齐「跨 digest 升级/回滚 + 数据持久化」的一致性证据；真实组织 kind/Helm 安装、升级、回滚与备份恢复仍需在授权/网络恢复后由 CI 或组织环境执行。
 - `k8s-aiops-backend:v0.3.0-rc.5-local` 与本机顶层临时 `/tmp/dual-rc5` Dockerfile 为演练产物，不入库；复跑需先离线重建或从 CI 拉取正式镜像。
+
+
+## v3 更新（2026-08-12，逻辑备份/恢复）
+
+- `scripts/dual-env-compose-drill.sh`：新增 `APP_BACKUP_RESTORE=1` 可选开关。开启后在环境 A 的数据持久化检查后做**逻辑备份**（`pg_dump`，记录字节数），再在**第三套全新环境**（`aiops-dual-recover`，独立 project/端口 27432/27080/27081/卷/网络、全新空库不含 initdb 预种子）还原备份，并断言 audit 标记 count=1 与登录后 `/me → system_admin` 关键旅程。
+- 修复：恢复目标必须是全新空库（关闭 initdb 预种子挂载，否则 `pg_dump` 完整备份与预建表冲突报 `relation "audit_logs" already exists`）。
+- report 新增 `backup_restore_enabled`、`backup`、`restore` 字段。
+
+### Verification（v3）
+
+- `APP_UPGRADE_BACKEND_IMAGE=k8s-aiops-backend:v0.3.0-rc.5-local APP_BACKUP_RESTORE=1 ./scripts/dual-env-compose-drill.sh`：16/16 PASS（环境 a/b 各 7 项 + 备份 + 第三环境恢复），报告 `report-20260812-215101-1fcddd.json`；备份 244169 字节，恢复环境 marker count=1 且登录+system_admin 通过。
+- 运行后无残留容器/卷/网络；`go test ./...` 通过、敏感字段扫描 clean。
+
+### Risks / Notes（v3）
+
+- 备份为 `pg_dump` 逻辑备份（与 M20 Phase 8 独立防线一致）；真实组织环境的完整备份恢复与 WAL/PITR（M90 授权轨）仍需组织环境补齐。

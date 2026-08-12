@@ -17,7 +17,11 @@
 #   5. when APP_UPGRADE_BACKEND_IMAGE is set: upgrade backend to a DIFFERENT
 #      immutable digest, verify health + marker + backend version changed,
 #      then roll back to the baseline digest and verify again (upgrade/rollback)
-#   6. tears down fully with -v (fresh, reproducible next run)
+#   6. when APP_BACKUP_RESTORE=1: takes a logical pg_dump backup of the first
+#      environment after the durability check, then restores it into a THIRD
+#      fully fresh environment (new project/ports/volume) and verifies the
+#      marker and key journey (backup/restore)
+#   7. tears down fully with -v (fresh, reproducible next run)
 #
 # Exit 0 when every assertion passes on both environments; exit 1 otherwise.
 # Report: .artifacts/dual-env-compose-drill/report-<run>.json
@@ -32,6 +36,7 @@ BACKEND_IMAGE="${APP_BACKEND_IMAGE:-k8s-aiops-backend:latest}"
 FRONTEND_IMAGE="${APP_FRONTEND_IMAGE:-k8s-aiops-frontend:latest}"
 PG_IMAGE="${APP_PG_IMAGE:-pgvector/pgvector:0.8.1-pg17}"
 UPGRADE_BACKEND_IMAGE="${APP_UPGRADE_BACKEND_IMAGE:-}"
+BACKUP_RESTORE="${APP_BACKUP_RESTORE:-}"
 JWT_KEY="dual-env-jwt-signing-key-0123456789abcdef0123456789abcdef"
 CRED_KEY="ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE="
 
@@ -66,8 +71,12 @@ backend_version() {
   curl -s -m 5 "$1/api/v1/health/ready" | jq -r '.version // empty' 2>/dev/null || true
 }
 
-write_isolated_compose() { # outfile project backend_image postgres_port backend_port frontend_port
-  local out="$1" project="$2" backend_image="$3" pg_port="$4" backend_port="$5" fe_port="$6"
+write_isolated_compose() { # outfile project backend_image postgres_port backend_port frontend_port [initdb=on|off]
+  local out="$1" project="$2" backend_image="$3" pg_port="$4" backend_port="$5" fe_port="$6" initdb="${7:-on}"
+  local initdb_mount=""
+  if [[ "$initdb" == "on" ]]; then
+    initdb_mount="      - "$ROOT/backend/migrations/000001_init_schema.up.sql:/docker-entrypoint-initdb.d/000001_init_schema.sql:ro""
+  fi
   cat > "$out" <<YAML
 name: $project
 services:
@@ -81,7 +90,7 @@ services:
       - "$pg_port:5432"
     volumes:
       - "$project-pgdata:/var/lib/postgresql/data"
-      - "$ROOT/backend/migrations/000001_init_schema.up.sql:/docker-entrypoint-initdb.d/000001_init_schema.sql:ro"
+$initdb_mount
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aiops -d aiops"]
       interval: 5s
@@ -232,6 +241,17 @@ run_environment() { # project pg_5000 backend_5000 frontend_5001
     fi
   fi
 
+  # -- optional logical backup (pg_dump) of the first environment --
+  if [[ "$BACKUP_RESTORE" == "1" ]] && [[ "$project" == "aiops-dual-env-a" ]]; then
+    if docker compose -f "$compose_file" exec -T postgres pg_dump -U aiops -d aiops > "$WORK/$project-backup.sql" 2>"$WORK/$project-backup.log"; then
+      local backup_size
+      backup_size="$(wc -c < "$WORK/$project-backup.sql" | tr -d '[:space:]')"
+      pass "$project-backup" "logical backup created ($backup_size bytes)"
+    else
+      fail "$project-backup" "pg_dump failed: $(tail -3 "$WORK/$project-backup.log")"
+    fi
+  fi
+
   # -- optional cross-digest upgrade + rollback --
   if [[ -n "$UPGRADE_BACKEND_IMAGE" ]]; then
     local v_before v_after v_rollback up_count
@@ -273,6 +293,68 @@ run_environment() { # project pg_5000 backend_5000 frontend_5001
   pass "$project-cleanup" "stack torn down (-v), environment fully isolated"
 }
 
+# restore_environment <source_project> <backup_file>
+#   Boots a THIRD fully fresh environment (project aiops-dual-recover), restores
+#   the logical backup into its empty postgres, then verifies marker + journey.
+restore_environment() {
+  local source_project="$1" backup_file="$2"
+  local project="aiops-dual-recover"
+  local pg="27432" be="27080" fe="27081"
+  local base="http://127.0.0.1:$be"
+  local compose_file="$WORK/$project-compose.yaml"
+  scenario "Environment $project (backup restore target)"
+
+  local pgonly_file="$WORK/$project-pgonly.yaml"
+  # A truly fresh empty database (no initdb pre-seed) so the logical backup is
+  # the only source of truth for the restore.
+  write_isolated_compose "$pgonly_file" "$project" "$BACKEND_IMAGE" "$pg" "$be" "$fe" off
+  write_isolated_compose "$compose_file" "$project" "$BACKEND_IMAGE" "$pg" "$be" "$fe"
+
+  # postgres only first, then restore, then bring up the full stack
+  if ! docker compose -f "$pgonly_file" up -d postgres > "$WORK/$project-pg.log" 2>&1; then
+    fail "$project-restore" "postgres up failed: $(tail -3 "$WORK/$project-pg.log")"
+    docker compose -f "$compose_file" down -v >/dev/null 2>&1 || true
+    return
+  fi
+  local attempt
+  for attempt in $(seq 1 60); do
+    if docker compose -f "$pgonly_file" exec -T postgres pg_isready -U aiops -d aiops >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+  if ! docker compose -f "$pgonly_file" exec -T postgres psql -U aiops -d aiops -v ON_ERROR_STOP=1 < "$backup_file" > "$WORK/$project-restore.log" 2>&1; then
+    fail "$project-restore" "psql restore failed: $(tail -3 "$WORK/$project-restore.log")"
+    docker compose -f "$compose_file" down -v >/dev/null 2>&1 || true
+    return
+  fi
+
+  docker compose -f "$pgonly_file" stop postgres >/dev/null 2>&1 || true
+  if ! compose_phase "$compose_file" "$project" "$BACKEND_IMAGE" up restore restore; then
+    fail "$project-restore" "stack up after restore failed: $(tail -3 "$WORK/$project-restore.log")"
+  elif ! backend_ready "$base"; then
+    fail "$project-restore" "backend not ready after restore"
+  else
+    local count login token me role uname
+    count="$(docker compose -f "$compose_file" exec -T postgres psql -U aiops -d aiops -tAc \
+      "SELECT count(*) FROM audit_logs WHERE action='dualenvironment.drill' AND request_id='$source_project'" | tr -d '[:space:]' || true)"
+    login="$(curl -s -m 5 -X POST "$base/api/v1/auth/login" -H 'Content-Type: application/json' \
+      -d '{"username":"admin","password":"change_me_now"}' 2>/dev/null || true)"
+    token="$(jq -r '.access_token // empty' <<<"$login" 2>/dev/null || true)"
+    me="$(curl -s -m 5 -H "Authorization: Bearer $token" "$base/api/v1/auth/me" 2>/dev/null || true)"
+    role="$(jq -r '.roles[0] // empty' <<<"$me" 2>/dev/null || true)"
+    uname="$(jq -r '.username // empty' <<<"$me" 2>/dev/null || true)"
+    if [[ "$count" == "1" ]] && [[ -n "$token" ]] && [[ "$uname" == "admin" ]] && [[ "$role" == "system_admin" ]]; then
+      pass "$project-restore" "backup restored into fresh env: marker count=$count, login+system_admin OK"
+    else
+      fail "$project-restore" "marker count=$count token=${#token} uname=$uname role=$role"
+    fi
+  fi
+
+  docker compose -f "$compose_file" down -v > "$WORK/$project-down.log" 2>&1 || true
+  pass "$project-cleanup" "restore environment torn down (-v)"
+}
+
 # ---------- main ----------
 
 scenario "Preflight"
@@ -299,6 +381,14 @@ fi
 
 run_environment aiops-dual-env-a 25432 28080 28081
 run_environment aiops-dual-env-b 26432 29080 29081
+
+if [[ "$BACKUP_RESTORE" == "1" ]]; then
+  if [[ ! -s "$WORK/aiops-dual-env-a-backup.sql" ]]; then
+    fail aiops-dual-recover-restore "no backup file produced (backup step failed?)"
+  else
+    restore_environment aiops-dual-env-a "$WORK/aiops-dual-env-a-backup.sql"
+  fi
+fi
 
 # ---------- report ----------
 
@@ -330,7 +420,10 @@ cat > "$REPORT" <<JSON
       "cleanup": {"result": "$(status_of aiops-dual-env-b-cleanup)", "observed": "$(detail_of aiops-dual-env-b-cleanup)"}
     }
   },
-  "notes": "Local offline drill only. Two fully isolated fresh environments install the same immutable baseline products. When a distinct upgrade backend image is supplied, both environments additionally prove a cross-digest upgrade (version change + marker intact) and a rollback to the baseline digest. Not a production install claim."
+  "backup_restore_enabled": "${BACKUP_RESTORE:-0}",
+  "backup": {"result": "$(status_of aiops-dual-env-a-backup)", "observed": "$(detail_of aiops-dual-env-a-backup)"},
+  "restore": {"result": "$(status_of aiops-dual-recover-restore)", "observed": "$(detail_of aiops-dual-recover-restore)"},
+  "notes": "Local offline drill only. Two fully isolated fresh environments install the same immutable baseline products. When a distinct upgrade backend image is supplied, both environments additionally prove a cross-digest upgrade (version change + marker intact) and a rollback to the baseline digest. With APP_BACKUP_RESTORE=1 a third fresh environment restores the logical pg_dump backup and verifies data + key journey. Not a production install claim."
 }
 JSON
 echo

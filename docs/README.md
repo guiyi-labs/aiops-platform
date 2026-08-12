@@ -49,6 +49,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-12-m89-oidc-local-drill.md`：M89 身份轨本地预研——仓库内 OIDC Provider（`backend/cmd/oidc-provider`）+ 全链路登录演练（`scripts/oidc-login-drill.sh`）14/14 场景，真实 Authorization Code + PKCE + acr MFA 证据 + 各项 fail-closed（缺预关联 403、nonce/state 篡改、MFA 证据缺失/不接受、组无映射、轮换密钥、过期/unsigned token、Provider 下线）与审计落库、启动期 fail-fast。
 - `docs/changes/2026-08-12-m102-dual-env-compose-drill.md`：M102 本地轨道——双全新隔离环境 install/关键旅程/数据持久化/清理（10/10）、跨 digest 升级回滚（14/14）与第三环境逻辑备份恢复（16/16，`scripts/dual-env-compose-drill.sh`，含离线构建镜像 `k8s-aiops-backend:v0.3.0-rc.5-local`）。
 - `docs/changes/2026-08-12-m94-diagnosis-replay.md`：M94 回放模式——`BuildReplay` 纯函数按事件时间重放 M81 insight 链路（五阶段，只读不伪造）、`GET /diagnoses/:id/replay` 路由 + OpenAPI + replay-panel UI。
+- `docs/changes/2026-08-12-m94-replay-demo-drill-and-offline-refresh.md`：重建含回放的 rc.5-replay 双镜像；demo-drill 回放断言（17/17）；offline-install 刷新离线包（10/10）。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

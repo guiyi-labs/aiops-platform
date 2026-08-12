@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M94 Replay Demo Drill & Offline Bundle Refresh (v0.3.0-rc.5-replay)
+
+- 重建含回放代码的镜像 `k8s-aiops-backend:v0.3.0-rc.5-replay`（宿主机交叉编译 + alpine 封包）与 `k8s-aiops-frontend:v0.3.0-rc.5-replay`（nginx 复用 + 覆盖新 dist），解决既有 latest 镜像不含 replay 代码无法端到端验证的问题。
+- `scripts/demo-drill.sh` 新增两处回放断言：受控动作前验证 Node 诊断回放（schema/steps/stages/time-sorted）、受控动作后验证 Pod 诊断回放包含 activity+remediation（created+executed），演示闭环从 15/15 提升至 17/17。
+- `scripts/offline-install-drill.sh` 用新镜像刷新离线包（`aiops-platform-offline-v0.3.0-rc.5-replay`），离线安装全链路 10/10 PASS，确保最新功能代码包含在可复用离线安装包内（允许安装）。
+- See [replay demo drill & offline refresh change record](docs/changes/2026-08-12-m94-replay-demo-drill-and-offline-refresh.md).
+
+## [Unreleased]
+
 ### Added - M94 Diagnosis Replay Mode
 
 - 新增诊断详情只读回放模式：按事件时间重放 M81 insight 链路（诊断创建 → 证据采集 → 状态与协作 → AI 引用解释 → 受控动作），严格使用已存储产物，绝不重新生成或伪造历史 AI 结论。

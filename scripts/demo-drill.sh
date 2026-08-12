@@ -311,6 +311,22 @@ else
   fail evidence-pod "no container_termination evidence"
 fi
 
+
+# ---------- 7. replay (回放，动作前) ----------
+
+scenario "Replay (回放): read-only insight-chain replay before actions"
+NODE_REPLAY="$(api GET "/api/v1/diagnoses/$NODE_DIAG_ID/replay")"
+NODE_REPLAY_SCHEMA="$(jq -r '.schema // empty' <<<"$NODE_REPLAY")"
+NODE_REPLAY_DIAG="$(jq -r '.diagnosis_id // 0' <<<"$NODE_REPLAY")"
+NODE_REPLAY_STEPS="$(jq '.steps | length' <<<"$NODE_REPLAY")"
+NODE_REPLAY_STAGES="$(jq -r '[.stages[].stage] | join(",")' <<<"$NODE_REPLAY")"
+NODE_REPLAY_SORTED="$(jq -r '[.steps[].occurred_at] == ([.steps[].occurred_at] | sort)' <<<"$NODE_REPLAY")"
+if [[ "$NODE_REPLAY_SCHEMA" == "aiops.diagnosis-replay/v1" && "$NODE_REPLAY_DIAG" == "$NODE_DIAG_ID" && "$NODE_REPLAY_STEPS" -ge 2 && "$NODE_REPLAY_STAGES" == *"diagnosis_created"* && "$NODE_REPLAY_STAGES" == *"evidence"* && "$NODE_REPLAY_SORTED" == "true" ]]; then
+  pass replay-before "node replay schema ok steps=$NODE_REPLAY_STEPS stages=[$NODE_REPLAY_STAGES] time-sorted"
+else
+  fail replay-before "schema=$NODE_REPLAY_SCHEMA diag=$NODE_REPLAY_DIAG steps=$NODE_REPLAY_STEPS stages=[$NODE_REPLAY_STAGES] sorted=$NODE_REPLAY_SORTED"
+fi
+
 # ---------- 7. controlled action (受控动作) ----------
 
 scenario "Controlled action (受控动作): confirm -> preview -> execute rollout restart"
@@ -354,6 +370,20 @@ if [[ "$DEPLOY_CODE" == "demo-app" && -n "$RESTART_AT" && -n "$REMED_ID" && "$MU
   pass action-verify "mock recorded $(jq -r '.items | length' <<<"$MUTATIONS") mutation(s); restarted-at=$RESTART_AT remediation-id=$REMED_ID; platform deployment view OK"
 else
   fail action-verify "mutations=$MUT_COUNT deploy=$DEPLOY_CODE restarted_at=${RESTART_AT:-empty} remediation_id=${REMED_ID:-empty}"
+fi
+
+
+# ---------- 9. replay after actions (回放，动作后) ----------
+
+scenario "Replay after actions (回放): chain now includes activity + remediation"
+POD_REPLAY="$(api GET "/api/v1/diagnoses/$POD_DIAG_ID/replay")"
+POD_REPLAY_STAGES="$(jq -r '[.stages[].stage] | join(",")' <<<"$POD_REPLAY")"
+POD_REPLAY_TYPES="$(jq -r '[.steps[].type] | join(",")' <<<"$POD_REPLAY")"
+POD_REPLAY_SORTED="$(jq -r '[.steps[].occurred_at] == ([.steps[].occurred_at] | sort)' <<<"$POD_REPLAY")"
+if [[ "$POD_REPLAY_STAGES" == *"activity"* && "$POD_REPLAY_STAGES" == *"remediation"* && "$POD_REPLAY_TYPES" == *"remediation_created"* && "$POD_REPLAY_TYPES" == *"remediation_executed"* && "$POD_REPLAY_SORTED" == "true" ]]; then
+  pass replay-after "pod replay stages=[$POD_REPLAY_STAGES] types=[$POD_REPLAY_TYPES] time-sorted"
+else
+  fail replay-after "stages=[$POD_REPLAY_STAGES] types=[$POD_REPLAY_TYPES] sorted=$POD_REPLAY_SORTED"
 fi
 
 # ---------- 9. incident workspace (事故复盘) ----------

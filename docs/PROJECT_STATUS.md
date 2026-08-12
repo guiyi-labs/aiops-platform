@@ -66,6 +66,7 @@
 | M96-A/B/C/D + Gate B | `m96-v1` 确定性规模 fixture（500 Node / 50k Pod / 100k Event）、fixture-backed 后端 report-mode 基准、前端 50k Pod DOM/交互基线（6 visits，0 failures，0 invariant failures）、认证单壳层与 active CSS layer 基线（56/56 浏览器回归）；本地与 Hosted Gate B 均 PASS |
 | M97 | `aiops.release-manifest/v1`、RC-only workflow、双架构 OCI、四份平台 SPDX SBOM、Helm/Kustomize/离线资产、严格 checksum/Cosign 与 kind 生命周期；`v0.3.0-rc.4` 本地与 Hosted Gate C 均通过，M89/M90 外部证据继续为 Blocked/Deferred |
 | M98 | 事故工作空间与协作闭环：incident 领域模块（状态机/SLA/CAS/时间线/CSV 脱敏导出）、`000040_incidents` 迁移、REST+OpenAPI、前端 `/incidents` 视图与侧栏入口；Desktop/Mobile Playwright 8/8，前后端门禁全绿 |
+| M99（M99-A） | 信号关联第一步：SLO burn 信号化管道（`slo.burn.fast/slow/recovery.v1` + `SLOBurnSignalSink`）、correlation `rollout_causes_slo_burn` 规则与 11 场景黄金回放、signal/slo/correlation 服务生产接线（`/aiops/signals|slos|correlation/*` 可用）；M99-B/C/D（metrics 源、关联 worker、前端展示）待续 |
 
 > 当前执行入口：`docs/next-long-term-plan.md`。M93-B2、M94、M95、M96 Gate B、M97 Gate C 与 M98 已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
 > M89 生产身份与 M90 数据可靠性继续作为组织授权轨，未完成时版本保持 RC。

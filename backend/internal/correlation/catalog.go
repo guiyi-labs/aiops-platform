@@ -80,6 +80,20 @@ var catalog = map[string]RuleDescriptor{
 		ContradictingFactors: []string{"contradicting_signal"},
 		ReasonCode:           "rollout_precedes_metric_breach",
 	},
+	// M99: a rollout precedes SLO error-budget burn on the same workload.
+	// same_uid is required because the burn signal carries the SLO target
+	// resource (Deployment) directly; a different UID without a topology path
+	// is contradicted and never confirmed.
+	"correlation.rollout_causes_slo_burn.v1": {
+		RuleID:               "correlation.rollout_causes_slo_burn.v1",
+		TriggerSignals:       []string{"slo.burn.fast.v1", "slo.burn.slow.v1"},
+		ChangeKinds:          []string{"promotion", "rollout"},
+		PrimaryKind:          "Deployment",
+		TimeWindowSecs:       3600,
+		RequiredFactors:      []string{"same_uid", "time_distance", "change_symptom_rule"},
+		ContradictingFactors: []string{"contradicting_signal"},
+		ReasonCode:           "rollout_precedes_slo_burn",
+	},
 }
 
 // LookupRule returns the descriptor for a rule. ok=false when the rule is not

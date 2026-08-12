@@ -30,6 +30,9 @@ var fixtureClock = time.Date(2026, 7, 31, 12, 0, 0, 0, time.UTC)
 // fixtureClusterA is the cluster ID used by most fixtures.
 const fixtureClusterA int64 = 1
 
+// ptrT returns a pointer to t for window fields in fixtures.
+func ptrT(t time.Time) *time.Time { return &t }
+
 // GoldenFixture is one replayable correlation scenario.
 type GoldenFixture struct {
 	Name        string
@@ -65,6 +68,92 @@ func GoldenFixtures() []GoldenFixture {
 		nodeNotReadyFixture(),
 		metricBreachFixture(),
 		badRolloutFixture(),
+		sloBurnFastFixture(),
+		sloBurnUnrelatedFixture(),
+	}
+}
+
+// --- Scenario 10: SloBurnFast (M99 confirmed) ---
+//
+// A rollout on a Deployment precedes an SLO fast-burn signal on the SAME
+// Deployment UID. The burn signal carries the SLO target resource directly,
+// so same_uid, time_distance and change_symptom_rule all match and no
+// contradicting factor exists — the case is ConfidenceConfirmed. This is the
+// M99 golden scenario: "Deployment 变更后引发错误预算消耗".
+func sloBurnFastFixture() GoldenFixture {
+	observedAt := fixtureClock
+	changeStart := fixtureClock.Add(-20 * time.Minute)
+	deployUID := "dep-uid-slo-010"
+
+	return GoldenFixture{
+		Name:        "slo_burn_fast",
+		Description: "rollout precedes SLO fast burn on the same Deployment (error budget consumed)",
+		Inputs: EngineInputs{
+			Now: fixtureClock,
+			Signals: []SignalOccurrenceInput{
+				{ID: 109, SignalID: "slo.burn.fast.v1", Producer: "slo",
+					ClusterID: fixtureClusterA, Namespace: "app",
+					Resource: ResourceCitation{Kind: "Deployment", Namespace: "app", Name: "web", UID: deployUID},
+					Severity: "critical", State: "active", Coverage: "complete",
+					Freshness: observedAt, ObservedAt: observedAt,
+					WindowEnd: ptrT(fixtureClock)},
+			},
+			Changes: []ChangeEventInput{
+				{ID: 209, ClusterID: fixtureClusterA, Namespace: "app", Kind: "rollout",
+					PlanID: "plan-slo-burn",
+					Target: ResourceCitation{Kind: "Deployment", Namespace: "app", Name: "web", UID: deployUID},
+					Action: "rollout_restart", Result: "succeeded", Actor: "operator",
+					StartedAt: changeStart, Confidence: "high", Source: "platform",
+					Evidence: []EvidenceRef{{Kind: "slo_burn_window", ID: 41}}},
+			},
+		},
+		ExpectResults:       1,
+		ExpectConfidence:    ConfidenceConfirmed,
+		ExpectRuleID:        "correlation.rollout_causes_slo_burn.v1",
+		ExpectCandidates:    1,
+		ExpectSignalLinks:   1,
+		ExpectResourceLinks: 1,
+	}
+}
+
+// --- Scenario 11: SloBurnUnrelated (M99 candidate/contradicted) ---
+//
+// A slow-burn signal fires on Deployment A while a rollout happened on a
+// DIFFERENT Deployment B with no topology path between them. same_uid
+// mismatches and topology_distance is unreachable (contradicting evidence),
+// so the case is downgraded to contradicted — the unrelated change is
+// retained for audit but never promoted to root cause.
+func sloBurnUnrelatedFixture() GoldenFixture {
+	observedAt := fixtureClock
+	changeStart := fixtureClock.Add(-10 * time.Minute)
+
+	return GoldenFixture{
+		Name:        "slo_burn_unrelated",
+		Description: "slow burn on Deployment A vs rollout on unrelated Deployment B stays candidate",
+		Inputs: EngineInputs{
+			Now: fixtureClock,
+			Signals: []SignalOccurrenceInput{
+				{ID: 110, SignalID: "slo.burn.slow.v1", Producer: "slo",
+					ClusterID: fixtureClusterA, Namespace: "app",
+					Resource: ResourceCitation{Kind: "Deployment", Namespace: "app", Name: "web", UID: "dep-a-slo-011"},
+					Severity: "warning", State: "active", Coverage: "partial",
+					Freshness: observedAt, ObservedAt: observedAt,
+					WindowEnd: ptrT(fixtureClock)},
+			},
+			Changes: []ChangeEventInput{
+				{ID: 210, ClusterID: fixtureClusterA, Namespace: "app", Kind: "rollout",
+					PlanID: "plan-slo-other",
+					Target: ResourceCitation{Kind: "Deployment", Namespace: "app", Name: "api", UID: "dep-b-slo-011"},
+					Action: "rollout_restart", Result: "succeeded", Actor: "operator",
+					StartedAt: changeStart, Confidence: "high", Source: "platform"},
+			},
+		},
+		ExpectResults:       1,
+		ExpectConfidence:    ConfidenceContradicted,
+		ExpectRuleID:        "correlation.rollout_causes_slo_burn.v1",
+		ExpectCandidates:    1,
+		ExpectSignalLinks:   1,
+		ExpectResourceLinks: 1,
 	}
 }
 

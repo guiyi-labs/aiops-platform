@@ -24,6 +24,7 @@ import (
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/config"
 	"k8s-aiops.local/backend/internal/copyops"
+	"k8s-aiops.local/backend/internal/correlation"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/eventstream"
 	"k8s-aiops.local/backend/internal/federation"
@@ -48,6 +49,8 @@ import (
 	"k8s-aiops.local/backend/internal/remediation"
 	"k8s-aiops.local/backend/internal/restore"
 	"k8s-aiops.local/backend/internal/servicemesh"
+	signalsvc "k8s-aiops.local/backend/internal/signal"
+	"k8s-aiops.local/backend/internal/slo"
 	"k8s-aiops.local/backend/internal/store"
 	"k8s-aiops.local/backend/internal/workspace"
 	"k8s-aiops.local/backend/migrations"
@@ -141,6 +144,17 @@ func main() {
 	maintenanceService := maintenance.NewService(kubernetesService, maintenance.NewGormRepository(database.GORM()))
 	namespacePostureService := namespaceposture.NewService(kubernetesService)
 	restoreService := restore.NewService(kubernetesService, restore.NewGormRepository(database.GORM()))
+	// M39-M42 AIOps signal, SLO and correlation services. Wired into the
+	// production server so the aiops routes (signals / slos / correlation)
+	// are live; the SLO burn-alert sink normalizes burn transitions into
+	// signal occurrences (M99). The evaluator source is nil until a metrics
+	// provider adapter is configured (M99-B); until then evaluations report
+	// StateUnavailable and no burn signals are emitted.
+	signalService := signalsvc.NewService(signalsvc.ServiceOptions{Repository: signalsvc.NewGormRepository(database.GORM())})
+	sloRepository := slo.NewGormRepository(database.GORM())
+	sloService := slo.NewService(sloRepository, slo.NewEvaluator(nil),
+		slo.WithBurnAlertSink(signalsvc.NewSLOBurnSignalSink(signalService, sloRepository)))
+	correlationService := correlation.NewService(correlation.NewGormRepository(database.GORM()), nil, nil)
 	authzRepo := authz.NewGormRepository(database.GORM())
 	authzService := authz.NewService(authzRepo)
 	grantManager := authz.NewGrantManager(authzRepo)
@@ -455,6 +469,9 @@ func main() {
 			Restore:                   restoreService,
 			Authz:                     authzService,
 			GrantManager:              grantManager,
+			SignalService:             signalService,
+			SLOService:                sloService,
+			CorrelationService:        correlationService,
 			WorkspaceService:          workspaceService,
 			FederationService:         federationService,
 			Monitoring:                monitoringService,

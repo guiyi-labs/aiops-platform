@@ -225,6 +225,8 @@ Playwright 回归和移动端横向滚动约束均已完成并归档。
 
 ### M99：信号关联、SLO 与影响分析（6–9 天）
 
+**进度**：M99-A 已完成（2026-08-12）——SLO burn 信号管道与生产接线，见 `docs/changes/2026-08-12-m99a-slo-burn-signal-pipeline.md`；M99-B（MetricsSource 适配）、M99-C（关联 worker/InputProvider）、M99-D（前端窗口/覆盖率/延迟展示）待续。
+
 **目标**：把事件、指标、日志、变更、拓扑和 SLO 关联到同一资源与时间窗口，减少手工跳转。
 
 **范围**：

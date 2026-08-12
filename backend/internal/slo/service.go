@@ -38,6 +38,10 @@ type BurnTransition struct {
 	BurnRate    float64
 	WindowEnd   time.Time
 	EvaluatedAt time.Time
+	// Coverage carries the data completeness of the evaluation so sinks
+	// (e.g. the M99 signal pipeline) can expose missing-data windows
+	// instead of treating them as healthy.
+	Coverage EvaluationCoverage
 }
 
 // NopBurnAlertSink is a no-op sink used in tests and when M27 integration
@@ -244,6 +248,7 @@ func (s *Service) EvaluateSLO(ctx context.Context, sloID int64) (Evaluation, err
 			BurnRate:    eval.BurnRate,
 			WindowEnd:   eval.WindowEnd,
 			EvaluatedAt: eval.EvaluatedAt,
+			Coverage:    eval.Coverage,
 		}
 		// Best-effort: a sink error does not roll back the evaluation.
 		_ = s.sink.OnBurnTransition(ctx, transition)

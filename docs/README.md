@@ -36,6 +36,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-10-m96-gate-b-evidence-aggregation.md`：M96 Gate B 规模证据聚合、哈希一致性与 CI 汇总报告。
 - `docs/changes/2026-08-10-m97-release-candidate-closure.md`：M97 统一 release manifest、双部署路径、离线包、签名校验和生命周期演练。
 - `docs/changes/2026-08-12-m98-incident-workspace.md`：M98 事故工作空间与协作闭环（后端领域模块、迁移、REST/OpenAPI、前端视图、桌面/移动端 e2e 8/8）。
+- `docs/changes/2026-08-12-m99a-slo-burn-signal-pipeline.md`：M99-A SLO burn 信号化管道、correlation SLO-burn 规则与黄金回放、AIOps 路由生产接线。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

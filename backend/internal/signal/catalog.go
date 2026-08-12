@@ -316,6 +316,44 @@ var catalog = map[string]SignalDescriptor{
 		Retention:        DefaultRetention,
 		Description:      "Workload restore rehearsal failed",
 	},
+
+	// --- SLO burn signals (M99: error-budget consumption surfaced as signals) ---
+	// Emitted by slo.BurnAlertSink adapters when an evaluation crosses into a
+	// breach state (fast/slow burn) or recovers to healthy. The resource is the
+	// SLO target service; correlation links the burn with recent change events.
+	"slo.burn.fast.v1": {
+		Code:             "slo.burn.fast.v1",
+		SchemaVersion:    SchemaVersionV1,
+		Domain:           "slo",
+		SeverityPolicy:   SeverityPolicy{Fallback: SeverityCritical},
+		CorrelationDims:  []string{"resource_uid", "cluster_id", "namespace"},
+		RequiredEvidence: []string{"slo_burn_window"},
+		AllowedActions:   []string{},
+		Retention:        DefaultRetention,
+		Description:      "SLO error budget consumed at or above the fast burn rate",
+	},
+	"slo.burn.slow.v1": {
+		Code:             "slo.burn.slow.v1",
+		SchemaVersion:    SchemaVersionV1,
+		Domain:           "slo",
+		SeverityPolicy:   SeverityPolicy{Fallback: SeverityWarning},
+		CorrelationDims:  []string{"resource_uid", "cluster_id", "namespace"},
+		RequiredEvidence: []string{"slo_burn_window"},
+		AllowedActions:   []string{},
+		Retention:        DefaultRetention,
+		Description:      "SLO error budget consumed above target at the slow burn rate",
+	},
+	"slo.burn.recovery.v1": {
+		Code:             "slo.burn.recovery.v1",
+		SchemaVersion:    SchemaVersionV1,
+		Domain:           "slo",
+		SeverityPolicy:   SeverityPolicy{Fallback: SeverityInfo},
+		CorrelationDims:  []string{"resource_uid", "cluster_id", "namespace"},
+		RequiredEvidence: []string{"slo_burn_window"},
+		AllowedActions:   []string{},
+		Retention:        DefaultRetention,
+		Description:      "SLO error budget recovered to healthy state",
+	},
 }
 
 // Lookup returns the descriptor for a signal code. ok is false when the code

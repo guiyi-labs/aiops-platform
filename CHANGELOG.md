@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M99A SLO Burn Signal Pipeline
+
+- 新增 SLO 错误预算燃烧信号化管道：`slo.burn.fast.v1` / `slo.burn.slow.v1` / `slo.burn.recovery.v1` 信号码，`SLOBurnSignalSink` 把 burn 状态转换规范化为 signal 事件（指纹去重、coverage 透传、`slo_burn_window` 证据哈希）。
+- `BurnTransition` 携带数据覆盖率，缺失数据窗口在信号层显式可见。
+- correlation 新增 `correlation.rollout_causes_slo_burn.v1` 规则（Deployment 变更→SLO burn），黄金回放场景 9→11（confirmed 与 contradicted 各一）。
+- signal/slo/correlation 服务接入生产后端，`/api/v1/aiops/signals|slos|correlation/*` 路由由 404 变为可用。
+- See [M99-A change record](docs/changes/2026-08-12-m99a-slo-burn-signal-pipeline.md).
+
 ### Added - M98 Incident Workspace
 
 - 新增事故工作空间全链路：事故编号、负责人、关注者、显式状态机（确认/解决/驳回/重开）、SLA 截止与逾期、append-only 时间线（系统事件与人工备注分离）。

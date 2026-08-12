@@ -12,6 +12,7 @@ const (
 	ProducerPosture   Producer = "posture"
 	ProducerAudit     Producer = "audit"
 	ProducerChange    Producer = "change"
+	ProducerSLO       Producer = "slo"
 )
 
 // State is the lifecycle state of a signal occurrence.

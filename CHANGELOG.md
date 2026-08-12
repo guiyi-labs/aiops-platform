@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M101 WAL/PITR Local Data-Track Drill
+
+- 新增本地 WAL 归档 + Point-In-Time-Recovery + 流式备库 + 故障注入确定性演练 `scripts/wal-pitr-drill.sh`（8 场景）：无损 PITR（150/150 行）、时间点恢复（175 行 + late=0）、缺 WAL 快速失败（2.3s 内报错退出）、迁移前逻辑备份（恢复回迁移前 100 行）、SIGKILL 硬崩溃故障注入（已提交 20 行全部存活 + 归档链路恢复）、流式备库（追平 130/150 行、优雅停机重启追赶、`pg_promote()` 故障切换后 155 行可写）、网络分区（备库隔离保持 150 行快照、重连追平 170 行）、归档目标故障（`archive_command=false` 下主库 130 行可写、`failed_count=5`、恢复后积压排空、无损 PITR 150/150）。
+- 实测（本地环境观测值，非生产声明）：RPO≤2s（archive_timeout=1s）、RTO≈1.2–2.7s；连续两轮运行结果一致，报告落 `.artifacts/wal-pitr-drill/report-*.json`。
+- 修复演练脚本原始确定性缺陷：容器 heredoc 终止符缩进吞命令、`printf %p` 格式符、`rm` 匿名卷挂载点、恢复等待判定反转、PG17 archive recovery 无 target 时自建 timeline 完成恢复等。
+- M101 数据轨本地第一步；网络中断/磁盘压力故障注入与多副本 HA 演练仍依赖组织授权（M90 授权轨），保持 Deferred。
+- See [M101 WAL/PITR drill change record](docs/changes/2026-08-12-m101-wal-pitr-drill.md).
+
 ### Added - M100D Dependency & Supply-Chain Gates
 
 - 修复首次扫描发现的真实漏洞：`pgx/v5` v5.6.0→v5.9.2（GO-2026-5004 SQL 注入）、`quic-go` v0.59.0→v0.59.1（GO-2026-5676 HTTP/3 内存耗尽）；前端 `pnpm-workspace.yaml` overrides `nanoid` 3.3.17（GHSA-2v37-7h3g-55p8）。govulncheck 可达漏洞 2→0，`pnpm audit --prod` 无已知漏洞。

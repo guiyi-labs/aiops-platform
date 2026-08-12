@@ -44,6 +44,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-12-m100b-session-invalidation-journeys.md`：M100-B 会话/密码/auth_version 失效旅程补齐（`UpdateUser` 禁用/角色变更 bump `auth_version`）与 4 旅程单测 + 14 项运行时冒烟复验。
 - `docs/changes/2026-08-12-m100c-sensitive-field-scan-and-log-redaction.md`：M100-C 敏感字段静态扫描门禁（`scripts/scan-sensitive-fields.sh` + CI）与日志/审计脱敏契约测试、运行时 0 泄漏复验。
 - `docs/changes/2026-08-12-m100d-dependency-and-supply-chain-gates.md`：M100-D 依赖漏洞修复（pgx/quic-go/nanoid）与 govulncheck、pnpm audit、许可证 allowlist、镜像基础层漂移、SBOM 差异门禁。
+- `docs/changes/2026-08-12-m101-wal-pitr-drill.md`：M101 本地数据轨——WAL 归档 + PITR + 流式备库 + 故障注入 8 场景确定性演练（无损/时间点/缺 WAL/迁移前逻辑备份/SIGKILL 崩溃/备库故障切换/网络分区/归档目标故障），实测 RPO/RTO 观测值与归档链路恢复。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

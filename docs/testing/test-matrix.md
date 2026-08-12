@@ -42,7 +42,7 @@
 | 根因（Node/Pod 诊断） | `demo-drill.sh` root-cause（`node.not_ready.v1`、`pod.oom_killed.v1`） | `e2e/diagnosis-timeline.spec.ts` |
 | 证据时间线 | `demo-drill.sh` evidence（5 项 / `container_termination`） | `e2e/diagnosis-timeline.spec.ts`、`e2e/finding-evidence.spec.ts` |
 | 受控动作（确认 → preview → execute） | `demo-drill.sh` action（`deployment.rollout_restart`，`succeeded`，mock 记录 PATCH） | —（动作 API 层验证） |
-| 回放模式（只读 insight 链路） | `demo-drill.sh` replay-before / replay-after（`GET /diagnoses/:id/replay`，阶段/类型/时间排序） | —（前端 `replay-panel` 已接入 `DiagnosesView.vue`，Playwright 断言待后续补充） |
+| 回放模式（只读 insight 链路） | `demo-drill.sh` replay-before / replay-after（`GET /diagnoses/:id/replay`，阶段/类型/时间排序） | `e2e/diagnosis-timeline.spec.ts`（replay-panel 全流程 + API 不可用降级，Desktop/Mobile） |
 | 事故工作区（create→note→resolve→postmortem→export） | `demo-drill.sh` incident-journey | `e2e/incidents.spec.ts` |
 | 双视口关键界面 | — | 42/42（M93-C 基线，Desktop/Mobile） |
 

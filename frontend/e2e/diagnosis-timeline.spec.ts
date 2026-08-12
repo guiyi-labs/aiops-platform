@@ -8,6 +8,29 @@ function fulfillJSON(route: Route, body: unknown) {
   return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
+const replayView = {
+  schema: 'aiops.diagnosis-replay/v1',
+  diagnosis_id: 42,
+  rule_id: 'node.not_ready.v1',
+  severity: 'critical',
+  resource: { kind: 'Node', namespace: '', name: 'worker-1', uid: 'node-1' },
+  observed_at: '2026-07-26T10:02:00Z',
+  steps: [
+    { index: 0, stage: 'evidence', category: 'resource_state', type: 'node_condition', summary: 'Ready = False', ref: 'diagnosis:42:evidence:0', occurred_at: '2026-07-26T10:00:00Z', missing: false },
+    { index: 1, stage: 'evidence', category: 'resource_state', type: 'node_condition', summary: 'MemoryPressure = True', ref: 'diagnosis:42:evidence:1', occurred_at: '2026-07-26T10:01:00Z', missing: false },
+    { index: 2, stage: 'diagnosis_created', type: 'diagnosis_created', summary: '诊断创建 · node.not_ready.v1（critical）', ref: 'diagnosis:42', occurred_at: '2026-07-26T10:02:00Z', missing: false, detail: { rule_id: 'node.not_ready.v1', severity: 'critical', status: 'confirmed' } },
+    { index: 3, stage: 'activity', type: 'status_transition', summary: 'open → confirmed', ref: 'activity:10', occurred_at: '2026-07-26T10:05:00Z', missing: false, detail: { actor: 'operator-a', comment: '确认根因' } },
+    { index: 4, stage: 'remediation', type: 'remediation_created', summary: '受控动作预览 · deployment.rollout_restart（succeeded）', ref: 'remediation:plan-1', occurred_at: '2026-07-26T10:06:00Z', missing: false, detail: { action: 'deployment.rollout_restart', status: 'succeeded', target_name: 'worker-app' } },
+    { index: 5, stage: 'remediation', type: 'remediation_executed', summary: '受控动作执行 · deployment.rollout_restart → succeeded', ref: 'remediation:plan-1:executed', occurred_at: '2026-07-26T10:07:00Z', missing: false, detail: { action: 'deployment.rollout_restart', status: 'succeeded', target_name: 'worker-app' } },
+  ],
+  stages: [
+    { stage: 'diagnosis_created', label: '诊断创建', count: 1 },
+    { stage: 'evidence', label: '证据采集', count: 2 },
+    { stage: 'activity', label: '状态与协作', count: 1 },
+    { stage: 'remediation', label: '受控动作', count: 2 },
+  ],
+}
+
 const detail = {
   id: 42,
   cluster_id: 1,
@@ -64,6 +87,10 @@ test.beforeEach(async ({ page }) => {
       await fulfillJSON(route, detail)
       return
     }
+    if (route.request().method() === 'GET' && path === '/api/v1/diagnoses/42/replay') {
+      await fulfillJSON(route, replayView)
+      return
+    }
     await fulfillJSON(route, { items: [], total: 0, remaining: 0 })
   })
 })
@@ -111,6 +138,101 @@ test('Diagnosis detail shows root cause card and evidence timeline', async ({ pa
   await expect(actionArea.locator('.action-item')).toHaveCount(1)
   await expect(actionArea.locator('.action-kind')).toHaveText('只读建议')
   await expect(actionArea).toContainText('检查 Ready Condition')
+})
+
+
+test('Diagnosis replay panel walks the stored insight chain', async ({ page }) => {
+  await page.goto('/diagnoses')
+  await page.locator('.diagnosis-history-row').first().click()
+
+  const drawer = page.locator('.diagnosis-drawer')
+  await expect(drawer).toBeVisible()
+  const panel = drawer.locator('.replay-panel')
+  await expect(panel).toBeVisible()
+  await expect(panel.locator('h3')).toContainText('回放模式 · 6 步')
+  await expect(panel.locator('.replay-schema')).toHaveText('aiops.diagnosis-replay/v1')
+
+  // 初始空态：等待用户开始回放
+  await expect(panel.locator('.compact-empty')).toContainText('按 ▶ 播放')
+
+  // 进度条 seek 到第 2 步（确定性，不依赖定时器）
+  await panel.locator('.replay-scrubber').evaluate((el) => {
+    const input = el as HTMLInputElement
+    input.value = '2'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  const step = panel.locator('.replay-step')
+  await expect(step).toBeVisible()
+  await expect(step).toContainText('MemoryPressure = True')
+
+  // 上一步回到第 1 步
+  await panel.getByRole('button', { name: /上一步/ }).click()
+  await expect(step).toContainText('Ready = False')
+
+  // 按阶段筛选：证据采集（2 步）
+  const chip = panel.locator('.replay-chip').filter({ hasText: '证据采集' })
+  await chip.click()
+  await expect(panel.locator('.replay-progress')).toHaveText('1 / 2')
+  await expect(panel.locator('.replay-step')).toContainText('Ready = False')
+  await expect(panel.locator('.replay-chip.active')).toContainText('证据采集')
+
+  // 取消筛选恢复全链路
+  await chip.click()
+  await expect(panel.locator('.replay-progress')).toHaveText('0 / 6')
+  await expect(panel.locator('.replay-chip')).toHaveCount(4)
+
+  // 播放/暂停
+  await panel.getByRole('button', { name: '播放' }).click()
+  await expect(panel.getByRole('button', { name: '暂停' })).toBeVisible()
+  await panel.getByRole('button', { name: '暂停' }).click()
+  await expect(panel.getByRole('button', { name: '播放' })).toBeVisible()
+
+  // 受控动作阶段可回溯（remediation created/executed 均存在）
+  await panel.locator('.replay-chip').filter({ hasText: '受控动作' }).click()
+  await expect(panel.locator('.replay-progress')).toHaveText('1 / 2')
+  await expect(panel.locator('.replay-step')).toContainText('受控动作预览')
+  await panel.locator('.replay-step').getByText('deployment.rollout_restart').first().click()
+  await expect(panel.locator('.replay-detail')).toContainText('rollout_restart')
+})
+
+const brokenReplayDetail = {
+  ...detail,
+  id: 44,
+  summary: 'Node 未处于 Ready 状态（replay 不可用场景）。',
+}
+
+test('Diagnosis replay degrades gracefully when the replay API is unavailable', async ({ page }) => {
+  await page.route('**/api/v1/diagnoses**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (route.request().method() === 'GET' && path === '/api/v1/diagnoses') {
+      await fulfillJSON(route, { items: [{ ...brokenReplayDetail, timeline: undefined, root_cause_card: undefined }], total: 1, remaining: 0 })
+      return
+    }
+    if (route.request().method() === 'GET' && path === '/api/v1/diagnoses/44') {
+      await fulfillJSON(route, brokenReplayDetail)
+      return
+    }
+    if (route.request().method() === 'GET' && path === '/api/v1/diagnoses/44/replay') {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'DIAGNOSIS_NOT_FOUND', message: 'not found' }) })
+      return
+    }
+    await fulfillJSON(route, { items: [], total: 0, remaining: 0 })
+  })
+
+  await page.goto('/diagnoses')
+  await page.locator('.diagnosis-history-row').first().click()
+
+  const drawer = page.locator('.diagnosis-drawer')
+  await expect(drawer).toBeVisible()
+  await expect(drawer.locator('.replay-error')).toContainText('回放模式不可用')
+  // 其余详情仍正常渲染，不因回放失败而空白
+  await expect(drawer.locator('.root-cause-card')).toContainText('Node 未处于 Ready 状态')
+
+  // 404 触发的浏览器资源加载日志是该异常场景的预期副作用；移除后保持
+  // console-error 零容忍门禁（应用本身未产生任何 console.error）。
+  const resourceError = 'Failed to load resource: the server responded with a status of 404 (Not Found)'
+  const errorIndex = consoleErrors.indexOf(resourceError)
+  if (errorIndex >= 0) consoleErrors.splice(errorIndex, 1)
 })
 
 const podDetail = {

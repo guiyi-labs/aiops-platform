@@ -15,7 +15,8 @@ Detailed change records for each milestone live under `docs/changes/`.
 - `scripts/demo-drill.sh` 新增两处回放断言：受控动作前验证 Node 诊断回放（schema/steps/stages/time-sorted）、受控动作后验证 Pod 诊断回放包含 activity+remediation（created+executed），演示闭环从 15/15 提升至 17/17。
 - `scripts/offline-install-drill.sh` 用新镜像刷新离线包（`aiops-platform-offline-v0.3.0-rc.5-replay`），离线安装全链路 10/10 PASS，确保最新功能代码包含在可复用离线安装包内（允许安装）。
 - 双环境演练以 k8s-aiops-backend:v0.3.0-rc.4 为基线、k8s-aiops-backend:v0.3.0-rc.5-replay 为升级目标复跑：双全新环境安装/关键旅程/持久化，跨 digest 升级（version dev -> v0.3.0-rc.5-replay，marker 保持），回滚（version 复原），第三环境逻辑备份恢复，全部 PASS（报告 .artifacts/dual-env-compose-drill/report-20260812-225042-e68b90.json），当前产物补齐「安装、升级、回滚、备份恢复、关键旅程」全链路。
-- See [replay demo drill & offline refresh change record](docs/changes/2026-08-12-m94-replay-demo-drill-and-offline-refresh.md) 与 [rc.5-replay dual-env evidence](docs/changes/2026-08-12-m102-rc5-replay-dual-env-evidence.md).
+- 回放模式浏览器通道 e2e 闭环：`diagnosis-timeline.spec.ts` 新增 2 项双视口测试（replay-panel 正常链路 seek/筛选/播放 + replay API 不可用降级），全量 e2e 68/68。
+- See [replay e2e browser change record](docs/changes/2026-08-12-m94-replay-e2e-browser.md)、[replay demo drill & offline refresh change record](docs/changes/2026-08-12-m94-replay-demo-drill-and-offline-refresh.md) 与 [rc.5-replay dual-env evidence](docs/changes/2026-08-12-m102-rc5-replay-dual-env-evidence.md).
 
 ## [Unreleased]
 

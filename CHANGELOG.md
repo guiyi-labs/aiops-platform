@@ -17,6 +17,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 - M101 数据轨本地第一步；网络中断/磁盘压力故障注入与多副本 HA 演练仍依赖组织授权（M90 授权轨），保持 Deferred。
 - See [M101 WAL/PITR drill change record](docs/changes/2026-08-12-m101-wal-pitr-drill.md).
 
+### Added - M102 Dual Fresh-Environment Install Drill (Local Track)
+
+- 新增双全新环境离线安装/生命周期一致性演练 `scripts/dual-env-compose-drill.sh`：每次运行在完全隔离的两套环境（独立 project name、postgres 25432/26432、backend 28080/29080、frontend 28081/29081、独立 volume 与网络）安装同一不可变镜像 digest，并断言 backend `health/ready`、frontend 200、admin 登录 + `/api/v1/auth/me` → `system_admin`、确定性 audit 标记经 `--force-recreate` 持久、`down -v` 完整清理。10/10 PASS，报告落 `.artifacts/dual-env-compose-drill/report-*.json`（`aiops.dual-env-compose-drill/v1`，记录三个镜像 digest）。
+- 全部用本地已有镜像离线复现，与运行中开发 compose 栈（15432/8080/18080）零共享；作为 M102「两套全新环境安装/升级/回滚」的第一道本地证据。跨 digest 升级/回滚仍需组织环境补齐，M89/M90 未完成前版本保持 RC，不宣称 GA。
+- See [M102 dual-env compose drill change record](docs/changes/2026-08-12-m102-dual-env-compose-drill.md).
+
 ### Added - M89 OIDC Local Login Drill (Identity Track)
 
 - 新增本地 OIDC Provider 驱动工具 `backend/cmd/oidc-provider`（运行于 HTTPS，自签证书；discovery/JWKS/authorize/token/logout 端点，RS256 + PKCE S256 + 一次性 authorization code + nonce/state 回显 + acr MFA 证据；支持 9 种 `?fail=` 注入模式）与进程内测试。

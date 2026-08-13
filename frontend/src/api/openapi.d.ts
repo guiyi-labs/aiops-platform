@@ -2326,6 +2326,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/batch-assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Batch assign incidents to one assignee */
+        post: operations["batchAssignIncidents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/{incident_id}": {
         parameters: {
             query?: never;
@@ -4951,6 +4968,24 @@ export interface components {
         IncidentEvidenceField: {
             label: string;
             value?: string;
+        };
+        IncidentBatchAssignRequest: {
+            incident_ids: number[];
+            /** Format: int64 */
+            assignee_user_id: number;
+            comment?: string;
+        };
+        IncidentBatchAssignResult: {
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            assigned: number;
+            failed?: components["schemas"]["IncidentAssignFailure"][];
+        };
+        IncidentAssignFailure: {
+            /** Format: int64 */
+            incident_id: number;
+            error: string;
         };
         IncidentEvidenceItem: {
             /** @enum {string} */
@@ -9842,6 +9877,33 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Ok"];
+        };
+    };
+    batchAssignIncidents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentBatchAssignRequest"];
+            };
+        };
+        responses: {
+            /** @description Partial-success batch result */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentBatchAssignResult"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            500: components["responses"]["Error"];
         };
     };
     getIncident: {

@@ -32,6 +32,17 @@ export interface Incident {
   updated_at: string
 }
 
+export interface IncidentAssignFailure {
+  incident_id: number
+  error: string
+}
+
+export interface IncidentBatchAssignResult {
+  total: number
+  assigned: number
+  failed?: IncidentAssignFailure[]
+}
+
 export interface IncidentSummary {
   total: number
   open: number

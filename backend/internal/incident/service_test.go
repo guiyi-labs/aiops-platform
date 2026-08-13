@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -638,4 +639,89 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func TestBatchAssign(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	ctx := context.Background()
+	actor := ActorRef{ID: 1, Name: "admin"}
+	created := make([]Incident, 0, 3)
+	for index := 0; index < 3; index++ {
+		item, err := service.Create(ctx, CreateInput{
+			SourceType: SourceTypeFinding,
+			SourceRef:  fmt.Sprintf("finding:7:code%d:Pod:default:web-%d", index, index),
+			ClusterID:  7,
+			Title:      "Pod pending",
+			Severity:   SeverityWarning,
+			Resource:   ResourceRef{Kind: "Pod", Namespace: "default", Name: "web-0"},
+		})
+		if err != nil {
+			t.Fatalf("Create #%d: %v", index, err)
+		}
+		created = append(created, item)
+	}
+	ids := []int64{created[0].ID, created[1].ID, created[2].ID}
+	result, err := service.BatchAssign(ctx, BatchAssignInput{IncidentIDs: ids, AssigneeUserID: 2, Actor: actor, Comment: "night shift"})
+	if err != nil {
+		t.Fatalf("BatchAssign: %v", err)
+	}
+	if result.Total != 3 || result.Assigned != 3 || len(result.Failed) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	for _, id := range ids {
+		item, err := service.Get(ctx, id)
+		if err != nil || item.Assignee == nil || item.Assignee.ID != 2 {
+			t.Fatalf("incident %d assignee = %+v err=%v", id, item.Assignee, err)
+		}
+	}
+}
+
+func TestBatchAssignPartialFailure(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	ctx := context.Background()
+	actor := ActorRef{ID: 1, Name: "admin"}
+	first, err := service.Create(ctx, CreateInput{
+		SourceType: SourceTypeFinding,
+		SourceRef:  "finding:7:code1:Pod:default:web-1",
+		ClusterID:  7,
+		Title:      "Pod pending",
+		Severity:   SeverityWarning,
+		Resource:   ResourceRef{Kind: "Pod", Namespace: "default", Name: "web-1"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	result, err := service.BatchAssign(ctx, BatchAssignInput{
+		IncidentIDs:    []int64{first.ID, 9999, first.ID},
+		AssigneeUserID: 2,
+		Actor:          actor,
+	})
+	if err != nil {
+		t.Fatalf("BatchAssign: %v", err)
+	}
+	if result.Total != 2 || result.Assigned != 1 || len(result.Failed) != 1 {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.Failed[0].IncidentID != 9999 || result.Failed[0].Error != "INCIDENT_NOT_FOUND" {
+		t.Fatalf("failed = %+v", result.Failed)
+	}
+}
+
+func TestBatchAssignValidation(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	ctx := context.Background()
+	actor := ActorRef{ID: 1, Name: "admin"}
+	if _, err := service.BatchAssign(ctx, BatchAssignInput{IncidentIDs: nil, AssigneeUserID: 2, Actor: actor}); !errors.Is(err, ErrBatchEmpty) {
+		t.Fatalf("empty err = %v", err)
+	}
+	if _, err := service.BatchAssign(ctx, BatchAssignInput{IncidentIDs: []int64{1}, AssigneeUserID: 0, Actor: actor}); !errors.Is(err, ErrAssigneeNotFound) {
+		t.Fatalf("bad assignee err = %v", err)
+	}
+	ids := make([]int64, MaxBatchAssignSize+1)
+	for index := range ids {
+		ids[index] = int64(index + 1)
+	}
+	if _, err := service.BatchAssign(ctx, BatchAssignInput{IncidentIDs: ids, AssigneeUserID: 2, Actor: actor}); !errors.Is(err, ErrBatchTooLarge) {
+		t.Fatalf("too large err = %v", err)
+	}
 }

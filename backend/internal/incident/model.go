@@ -46,6 +46,8 @@ var (
 	ErrFollowerNotFound  = errors.New("user does not follow this incident")
 	ErrAssigneeNotFound  = errors.New("assignee user does not exist")
 	ErrPostmortemLocked  = errors.New("postmortem is only writable for resolved incidents")
+	ErrBatchEmpty        = errors.New("batch assignment requires at least one incident")
+	ErrBatchTooLarge     = errors.New("batch assignment exceeds the per-request limit")
 )
 
 // ActorRef identifies a platform user in timeline and assignment context.

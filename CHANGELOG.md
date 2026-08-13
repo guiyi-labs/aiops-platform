@@ -66,7 +66,21 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 配置：`INCIDENT_SLA_MONITOR_ENABLED` / `INCIDENT_SLA_POLL_INTERVAL` /
   `INCIDENT_SLA_APPROACHING_WINDOW` / `INCIDENT_SLA_BATCH_SIZE`。
 - See [change record](docs/changes/2026-08-13-m107-incident-sla-notifications.md)。
-- See [M107 change record](docs/changes/2026-08-13-m107-incident-evidence-timeline.md)。
+- See [change record](docs/changes/2026-08-13-m107-incident-evidence-timeline.md)。
+
+## [Unreleased]
+
+### Added - M107 Incident Batch Assignment (v0.3.0-m107)
+
+- 后端：incident 工作空间新增批量指派——`POST /api/v1/incidents/batch-assign` 一次把多个
+  事故移交给同一负责人；逐条 CAS 校验，部分失败不中断其余移交，聚合 `assigned/total/failed`
+  结果返回；上限 50 条/请求。
+- 契约：`IncidentBatchAssignRequest` / `IncidentBatchAssignResult` / `IncidentAssignFailure`
+  schema 与 OpenAPI/typegen/权限矩阵同步；审计 `incident.assignment.batch`。
+- 前端：`IncidentsView` 表格新增多选列与批量工具栏（负责人/说明/提交/取消），成功与部分
+  失败结果均展示。
+- 演示：`demo-drill.sh` incident-journey 新增 `incident-batch-assign` 断言（assigned ≥ 1）。
+- See [change record](docs/changes/2026-08-13-m107-incident-batch-assign.md)。
 
 ### Changed - Login Panel Enhance (Frontend UX Track)
 

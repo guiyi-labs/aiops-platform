@@ -56,6 +56,12 @@ type incidentFollowerRequest struct {
 	UserID int64 `json:"user_id" binding:"required"`
 }
 
+type incidentBatchAssignRequest struct {
+	IncidentIDs    []int64 `json:"incident_ids" binding:"required"`
+	AssigneeUserID int64   `json:"assignee_user_id" binding:"required"`
+	Comment        string  `json:"comment"`
+}
+
 func incidentID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param("incident_id"), 10, 64)
 	if err != nil || id < 1 {
@@ -250,6 +256,39 @@ func (h incidentHandler) assign(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "ASSIGNEE_NOT_FOUND", "assignee user does not exist")
 	default:
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to assign incident")
+	}
+}
+
+func (h incidentHandler) batchAssign(c *gin.Context) {
+	var request incidentBatchAssignRequest
+	if err := c.ShouldBindJSON(&request); err != nil || len(request.IncidentIDs) == 0 || request.AssigneeUserID < 1 {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "incident_ids and assignee_user_id are required")
+		return
+	}
+	if len(request.IncidentIDs) > incident.MaxBatchAssignSize || len(request.Comment) > 2000 {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "batch assignment must not exceed 50 incidents and comment must not exceed 2000 characters")
+		return
+	}
+	setAuditTarget(c, "Incident", "", "batch:"+strconv.Itoa(len(request.IncidentIDs)))
+	result, err := h.service.BatchAssign(c.Request.Context(), incident.BatchAssignInput{
+		IncidentIDs:    request.IncidentIDs,
+		AssigneeUserID: request.AssigneeUserID,
+		Actor:          incidentActor(c),
+		Comment:        request.Comment,
+	})
+	if err == nil {
+		c.JSON(http.StatusOK, result)
+		return
+	}
+	switch {
+	case errors.Is(err, incident.ErrAssigneeNotFound):
+		writeError(c, http.StatusBadRequest, "ASSIGNEE_NOT_FOUND", "assignee user does not exist")
+	case errors.Is(err, incident.ErrBatchEmpty):
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "batch assignment requires at least one incident")
+	case errors.Is(err, incident.ErrBatchTooLarge):
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "batch assignment must not exceed 50 incidents")
+	default:
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to batch assign incidents")
 	}
 }
 

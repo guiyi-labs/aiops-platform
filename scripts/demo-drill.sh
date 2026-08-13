@@ -219,6 +219,7 @@ TOKEN="$(jq -r '.access_token // empty' <<<"$LOGIN" 2>/dev/null || true)"
 ME="$(api GET /api/v1/auth/me)"
 UNAME="$(jq -r '.username // empty' <<<"$ME")"
 ROLE="$(jq -r '.roles[0] // empty' <<<"$ME")"
+ADMIN_ID="$(jq -r '.id // 0' <<<"$ME")"
 if [[ "$FE_CODE" == "200" ]] && [[ -n "$TOKEN" ]] && [[ "$UNAME" == "admin" ]] && [[ "$ROLE" == "system_admin" ]]; then
   pass login "frontend 200, admin login, /me -> system_admin"
 else
@@ -425,6 +426,14 @@ else
     pass incident-evidence "evidence timeline returns diagnosis source (deep_link=/diagnoses): ${EV_TITLE:0:50}"
   else
     fail incident-evidence "evidence type=$EV_TYPE deep_link=$EV_LINK title=$EV_TITLE"
+  fi
+  BATCH="$(api POST /api/v1/incidents/batch-assign "{\"incident_ids\":[\"$INCIDENT_ID\"],\"assignee_user_id\":$ADMIN_ID,\"comment\":\"demo drill batch handoff\"}")"
+  BATCH_ASSIGNED="$(jq -r '.assigned // 0' <<<"$BATCH")"
+  BATCH_TOTAL="$(jq -r '.total // 0' <<<"$BATCH")"
+  if [[ "$BATCH_ASSIGNED" -ge 1 && "$BATCH_TOTAL" -ge 1 ]]; then
+    pass incident-batch-assign "batch assign endpoint handoff (assigned=$BATCH_ASSIGNED total=$BATCH_TOTAL)"
+  else
+    fail incident-batch-assign "batch response=$BATCH"
   fi
 fi
 

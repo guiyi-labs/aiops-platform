@@ -71,8 +71,18 @@ func (r *incidentRepoStub) Transition(context.Context, int64, int64, string, inc
 	return incident.Incident{}, errors.New("not implemented")
 }
 
-func (r *incidentRepoStub) Assign(context.Context, int64, int64, int64, incident.ActorRef, string) (incident.Incident, error) {
-	return incident.Incident{}, errors.New("not implemented")
+func (r *incidentRepoStub) Assign(_ context.Context, id, expectedVersion, assigneeUserID int64, _ incident.ActorRef, _ string) (incident.Incident, error) {
+	record, ok := r.byID[id]
+	if !ok {
+		return incident.Incident{}, incident.ErrNotFound
+	}
+	if record.Version != expectedVersion {
+		return incident.Incident{}, incident.ErrVersionConflict
+	}
+	record.Assignee = &incident.ActorRef{ID: assigneeUserID, Name: "ops-user"}
+	record.Version++
+	r.byID[id] = record
+	return record, nil
 }
 
 func (r *incidentRepoStub) AddFollower(context.Context, int64, int64, incident.ActorRef) (incident.Incident, error) {
@@ -102,6 +112,7 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	api.GET("/incidents/:incident_id", h.get)
 	api.GET("/incidents/:incident_id/evidence", h.evidence)
 	api.POST("/incidents", h.create)
+	api.POST("/incidents/batch-assign", h.batchAssign)
 	api.PATCH("/incidents/:incident_id", h.transition)
 	return r
 }
@@ -223,5 +234,70 @@ func TestIncidentHandler_Evidence(t *testing.T) {
 	missing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/99999/evidence", "")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing evidence code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentHandler_BatchAssign(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	for index := 0; index < 2; index++ {
+		record := &incident.Incident{
+			Title:      "Pod pending",
+			SourceType: incident.SourceTypeFinding,
+			SourceRef:  "finding:7:code" + strconv.Itoa(index) + ":Pod:default:web-" + strconv.Itoa(index),
+			ClusterID:  7,
+			Severity:   incident.SeverityWarning,
+			Summary:    "pending",
+			Status:     incident.StatusOpen,
+		}
+		if err := repo.Create(context.Background(), record); err != nil {
+			t.Fatalf("seed incident: %v", err)
+		}
+	}
+	ids := make([]int64, 0, 2)
+	for _, record := range repo.byID {
+		ids = append(ids, record.ID)
+	}
+	body, _ := json.Marshal(map[string]any{"incident_ids": ids, "assignee_user_id": 2, "comment": "night shift"})
+	recorder := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", string(body))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var result incident.BatchAssignResult
+	if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if result.Total != 2 || result.Assigned != 2 || len(result.Failed) != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	for _, id := range ids {
+		item, err := repo.Get(context.Background(), id)
+		if err != nil || item.Assignee == nil || item.Assignee.ID != 2 {
+			t.Fatalf("incident %d assignee = %+v err=%v", id, item.Assignee, err)
+		}
+	}
+}
+
+func TestIncidentHandler_BatchAssignValidation(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	for _, payload := range []string{
+		`{"incident_ids":[],"assignee_user_id":2}`,
+		`{"incident_ids":[1],"assignee_user_id":0}`,
+		`not-json`,
+	} {
+		recorder := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", payload)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("payload=%s status=%d body=%s", payload, recorder.Code, recorder.Body.String())
+		}
+	}
+	tooMany := make([]int64, incident.MaxBatchAssignSize+1)
+	for index := range tooMany {
+		tooMany[index] = int64(index + 1)
+	}
+	body, _ := json.Marshal(map[string]any{"incident_ids": tooMany, "assignee_user_id": 2})
+	recorder := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", string(body))
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("too many status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

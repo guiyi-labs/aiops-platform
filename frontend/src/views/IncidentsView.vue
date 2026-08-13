@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Download, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
 
-import { addIncidentFollower, addIncidentNote, assignIncident, createIncident, getIncident, getIncidentEvidence, getIncidentSummary, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
+import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, getIncident, getIncidentEvidence, getIncidentSummary, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
@@ -20,6 +20,10 @@ const summary = ref<IncidentSummary | null>(null)
 const statusFilter = ref<IncidentStatus | ''>('')
 const loading = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
+const selected = ref<number[]>([])
+const batchAssigneeID = ref(0)
+const batchComment = ref('')
 
 const detail = ref<Incident | null>(null)
 const detailLoading = ref(false)
@@ -48,6 +52,21 @@ const noteContent = ref('')
 const postmortemContent = ref('')
 
 const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
+const allSelected = computed(() => incidents.value.length > 0 && incidents.value.every((incident) => selected.value.includes(incident.id)))
+
+function toggleSelect(id: number) {
+  selected.value = selected.value.includes(id) ? selected.value.filter((item) => item !== id) : [...selected.value, id]
+}
+
+function toggleSelectAll() {
+  selected.value = allSelected.value ? selected.value.filter((id) => !incidents.value.some((incident) => incident.id === id)) : [...selected.value, ...incidents.value.map((incident) => incident.id)]
+}
+
+function clearSelection() {
+  selected.value = []
+  batchAssigneeID.value = 0
+  batchComment.value = ''
+}
 const sourceRefPlaceholder = computed(() => {
   switch (newIncident.value.source_type) {
     case 'diagnosis': return 'diagnosis:<id>'
@@ -118,6 +137,9 @@ async function loadAll() {
     ])
     incidents.value = list.items
     summary.value = board
+    if (canManage.value && assignableUsers.value.length === 0) {
+      assignableUsers.value = (await listAssignableUsers(auth.accessToken)).items
+    }
   } catch (err) {
     errorMessage.value = err instanceof APIError ? err.message : '加载事故工作空间失败'
   } finally {
@@ -186,6 +208,27 @@ async function handleAssign() {
     await loadAll()
   } catch (err) {
     errorMessage.value = err instanceof APIError ? err.message : '移交失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleBatchAssign() {
+  if (!selected.value.length || batchAssigneeID.value <= 0) return
+  saving.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+  try {
+    const result = await batchAssignIncidents(auth.accessToken, { incident_ids: [...selected.value], assignee_user_id: batchAssigneeID.value, comment: batchComment.value.trim() })
+    if (result.failed?.length) {
+      errorMessage.value = `批量指派完成：成功 ${result.assigned}/${result.total}，失败 ${result.failed.length} 个（${result.failed.map((item) => `#${item.incident_id}:${item.error}`).join('，')}）`
+    } else {
+      successMessage.value = `已批量指派 ${result.assigned} 个事故。`
+    }
+    clearSelection()
+    await loadAll()
+  } catch (err) {
+    errorMessage.value = err instanceof APIError ? err.message : '批量指派失败'
   } finally {
     saving.value = false
   }
@@ -307,6 +350,7 @@ onMounted(() => { void loadAll() })
     </section>
 
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+    <p v-if="successMessage" class="audit-export-message">{{ successMessage }}</p>
 
     <section v-if="summary" class="incident-stats" aria-label="事故统计">
       <article class="stat-card"><strong>{{ summary.total }}</strong><span>全部</span></article>
@@ -315,6 +359,19 @@ onMounted(() => { void loadAll() })
       <article class="stat-card"><strong>{{ summary.resolved }}</strong><span>已解决</span></article>
       <article class="stat-card"><strong>{{ summary.dismissed }}</strong><span>已驳回</span></article>
       <article class="stat-card stat-overdue"><strong>{{ summary.overdue }}</strong><span>已逾期</span></article>
+    </section>
+
+    <section v-if="canManage && selected.length > 0" class="batch-toolbar" aria-label="批量指派">
+      <span class="batch-count"><strong>{{ selected.length }}</strong> 个事故已选</span>
+      <select v-model.number="batchAssigneeID" aria-label="选择批量负责人">
+        <option :value="0" disabled>选择负责人</option>
+        <option v-for="u in assignableUsers" :key="u.id" :value="u.id">{{ u.display_name }}</option>
+      </select>
+      <input v-model="batchComment" maxlength="2000" placeholder="批量移交说明（可选）" />
+      <button class="primary-button" type="button" :disabled="saving || batchAssigneeID <= 0" @click="handleBatchAssign">
+        <UserCheck :size="14" />批量指派
+      </button>
+      <button class="text-button" type="button" :disabled="saving" @click="clearSelection">取消选择</button>
     </section>
 
     <section class="incident-list">
@@ -327,6 +384,9 @@ onMounted(() => { void loadAll() })
       <table class="compact-table">
         <thead>
           <tr>
+            <th v-if="canManage" class="select-cell">
+              <input type="checkbox" aria-label="全选当前页" :checked="allSelected" @change="toggleSelectAll" />
+            </th>
             <th>编号</th>
             <th>标题</th>
             <th>级别</th>
@@ -339,7 +399,10 @@ onMounted(() => { void loadAll() })
           </tr>
         </thead>
         <tbody>
-          <tr v-for="incident in incidents" :key="incident.id">
+          <tr v-for="incident in incidents" :key="incident.id" :class="{ 'row-selected': selected.includes(incident.id) }">
+            <td v-if="canManage" class="select-cell">
+              <input type="checkbox" :aria-label="'选择 ' + incident.number" :checked="selected.includes(incident.id)" @change="toggleSelect(incident.id)" />
+            </td>
             <td><strong>{{ incident.number }}</strong></td>
             <td>
               <button class="incident-title" type="button" :disabled="detailLoading" @click="openDetail(incident)">{{ incident.title }}</button>
@@ -573,6 +636,13 @@ onMounted(() => { void loadAll() })
 .stat-card span { color: #77858d; font-size: 11px; margin-top: 2px; }
 .stat-card.stat-overdue { background: #fdf0ee; border-color: #f3c9c2; }
 .stat-card.stat-overdue strong { color: #b13a2a; }
+.batch-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin: 10px 0; border: 1px dashed #b9c9e8; border-radius: 12px; background: #f2f6fc; }
+.batch-toolbar .batch-count { font-size: 13px; color: #35598c; }
+.batch-toolbar .batch-count strong { color: #1d4ed8; }
+.batch-toolbar input[type='text'] { width: 260px; }
+.batch-toolbar select { max-width: 200px; }
+.incident-list tr.row-selected td { background: #eef4ff; }
+.incident-list .select-cell { width: 34px; text-align: center; }
 .incident-list { background: #ffffff; border: 1px solid #e3e8ea; border-radius: 8px; padding: 4px 14px 12px; }
 .incident-title { padding: 0; color: #326ce5; background: none; border: 0; font-size: 12px; text-align: left; cursor: pointer; }
 .incident-title:hover { text-decoration: underline; }

@@ -162,6 +162,89 @@ func (s *Service) Assign(ctx context.Context, id, expectedVersion, assigneeUserI
 	return s.repo.Assign(ctx, id, expectedVersion, assigneeUserID, actor, strings.TrimSpace(comment))
 }
 
+// MaxBatchAssignSize caps one batch handoff so the operation stays bounded
+// and the resulting audit entry stays readable.
+const MaxBatchAssignSize = 50
+
+// BatchAssignInput is the validated input for handing off several incidents
+// to one assignee in a single operation.
+type BatchAssignInput struct {
+	IncidentIDs    []int64
+	AssigneeUserID int64
+	Actor          ActorRef
+	Comment        string
+}
+
+// AssignFailure records one incident that could not be handed off.
+type AssignFailure struct {
+	IncidentID int64  `json:"incident_id"`
+	Error      string `json:"error"`
+}
+
+// BatchAssignResult summarizes a partial-success batch handoff.
+type BatchAssignResult struct {
+	Total    int             `json:"total"`
+	Assigned int             `json:"assigned"`
+	Failed   []AssignFailure `json:"failed,omitempty"`
+}
+
+// BatchAssign hands off several incidents to one assignee. Each incident is
+// read for its current version and then CAS-assigned inside the repository
+// transaction, so concurrent handoffs surface as per-incident version
+// conflicts instead of failing the whole batch. Missing or conflicted
+// incidents are reported in Failed and never abort the remaining assigns.
+func (s *Service) BatchAssign(ctx context.Context, input BatchAssignInput) (BatchAssignResult, error) {
+	if input.AssigneeUserID <= 0 {
+		return BatchAssignResult{}, ErrAssigneeNotFound
+	}
+	seen := make(map[int64]struct{}, len(input.IncidentIDs))
+	ids := make([]int64, 0, len(input.IncidentIDs))
+	for _, id := range input.IncidentIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return BatchAssignResult{}, ErrBatchEmpty
+	}
+	if len(ids) > MaxBatchAssignSize {
+		return BatchAssignResult{}, ErrBatchTooLarge
+	}
+	comment := strings.TrimSpace(input.Comment)
+	result := BatchAssignResult{Total: len(ids)}
+	for _, id := range ids {
+		current, err := s.repo.Get(ctx, id)
+		if err != nil {
+			result.Failed = append(result.Failed, AssignFailure{IncidentID: id, Error: assignFailureCode(err)})
+			continue
+		}
+		if _, err := s.repo.Assign(ctx, id, current.Version, input.AssigneeUserID, input.Actor, comment); err != nil {
+			result.Failed = append(result.Failed, AssignFailure{IncidentID: id, Error: assignFailureCode(err)})
+			continue
+		}
+		result.Assigned++
+	}
+	return result, nil
+}
+
+func assignFailureCode(err error) string {
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return "INCIDENT_NOT_FOUND"
+	case errors.Is(err, ErrVersionConflict):
+		return "VERSION_CONFLICT"
+	case errors.Is(err, ErrAssigneeNotFound):
+		return "ASSIGNEE_NOT_FOUND"
+	default:
+		return "INTERNAL_ERROR"
+	}
+}
+
 // AddFollower subscribes a user to incident updates.
 func (s *Service) AddFollower(ctx context.Context, id, userID int64, actor ActorRef) (Incident, error) {
 	if userID <= 0 {

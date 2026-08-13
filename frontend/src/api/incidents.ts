@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentBatchAssignResult, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
 
 export function listIncidents(token: string, filters: { clusterID?: number; status?: IncidentStatus | ''; assigneeID?: number; followerID?: number; limit?: number } = {}): Promise<IncidentListResponse> {
   const query = new URLSearchParams({ limit: String(filters.limit ?? 50) })
@@ -36,6 +36,12 @@ export function transitionIncident(token: string, incidentID: number, expectedVe
 export function assignIncident(token: string, incidentID: number, expectedVersion: number, assigneeUserID: number, comment: string): Promise<Incident> {
   return authorizedRequest(`/api/v1/incidents/${incidentID}/assignment`, token, {
     method: 'PATCH', body: JSON.stringify({ expected_version: expectedVersion, assignee_user_id: assigneeUserID, comment }),
+  })
+}
+
+export function batchAssignIncidents(token: string, input: { incident_ids: number[]; assignee_user_id: number; comment: string }): Promise<IncidentBatchAssignResult> {
+  return authorizedRequest('/api/v1/incidents/batch-assign', token, {
+    method: 'POST', body: JSON.stringify(input),
   })
 }
 

@@ -11,6 +11,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - Post-M106 Development Roadmap
+
+- 新增 `docs/development-roadmap-post-m106.md`：规划前端界面优化并行轨（主题收敛/截图基线/
+  响应式审计/交互统一/性能预算 + 衔接契约）、主线 M107 事故协作闭环（复盘/SLA/交接/五源证据
+  时间线）、M108 关联归一（correlation → incident 第 6 来源 + 风暴去重）、M109 工程卓越
+  （性能 fail-closed/旅程 E2E/覆盖率 65%）、M110 RC-6 刷新，以及 M89/M90 授权轨 → GA Gate D。
+- See [change record](docs/changes/2026-08-13-roadmap-post-m106.md)。
+
+## [Unreleased]
+
 ### Changed - M106 Local UX Polish (v0.3.0-m106)
 
 - 口令：本地开发默认凭据统一 `admin123`——`BOOTSTRAP_ADMIN_PASSWORD`、Postgres

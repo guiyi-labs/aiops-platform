@@ -334,3 +334,48 @@
 
 - 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
   容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。
+
+---
+
+## 第十轮 · 去伪数据，接入真实控制台状态（#login-ambience）
+
+### Why
+
+第九轮为填充中区新增的 `.login-signal-strip` 使用了**硬编码虚构指标**
+（在线集群 12 / SLO 达标 99.9% / 待处理告警 3）。这违反"页面内容均为有效数据"
+的要求。本轮移除全部虚构展示，改用真实、可获取的信息。
+
+### 真实数据来源
+
+- 公开健康接口 `GET /api/v1/health/live`（backend/internal/httpserver/health.go，
+  路由注册于 router.go:195，**无 `AuthRequired`**，对未登录用户开放）返回
+  `{ status, service, version, checked_at }`：
+  - 服务状态：映射 `status==="ok" → 正常`；非 ok 显示原始状态；请求失败/非 200 →
+    `未响应`（如实反映，绝不编造数字）。
+  - 平台版本：取 `version` 字段；`dev`/`unknown`/空 → `开发版`，正式 semver 自动补 `v` 前缀。
+- 本地时间：由浏览器 `new Date()` 实时驱动（每秒刷新），属真实本地时间，不依赖后端。
+
+### 改动
+
+- `LoginView.vue`：移除 `Bell` 导入、新增 `Clock` 与 `onMounted`/`onBeforeUnmount`；
+  新增 `consoleHealth`/`healthError`/`localTime` ref 与 `statusLabel`/`versionLabel`/
+  `statusDotClass` computed；挂载时拉取健康并每 30s 轮询，时钟每秒刷新；卸载清理定时器。
+  状态条模板绑定真实字段，标题由"实时信号 · LIVE OPERATIONS"改为
+  "控制台状态 · CONSOLE STATUS"（语义与真实数据一致）；装饰层仍 `aria-hidden`。
+- `console-theme.css`：状态指示点新增 `.is-waiting`（检测中·琥珀）/ `.is-error`
+  （异常/未响应·红），颜色随真实状态联动；其余 `.login-signal-*` 样式沿用。
+
+### Verification
+
+- 公开健康接口实测可达：`curl /api/v1/health/live` →
+  `{"status":"ok","service":"k8s-aiops-api","version":"dev","checked_at":"…"}`，确为真实后端数据。
+- 新建 `LoginView-DelsYB2k.js` 含 `health/live` 拉取逻辑；旧虚构串
+  `99.9%` / `在线集群` / `SLO 达标` / `待处理告警` / `LIVE OPERATIONS` 全部 absent。
+- CSS 含 `is-waiting` / `is-error`；`/login` 引用新 entry `index-CZlwC1f_.js`。
+- 说明：本预览构建 `version` 为 `dev`（未注入语义化版本），故展示"开发版"；正式构建含
+  semver 时自动显示 `vX.Y.Z`。"未响应"仅在后端不可达时出现，属真实状态而非占位。
+
+### Deployment（第十轮，并入 18080）
+
+- 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
+  容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。

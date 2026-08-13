@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 登录页视觉第 10 轮：去伪数据，接入真实控制台状态
+
+- 移除第九轮 `.login-signal-strip` 的硬编码虚构指标（在线集群 12 / SLO 99.9% / 待处理告警 3）。
+- 中区状态条改为真实数据：服务状态与平台版本来自公开接口 `GET /api/v1/health/live`（无鉴权），本地时间由浏览器实时时钟驱动；后端不可达时如实显示"未响应"，不编造。
+- 状态指示点新增"检测中/异常"两态，颜色随真实状态联动；标题改为"控制台状态 · CONSOLE STATUS"。
+
 ### Changed - 登录页视觉第 9 轮：中区紧凑化与平衡填充
 
 - 根因修复：`.login-intro` 原 `grid` + `.login-visual` 底部锚定造成标题与拓扑间长期"死区"；改为 `flex` 连续纵向栈（`justify-content:flex-start` + 统一 `gap`），中区空洞收敛为节奏化间距。

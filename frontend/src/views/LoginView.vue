@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   Activity,
   ArrowRight,
-  Bell,
   Boxes,
   Check,
+  Clock,
   Eye,
   EyeOff,
   KeyRound,
@@ -35,6 +35,61 @@ const passwordChanged = computed(() => route.query.password_changed === '1')
 const authPhase = computed(() => {
   if (interactionState.value !== 'idle') return interactionState.value
   return focusedField.value ?? 'idle'
+})
+
+// ---- 真实数据：控制台健康状态（公开接口）+ 本地实时时钟，不展示任何虚构指标 ----
+const consoleHealth = ref<{ status: string; version: string; checked_at: string } | null>(null)
+const healthError = ref(false)
+const localTime = ref('')
+
+const statusLabel = computed(() => {
+  if (healthError.value) return '未响应'
+  if (!consoleHealth.value) return '检测中'
+  return consoleHealth.value.status === 'ok' ? '正常' : consoleHealth.value.status
+})
+const statusDotClass = computed(() => {
+  if (healthError.value || consoleHealth.value?.status !== 'ok') return 'is-error'
+  if (!consoleHealth.value) return 'is-waiting'
+  return ''
+})
+const versionLabel = computed(() => {
+  const v = consoleHealth.value?.version
+  if (!v || v === 'dev' || v === 'unknown') return '开发版'
+  return v.toLowerCase().startsWith('v') ? v : `v${v}`
+})
+
+function formatClock(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+async function loadConsoleHealth() {
+  try {
+    const res = await fetch('/api/v1/health/live', { headers: { Accept: 'application/json' } })
+    if (!res.ok) {
+      healthError.value = true
+      return
+    }
+    consoleHealth.value = (await res.json()) as { status: string; version: string; checked_at: string }
+    healthError.value = false
+  } catch {
+    healthError.value = true
+  }
+}
+
+let clockTimer: number | undefined
+let healthTimer: number | undefined
+onMounted(() => {
+  localTime.value = formatClock(new Date())
+  clockTimer = window.setInterval(() => {
+    localTime.value = formatClock(new Date())
+  }, 1000)
+  loadConsoleHealth()
+  healthTimer = window.setInterval(loadConsoleHealth, 30000)
+})
+onBeforeUnmount(() => {
+  if (clockTimer) window.clearInterval(clockTimer)
+  if (healthTimer) window.clearInterval(healthTimer)
 })
 
 function prefersReducedMotion() {
@@ -155,21 +210,21 @@ async function submit() {
 
       <div class="login-signal-strip" aria-hidden="true">
         <div class="login-signal-head">
-          <span class="login-signal-dot"></span>
-          <span class="login-signal-title">实时信号 · LIVE OPERATIONS</span>
+          <span class="login-signal-dot" :class="statusDotClass"></span>
+          <span class="login-signal-title">控制台状态 · CONSOLE STATUS</span>
         </div>
         <div class="login-signal-grid">
           <div class="login-signal">
             <i class="login-signal-ico"><Activity :size="15" /></i>
-            <span class="login-signal-meta"><b>12</b><em>在线集群</em></span>
+            <span class="login-signal-meta"><b>{{ statusLabel }}</b><em>服务状态</em></span>
           </div>
           <div class="login-signal">
-            <i class="login-signal-ico"><ShieldCheck :size="15" /></i>
-            <span class="login-signal-meta"><b>99.9%</b><em>SLO 达标</em></span>
+            <i class="login-signal-ico"><Boxes :size="15" /></i>
+            <span class="login-signal-meta"><b>{{ versionLabel }}</b><em>平台版本</em></span>
           </div>
           <div class="login-signal">
-            <i class="login-signal-ico"><Bell :size="15" /></i>
-            <span class="login-signal-meta"><b>3</b><em>待处理告警</em></span>
+            <i class="login-signal-ico"><Clock :size="15" /></i>
+            <span class="login-signal-meta"><b>{{ localTime || '—' }}</b><em>本地时间</em></span>
           </div>
         </div>
       </div>

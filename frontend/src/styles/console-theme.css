@@ -1975,6 +1975,17 @@ tbody tr {
   animation: security-breathe 3.4s ease-in-out infinite;
 }
 
+.login-signal-dot.is-waiting {
+  background: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.8);
+}
+
+.login-signal-dot.is-error {
+  background: #f87171;
+  box-shadow: 0 0 10px rgba(248, 113, 113, 0.8);
+  animation: none;
+}
+
 .login-signal-title {
   font-size: 10px;
   font-weight: 600;

@@ -85,6 +85,41 @@
   网络恢复后需执行 `docker compose build frontend && docker compose up -d
   frontend` 重建镜像固化。
 
+## Follow-up — Entrance Orchestration & Micro-interactions（第三轮）
+
+承接信号流增强，按 frontend-design 原则做「一次编排良好的页面加载 + 克制微交互」
+收尾（`console-theme.css`）：
+
+- **入场编排补全**：此前 `login-rise` 阶梯只覆盖 brand/copy/form-panel/visual，
+  radar/features/footer 静止出现。现将三个装饰层并入同一入场波次——brand 0.02s
+  → radar 0.05s（新增 `login-radar-in`，仅 opacity 0→0.5 淡入，避免覆盖 radar
+  的 `translateY(-46%)` 定位）→ copy 0.09s → form-panel 0.13s → features 0.15s
+  （新增 `login-fade-up`，6px 上移 + 淡入，与父级 copy 的 rise 不叠加冲突）→
+  visual 0.19s → footer 0.36s（新增 `login-fade` 纯淡入）。
+- **输入框聚焦信号光带**：`.login-field::after`（此前未被占用，安全使用）底部
+  2px 渐变光带，聚焦时 `scaleX(0→1)` 展开（`cubic-bezier(0.16,1,0.3,1)` 420ms）+
+  `login-beam-flow` 3s 无缝流动（`background-repeat:repeat-x`、180px 周期平移
+  背景位移动画，图案周期与位移周期一致保证无跳变）。
+- **label 联动变色**：`label:has(+ .login-field.is-focused)` 标签随聚焦同步
+  变青（桌面 `#6ee7d0` / 移动端 `#5eead4`，180ms 过渡）；`:has()` 为渐进增强，
+  旧浏览器忽略该规则不影响功能。
+- **提交按钮呼吸辉光**：hover 时叠加 `login-submit-glow` 2.2s box-shadow 脉动
+  （0%/100% 常态外发光、50% 增强扩散），与既有 `::after` sheen 扫光互不冲突。
+- **安全状态微呼吸**：`.login-security-status svg` 3.4s `security-breathe`
+  微弱 scale/opacity 脉动，暗示"系统存活监测中"。
+- 全局 `prefers-reduced-motion` 复位（`*` 通配，0.01ms 直达终态）自动覆盖
+  上述全部新动画，无需单独降级处理。
+
+### Deployment（第三轮，并入 18080）
+
+- Docker Hub 仍不可达，沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1` 容器
+  `/usr/share/nginx/html/`；本轮产物 `index-B5qC6JQG.css` + `index-FKTYVewo.js`
+  （与本地构建 hash 一致）。
+- 验证：`curl 127.0.0.1:18080` 引用新 hash；CSS 实测含 login-beam-flow /
+  login-radar-in / login-submit-glow / security-breathe / login-fade-up 全部
+  新动画规则。
+- 非持久部署的固化待办同前（网络恢复后重建镜像）。
+
 ## Risks / Notes
 
 - **容器重建后回退**：18080 当前为容器内覆盖的 dist，`docker compose up -d`

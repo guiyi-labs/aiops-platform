@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - M108 关联收口：集群级信号关联段 + demo-drill 41/41
+
+- 后端：`correlation.Worker` 命名空间段后追加 all-namespace 段，Node 级信号（namespace 为空）也能被关联（`maintenance_causes_node_failure` 等集群级规则生效）；upsert 按 case_key 归并，幂等。
+- 演示：demo-drill 修复 batch-assign 载荷（`incident_ids` 字符串→数字）与 2/2 信号归并断言（Node 案例第二案例提升）；全量复跑 **41/41 PASS**。
+- See [change record](docs/changes/2026-08-13-m108-correlation-cluster-scope.md)。
+
+
+
 ### Added - M108 Correlation Case ↔ Incident 双向深链 (v0.3.0-m108)
 
 - 后端：`incident` 新增 `FindBySource(source_type, source_ref)` 反查；correlation case view 富集可选 `incident{id,number,title,status}`（只读 best-effort，缺失不阻断视图）；`IncidentDeepLink` 签名扩展，correlation 证据深链精确到 `/aiops/correlation?case_id=<id>`。
@@ -56,6 +64,12 @@ Detailed change records for each milestone live under `docs/changes/`.
   `is-active` 高亮；footer 加极淡横向刻度线。
 - 部署：Docker Hub 不可达导致镜像重建失败，临时以 `docker cp` 将新 dist 覆盖
   进 18080 前端容器（非持久，容器重建后回退，待网络恢复后重建镜像固化）。
+- 入场编排与微交互（第三轮）：`login-rise` 阶梯补全，radar/features/footer
+  并入入场波次（radar 0.05s 淡入、features 0.15s 上移淡入、footer 0.36s 纯淡入）；
+  输入框聚焦新增底部信号光带（`.login-field::after` scaleX 展开 + 3s 无缝流动）；
+  `label:has()` 标签随聚焦联动变色（渐进增强）；提交按钮 hover 叠加 2.2s
+  呼吸辉光（保留 sheen 扫光）；安全状态图标 3.4s 微呼吸。全部新动画自动受
+  全局 `prefers-reduced-motion` 复位覆盖。
 - See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
 
 ## [Unreleased]

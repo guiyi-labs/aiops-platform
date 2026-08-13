@@ -767,10 +767,23 @@ tbody tr {
   animation: login-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.login-form-panel { animation-delay: 0.12s; }
+.login-form-panel { animation-delay: 0.13s; }
 .login-intro .login-brand { animation-delay: 0.02s; }
-.login-intro .login-copy { animation-delay: 0.07s; }
-.login-intro .login-visual { animation-delay: 0.16s; }
+.login-intro .login-copy { animation-delay: 0.09s; }
+.login-intro .login-visual { animation-delay: 0.19s; }
+
+/* Decor layers join the entrance wave on their own light timing */
+.login-page .login-intro > .login-radar {
+  animation: login-radar-in 0.9s ease 0.05s both;
+}
+
+.login-intro .login-features {
+  animation: login-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+.login-page .login-intro > .login-footer {
+  animation: login-fade 0.7s ease 0.36s both;
+}
 
 @keyframes login-rise {
   from {
@@ -781,6 +794,21 @@ tbody tr {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes login-radar-in {
+  from { opacity: 0; }
+  to { opacity: 0.5; }
+}
+
+@keyframes login-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes login-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ---- Scrollbar polish ---- */
@@ -1656,6 +1684,11 @@ tbody tr {
   color: #aab8b3;
 }
 
+.login-card label:has(+ .login-field.is-focused) {
+  color: #6ee7d0;
+  transition: color 180ms ease;
+}
+
 .login-card label {
   font-weight: 600;
 }
@@ -1704,6 +1737,45 @@ tbody tr {
   background: rgba(255, 255, 255, 0.075);
   border-color: #5eead4;
   box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.12), 0 12px 26px -18px rgba(45, 212, 191, 0.9);
+}
+
+/* Signal beam — flowing underline that ignites on focus */
+.login-field::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  border-radius: 2px;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(94, 234, 212, 0.16) 30%,
+    #5eead4 50%,
+    #a5f3fc 52%,
+    #5eead4 54%,
+    rgba(94, 234, 212, 0.16) 70%,
+    transparent 100%
+  );
+  background-repeat: repeat-x;
+  background-size: 180px 2px;
+  transform: scaleX(0);
+  transform-origin: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-field.is-focused::after {
+  transform: scaleX(1);
+  opacity: 1;
+  animation: login-beam-flow 3s linear infinite;
+}
+
+@keyframes login-beam-flow {
+  from { background-position-x: 0; }
+  to { background-position-x: 180px; }
 }
 
 .login-field > svg:first-child {
@@ -1769,10 +1841,16 @@ tbody tr {
 .login-submit:hover:not(:disabled) {
   background: #38a38f;
   box-shadow: 0 18px 34px -19px rgba(45, 212, 191, 0.95);
+  animation: login-submit-glow 2.2s ease-in-out infinite;
 }
 
 .login-submit:active:not(:disabled) {
   background: #267565;
+}
+
+@keyframes login-submit-glow {
+  0%, 100% { box-shadow: 0 16px 30px -18px rgba(45, 212, 191, 0.9); }
+  50% { box-shadow: 0 18px 36px -16px rgba(45, 212, 191, 1), 0 0 26px -6px rgba(45, 212, 191, 0.6); }
 }
 
 .login-submit > svg,
@@ -1815,6 +1893,12 @@ tbody tr {
 
 .login-security-status svg {
   color: #5eead4;
+  animation: security-breathe 3.4s ease-in-out infinite;
+}
+
+@keyframes security-breathe {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.14); }
 }
 
 .login-success {
@@ -2559,6 +2643,10 @@ body,
 .login-card .form-hint,
 .login-card label {
   color: #82979c;
+}
+
+.login-card label:has(+ .login-field.is-focused) {
+  color: #5eead4;
 }
 
 .login-card label {

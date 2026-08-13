@@ -58,20 +58,21 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
   `--apply`/`--check` 门禁）+ 112 处精确值迁移（像素基线 10/10 零回归），见
   `docs/changes/2026-08-14-css-token-layer.md`；遗留不一致旧调色板值（`#5a6672` 等）为
   第二轮，需逐视图重建基线。
-- **关键页面截图基线**：incident 列表/详情、告警、巡检、信号、工作负载、拓扑
-  Desktop/Mobile 截图基线 + 像素容差（复用 M96 截图基线机制；登录页 13 轮成果一并纳入）。
-  ✅ 登录页基线已落地：`scripts/capture-ui-baselines.mjs`（capture/`--verify`）+ 
+- **关键页面截图基线**：全平台前台视图
+  Desktop/Mobile 截图基线 + 像素容差（复用 M96 截图基线机制；登录页 15 轮成果一并纳入）。
+  ✅ 已全量落地：`scripts/capture-ui-baselines.mjs`（capture/`--verify`）+ 
   `docs/ui-baselines/`（Desktop 1440×900 / Mobile 375×812，像素 diff+掩码+确定性随机），
-  见 `docs/changes/2026-08-13-ui-baseline-screenshots.md`；控制台首批 4 页
-  （Dashboard `/`、Clusters `/clusters`、Workloads `/workloads`、Diagnoses `/diagnoses`，
-  鉴权捕获）已一并纳入并 `--verify` 全绿，见
-  `docs/changes/2026-08-13-ui-baseline-console-pages.md`；其余视图依次追加 `views` 即可。
+  基线 **62 条 / 31 视图**（登录页 + 控制台 + 6 高价值视图 + 第三批 20 视图），`--verify`
+  全绿；audit-logs 因实时追加内容仅纳入 axe 不纳入像素基线。首批见
+  `docs/changes/2026-08-13-ui-baseline-screenshots.md` / `2026-08-13-ui-baseline-console-pages.md`，
+  第三批见 `docs/changes/2026-08-14-ui-baseline-batch3.md`。
 - **响应式审计**：35 个视图在 ≤720px 的可用性（表格横向滚动、工具栏折叠、抽屉全屏化）。
 - **交互统一**：SkeletonCard / EmptyState / 错误重试 / toast 语义在全部视图落地一致；
   axe 双视口 0 critical/serious，console error = 0。
-  ✅ 门禁脚本 + 首批 5 视图已落地：`scripts/audit-a11y-axe.mjs`（CDP+axe-core，双视口，
-  0 critical/serious/0 app 错误），并修复 Workloads Tab 对比度 serious，见
-  `docs/changes/2026-08-14-a11y-axe-audit.md`；其余视图按同模式纳入。
+  ✅ 门禁脚本已落地并全量铺开：`scripts/audit-a11y-axe.mjs`（CDP+axe-core，双视口，
+  0 critical/serious/0 app 错误），覆盖 **32 视图**（含 audit-logs），并修复
+  Workloads Tab 对比度 serious，见 `docs/changes/2026-08-14-a11y-axe-audit.md`、
+  `docs/changes/2026-08-14-ui-baseline-batch3.md`。
 - **性能**：沿用 M93-B2 登录页预算与 M96 前端 DOM 硬上限，不破坏既有预算基线。
 
 **衔接契约（必须满足）**：门禁 `pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm build`

@@ -20,7 +20,22 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 登录页（第 15 轮成果）基线两档通过：desktop diff 0.000%、mobile sha256 一致。
 - See [change record](docs/changes/2026-08-13-ui-baseline-screenshots.md)。
 
-sed]
+
+
+### Added - UI 基线/axe/响应式扩展·第三批（Track A 全量铺开）
+
+- 截图基线 + axe 审计覆盖扩展至全部前台视图（20 个新视图：全局搜索 `/search`、
+  监控大盘 `/monitoring`、SLO 仪表盘 `/aiops/slo`、关联案例 `/aiops/correlation`、
+  AI 调查 `/aiops/investigator`、智能巡检 `/inspection`、质量仪表盘 `/aiops/quality`、
+  命名空间治理态势 `/namespace-posture`、集群治理态势 `/posture`、Webhook 投递
+  `/notifications`、用户管理 `/users`、Helm 应用目录 `/app-catalog`、GitOps 应用
+  `/gitops`、事件流与告警 `/event-stream`、服务网格 `/service-mesh`、工作负载保护
+  `/workload-protection`、节点维护 `/node-maintenance`、恢复演练 `/restore-rehearsal`、
+  Promotion 向导 `/promotions`、自动化控制台 `/aiops/automation`）。
+- 基线扩至 **62 条**（31 视图 × 2 视口），`--verify` 全绿（login desktop diff
+  0.000%，users maxΔ=118px 在阈值内，其余 IDENTICAL）；axe 视图扩至 32 个
+  （含 audit-logs，audit-logs 仅 axe 覆盖、排除像素基线——实时追加内容）。
+- See [change record](docs/changes/2026-08-14-ui-baseline-batch3.md)。
 
 ### Added - UI 基线/axe/响应式扩展·第二批（Track A）
 

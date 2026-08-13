@@ -129,6 +129,11 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Occurrence, in
 	return s.repo.List(ctx, filter)
 }
 
+// Get returns a single occurrence by id.
+func (s *Service) Get(ctx context.Context, id int64) (Occurrence, error) {
+	return s.repo.Get(ctx, id)
+}
+
 // Overview assembles the bounded AIOps overview. The clusterID/namespace
 // pair scopes the result (empty namespace = cluster-wide). The overview
 // never discloses hidden cluster/namespace data: callers must additionally

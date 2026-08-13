@@ -132,6 +132,8 @@ services:
       METRICS_COLLECTION_INTERVAL: 15s
       ALERT_POLL_INTERVAL: 2s
       ALERT_MIN_EVALUATION_INTERVAL: 15s
+      SIGNAL_DIAGNOSIS_INGESTION: "true"
+      SIGNAL_DIAGNOSIS_DRAIN_INTERVAL: 2s
     ports:
       - "$BE_PORT:8080"
     depends_on:
@@ -520,7 +522,47 @@ else
   fi
 fi
 
-# ---------- 12. cleanup ----------
+# ---------- 12. signal -> incident (信号实例提升为事故) ----------
+
+scenario "Signal -> incident (信号实例提升为事故): diagnosis signal occurrence promotes to incident workspace"
+# demo 的 Node 诊断恒 critical；drain worker（2s 轮询）会把诊断归一化进
+# signal_occurrences（producer=diagnosis, diag.node.not_ready.v1）。
+DIAG_SIGNAL_ID=""
+for attempt in $(seq 1 60); do
+  DIAG_SIGNALS="$(api GET "/api/v1/aiops/signals?cluster_id=$CLUSTER_ID&signal_id=diag.node.not_ready.v1&limit=10")"
+  DIAG_SIGNAL_ID="$(jq -r '.items[] | select(.state == "active") | .id' <<<"$DIAG_SIGNALS" | head -1 || true)"
+  [[ -n "$DIAG_SIGNAL_ID" ]] && break
+  sleep 2
+done
+if [[ -n "$DIAG_SIGNAL_ID" && "$DIAG_SIGNAL_ID" != "0" ]]; then
+  pass signal-ingest "diagnosis signal occurrence id=$DIAG_SIGNAL_ID (diag.node.not_ready.v1, producer=diagnosis)"
+  SIGNAL_INC="$(api POST /api/v1/incidents "{\"source_type\":\"signal\",\"source_ref\":\"signal:$DIAG_SIGNAL_ID\",\"cluster_id\":$CLUSTER_ID,\"severity\":\"info\",\"title\":\"signal promoted incident\"}")"
+  SIGNAL_INC_ID="$(jq -r '.id // 0' <<<"$SIGNAL_INC")"
+  SIGNAL_INC_SEV="$(jq -r '.severity // empty' <<<"$SIGNAL_INC")"
+  SIGNAL_INC_SRC="$(jq -r '.source_type // empty' <<<"$SIGNAL_INC")"
+  if [[ -n "$SIGNAL_INC_ID" && "$SIGNAL_INC_ID" != "0" ]] && [[ "$SIGNAL_INC_SRC" == "signal" ]]; then
+    pass signal-incident "incident $SIGNAL_INC_ID created from signal #$DIAG_SIGNAL_ID, severity=$SIGNAL_INC_SEV (enriched from occurrence)"
+    if [[ "$SIGNAL_INC_SEV" == "critical" ]]; then
+      pass signal-incident-severity "signal incident severity enriched to critical from diag.node.not_ready.v1"
+    else
+      fail signal-incident-severity "severity=$SIGNAL_INC_SEV expected critical (diag.node.not_ready.v1)"
+    fi
+    # 同一信号不可重复提升（dedup）。
+    DUP="$(api POST /api/v1/incidents "{\"source_type\":\"signal\",\"source_ref\":\"signal:$DIAG_SIGNAL_ID\",\"cluster_id\":$CLUSTER_ID,\"severity\":\"info\",\"title\":\"dup\"}")"
+    DUP_FAIL="$(jq -r '.code // empty' <<<"$DUP" 2>/dev/null || true)"
+    if [[ "$DUP_FAIL" == *"SOURCE_ALREADY_USED"* ]] || [[ "$(jq -r '.id // 0' <<<"$DUP")" == "0" ]]; then
+      pass signal-incident-dedup "duplicate signal promote rejected (SOURCE_ALREADY_USED)"
+    else
+      fail signal-incident-dedup "duplicate was not rejected: $DUP"
+    fi
+  else
+    fail signal-incident "incident create failed: $SIGNAL_INC"
+  fi
+else
+  fail signal-ingest "no active diag.node.not_ready.v1 signal after retries: $DIAG_SIGNALS"
+fi
+
+# ---------- 13. cleanup ----------
 
 scenario "Cleanup"
 cleanup_stack
@@ -553,6 +595,7 @@ FAILED="$(grep -c '|fail|' "$WORK/results.txt" || true)"
   echo "    \"deployment_annotations\": { \"restarted_at\": \"$RESTART_AT\", \"remediation_id\": \"$REMED_ID\" },"
   echo "    \"incident\": { \"id\": $INCIDENT_ID, \"status\": \"$FINAL_STATUS\", \"version\": $NEXT_VERSION }"
   echo "    \"inspection_incident\": { \"result_id\": ${INSP_RESULT_ID:-0}, \"incident_id\": ${INSP_INC_ID:-0}, \"severity\": \"${INSP_INC_SEV:-}\" }"
+  echo "    \"signal_incident\": { \"signal_id\": ${DIAG_SIGNAL_ID:-0}, \"incident_id\": ${SIGNAL_INC_ID:-0}, \"severity\": \"${SIGNAL_INC_SEV:-}\" }"
   echo "  },"
   echo "  \"steps\": ["
   FIRST=1

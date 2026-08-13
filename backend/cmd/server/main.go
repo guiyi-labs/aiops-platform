@@ -153,19 +153,6 @@ func main() {
 	if err != nil {
 		logger.Fatal("configure inspection service", zap.Error(err))
 	}
-	incidentService := incident.NewService(incident.NewGormRepository(database.GORM())).
-		WithResolver(NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService))
-	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
-	appCatalogService := appcatalog.NewService(kubernetesService, appcatalog.NewGormRepository(database.GORM()))
-	// M58: GitOps read-only adapter (ArgoCD Application browse) + interactive
-	// cross-cluster copy service. Both are thin wrappers over kubernetes typed
-	// readers (ADR 0070).
-	gitopsService := gitops.NewService(kubernetesService)
-	copyOpsService := copyops.NewService(kubernetesService, copyops.NewGormRepository(database.GORM()))
-	backupService := backup.NewService(kubernetesService, backup.NewGormRepository(database.GORM()))
-	maintenanceService := maintenance.NewService(kubernetesService, maintenance.NewGormRepository(database.GORM()))
-	namespacePostureService := namespaceposture.NewService(kubernetesService)
-	restoreService := restore.NewService(kubernetesService, restore.NewGormRepository(database.GORM()))
 	// M39-M42 AIOps signal, SLO and correlation services. Wired into the
 	// production server so the aiops routes (signals / slos / correlation)
 	// are live; the SLO burn-alert sink normalizes burn transitions into
@@ -178,6 +165,19 @@ func main() {
 	sloService := slo.NewService(sloRepository,
 		slo.NewEvaluator(slo.NewMetricshistorySource(metricsHistoryService)),
 		slo.WithBurnAlertSink(signalsvc.NewSLOBurnSignalSink(signalService, sloRepository)))
+	incidentService := incident.NewService(incident.NewGormRepository(database.GORM())).
+		WithResolver(NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService, signalService))
+	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
+	appCatalogService := appcatalog.NewService(kubernetesService, appcatalog.NewGormRepository(database.GORM()))
+	// M58: GitOps read-only adapter (ArgoCD Application browse) + interactive
+	// cross-cluster copy service. Both are thin wrappers over kubernetes typed
+	// readers (ADR 0070).
+	gitopsService := gitops.NewService(kubernetesService)
+	copyOpsService := copyops.NewService(kubernetesService, copyops.NewGormRepository(database.GORM()))
+	backupService := backup.NewService(kubernetesService, backup.NewGormRepository(database.GORM()))
+	maintenanceService := maintenance.NewService(kubernetesService, maintenance.NewGormRepository(database.GORM()))
+	namespacePostureService := namespaceposture.NewService(kubernetesService)
+	restoreService := restore.NewService(kubernetesService, restore.NewGormRepository(database.GORM()))
 	// M99-C: the production correlation provider reads signal/topology/
 	// diagnosis repositories; the periodic worker correlates every enabled
 	// cluster (per namespace, with an all-namespace fallback when the cluster
@@ -187,6 +187,17 @@ func main() {
 	correlationProvider := correlation.NewRepositoryInputProvider(signalRepository, topologyRepository, diagnosisRepository)
 	correlationService := correlation.NewService(correlation.NewGormRepository(database.GORM()), nil, correlationProvider)
 	correlationWorker := correlation.NewWorker(correlation.WorkerConfig{Interval: cfg.CorrelationInterval}, clusterService, kubernetesService, correlationService, logger)
+	// M105: diagnosis→signal drain. The M39 signal layer was previously
+	// populated only by the SLO burn sink; this drain normalizes new/updated
+	// diagnosis records into signal occurrences (producer=diagnosis) so the
+	// overview, correlation engine and incident signal source see diagnosis
+	// state. Watermark starts at boot; re-ingest is idempotent by fingerprint.
+	diagnosisSignalDrain := signalsvc.NewDiagnosisDrain(
+		signalsvc.DrainConfig{Interval: cfg.Signal.DiagnosisDrainInterval},
+		diagnosisRepository,
+		signalService,
+		logger,
+	)
 	authzRepo := authz.NewGormRepository(database.GORM())
 	authzService := authz.NewService(authzRepo)
 	grantManager := authz.NewGrantManager(authzRepo)
@@ -432,10 +443,16 @@ func main() {
 	backgroundContext, stopBackground := context.WithCancel(context.Background())
 	defer stopBackground()
 	var backgroundWait sync.WaitGroup
-	backgroundWait.Add(4)
+	backgroundWait.Add(5)
 	go func() {
 		defer backgroundWait.Done()
 		notificationService.Run(backgroundContext)
+	}()
+	go func() {
+		defer backgroundWait.Done()
+		if cfg.Signal.DiagnosisIngestion {
+			diagnosisSignalDrain.Run(backgroundContext)
+		}
 	}()
 	go func() {
 		defer backgroundWait.Done()

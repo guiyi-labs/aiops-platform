@@ -9,6 +9,23 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M105 Signal-to-Incident Triage (v0.3.0-m105)
+
+- 后端：接通 M39 诊断信号摄取管线——新增 `DiagnosisDrain` 后台 worker（`updated_at`
+  严格游标 + fingerprint upsert 幂等），`signal_occurrences` 现在能收到诊断产生的
+  `diag.*.v1` 信号；`signal` 仓库/服务新增 `Get` 与导出的 `ErrSignalNotFound`；
+  `diagnosis.ListFilter` 新增 `UpdatedAfter` 游标；config 新增
+  `SIGNAL_DIAGNOSIS_INGESTION`（默认开）与 `SIGNAL_DIAGNOSIS_DRAIN_INTERVAL`（默认 5s）。
+- 后端：`incident` 支持第 5 个来源 `signal`——`SourceTypeSignal` + `SourceRefForSignal`；
+  `incidentResolver.resolveSignal` 集群防泄漏 + 严重级 1:1 富集；迁移 `000044` 放开
+  `incidents.source_type` CHECK 增加 `'signal'`；OpenAPI enum/注释同步。
+- 前端：`AIOpsOverviewView` 信号列表新增「创建事故工作区」按钮（ops/system_admin 且非
+  resolved，处理 `SOURCE_ALREADY_USED`）；`IncidentsView` 来源类型增加「信号实例」；
+  `IncidentSourceType` / typegen 同步含 `signal`。
+- 演示演练：`demo-drill.sh` 新增「Signal → incident」4 条断言（诊断信号归一化→提升事故→
+  严重级富集 critical→重复提升去重，drain 2s 轮询），端到端 32/32 PASS。
+- See [M105 change record](docs/changes/2026-08-13-m105-signal-incident-triage.md)。
+
 ### Added - M104 Inspection-to-Incident Triage (v0.3.0-m104)
 
 - 后端：`incident` 支持 `inspection` 来源——`SourceTypeInspection` + `SourceRefForInspection`；

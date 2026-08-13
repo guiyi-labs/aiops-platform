@@ -14,6 +14,9 @@ type Repository interface {
 	// (signal_id, fingerprint) pair already exists. Returns the stored
 	// occurrence with its ID populated.
 	Upsert(ctx context.Context, occ *Occurrence) error
+	// Get returns a single occurrence by id. Returns ErrSignalNotFound when
+	// no row matches.
+	Get(ctx context.Context, id int64) (Occurrence, error)
 	// List returns occurrences matching the filter, ordered by observed_at
 	// DESC then id DESC. Total is the unconditional count for the same
 	// filter (ignoring Limit) so callers can report truncation.

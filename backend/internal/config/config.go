@@ -181,12 +181,14 @@ type AlertRouteConfig struct {
 // signal service is disabled by default; when enabled it normalizes existing
 // M21-M31 outputs into the unified signal_occurrences table.
 type SignalConfig struct {
-	Enabled         bool
-	RetentionBatch  int
-	ListLimit       int
-	OverviewTopN    int
-	OverviewWindow  time.Duration
-	CleanupInterval time.Duration
+	Enabled                bool
+	RetentionBatch         int
+	ListLimit              int
+	OverviewTopN           int
+	OverviewWindow         time.Duration
+	CleanupInterval        time.Duration
+	DiagnosisIngestion     bool
+	DiagnosisDrainInterval time.Duration
 }
 
 func Load() (Config, error) {
@@ -884,13 +886,26 @@ func loadSignalConfig(environment string) (SignalConfig, error) {
 	if err != nil {
 		return SignalConfig{}, err
 	}
+	diagnosisIngestion, err := boolFromEnv("SIGNAL_DIAGNOSIS_INGESTION", true)
+	if err != nil {
+		return SignalConfig{}, err
+	}
+	diagnosisDrainInterval, err := durationFromEnv("SIGNAL_DIAGNOSIS_DRAIN_INTERVAL", 5*time.Second)
+	if err != nil {
+		return SignalConfig{}, err
+	}
+	if diagnosisDrainInterval < time.Second {
+		return SignalConfig{}, fmt.Errorf("SIGNAL_DIAGNOSIS_DRAIN_INTERVAL must be at least 1s")
+	}
 	cfg := SignalConfig{
-		Enabled:         enabled,
-		RetentionBatch:  retentionBatch,
-		ListLimit:       listLimit,
-		OverviewTopN:    overviewTopN,
-		OverviewWindow:  overviewWindow,
-		CleanupInterval: cleanupInterval,
+		Enabled:                enabled,
+		RetentionBatch:         retentionBatch,
+		ListLimit:              listLimit,
+		OverviewTopN:           overviewTopN,
+		OverviewWindow:         overviewWindow,
+		CleanupInterval:        cleanupInterval,
+		DiagnosisIngestion:     diagnosisIngestion,
+		DiagnosisDrainInterval: diagnosisDrainInterval,
 	}
 	if err := cfg.validate(); err != nil {
 		return SignalConfig{}, err

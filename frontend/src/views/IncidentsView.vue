@@ -51,6 +51,7 @@ const sourceRefPlaceholder = computed(() => {
     case 'diagnosis': return 'diagnosis:<id>'
     case 'alert': return 'alert:<告警实例ID>'
     case 'inspection': return 'inspection:<巡检结果ID>'
+    case 'signal': return 'signal:<信号实例ID>'
     default: return 'finding:<cluster>:<code>:<kind>:<ns>:<name>'
   }
 })
@@ -60,7 +61,7 @@ function severityTone(severity: IncidentSeverity): string {
 }
 
 function sourceTypeLabel(sourceType: Incident['source_type']): string {
-  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果' }[sourceType]
+  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例' }[sourceType]
 }
 
 function formatTime(value?: string): string {
@@ -441,6 +442,7 @@ onMounted(() => { void loadAll() })
           <option value="diagnosis">诊断记录</option>
           <option value="alert">告警实例</option>
           <option value="inspection">巡检结果</option>
+          <option value="signal">信号实例</option>
           </select>
         </label>
         <label class="form-field">
@@ -453,11 +455,11 @@ onMounted(() => { void loadAll() })
         </label>
         <label class="form-field">
           <span>标题</span>
-          <input v-model="newIncident.title" maxlength="500" :disabled="['diagnosis','alert','inspection'].includes(newIncident.source_type)" placeholder="诊断/告警/巡检来源时自动填充" />
+          <input v-model="newIncident.title" maxlength="500" :disabled="['diagnosis','alert','inspection','signal'].includes(newIncident.source_type)" placeholder="诊断/告警/巡检/信号来源时自动填充" />
         </label>
         <label class="form-field">
           <span>严重级别</span>
-          <select v-model="newIncident.severity" :disabled="['diagnosis','alert','inspection'].includes(newIncident.source_type)" aria-label="严重级别">
+          <select v-model="newIncident.severity" :disabled="['diagnosis','alert','inspection','signal'].includes(newIncident.source_type)" aria-label="严重级别">
             <option value="info">信息</option>
             <option value="warning">警告</option>
             <option value="high">高</option>
@@ -466,7 +468,7 @@ onMounted(() => { void loadAll() })
         </label>
         <label class="form-field">
           <span>摘要</span>
-          <textarea v-model="newIncident.summary" rows="2" maxlength="4000" :disabled="['diagnosis','alert','inspection'].includes(newIncident.source_type)" />
+          <textarea v-model="newIncident.summary" rows="2" maxlength="4000" :disabled="['diagnosis','alert','inspection','signal'].includes(newIncident.source_type)" />
         </label>
         <template v-if="newIncident.source_type === 'finding'">
           <label class="form-field">

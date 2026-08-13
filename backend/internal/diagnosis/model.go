@@ -96,7 +96,11 @@ type ListFilter struct {
 	// correlation provider uses it to gather only recent diagnoses for one
 	// correlation pass.
 	Since *time.Time
-	Limit int
+	// UpdatedAfter bounds the list to records updated strictly after this
+	// time. The diagnosis→signal drain uses it as a cursor so create and
+	// state-transition changes are both re-normalized into the signal layer.
+	UpdatedAfter *time.Time
+	Limit        int
 }
 
 type Record struct {

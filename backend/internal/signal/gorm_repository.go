@@ -53,6 +53,9 @@ func NewGormRepository(db *gorm.DB) *GormRepository { return &GormRepository{db:
 type NopRepository struct{}
 
 func (NopRepository) Upsert(context.Context, *Occurrence) error { return nil }
+func (NopRepository) Get(context.Context, int64) (Occurrence, error) {
+	return Occurrence{}, ErrSignalNotFound
+}
 func (NopRepository) List(context.Context, ListFilter) ([]Occurrence, int64, error) {
 	return nil, 0, nil
 }
@@ -86,6 +89,19 @@ func (r *GormRepository) Upsert(ctx context.Context, occ *Occurrence) error {
 			"window_end":   row.WindowEnd,
 		}),
 	}).Create(&row).Error
+}
+
+// Get returns a single occurrence by id.
+func (r *GormRepository) Get(ctx context.Context, id int64) (Occurrence, error) {
+	var row signalRow
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return Occurrence{}, ErrSignalNotFound
+	}
+	if err != nil {
+		return Occurrence{}, err
+	}
+	return rowToOccurrence(&row)
 }
 
 func (r *GormRepository) List(ctx context.Context, filter ListFilter) ([]Occurrence, int64, error) {
@@ -281,8 +297,5 @@ func rowToOccurrence(row *signalRow) (Occurrence, error) {
 	}, nil
 }
 
-// errSignalNotFound is returned by helpers that need a sentinel; kept for
-// future Get-by-id operations.
-//
-//nolint:unused // reserved for future Get-by-id operations
-var errSignalNotFound = errors.New("signal occurrence not found")
+// ErrSignalNotFound is returned when a Get-by-id operation matches no row.
+var ErrSignalNotFound = errors.New("signal occurrence not found")

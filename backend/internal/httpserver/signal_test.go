@@ -140,6 +140,9 @@ func TestSignalHandler_IntegrationWithIngest(t *testing.T) {
 type nopRepoForHandlerTest struct{}
 
 func (nopRepoForHandlerTest) Upsert(context.Context, *signal.Occurrence) error { return nil }
+func (nopRepoForHandlerTest) Get(context.Context, int64) (signal.Occurrence, error) {
+	return signal.Occurrence{}, signal.ErrSignalNotFound
+}
 func (nopRepoForHandlerTest) List(context.Context, signal.ListFilter) ([]signal.Occurrence, int64, error) {
 	return nil, 0, nil
 }

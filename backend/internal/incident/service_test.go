@@ -297,7 +297,7 @@ type fakeResolver struct {
 }
 
 func (f *fakeResolver) Resolve(_ context.Context, sourceType, _ string, _ int64) (SourceInfo, error) {
-	if sourceType != SourceTypeDiagnosis && sourceType != SourceTypeAlert && sourceType != SourceTypeInspection {
+	if sourceType != SourceTypeDiagnosis && sourceType != SourceTypeAlert && sourceType != SourceTypeInspection && sourceType != SourceTypeSignal {
 		return SourceInfo{}, ErrInvalidSource
 	}
 	if f.err != nil {
@@ -456,6 +456,39 @@ func TestCreateFromInspection(t *testing.T) {
 	})
 	if !errors.Is(err, ErrSourceAlreadyUsed) {
 		t.Errorf("duplicate inspection create err = %v, want ErrSourceAlreadyUsed", err)
+	}
+}
+
+func TestCreateFromSignal(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	service.WithResolver(&fakeResolver{info: SourceInfo{
+		Title:    "Signal slo.burn.fast.v1 demo-app",
+		Summary:  "slo.burn.fast.v1 (active, complete)",
+		Severity: SeverityCritical,
+		Resource: ResourceRef{Kind: "Deployment", Namespace: "demo", Name: "demo-app", UID: "uid-deploy"},
+	}})
+	incident, err := service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeSignal,
+		SourceRef:  SourceRefForSignal(21),
+		ClusterID:  7,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if incident.SourceType != SourceTypeSignal || incident.SourceRef != "signal:21" {
+		t.Errorf("signal source not preserved: %+v", incident)
+	}
+	if incident.Title != "Signal slo.burn.fast.v1 demo-app" || incident.Severity != SeverityCritical {
+		t.Errorf("signal resolver enrichment failed: %+v", incident)
+	}
+
+	_, err = service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeSignal,
+		SourceRef:  SourceRefForSignal(21),
+		ClusterID:  7,
+	})
+	if !errors.Is(err, ErrSourceAlreadyUsed) {
+		t.Errorf("duplicate signal create err = %v, want ErrSourceAlreadyUsed", err)
 	}
 }
 

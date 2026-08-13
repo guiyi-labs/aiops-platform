@@ -5,6 +5,7 @@ import {
   Boxes,
   CheckCircle2,
   Clock,
+  FilePlus2,
   GitBranch,
   Layers,
   Network,
@@ -23,6 +24,7 @@ import {
   listSignals,
   listTopologyChanges,
 } from '../api/aiops'
+import { createIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
@@ -59,6 +61,33 @@ const signalsLoading = ref(false)
 const severityFilter = ref('')
 const stateFilter = ref('')
 const producerFilter = ref('')
+const promoteError = ref('')
+const promoteNotice = ref('')
+
+const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
+
+async function promoteSignalToIncident(s: SignalOccurrence) {
+  promoteError.value = ''
+  promoteNotice.value = ''
+  try {
+    const incident = await createIncident(auth.accessToken, {
+      source_type: 'signal',
+      source_ref: `signal:${s.id}`,
+      cluster_id: s.cluster_id,
+      title: '信号关联事故',
+      severity: 'warning',
+      summary: `从信号 ${s.signal_code} (${s.producer}) 提升的事故工作区`,
+      resource: { kind: s.resource.kind, namespace: s.resource.namespace || '', name: s.resource.name },
+    })
+    promoteNotice.value = `已创建事故工作区 ${incident.number}`
+  } catch (err) {
+    if (err instanceof APIError && err.code === 'SOURCE_ALREADY_USED') {
+      promoteNotice.value = '该信号已存在关联的事故工作区'
+    } else {
+      promoteError.value = err instanceof APIError ? err.message : '创建事故工作区失败'
+    }
+  }
+}
 
 const catalog = ref<SignalDescriptor[]>([])
 
@@ -601,6 +630,8 @@ onMounted(initialize)
         <span>调整筛选条件或稍后刷新。</span>
       </div>
       <div v-else class="aiops-table-wrap">
+        <p v-if="promoteError" class="error-message">{{ promoteError }}</p>
+        <p v-if="promoteNotice" class="ok-message">{{ promoteNotice }}</p>
         <table class="aiops-table">
           <thead>
             <tr>
@@ -614,6 +645,7 @@ onMounted(initialize)
               <th>观测时间</th>
               <th>时间窗口</th>
               <th>数据延迟</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -633,6 +665,11 @@ onMounted(initialize)
               <td>{{ formatTime(s.observed_at) }}</td>
               <td>{{ signalWindowLabel(s) }}</td>
               <td>{{ signalLatencyLabel(s) }}</td>
+              <td>
+                <button v-if="canManage && s.state !== 'resolved'" type="button" class="icon-button compact" title="创建事故工作区" aria-label="创建事故工作区" @click="promoteSignalToIncident(s)">
+                  <FilePlus2 :size="14" />
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>

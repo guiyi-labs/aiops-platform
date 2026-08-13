@@ -217,6 +217,9 @@ func (m *mockRepo) Upsert(_ context.Context, _ *Occurrence) error {
 	m.upsertCount++
 	return nil
 }
+func (m *mockRepo) Get(_ context.Context, _ int64) (Occurrence, error) {
+	return Occurrence{}, ErrSignalNotFound
+}
 func (m *mockRepo) List(_ context.Context, _ ListFilter) ([]Occurrence, int64, error) {
 	return nil, 0, nil
 }

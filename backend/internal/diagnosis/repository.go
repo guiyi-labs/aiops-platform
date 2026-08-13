@@ -104,6 +104,10 @@ func (r *GormRepository) list(ctx context.Context, filter ListFilter, orderBy st
 		conditions = append(conditions, "d.observed_at >= ?")
 		args = append(args, *filter.Since)
 	}
+	if filter.UpdatedAfter != nil {
+		conditions = append(conditions, "d.updated_at > ?")
+		args = append(args, *filter.UpdatedAfter)
+	}
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}

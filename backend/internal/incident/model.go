@@ -23,6 +23,7 @@ const (
 	SourceTypeFinding    = "finding"
 	SourceTypeAlert      = "alert"
 	SourceTypeInspection = "inspection"
+	SourceTypeSignal     = "signal"
 
 	EventTypeSystem = "system"
 	EventTypeNote   = "note"
@@ -183,6 +184,12 @@ func SourceRefForAlert(alertID int64) string {
 // result promoted into an incident workspace.
 func SourceRefForInspection(resultID int64) string {
 	return "inspection:" + strconv.FormatInt(resultID, 10)
+}
+
+// SourceRefForSignal builds the stable dedup identity for a normalized signal
+// occurrence promoted into an incident workspace.
+func SourceRefForSignal(occurrenceID int64) string {
+	return "signal:" + strconv.FormatInt(occurrenceID, 10)
 }
 
 // SourceRefForFinding builds the stable dedup identity for a client-observed

@@ -9,6 +9,7 @@ import (
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/incident"
 	"k8s-aiops.local/backend/internal/inspection"
+	"k8s-aiops.local/backend/internal/signal"
 )
 
 type fakeDiagnosisReader struct {
@@ -187,5 +188,88 @@ func TestResolveInspectionInvalidOrMissing(t *testing.T) {
 	r2 := &incidentResolver{diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}}, alerts: &fakeAlertResolver{instances: map[int64]alert.Instance{}}}
 	if _, err := r2.Resolve(context.Background(), incident.SourceTypeInspection, "inspection:1", 7); err != incident.ErrInvalidSource {
 		t.Errorf("nil inspections err = %v, want ErrInvalidSource", err)
+	}
+}
+
+type fakeSignalReader struct {
+	occurrences map[int64]signal.Occurrence
+	err         error
+}
+
+func (f *fakeSignalReader) Get(_ context.Context, id int64) (signal.Occurrence, error) {
+	if f.err != nil {
+		return signal.Occurrence{}, f.err
+	}
+	o, ok := f.occurrences[id]
+	if !ok {
+		return signal.Occurrence{}, signal.ErrSignalNotFound
+	}
+	return o, nil
+}
+
+func TestResolveSignal(t *testing.T) {
+	r := &incidentResolver{
+		diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}},
+		alerts:           &fakeAlertResolver{instances: map[int64]alert.Instance{}},
+		inspections:      &fakeInspectionReader{results: map[int64]inspection.ResultView{}},
+		signals: &fakeSignalReader{occurrences: map[int64]signal.Occurrence{
+			21: {
+				ID:         21,
+				SignalID:   "slo.burn.fast.v1",
+				SignalCode: "slo.burn.fast.v1",
+				ClusterID:  7,
+				Namespace:  "demo",
+				Resource:   signal.ResourceCitation{Kind: "Deployment", Namespace: "demo", Name: "demo-app", UID: "deploy-uid"},
+				Severity:   signal.SeverityCritical,
+				State:      signal.StateActive,
+				Coverage:   signal.CoverageComplete,
+				ObservedAt: time.Now().UTC(),
+			},
+		}},
+	}
+	info, err := r.Resolve(context.Background(), incident.SourceTypeSignal, "signal:21", 7)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if info.Title != "Signal slo.burn.fast.v1 demo-app" {
+		t.Errorf("title = %q", info.Title)
+	}
+	if info.Severity != "critical" || info.Resource.Name != "demo-app" {
+		t.Errorf("severity/resource wrong: %+v", info)
+	}
+}
+
+func TestResolveSignalRejectsForeignCluster(t *testing.T) {
+	r := &incidentResolver{
+		diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}},
+		alerts:           &fakeAlertResolver{instances: map[int64]alert.Instance{}},
+		inspections:      &fakeInspectionReader{results: map[int64]inspection.ResultView{}},
+		signals: &fakeSignalReader{occurrences: map[int64]signal.Occurrence{
+			21: {ID: 21, SignalID: "x", ClusterID: 999, Severity: signal.SeverityWarning},
+		}},
+	}
+	if _, err := r.Resolve(context.Background(), incident.SourceTypeSignal, "signal:21", 7); err != incident.ErrInvalidSource {
+		t.Errorf("foreign cluster err = %v, want ErrInvalidSource", err)
+	}
+}
+
+func TestResolveSignalInvalidOrMissing(t *testing.T) {
+	r := &incidentResolver{
+		diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}},
+		alerts:           &fakeAlertResolver{instances: map[int64]alert.Instance{}},
+		inspections:      &fakeInspectionReader{results: map[int64]inspection.ResultView{}},
+		signals:          &fakeSignalReader{occurrences: map[int64]signal.Occurrence{}},
+	}
+	for _, src := range []string{"signal:", "signal:abc", "signal:-3", "alert:9", "diagnosis:9"} {
+		if _, err := r.Resolve(context.Background(), incident.SourceTypeSignal, src, 7); err != incident.ErrInvalidSource {
+			t.Errorf("Resolve(%q) err = %v, want ErrInvalidSource", src, err)
+		}
+	}
+	if _, err := r.Resolve(context.Background(), incident.SourceTypeSignal, "signal:999", 7); err != incident.ErrInvalidSource {
+		t.Errorf("missing occurrence err = %v, want ErrInvalidSource", err)
+	}
+	r2 := &incidentResolver{diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}}, alerts: &fakeAlertResolver{instances: map[int64]alert.Instance{}}}
+	if _, err := r2.Resolve(context.Background(), incident.SourceTypeSignal, "signal:1", 7); err != incident.ErrInvalidSource {
+		t.Errorf("nil signals err = %v, want ErrInvalidSource", err)
 	}
 }

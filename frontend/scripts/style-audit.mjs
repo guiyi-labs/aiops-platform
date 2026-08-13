@@ -36,7 +36,7 @@ const output = {
     selectorCount: reports.reduce((sum, report) => sum + report.selectorCount, 0),
     uniqueSelectorCount: reports.reduce((sum, report) => sum + report.uniqueSelectorCount, 0),
   },
-  mode: 'report',
+  mode: 'fail-closed',
   removedUnreferencedLayer: 'kubesphere-theme.css',
 }
 mkdirSync(outDir, { recursive: true })
@@ -50,7 +50,7 @@ const lines = [
   `- Import order: ${layers.join(' -> ')}`,
   `- Totals: ${output.totals.bytes} bytes, ${output.totals.lines} lines, ${output.totals.selectorCount} selector occurrences, ${output.totals.uniqueSelectorCount} unique selectors`,
   `- Removed unreferenced layer: ${output.removedUnreferencedLayer}`,
-  '- Mode: report; no fail-closed size threshold is set from this first M96 measurement.',
+  '- Mode: fail-closed; style size thresholds gate CI (M109).',
   '',
   '| Layer | Bytes | Lines | Selectors | Unique selectors | SHA-256 |',
   '|---|---:|---:|---:|---:|---|',

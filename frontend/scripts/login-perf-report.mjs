@@ -160,7 +160,7 @@ const baseline = {
   },
   bundleVolume: bundleData ? bundleData.stats : null,
   budget: {
-    mode: 'report',
+    mode: 'fail-closed',
     slackPercent,
     thresholds: budget,
   },
@@ -221,7 +221,7 @@ for (const path of paths) {
 }
 
 lines.push('', '## 备注', '')
-lines.push('- 预算为报告模式，不阻塞 CI；连续两个稳定周期后再考虑 fail-closed 门禁。')
+lines.push('- 预算为 fail-closed 门禁（M109），超阈值视为回归并阻断 CI。')
 lines.push('- 桌面 normal 路径 FPS 偏低，是 headless 软件渲染环境下的现象；移动端始终 ~60fps。')
 
 const reportFile = join(outDir, 'login-perf-report.md')

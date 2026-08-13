@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - M109 Gate B 性能门禁翻转为 fail-closed
+
+- 四处证据生产者（`pod-scale-perf-report.mjs`、`login-perf-report.mjs`、`style-audit.mjs`、`scalebench/report.go`）的 `mode` 从 `report` 翻转为 `fail-closed`；CI `GATE_B_MODE` 同步切换。超阈值现在显式视为回归，阻断 CI。
+- `m96-gate-b.mjs`：`EXPECTED.css.mode` 应模式、`performanceThresholds` 说明按模式动态输出。
+- `scalebench_test.go`：断言 `report.Mode` 更新为 `"fail-closed"`。
+- See [change record](docs/changes/2026-08-13-m109-gate-b-fail-closed.md)。
+
 ### Added - M109 工程卓越收口：覆盖率门禁 65% + fuzz smoke 扩展 + Gate B 性能基线记录/模式开关
 
 - 覆盖率门禁：`ci.yml` 全局门禁基线 60%→**65%**（实测 65.16%），随此前覆盖率冲刺提交一并达成。

@@ -375,9 +375,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      # M109: report mode is the two-stable-cycle baseline; flip to fail-closed
-      # after the baselines recorded in docs/m96-gate-b-baselines.md are met.
-      GATE_B_MODE: report
+      # M109: two stable CI cycles recorded in docs/m96-gate-b-baselines.md;
+      # Gate B is now fail-closed. Regressions block CI (see m96-gate-b.mjs).
+      GATE_B_MODE: fail-closed
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

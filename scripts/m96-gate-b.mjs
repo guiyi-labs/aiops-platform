@@ -29,7 +29,7 @@ const EXPECTED = {
   css: {
     schema: 1,
     version: 'm96-style-baseline-v1',
-    mode: 'report',
+    mode: 'fail-closed',
     importOrder: ['base.css', 'console-theme.css', 'motion.css', 'premium-ui.css'],
     removedLayer: 'kubesphere-theme.css',
   },
@@ -392,7 +392,7 @@ function summarize() {
     warnings,
     errors,
     result: errors.length === 0 ? 'passed' : 'failed',
-    performanceThresholds: 'report-only; latency, heap and CSS drift are retained for two stable CI cycles before fail-closed consideration',
+    performanceThresholds: mode === 'fail-closed' ? 'fail-closed; latency, heap, long-task and CSS regressions block CI' : 'report-only; latency, heap and CSS drift are retained for two stable CI cycles before fail-closed consideration',
   }
 }
 

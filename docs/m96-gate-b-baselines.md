@@ -1,6 +1,6 @@
 # M96 Gate B 稳定周期记录
 
-> M109 验收前置条件：Gate B 连续两个稳定周期记录入库，才能将性能门禁从 report 转 fail-closed。
+> **Fail-closed active**（M109，2026-08-13）：两个稳定周期记录入库后翻转，CI 报告与基线均改为 fail-closed，超阈值视为回归并阻断 CI。
 
 ## 稳定周期记录
 
@@ -11,7 +11,11 @@
 
 > 两次运行均为同一主干、同一 fixture（`m96-v1`）下 success，表明阈值在 report mode 下稳定。
 
-## 翻转步骤（记录入上述两周期后执行）
+## 翻转执行记录
+
+- 2026-08-13：翻转证据生产者（`pod-scale-perf-report.mjs`、`login-perf-report.mjs`、`style-audit.mjs`、`scalebench report.go`）mode → `fail-closed`；ci.yml `GATE_B_MODE=fail-closed`；`m96-gate-b.mjs` 模式参数化与 markdown 口径更新。
+
+## 原翻转步骤（记录入上述两周期后执行）
 
 1. 将证据生产者（`pod-scale-perf-report.mjs`、`login-perf-report.mjs`、`backend scalebench report.go`）的 `mode` 从 `'report'` 改为 `'fail-closed'`（一次发布提交）。
 2. Gate B 脚本：设置 `GATE_B_MODE=fail-closed` 环境变量（或移除变量默认读 fail-closed）。

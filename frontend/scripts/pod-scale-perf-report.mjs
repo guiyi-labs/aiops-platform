@@ -86,7 +86,7 @@ const baseline = {
   environment: source.environment,
   fixture: source.fixture,
   budget: {
-    mode: 'report',
+    mode: 'fail-closed',
     slackPercent,
     floorSlackPercent,
     profiles: profileReports,
@@ -107,7 +107,7 @@ const lines = [
   `- CPU：${source.environment.cpu} (${source.environment.cpuCount} logical CPUs)`,
   `- Fixture：${source.fixture.config.version}，${source.fixture.config.pod_count} Pods，${source.fixture.payloadBytes} bytes，SHA-256 ${source.fixture.payloadSha256}`,
   `- 采样：${source.samples.length} visits，${source.failures.length} failures`,
-  '- 性能阈值：report mode；P50 + 40% headroom，且不低于样本最大值 + 15%。',
+  '- 性能阈值：fail-closed mode；P50 + 40% headroom，且不低于样本最大值 + 15%。超阈值视为回归，阻断 CI。',
   '',
 ]
 

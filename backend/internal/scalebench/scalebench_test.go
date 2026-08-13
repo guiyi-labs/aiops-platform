@@ -73,7 +73,7 @@ func TestRunProducesStructuredReport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.SchemaVersion != ReportSchemaVersion || report.Mode != "report" || len(report.Operations) != 8 || report.Environment.Commit != "test-commit" {
+	if report.SchemaVersion != ReportSchemaVersion || report.Mode != "fail-closed" || len(report.Operations) != 8 || report.Environment.Commit != "test-commit" {
 		t.Fatalf("report = %#v", report)
 	}
 	for _, invariant := range report.Invariants {

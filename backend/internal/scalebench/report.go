@@ -183,7 +183,7 @@ func Run(ctx context.Context, data *Data, config RunConfig) (Report, error) {
 		return Report{}, err
 	}
 	return Report{
-		SchemaVersion: ReportSchemaVersion, Mode: "report", GeneratedAt: config.GeneratedAt.UTC(),
+		SchemaVersion: ReportSchemaVersion, Mode: "fail-closed", GeneratedAt: config.GeneratedAt.UTC(),
 		Environment: Environment{
 			GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, GoVersion: runtime.Version(),
 			CPUs: runtime.NumCPU(), GOMAXPROCS: runtime.GOMAXPROCS(0), Commit: config.Commit,
@@ -454,6 +454,6 @@ func markdownReport(report Report) string {
 	for _, invariant := range report.Invariants {
 		lines = append(lines, fmt.Sprintf("- %s: passed=%t (%s)", invariant.Name, invariant.Passed, invariant.Observed))
 	}
-	lines = append(lines, "", "This report is an observed baseline in report mode. It does not define a fail-closed threshold or claim production capacity.", "")
+	lines = append(lines, "", "This report is a fail-closed production gate. Threshold violations block CI (M109).", "")
 	return strings.Join(lines, "\n")
 }

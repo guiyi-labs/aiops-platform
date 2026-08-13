@@ -58,7 +58,7 @@ function particleProfile(): ParticleProfile {
   if (width <= 720) {
     return { density: 15000, maximum: 48, minimum: 18, pixelRatioCap: 1.5 }
   }
-  return { density: 11000, maximum: 90, minimum: 28, pixelRatioCap: 2 }
+  return { density: 14000, maximum: 70, minimum: 24, pixelRatioCap: 2 }
 }
 
 function pickColor() {
@@ -173,7 +173,7 @@ function draw() {
   context.clearRect(0, 0, width, height)
 
   const linkRadiusSquared = CONFIG.linkRadius * CONFIG.linkRadius
-  const phaseAlpha = props.phase === 'submitting' || props.phase === 'success' ? 0.34 : 0.22
+  const phaseAlpha = props.phase === 'submitting' || props.phase === 'success' ? 0.32 : 0.16
   for (let firstIndex = 0; firstIndex < particles.length; firstIndex += 1) {
     for (let secondIndex = firstIndex + 1; secondIndex < particles.length; secondIndex += 1) {
       const firstParticle = particles[firstIndex]

@@ -93,6 +93,8 @@ async function submit() {
   <main :class="['login-page', `login-page--${authPhase}`]" :data-auth-phase="authPhase">
     <section class="login-intro">
       <ParticleNetwork :phase="authPhase" />
+      <div class="login-depth" aria-hidden="true"></div>
+      <div class="login-spine" aria-hidden="true"><i></i></div>
       <div class="login-brand"><span><Boxes :size="22" /></span>K8s AIOps</div>
 
       <div class="login-radar" aria-hidden="true">
@@ -270,6 +272,7 @@ async function submit() {
     <section class="login-form-panel">
       <form class="login-card" :aria-busy="submitting" @submit.prevent="submit">
         <div class="login-card-rail" aria-hidden="true"><i></i></div>
+        <span class="login-card-frame" aria-hidden="true"></span>
         <span class="login-icon"><LockKeyhole :size="22" /></span>
         <p class="context-label">安全访问</p>
         <h2>登录运维控制台</h2>

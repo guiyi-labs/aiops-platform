@@ -229,3 +229,59 @@
   `z-index:2`（`.login-form-panel` 为 `z-index:3`），任何情形下装饰都衬于
   内容之下；若后续内容区需要更高叠层，请同步调整。
 - 全部新元素 `aria-hidden="true"` 或 `role="list"`，不影响无障碍树与表单可访问性。
+
+## Follow-up — Round 8: Narrative Coherence, Depth & Card Focus（第八轮）
+
+承接前 7 轮（面板放大 → 空旷填充 → 信号流 → 入场编排 → 触觉细节 → 重叠修复/贴右 →
+对角构图）后，用户表示"仍不满意"，经关键路径代码审查锁定四类结构性短板并一次性收口：
+①左区品牌/标题/拓扑呈"上下两块孤岛"、中间空洞；②左右缺视觉引线；③中央空洞未定调；
+④radar/粒子偏满。本轮回应在 `console-theme.css` 新增 `/* ---- M93-B1d ---- */` 块，
+并在 `LoginView.vue` / `ParticleNetwork.vue` 做最小改动，全部纯视觉层、不动表单逻辑与无障碍。
+
+### 改动清单
+
+- **中央景深（解决空洞定调）**：`LoginView.vue` 新增 `.login-depth`（aria-hidden，
+  z-index:1，置于 ParticleNetwork 之后、内容层之下），以左中偏置的双层径向渐变
+  （青 + 紫）模拟"信号核心"柔光，叠加 `login-depth-breathe` 14s 慢呼吸；mask 限定在
+  左中区域并向右侧（面板区）渐隐，避免与右侧登录卡争视线。
+- **信号脊柱（解决孤岛 + 左右引线）**：新增 `.login-spine`（aria-hidden，z-index:1，
+  贴左留白沟槽 `left:clamp(16px,2vw,36px)`），一条 2px 青色渐隐竖线将品牌→标题→拓扑
+  串成叙事主线；线身带一枚 `login-spine-travel` 5.5s 往复游走的光点，暗示"信号在流转"。
+- **卡片焦点升级（解决"主角光环"缺失）**：
+  - `LoginView.vue` 卡片内新增 `.login-card-frame`（aria-hidden）四角括号
+    （`::before` 左上 / `::after` 右下 L 形，常态 opacity .5，hover 或 `:has(.is-focused)`
+    时提亮 + 青色辉光），把操作区框成"仪表盘"。
+  - 新增 `login-card-attract` 1.5s、延迟 0.92s 的一次性青色光晕脉冲（仅动画
+    box-shadow、无 fill，`both` 不保留，故载入后 hover 浮升/按压仍正常），把注意力
+    在入场后收束到卡片。
+  - 新增 `.login-card:has(.login-field.is-focused)` 整卡聚焦联动：聚焦任意输入框时
+    整卡描边与内发光同步提青（`:has()` 为渐进增强，旧浏览器忽略不影响功能）。
+- **减噪与克制**：
+  - `ParticleNetwork.vue` 桌面粒子密度 `11000→14000`、上限 `90→70`、下限 `28→24`，
+    连线基础透明度 `0.22→0.16`，让星网更安静；行为（均匀分布/连线/指针引力）不变。
+  - radar 透明度 `0.34→0.30`、mask 渐隐点 `48%/76% → 44%/72%`，进一步弱化为背景仪器。
+  - 全部新增动画均被全局 `prefers-reduced-motion` 通配复位覆盖，无需单独降级。
+
+### 分层与响应式
+
+- 叠层：`.login-depth` / `.login-spine` 用 `.login-page .login-intro > ...`
+  （specificity 0,3,0）覆盖既有 `> *:not(.particle-network){z-index:2}` 规则，
+  强制落在 z-index:1 装饰层（衬于内容 z-index:2 / 面板 z-index:3 之下）。
+- 矮屏断点（max-height:760px & min-width:721px）与移动端断点（max-width:720px）
+  均将 `.login-depth` / `.login-spine` 列入 `display:none`，与 radar/footer 同策略隐藏；
+  卡片角标在窄屏保留（低存在感、无害）。
+
+### Verification
+
+- `./node_modules/.bin/vite build`：✓ built in 3.06s，exit 0，无 CSS 语法错误。
+- 线上验证：新产物 `index-BQPzgRJy.css` + `index-BRIbTalY.js` 已 docker cp 覆盖进
+  `k8s-aiops-frontend-1`，`curl /login` 引用新 hash；CSS 实测含 `login-depth` /
+  `login-spine` / `login-card-frame` / `login-card-attract` / `login-spine-travel` /
+  `login-depth-breathe` 全部新规则；radar `opacity:.3` 生效。
+- 浏览器视觉复核受限（截图/resize 不可靠），构图与动效观感建议在网络恢复后于宽屏
+  人工复核一次；逻辑层与无障碍结构未经改动，无回归风险。
+
+### Deployment（第八轮，并入 18080）
+
+- 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
+  容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。

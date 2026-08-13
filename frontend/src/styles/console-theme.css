@@ -1513,10 +1513,10 @@ tbody tr {
   z-index: 1;
   width: clamp(150px, 15vw, 230px);
   aspect-ratio: 1;
-  opacity: 0.34;
+  opacity: 0.3;
   pointer-events: none;
-  -webkit-mask-image: radial-gradient(circle at 62% 40%, #000 0%, rgba(0, 0, 0, 0.85) 48%, transparent 76%);
-  mask-image: radial-gradient(circle at 62% 40%, #000 0%, rgba(0, 0, 0, 0.85) 48%, transparent 76%);
+  -webkit-mask-image: radial-gradient(circle at 62% 40%, #000 0%, rgba(0, 0, 0, 0.8) 44%, transparent 72%);
+  mask-image: radial-gradient(circle at 62% 40%, #000 0%, rgba(0, 0, 0, 0.8) 44%, transparent 72%);
 }
 
 .login-radar svg {
@@ -1800,6 +1800,129 @@ tbody tr {
 @keyframes login-beam-flow {
   from { background-position-x: 0; }
   to { background-position-x: 180px; }
+}
+
+/* ---- M93-B1d: Round 8 — narrative coherence, depth & card focus ---- */
+
+/* Central ambient depth: reframes the mid-void as intentional depth, not emptiness */
+.login-page .login-intro > .login-depth {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(56% 46% at 33% 52%, rgba(45, 212, 191, 0.10), transparent 70%),
+    radial-gradient(40% 36% at 29% 47%, rgba(129, 140, 248, 0.07), transparent 72%);
+  -webkit-mask-image: radial-gradient(120% 92% at 30% 50%, #000 0%, rgba(0, 0, 0, 0.62) 54%, transparent 86%);
+  mask-image: radial-gradient(120% 92% at 30% 50%, #000 0%, rgba(0, 0, 0, 0.62) 54%, transparent 86%);
+  animation: login-depth-breathe 14s ease-in-out infinite;
+}
+
+@keyframes login-depth-breathe {
+  0%, 100% { opacity: 0.72; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+/* Signal spine: a faint left-gutter thread that links brand → copy → visual into one story */
+.login-page .login-intro > .login-spine {
+  position: absolute;
+  top: clamp(72px, 13vh, 134px);
+  bottom: clamp(72px, 12vh, 122px);
+  left: clamp(16px, 2vw, 36px);
+  z-index: 1;
+  width: 2px;
+  border-radius: 2px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(94, 234, 212, 0.05) 12%,
+    rgba(94, 234, 212, 0.34) 50%,
+    rgba(94, 234, 212, 0.05) 88%,
+    transparent 100%
+  );
+}
+
+.login-spine i {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #a7f3d0;
+  box-shadow: 0 0 12px 2px rgba(94, 234, 212, 0.7);
+  transform: translate(-50%, -50%);
+  animation: login-spine-travel 5.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes login-spine-travel {
+  0% { top: 2%; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { top: 98%; opacity: 0; }
+}
+
+/* Card corner brackets — frame the action area like an instrument panel */
+.login-card .login-card-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.login-card .login-card-frame::before,
+.login-card .login-card-frame::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+  transition: opacity 260ms ease, box-shadow 260ms ease;
+}
+
+.login-card .login-card-frame::before {
+  top: 11px;
+  left: 11px;
+  border-top: 1.5px solid rgba(94, 234, 212, 0.6);
+  border-left: 1.5px solid rgba(94, 234, 212, 0.6);
+  border-top-left-radius: 7px;
+}
+
+.login-card .login-card-frame::after {
+  right: 11px;
+  bottom: 11px;
+  border-right: 1.5px solid rgba(94, 234, 212, 0.6);
+  border-bottom: 1.5px solid rgba(94, 234, 212, 0.6);
+  border-bottom-right-radius: 7px;
+}
+
+.login-card:hover .login-card-frame::before,
+.login-card:hover .login-card-frame::after,
+.login-card:has(.login-field.is-focused) .login-card-frame::before,
+.login-card:has(.login-field.is-focused) .login-card-frame::after {
+  opacity: 0.95;
+  box-shadow: 0 0 10px -1px rgba(94, 234, 212, 0.6);
+}
+
+/* Load-time attention sweep: a single teal halo pulse lands the eye on the card */
+.login-card {
+  animation: login-card-attract 1.5s ease 0.92s 1;
+}
+
+.login-card:has(.login-field.is-focused) {
+  border-color: rgba(94, 234, 212, 0.45);
+  box-shadow:
+    0 28px 72px -34px rgba(0, 0, 0, 0.95),
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 0 0 3px rgba(94, 234, 212, 0.12);
+}
+
+@keyframes login-card-attract {
+  0% { box-shadow: 0 28px 72px -34px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.03) inset; }
+  55% { box-shadow: 0 30px 80px -32px rgba(0, 0, 0, 0.98), 0 0 0 1px rgba(255, 255, 255, 0.04) inset, 0 0 64px -12px rgba(45, 212, 191, 0.5); }
+  100% { box-shadow: 0 28px 72px -34px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.03) inset; }
 }
 
 .login-field > svg:first-child {
@@ -2113,6 +2236,8 @@ tbody tr {
     padding: 34px 36px 32px;
   }
 
+  .login-depth,
+  .login-spine,
   .login-radar,
   .login-footer {
     display: none;
@@ -2169,6 +2294,8 @@ tbody tr {
     display: none;
   }
 
+  .login-depth,
+  .login-spine,
   .login-radar,
   .login-footer,
   .login-features {

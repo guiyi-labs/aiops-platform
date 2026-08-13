@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 登录页视觉第 8 轮：叙事连贯 / 中央景深 / 卡片焦点 / 减噪
+
+- 左区新增信号脊柱（`.login-spine`）串联品牌→标题→拓扑，中央新增柔光景深（`.login-depth`）把空洞变为有意为之的纵深；登录卡新增四角括号（`.login-card-frame`）、载入一次性青色光晕收束（`.login-card-attract`）、整卡聚焦联动 `:has(.is-focused)`。
+- 减噪：桌面粒子密度 11000→14000、上限 90→70、连线透明度 0.22→0.16；radar 透明度 0.34→0.30、mask 更早渐隐。矮屏/移动端同步隐藏景深与脊柱。
+- 全部纯视觉层改动，未动表单逻辑与无障碍结构；沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1`，产物 `index-BQPzgRJy.css` + `index-BRIbTalY.js`。
+- See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
+
 ### Added - M110 RC-6 发布预检（本地就绪确认）
 
 - 新增 `docs/m110-release-preflight.md`：15 项本地预检全过（后端编译/测试、前端 typecheck/lint/build、release 工具测试、Dockerfile/Helm/kustomize、迁移自包含、release workflow 质量门继承 M109 全部 CI 门禁）。

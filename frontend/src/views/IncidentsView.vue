@@ -8,7 +8,7 @@ import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { UserProfile } from '../types/auth'
-import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
 
 interface IncidentCreateForm extends Omit<IncidentCreateInput, 'resource'> {
   resource: IncidentResourceRef
@@ -24,6 +24,8 @@ const successMessage = ref('')
 const selected = ref<number[]>([])
 const batchAssigneeID = ref(0)
 const batchComment = ref('')
+const timelineFilter = ref<'all' | 'note' | 'system'>('all')
+const evidenceFilter = ref<IncidentSourceType | 'all'>('all')
 
 const detail = ref<Incident | null>(null)
 const detailLoading = ref(false)
@@ -53,6 +55,32 @@ const postmortemContent = ref('')
 
 const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
 const allSelected = computed(() => incidents.value.length > 0 && incidents.value.every((incident) => selected.value.includes(incident.id)))
+
+const noteCount = computed(() => (detail.value?.timeline ?? []).filter((event) => event.event_type === 'note').length)
+const systemCount = computed(() => (detail.value?.timeline ?? []).filter((event) => event.event_type === 'system').length)
+const filteredTimeline = computed(() => {
+  const events = detail.value?.timeline ?? []
+  if (timelineFilter.value === 'all') return events
+  return events.filter((event) => event.event_type === timelineFilter.value)
+})
+const evidenceSourceCounts = computed<Partial<Record<IncidentSourceType, number>>>(() => {
+  const counts: Partial<Record<IncidentSourceType, number>> = {}
+  for (const item of evidence.value) counts[item.source_type] = (counts[item.source_type] ?? 0) + 1
+  return counts
+})
+const evidenceSourceCount = computed(() => Object.keys(evidenceSourceCounts.value).length)
+const filteredEvidence = computed(() => {
+  if (evidenceFilter.value === 'all') return evidence.value
+  return evidence.value.filter((item) => item.source_type === evidenceFilter.value)
+})
+const resolutionDuration = computed(() => {
+  if (!detail.value?.resolved_at) return '--'
+  const milliseconds = new Date(detail.value.resolved_at).getTime() - new Date(detail.value.observed_at).getTime()
+  if (Number.isNaN(milliseconds) || milliseconds < 0) return '--'
+  const minutes = Math.round(milliseconds / 60000)
+  const hours = Math.floor(minutes / 60)
+  return hours > 0 ? `${hours}小时${minutes % 60}分` : `${minutes}分钟`
+})
 
 function toggleSelect(id: number) {
   selected.value = selected.value.includes(id) ? selected.value.filter((item) => item !== id) : [...selected.value, id]
@@ -152,6 +180,8 @@ async function openDetail(incident: Incident) {
   errorMessage.value = ''
   try {
     detail.value = await getIncident(auth.accessToken, incident.id)
+    timelineFilter.value = 'all'
+    evidenceFilter.value = 'all'
     transitionStatus.value = allowedTransitions.value[0] ?? 'confirmed'
     transitionComment.value = ''
     noteContent.value = ''
@@ -455,8 +485,12 @@ onMounted(() => { void loadAll() })
         </template>
         <template v-else-if="evidence.length">
           <h3>证据时间线</h3>
+          <div v-if="evidenceSourceCount > 1" class="filter-tabs" role="tablist" aria-label="证据来源过滤">
+            <button type="button" :class="{ active: evidenceFilter === 'all' }" @click="evidenceFilter = 'all'">全部 ({{ evidence.length }})</button>
+            <button v-for="(count, source) in evidenceSourceCounts" :key="source" type="button" :class="{ active: evidenceFilter === source }" @click="evidenceFilter = source">{{ evidenceSourceLabel(source) }} ({{ count }})</button>
+          </div>
           <div class="incident-evidence">
-            <div v-for="item in evidence" :key="item.source_ref" class="evidence-card">
+            <div v-for="item in filteredEvidence" :key="item.source_ref" class="evidence-card">
               <div class="evidence-card-head">
                 <span class="evidence-source">{{ evidenceSourceLabel(item.source_type) }}</span>
                 <span class="severity-badge" :class="severityTone(item.severity ?? detail.severity)">{{ severityLabels[item.severity ?? detail.severity] }}</span>
@@ -515,8 +549,13 @@ onMounted(() => { void loadAll() })
         </template>
 
         <h3>时间线</h3>
+        <div class="filter-tabs" role="tablist" aria-label="时间线过滤">
+          <button type="button" :class="{ active: timelineFilter === 'all' }" @click="timelineFilter = 'all'">全部 ({{ detail.timeline?.length ?? 0 }})</button>
+          <button type="button" :class="{ active: timelineFilter === 'note' }" @click="timelineFilter = 'note'">备注 ({{ noteCount }})</button>
+          <button type="button" :class="{ active: timelineFilter === 'system' }" @click="timelineFilter = 'system'">系统 ({{ systemCount }})</button>
+        </div>
         <ol class="incident-timeline">
-          <li v-for="event in detail.timeline" :key="event.id">
+          <li v-for="event in filteredTimeline" :key="event.id">
             <span class="timeline-marker" :class="event.event_type" />
             <div>
               <div class="timeline-head">
@@ -535,8 +574,16 @@ onMounted(() => { void loadAll() })
         </div>
 
         <template v-if="detail.status === 'resolved'">
-          <h3>复盘</h3>
+          <h3>复盘视图</h3>
           <p v-if="detail.postmortem" class="postmortem-view">{{ detail.postmortem }}</p>
+          <p v-else class="muted">尚未记录复盘结论。</p>
+          <div class="postmortem-metrics">
+            <span class="metric"><strong>{{ slaTone(detail) === 'overdue' ? 'SLA 逾期' : 'SLA 达标' }}</strong><small>结果</small></span>
+            <span class="metric"><strong>{{ resolutionDuration }}</strong><small>解决耗时</small></span>
+            <span class="metric"><strong>{{ systemCount }}</strong><small>系统事件</small></span>
+            <span class="metric"><strong>{{ noteCount }}</strong><small>人工备注</small></span>
+            <span class="metric"><strong>{{ evidenceSourceCount }}</strong><small>证据来源</small></span>
+          </div>
           <textarea v-model="postmortemContent" rows="6" maxlength="10000" placeholder="记录根因、处理过程与后续改进…" />
           <div v-if="canManage" class="action-row">
             <button class="secondary-button" type="button" :disabled="saving" @click="handlePostmortem">保存复盘</button>
@@ -730,4 +777,11 @@ onMounted(() => { void loadAll() })
   .form-actions { flex-wrap: wrap; }
   .form-actions .secondary-button, .form-actions .primary-button { flex: 1 1 120px; }
 }
+.filter-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 10px; }
+.filter-tabs button { padding: 3px 10px; border-radius: 14px; font-size: 11px; color: #5a6b85; background: #eef1f5; border: 1px solid transparent; cursor: pointer; }
+.filter-tabs button.active { color: #1d4ed8; background: #e4ecfc; border-color: #b9c9e8; }
+.postmortem-metrics { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+.postmortem-metrics .metric { display: inline-flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 10px; background: #f4f7fb; border: 1px solid #e3e8ea; }
+.postmortem-metrics .metric strong { font-size: 14px; color: #2b3a55; }
+.postmortem-metrics .metric small { font-size: 11px; color: #8593a8; }
 </style>

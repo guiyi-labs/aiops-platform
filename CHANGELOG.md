@@ -87,6 +87,18 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 演示：`demo-drill.sh` incident-journey 新增 `incident-batch-assign` 断言（assigned ≥ 1）。
 - See [change record](docs/changes/2026-08-13-m107-incident-batch-assign.md)。
 
+## [Unreleased]
+
+### Added - M107 Postmortem Narrative View (v0.3.0-m107)
+
+- 前端：incident 详情抽屉时间线新增「全部/备注/系统」过滤 tabs，证据时间线在来源数 > 1 时
+  新增按来源过滤 tabs（诊断记录/人工上报/告警实例/巡检结果/信号实例）。
+- 复盘视图（已解决事故）：只读叙事区块——复盘结论 + 结果指标卡（SLA 达标/逾期、解决耗时、
+  系统事件数、人工备注数、证据来源数）；编辑复盘仍限 ops admin / system admin。
+- E2E：`incidents.spec.ts` 新增双来源证据 mock 与过滤/复盘视图断言，Desktop/Mobile
+  双项目 4/4 通过。
+- See [change record](docs/changes/2026-08-13-m107-postmortem-narrative.md)。
+
 ### Changed - Login Panel Enhance (Frontend UX Track)
 
 - 登录页大气化：`console-theme.css` 右侧 `.login-form-panel` 加宽至

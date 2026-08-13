@@ -76,6 +76,13 @@ test.beforeEach(async ({ page }) => {
       await fulfillJSON(route, { ...incident, title: 'Pod pending', severity: 'warning' }, 201)
       return
     }
+    if (route.request().method() === 'GET' && path === '/api/v1/incidents/7/evidence') {
+      await fulfillJSON(route, { items: [
+        { source_type: 'finding', source_ref: 'finding:1:pod.crash_loop_backoff.v1:Pod:default:web-0', title: 'web-0 CrashLoopBackOff', summary: '容器持续崩溃重启', deep_link: '/diagnoses/1', severity: 'high', resource: { kind: 'Pod', namespace: 'default', name: 'web-0' }, observed_at: '2026-08-12T08:00:00Z' },
+        { source_type: 'alert', source_ref: 'alert:9', title: 'Node CPU high', summary: 'demo-node cpu > 2B', deep_link: '/alerts/9', severity: 'warning', resource: { kind: 'Node', namespace: '', name: 'demo-node' }, observed_at: '2026-08-12T08:05:00Z' },
+      ] })
+      return
+    }
     if (route.request().method() === 'GET' && path === '/api/v1/incidents/7') {
       await fulfillJSON(route, incident)
       return
@@ -158,6 +165,32 @@ test('Incident workflow: confirm, handoff, note, resolve, postmortem and reopen'
   await drawer.locator('textarea[placeholder="记录根因、处理过程与后续改进…"]').fill('root cause: image tag drift')
   await drawer.getByRole('button', { name: '保存复盘' }).click()
   await expect(drawer).toContainText('root cause: image tag drift')
+
+  // narrative: postmortem metrics render for resolved incidents
+  await expect(drawer).toContainText('复盘视图')
+  await expect(drawer.locator('.postmortem-metrics')).toContainText('SLA 达标')
+  await expect(drawer.locator('.postmortem-metrics')).toContainText('解决耗时')
+  await expect(drawer.locator('.postmortem-metrics')).toContainText('人工备注')
+
+  // narrative: timeline filter by type (resolved timeline has 3 system + 1 note)
+  const timelineFilter = drawer.locator('.filter-tabs').nth(1)
+  await expect(timelineFilter).toContainText('全部 (4)')
+  await timelineFilter.getByRole('button', { name: '备注 (1)' }).click()
+  await expect(drawer.locator('.incident-timeline li')).toHaveCount(1)
+  await expect(drawer.locator('.incident-timeline')).toContainText('waiting on rollout')
+  await timelineFilter.getByRole('button', { name: '系统 (3)' }).click()
+  await expect(drawer.locator('.incident-timeline li')).toHaveCount(3)
+  await expect(drawer.locator('.incident-timeline')).toContainText('status changed from confirmed to resolved')
+  await timelineFilter.getByRole('button', { name: '全部 (4)' }).click()
+
+  // narrative: evidence filter by source (finding + alert)
+  const evidenceFilter = drawer.locator('.filter-tabs').first()
+  await expect(evidenceFilter).toContainText('全部 (2)')
+  await evidenceFilter.getByRole('button', { name: /告警实例/ }).click()
+  await expect(drawer.locator('.evidence-card')).toHaveCount(1)
+  await expect(drawer.locator('.evidence-card')).toContainText('Node CPU high')
+  await evidenceFilter.getByRole('button', { name: '全部 (2)' }).click()
+  await expect(drawer.locator('.evidence-card')).toHaveCount(2)
 
   // reopen
   await drawer.locator('select[aria-label="目标状态"]').selectOption('open')

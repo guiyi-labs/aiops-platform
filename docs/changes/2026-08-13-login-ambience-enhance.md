@@ -191,6 +191,35 @@
   实测含 radar 新定位/mask-image/面板 inset 全部规则。
 - 非持久部署的固化待办同前（网络恢复后重建镜像）。
 
+## Follow-up — Diagonal Composition & Particle Bottom-Fade（第六轮）
+
+复评审反馈："雷达和星网聚集在左下角"——radar 上轮被移到底部左侧后，与铺满
+`.login-intro` 的星网 canvas 在左下角视觉交织，加之 footer 版权文字同在左下，
+该区域显得拥挤。按对角构图思路调整（全在 `console-theme.css`）：
+
+- **radar 移到右上角**：`.login-radar` 由 `bottom:clamp(74px,15vh,132px);
+  left:clamp(4px,3vw,24px)` 改为 `top:clamp(84px,11vh,120px);
+  right:clamp(8px,2vw,28px)`；尺寸收敛 `clamp(150px,15vw,230px)`、opacity
+  .38→.34；mask 渐隐中心同步改到 `62% 40%`（右上亮、左下发散淡出）。
+  与左下 footer 形成对角线平衡构图；z-index 1 仍衬于内容层（z-index 2）下，
+  右上区域无内容，零重叠风险；右侧面板（z-index 3）覆盖区在 radar 右缘之外。
+- **星网底部渐隐**：`.login-intro > .particle-network` 追加竖向 mask
+  `linear-gradient(180deg,#000 0%,#000 62%,rgba(0,0,0,.35) 84%,transparent
+  100%)`——顶部 62% 粒子全显、62%→84% 渐隐、底部 16% 全隐，粒子视觉重心
+  上移，左下角（footer 区）彻底干净。粒子行为（均匀分布/连线/指针引力）
+  逻辑不变，仅视觉淡出。
+- 矮屏断点（≤760px 高）与移动端断点（≤720px 宽）对 radar 的隐藏策略不变，
+  右上定位同样被隐藏规则覆盖。
+
+### Verification（第六轮）
+
+- `./node_modules/.bin/vite build`：✓ built in 2.76s，exit 0。
+- 线上验证：新产物 `index-DUR5f73X.css` + `index-rm0EwYqK.js` 已 docker cp
+  覆盖进 `k8s-aiops-frontend-1`，`curl /login` 引用新 hash；CSS 实测含 radar
+  右上定位（top/right clamp、width clamp(150px,15vw,230px)、mask 62% 40%）
+  与 particle-network 底部渐隐 mask 全部规则。
+- 非持久部署的固化待办同前（网络恢复后重建镜像）。
+
 ## Risks / Notes
 
 - **容器重建后回退**：18080 当前为容器内覆盖的 dist，`docker compose up -d`

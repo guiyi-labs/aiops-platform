@@ -98,6 +98,12 @@ Detailed change records for each milestone live under `docs/changes/`.
   调至 `clamp(460px,49vw,760px)` 保持左右平衡；radar 追加 radial mask 径向
   渐隐（圆环外围柔和融入背景），环/十字透明度微降；移动端断点面板重置
   `inset:0; width:100%` 防边距残留。
+- 对角构图（第六轮）：radar 由左下角移至右上角
+  （`top:clamp(84px,11vh,120px); right:clamp(8px,2vw,28px)`，尺寸收敛
+  `clamp(150px,15vw,230px)`、opacity .38→.34、mask 渐隐中心改 62% 40%），
+  与左下 footer 形成对角线平衡，彻底消除左下角"radar+星网+版权"视觉拥挤；
+  星网 canvas 追加竖向渐隐 mask（顶部 62% 全显→底部 16% 全隐），粒子视觉
+  重心上移、左下角干净，粒子行为逻辑不变。
 - See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
 
 ## [Unreleased]

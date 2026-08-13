@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-08-13T15:37:02.858Z",
+  "commit": "0da3462",
+  "baseUrl": "http://127.0.0.1:18080",
+  "motion": "reduce",
+  "diffThreshold": 0.002,
+  "entries": [
+    {
+      "view": "login",
+      "path": "/login",
+      "viewport": "1440x900",
+      "file": "images/login-desktop-1440x900.png",
+      "sha256": "787515e5c74fab9b35d9b3451e3d6e4c470bd69426636b4e14775265c2d0ed4d",
+      "bytes": 496798,
+      "commit": "0da3462",
+      "motion": "reduce",
+      "masks": [
+        {
+          "x": 561,
+          "y": 385,
+          "w": 66,
+          "h": 18
+        }
+      ]
+    },
+    {
+      "view": "login",
+      "path": "/login",
+      "viewport": "375x812",
+      "file": "images/login-mobile-375x812.png",
+      "sha256": "c1eacc64d1888823d5d745b801382c6fb866f4ae6ff47e7674c217fd0120efee",
+      "bytes": 59583,
+      "commit": "0da3462",
+      "motion": "reduce",
+      "masks": []
+    }
+  ]
+}

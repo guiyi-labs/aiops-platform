@@ -9,6 +9,19 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - UI 截图基线机制（Track A · 登录页先行）
+
+- 新增 `scripts/capture-ui-baselines.mjs`：CDP 驱动 headless Chrome 捕获登录页
+  Desktop 1440×900 / Mobile 375×812 的确定性像素基线，写 `docs/ui-baselines/`
+  （manifest 含 commit/viewport/sha256/动态区掩码/差异阈值）。
+- `--verify` 模式重截图后按像素对比（sha256 相同即 IDENTICAL，否则 sips 转 BMP
+  逐像素 diff，跳过掩码区），≤0.2% 阈值即 PASS；为可重复对比注入固定种子
+  `Math.random` + `prefers-reduced-motion` 仿真，解决粒子画布随机抖动。
+- 登录页（第 15 轮成果）基线两档通过：desktop diff 0.000%、mobile sha256 一致。
+- See [change record](docs/changes/2026-08-13-ui-baseline-screenshots.md)。
+
+sed]
+
 ### Changed - 登录页视觉第 15 轮：短视口纵向适配
 
 - 短屏手机（`max-width:720px and max-height:780px`）：隐藏顶部 brand/copy 文案层，

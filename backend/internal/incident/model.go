@@ -19,11 +19,12 @@ const (
 	StatusResolved  = "resolved"
 	StatusDismissed = "dismissed"
 
-	SourceTypeDiagnosis  = "diagnosis"
-	SourceTypeFinding    = "finding"
-	SourceTypeAlert      = "alert"
-	SourceTypeInspection = "inspection"
-	SourceTypeSignal     = "signal"
+	SourceTypeDiagnosis   = "diagnosis"
+	SourceTypeFinding     = "finding"
+	SourceTypeAlert       = "alert"
+	SourceTypeInspection  = "inspection"
+	SourceTypeSignal      = "signal"
+	SourceTypeCorrelation = "correlation"
 
 	EventTypeSystem = "system"
 	EventTypeNote   = "note"
@@ -174,6 +175,12 @@ func SLADeadline(severity string, observedAt time.Time) time.Time {
 // SourceRefForDiagnosis builds the stable dedup identity for a diagnosis.
 func SourceRefForDiagnosis(diagnosisID int64) string {
 	return "diagnosis:" + strconv.FormatInt(diagnosisID, 10)
+}
+
+// SourceRefForCorrelation builds the stable dedup identity for a correlation
+// case. One case maps to at most one incident workspace.
+func SourceRefForCorrelation(caseID int64) string {
+	return "correlation:" + strconv.FormatInt(caseID, 10)
 }
 
 // SourceRefForAlert builds the stable dedup identity for a firing alert

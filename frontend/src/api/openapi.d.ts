@@ -4918,7 +4918,7 @@ export interface components {
         };
         IncidentCreateRequest: {
             /** @enum {string} */
-            source_type: "diagnosis" | "finding" | "alert" | "inspection" | "signal";
+            source_type: "diagnosis" | "finding" | "alert" | "inspection" | "signal" | "correlation";
             /** @description diagnosis:<id> for diagnosis sources */
             source_ref: string;
             /** Format: int64 */
@@ -4989,7 +4989,7 @@ export interface components {
         };
         IncidentEvidenceItem: {
             /** @enum {string} */
-            source_type: "diagnosis" | "finding" | "alert" | "inspection" | "signal";
+            source_type: "diagnosis" | "finding" | "alert" | "inspection" | "signal" | "correlation";
             source_ref: string;
             title: string;
             summary?: string;

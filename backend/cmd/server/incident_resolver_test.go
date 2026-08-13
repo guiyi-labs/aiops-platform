@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"k8s-aiops.local/backend/internal/alert"
+	"k8s-aiops.local/backend/internal/correlation"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/incident"
 	"k8s-aiops.local/backend/internal/inspection"
@@ -271,5 +273,80 @@ func TestResolveSignalInvalidOrMissing(t *testing.T) {
 	r2 := &incidentResolver{diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}}, alerts: &fakeAlertResolver{instances: map[int64]alert.Instance{}}}
 	if _, err := r2.Resolve(context.Background(), incident.SourceTypeSignal, "signal:1", 7); err != incident.ErrInvalidSource {
 		t.Errorf("nil signals err = %v, want ErrInvalidSource", err)
+	}
+}
+
+type fakeCorrelationCaseReader struct {
+	views map[int64]correlation.CaseView
+	err   error
+}
+
+func (f *fakeCorrelationCaseReader) GetCase(_ context.Context, id int64) (correlation.CaseView, error) {
+	if f.err != nil {
+		return correlation.CaseView{}, f.err
+	}
+	view, ok := f.views[id]
+	if !ok {
+		return correlation.CaseView{}, correlation.ErrCaseNotFound
+	}
+	return view, nil
+}
+
+func TestResolveCorrelation(t *testing.T) {
+	now := time.Now().UTC()
+	r := &incidentResolver{
+		correlations: &fakeCorrelationCaseReader{views: map[int64]correlation.CaseView{
+			11: {
+				Case: correlation.Case{
+					ID: 11, CaseKey: "abc123", ClusterID: 7, RuleID: "rollout.pod_failure.v1",
+					Confidence:      correlation.ConfidenceCandidate,
+					PrimaryResource: correlation.ResourceCitation{Kind: "Deployment", Namespace: "demo", Name: "web", UID: "dep-uid"},
+					FirstObservedAt: now,
+					LastObservedAt:  now,
+				},
+				SignalLinks: []correlation.SignalLink{{ID: 1, CaseID: 11, SignalOccurrenceID: 3, Relation: correlation.SignalRelationTrigger}},
+			},
+		}},
+	}
+	info, err := r.Resolve(context.Background(), incident.SourceTypeCorrelation, "correlation:11", 7)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if info.Severity != incident.SeverityWarning {
+		t.Errorf("severity = %q, want warning for candidate confidence", info.Severity)
+	}
+	if info.Resource.Name != "web" || info.Resource.UID != "dep-uid" {
+		t.Errorf("resource wrong: %+v", info.Resource)
+	}
+	if !strings.Contains(info.Summary, "abc123") {
+		t.Errorf("summary missing case_key: %q", info.Summary)
+	}
+}
+
+func TestResolveCorrelationAntiLeakage(t *testing.T) {
+	r := &incidentResolver{
+		correlations: &fakeCorrelationCaseReader{views: map[int64]correlation.CaseView{
+			11: {Case: correlation.Case{ID: 11, ClusterID: 7, Confidence: correlation.ConfidenceConfirmed}},
+		}},
+	}
+	// The caller asks for cluster 8, but the case belongs to cluster 7.
+	if _, err := r.Resolve(context.Background(), incident.SourceTypeCorrelation, "correlation:11", 8); err != incident.ErrInvalidSource {
+		t.Errorf("cross-cluster err = %v, want ErrInvalidSource", err)
+	}
+}
+
+func TestResolveCorrelationInvalidSourceRefs(t *testing.T) {
+	r := &incidentResolver{correlations: &fakeCorrelationCaseReader{views: map[int64]correlation.CaseView{}}}
+	for _, src := range []string{"correlation:", "correlation:abc", "correlation:-3", "signal:9", "finding:x"} {
+		if _, err := r.Resolve(context.Background(), incident.SourceTypeCorrelation, src, 7); err != incident.ErrInvalidSource {
+			t.Errorf("Resolve(%q) err = %v, want ErrInvalidSource", src, err)
+		}
+	}
+}
+
+func TestResolveCorrelationUnknownCase(t *testing.T) {
+	r := &incidentResolver{correlations: &fakeCorrelationCaseReader{views: map[int64]correlation.CaseView{}}}
+	if _, err := r.Resolve(context.Background(), incident.SourceTypeCorrelation, "correlation:999", 7); err != incident.ErrInvalidSource {
+		t.Errorf("unknown case err = %v, want ErrInvalidSource", err)
 	}
 }

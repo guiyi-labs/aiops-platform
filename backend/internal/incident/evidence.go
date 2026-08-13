@@ -100,6 +100,8 @@ func IncidentDeepLink(sourceType string) string {
 		return "/inspection"
 	case SourceTypeSignal:
 		return "/aiops/overview"
+	case SourceTypeCorrelation:
+		return "/aiops/correlation"
 	default:
 		return "/incidents"
 	}

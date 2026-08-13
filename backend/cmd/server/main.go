@@ -165,7 +165,16 @@ func main() {
 	sloService := slo.NewService(sloRepository,
 		slo.NewEvaluator(slo.NewMetricshistorySource(metricsHistoryService)),
 		slo.WithBurnAlertSink(signalsvc.NewSLOBurnSignalSink(signalService, sloRepository)))
-	incidentSourceResolver := NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService, signalService)
+	// M99-C: the production correlation provider reads signal/topology/
+	// diagnosis repositories; the periodic worker correlates every enabled
+	// cluster (per namespace, with an all-namespace fallback when the cluster
+	// is unreachable).
+	topologyRepository := topology.NewGormRepository(database.GORM())
+	diagnosisRepository := diagnosis.NewGormRepository(database.GORM())
+	correlationProvider := correlation.NewRepositoryInputProvider(signalRepository, topologyRepository, diagnosisRepository)
+	correlationService := correlation.NewService(correlation.NewGormRepository(database.GORM()), nil, correlationProvider)
+	correlationWorker := correlation.NewWorker(correlation.WorkerConfig{Interval: cfg.CorrelationInterval}, clusterService, kubernetesService, correlationService, logger)
+	incidentSourceResolver := NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService, signalService, correlationService)
 	incidentRepository := incident.NewGormRepository(database.GORM())
 	incidentService := incident.NewService(incidentRepository).
 		WithResolver(incidentSourceResolver).
@@ -181,15 +190,6 @@ func main() {
 	maintenanceService := maintenance.NewService(kubernetesService, maintenance.NewGormRepository(database.GORM()))
 	namespacePostureService := namespaceposture.NewService(kubernetesService)
 	restoreService := restore.NewService(kubernetesService, restore.NewGormRepository(database.GORM()))
-	// M99-C: the production correlation provider reads signal/topology/
-	// diagnosis repositories; the periodic worker correlates every enabled
-	// cluster (per namespace, with an all-namespace fallback when the cluster
-	// is unreachable).
-	topologyRepository := topology.NewGormRepository(database.GORM())
-	diagnosisRepository := diagnosis.NewGormRepository(database.GORM())
-	correlationProvider := correlation.NewRepositoryInputProvider(signalRepository, topologyRepository, diagnosisRepository)
-	correlationService := correlation.NewService(correlation.NewGormRepository(database.GORM()), nil, correlationProvider)
-	correlationWorker := correlation.NewWorker(correlation.WorkerConfig{Interval: cfg.CorrelationInterval}, clusterService, kubernetesService, correlationService, logger)
 	// M105: diagnosis→signal drain. The M39 signal layer was previously
 	// populated only by the SLO burn sink; this drain normalizes new/updated
 	// diagnosis records into signal occurrences (producer=diagnosis) so the

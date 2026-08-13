@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"k8s-aiops.local/backend/internal/alert"
+	"k8s-aiops.local/backend/internal/correlation"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/incident"
 	"k8s-aiops.local/backend/internal/inspection"
@@ -31,6 +32,22 @@ type incidentResolver struct {
 	alerts           alertResolver
 	inspections      inspectionResultReader
 	signals          signalOccurrenceReader
+	correlations     correlationCaseReader
+}
+
+// correlationCaseReader fetches the full view of one correlation case.
+type correlationCaseReader interface {
+	GetCase(ctx context.Context, id int64) (correlation.CaseView, error)
+}
+
+// correlationServiceAdapter adapts *correlation.Service to the narrow
+// correlationCaseReader interface used by the incident resolver.
+type correlationServiceAdapter struct {
+	svc *correlation.Service
+}
+
+func (a correlationServiceAdapter) GetCase(ctx context.Context, id int64) (correlation.CaseView, error) {
+	return a.svc.GetCase(ctx, id)
 }
 
 // alertResolver fetches a cluster-scoped alert instance plus its rule-metric
@@ -79,12 +96,13 @@ func (a signalServiceAdapter) Get(ctx context.Context, id int64) (signal.Occurre
 	return a.svc.Get(ctx, id)
 }
 
-func NewIncidentResolver(records *diagnosis.GormRepository, alerts *alert.Service, inspections *inspection.Service, signals *signal.Service) *incidentResolver {
+func NewIncidentResolver(records *diagnosis.GormRepository, alerts *alert.Service, inspections *inspection.Service, signals *signal.Service, cases *correlation.Service) *incidentResolver {
 	return &incidentResolver{
 		diagnosisRecords: records,
 		alerts:           alertServiceAdapter{svc: alerts},
 		inspections:      inspectionServiceAdapter{svc: inspections},
 		signals:          signalServiceAdapter{svc: signals},
+		correlations:     correlationServiceAdapter{svc: cases},
 	}
 }
 
@@ -98,6 +116,8 @@ func (r *incidentResolver) Resolve(ctx context.Context, sourceType, sourceRef st
 		return r.resolveInspection(ctx, clusterID, sourceRef)
 	case incident.SourceTypeSignal:
 		return r.resolveSignal(ctx, clusterID, sourceRef)
+	case incident.SourceTypeCorrelation:
+		return r.resolveCorrelation(ctx, clusterID, sourceRef)
 	default:
 		return incident.SourceInfo{}, incident.ErrInvalidSource
 	}
@@ -135,6 +155,8 @@ func (r *incidentResolver) ResolveEvidence(ctx context.Context, sourceType, sour
 		item.Fields = append(item.Fields, incident.EvidenceField{Label: "来源", Value: "巡检结果"})
 	case incident.SourceTypeSignal:
 		item.Fields = append(item.Fields, incident.EvidenceField{Label: "来源", Value: "信号实例"})
+	case incident.SourceTypeCorrelation:
+		item.Fields = append(item.Fields, incident.EvidenceField{Label: "来源", Value: "关联案例"})
 	}
 	return item, nil
 }
@@ -177,6 +199,51 @@ func (r *incidentResolver) resolveSignal(ctx context.Context, clusterID int64, s
 			UID:       occ.Resource.UID,
 		},
 		ObservedAt: occ.ObservedAt,
+	}, nil
+}
+
+func (r *incidentResolver) resolveCorrelation(ctx context.Context, clusterID int64, sourceRef string) (incident.SourceInfo, error) {
+	const prefix = "correlation:"
+	if !strings.HasPrefix(sourceRef, prefix) {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	id, err := strconv.ParseInt(strings.TrimPrefix(sourceRef, prefix), 10, 64)
+	if err != nil || id < 1 {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	if r.correlations == nil {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	view, err := r.correlations.GetCase(ctx, id)
+	if err != nil {
+		if errors.Is(err, correlation.ErrCaseNotFound) {
+			return incident.SourceInfo{}, incident.ErrInvalidSource
+		}
+		return incident.SourceInfo{}, fmt.Errorf("resolve correlation case %d: %w", id, err)
+	}
+	// Anti-leakage: the caller's cluster must own the case.
+	if view.Case.ClusterID != clusterID {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	resource := view.Case.PrimaryResource
+	severity := incident.SeverityInfo
+	switch view.Case.Confidence {
+	case correlation.ConfidenceConfirmed:
+		severity = incident.SeverityHigh
+	case correlation.ConfidenceCandidate:
+		severity = incident.SeverityWarning
+	}
+	return incident.SourceInfo{
+		Title:    "Correlation case " + resource.Name + " (" + view.Case.RuleID + ")",
+		Summary:  "case_key " + view.Case.CaseKey + ", confidence " + string(view.Case.Confidence) + ", signals " + strconv.Itoa(len(view.SignalLinks)),
+		Severity: severity,
+		Resource: incident.ResourceRef{
+			Kind:      resource.Kind,
+			Namespace: resource.Namespace,
+			Name:      resource.Name,
+			UID:       resource.UID,
+		},
+		ObservedAt: view.Case.FirstObservedAt,
 	}, nil
 }
 

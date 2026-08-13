@@ -134,6 +134,7 @@ services:
       ALERT_MIN_EVALUATION_INTERVAL: 15s
       SIGNAL_DIAGNOSIS_INGESTION: "true"
       SIGNAL_DIAGNOSIS_DRAIN_INTERVAL: 2s
+      CORRELATION_INTERVAL: 30s
     ports:
       - "$BE_PORT:8080"
     depends_on:
@@ -580,7 +581,47 @@ else
   fail signal-ingest "no active diag.node.not_ready.v1 signal after retries: $DIAG_SIGNALS"
 fi
 
-# ---------- 13. cleanup ----------
+# ---------- 13. correlation -> incident (关联案例提升为事故) ----------
+
+scenario "Correlation case -> incident (关联案例提升为事故): correlation case promotes to incident workspace"
+# 关联引擎（M43+）将 diag.node.not_ready.v1 信号归一为 maintenance_causes_node_failure
+# 冷启动案例；demo compose 把 CORRELATION_INTERVAL 压到 30s 保证轮询窗口内出案例。
+CORR_CASE_ID=""
+for attempt in $(seq 1 60); do
+  CORR_CASES="$(api GET "/api/v1/aiops/correlation/cases?cluster_id=$CLUSTER_ID&limit=20")"
+  CORR_CASE_ID="$(jq -r '.items[] | select(.status == "active") | .id' <<<"$CORR_CASES" | head -1 || true)"
+  [[ -n "$CORR_CASE_ID" && "$CORR_CASE_ID" != "0" ]] && break
+  sleep 2
+done
+if [[ -n "$CORR_CASE_ID" && "$CORR_CASE_ID" != "0" ]]; then
+  pass correlation-case-ingest "correlation case id=$CORR_CASE_ID (cluster #$CLUSTER_ID)"
+  CORR_INC="$(api POST /api/v1/incidents "{\"source_type\":\"correlation\",\"source_ref\":\"correlation:$CORR_CASE_ID\",\"cluster_id\":$CLUSTER_ID,\"title\":\"correlation promoted incident\"}")"
+  CORR_INC_ID="$(jq -r '.id // 0' <<<"$CORR_INC")"
+  CORR_INC_SRC="$(jq -r '.source_type // empty' <<<"$CORR_INC")"
+  CORR_INC_SEV="$(jq -r '.severity // empty' <<<"$CORR_INC")"
+  if [[ -n "$CORR_INC_ID" && "$CORR_INC_ID" != "0" ]] && [[ "$CORR_INC_SRC" == "correlation" ]]; then
+    pass correlation-incident "incident $CORR_INC_ID created from correlation case #$CORR_CASE_ID, severity=$CORR_INC_SEV (enriched)"
+    if [[ -n "$CORR_INC_SEV" ]]; then
+      pass correlation-incident-severity "correlation incident severity enriched to $CORR_INC_SEV from case confidence"
+    else
+      fail correlation-incident-severity "severity missing on correlation incident"
+    fi
+    # 同一关联案例不可重复提升（dedup）。
+    DUP="$(api POST /api/v1/incidents "{\"source_type\":\"correlation\",\"source_ref\":\"correlation:$CORR_CASE_ID\",\"cluster_id\":$CLUSTER_ID,\"title\":\"dup\"}")"
+    DUP_FAIL="$(jq -r '.code // empty' <<<"$DUP" 2>/dev/null || true)"
+    if [[ "$DUP_FAIL" == *"SOURCE_ALREADY_USED"* ]] || [[ "$(jq -r '.id // 0' <<<"$DUP")" == "0" ]]; then
+      pass correlation-incident-dedup "duplicate correlation promote rejected (SOURCE_ALREADY_USED)"
+    else
+      fail correlation-incident-dedup "duplicate was not rejected: $DUP"
+    fi
+  else
+    fail correlation-incident "incident create failed: $CORR_INC"
+  fi
+else
+  fail correlation-case-ingest "no active correlation case after retries: $CORR_CASES"
+fi
+
+# ---------- 14. cleanup ----------
 
 scenario "Cleanup"
 cleanup_stack
@@ -611,9 +652,10 @@ FAILED="$(grep -c '|fail|' "$WORK/results.txt" || true)"
   echo "    \"pod_diagnosis\": { \"id\": $POD_DIAG_ID, \"rule_id\": \"$POD_DIAG_RULE\", \"severity\": \"$(jq -r '.severity' <<<"$POD_DIAG")\" },"
   echo "    \"remediation_plan\": \"$PLAN_ID\","
   echo "    \"deployment_annotations\": { \"restarted_at\": \"$RESTART_AT\", \"remediation_id\": \"$REMED_ID\" },"
-  echo "    \"incident\": { \"id\": $INCIDENT_ID, \"status\": \"$FINAL_STATUS\", \"version\": $NEXT_VERSION }"
-  echo "    \"inspection_incident\": { \"result_id\": ${INSP_RESULT_ID:-0}, \"incident_id\": ${INSP_INC_ID:-0}, \"severity\": \"${INSP_INC_SEV:-}\" }"
-  echo "    \"signal_incident\": { \"signal_id\": ${DIAG_SIGNAL_ID:-0}, \"incident_id\": ${SIGNAL_INC_ID:-0}, \"severity\": \"${SIGNAL_INC_SEV:-}\" }"
+  echo "    \"incident\": { \"id\": $INCIDENT_ID, \"status\": \"$FINAL_STATUS\", \"version\": $NEXT_VERSION },"
+  echo "    \"inspection_incident\": { \"result_id\": ${INSP_RESULT_ID:-0}, \"incident_id\": ${INSP_INC_ID:-0}, \"severity\": \"${INSP_INC_SEV:-}\" },"
+  echo "    \"signal_incident\": { \"signal_id\": ${DIAG_SIGNAL_ID:-0}, \"incident_id\": ${SIGNAL_INC_ID:-0}, \"severity\": \"${SIGNAL_INC_SEV:-}\" },"
+  echo "    \"correlation_incident\": { \"case_id\": ${CORR_CASE_ID:-0}, \"incident_id\": ${CORR_INC_ID:-0}, \"severity\": \"${CORR_INC_SEV:-}\" }"
   echo "  },"
   echo "  \"steps\": ["
   FIRST=1

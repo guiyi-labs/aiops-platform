@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M108 Correlation Case → Incident (v0.3.0-m108)
+
+- 后端：关联案例成为第 6 类事故来源 `correlation`——`incidents.source_type` CHECK 迁移 `000046`；resolver 解析 `correlation:<id>`（前缀/ID 校验、案例不存在→`ErrInvalidSource`、跨集群防泄漏），severity 按案例置信度富集（confirmed→high / candidate→warning / 其余 info），title/summary 带 case_key/rule_id/信号数，资源与首次观测时间取自案例。
+- 证据时间线：correlation 源证据卡「来源=关联案例」+ 深链 `/aiops/correlation`（`IncidentDeepLink`）。
+- 前端：`CorrelationCasesView` 案例详情新增「提升事故」按钮（`source_type:'correlation'`，处理 `SOURCE_ALREADY_USED` 去重提示）；`IncidentsView` 来源标签加「关联案例」；typegen 重新生成。
+- 演示：`demo-drill.sh` 新增第 13 节「Correlation case → incident」断言（isolated compose 加压 `CORRELATION_INTERVAL=30s` 保证出案例；案例提升 + severity 富集 + 重复提升 `SOURCE_ALREADY_USED`），并修复报告 evidence 块缺失逗号。
+- See [change record](docs/changes/2026-08-13-m108-correlation-source.md)。
+
+
 ### Added - Change-record archive gate
 
 - 为 AGENTS.md §1 归档铁律添加最小机械门禁：新增

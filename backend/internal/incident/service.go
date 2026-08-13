@@ -77,7 +77,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (Incident, erro
 	input.Resource.Name = strings.TrimSpace(input.Resource.Name)
 	input.Resource.UID = strings.TrimSpace(input.Resource.UID)
 
-	if input.SourceType != SourceTypeDiagnosis && input.SourceType != SourceTypeFinding && input.SourceType != SourceTypeAlert && input.SourceType != SourceTypeInspection && input.SourceType != SourceTypeSignal {
+	if input.SourceType != SourceTypeDiagnosis && input.SourceType != SourceTypeFinding && input.SourceType != SourceTypeAlert && input.SourceType != SourceTypeInspection && input.SourceType != SourceTypeSignal && input.SourceType != SourceTypeCorrelation {
 		return Incident{}, ErrInvalidSource
 	}
 	if input.SourceRef == "" {

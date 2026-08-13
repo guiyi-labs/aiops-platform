@@ -110,11 +110,11 @@ function severityTone(severity: IncidentSeverity): string {
 }
 
 function sourceTypeLabel(sourceType: Incident['source_type']): string {
-  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例' }[sourceType]
+  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例', correlation: '关联案例' }[sourceType]
 }
 
 function evidenceSourceLabel(sourceType: IncidentEvidenceItem['source_type']): string {
-  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例' }[sourceType]
+  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例', correlation: '关联案例' }[sourceType]
 }
 
 function formatTime(value?: string): string {

@@ -4,6 +4,8 @@ import { Boxes, Filter, GitBranch, Link2, RefreshCw, Sparkles, X, Zap } from 'lu
 
 import { listClusters } from '../api/clusters'
 import { getCorrelationCase, listCorrelationActions, listCorrelationCases } from '../api/aiops'
+import { APIError } from '../api/auth'
+import { createIncident } from '../api/incidents'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
@@ -25,6 +27,8 @@ const detailLoading = ref(false)
 const actionsLoading = ref(false)
 const errorMessage = ref('')
 const detailError = ref('')
+const noticeMessage = ref('')
+const promoting = ref(false)
 
 const hasCases = computed(() => cases.value.length > 0)
 
@@ -149,6 +153,32 @@ async function openCase(item: CorrelationCase) {
   }
 }
 
+async function promoteToIncident() {
+  if (!selectedCaseID.value || !caseView.value?.case) return
+  const c = caseView.value.case
+  noticeMessage.value = ''
+  detailError.value = ''
+  promoting.value = true
+  try {
+    const incident = await createIncident(auth.accessToken!, {
+      source_type: 'correlation',
+      source_ref: `correlation:${c.id}`,
+      cluster_id: c.cluster_id,
+      title: `关联案例事故 ${c.case_key}`,
+      summary: `从关联案例 #${c.id} 提升的事故工作区`,
+    })
+    noticeMessage.value = `已创建事故工作区 ${incident.number}`
+  } catch (err) {
+    if (err instanceof APIError && err.code === 'SOURCE_ALREADY_USED') {
+      noticeMessage.value = '该关联案例已存在关联的事故工作区'
+    } else {
+      detailError.value = err instanceof APIError ? err.message : '创建事故工作区失败'
+    }
+  } finally {
+    promoting.value = false
+  }
+}
+
 function closeDetail() {
   selectedCaseID.value = null
   caseView.value = null
@@ -268,10 +298,16 @@ onMounted(initialize)
               <h2 v-else>案例 #{{ selectedCaseID }}</h2>
               <small v-if="caseView?.case">{{ caseView.case.primary_resource.namespace }} · 规则 {{ caseView.case.rule_id }} · 引擎 {{ caseView.case.correlation_version }}</small>
             </div>
-            <button class="icon-button" type="button" title="关闭详情" aria-label="关闭详情" @click="closeDetail"><X :size="16" /></button>
+            <div class="case-detail-actions">
+              <button class="action-button" type="button" :disabled="promoting || !caseView?.case" @click="promoteToIncident">
+                <Zap :size="15" />{{ promoting ? '提升中…' : '提升事故' }}
+              </button>
+              <button class="icon-button" type="button" title="关闭详情" aria-label="关闭详情" @click="closeDetail"><X :size="16" /></button>
+            </div>
           </header>
 
           <p v-if="detailError" class="error-message">{{ detailError }}</p>
+          <p v-if="noticeMessage" class="notice-message">{{ noticeMessage }}</p>
 
           <div v-if="caseView?.case" class="case-detail-badges">
             <span class="mini-badge" :style="{ color: statusColor(caseView.case.status), borderColor: statusColor(caseView.case.status) }">{{ statusLabel(caseView.case.status) }}</span>
@@ -570,6 +606,39 @@ onMounted(initialize)
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+.case-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-on-accent, #fff);
+  background: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.action-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.notice-message {
+  margin-top: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--status-success);
+  background: color-mix(in srgb, var(--status-success) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-success) 35%, transparent);
+  border-radius: var(--radius-md);
 }
 .case-detail-title {
   display: grid;

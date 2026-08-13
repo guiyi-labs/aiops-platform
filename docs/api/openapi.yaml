@@ -737,6 +737,9 @@ paths:
   /api/v1/incidents/{incident_id}:
     get: { tags: [incidents], summary: Incident detail, operationId: getIncident, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
     patch: { tags: [incidents], summary: Transition incident status, operationId: transitionIncident, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentTransitionRequest' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } } }
+
+  /api/v1/incidents/{incident_id}/evidence:
+    get: { tags: [incidents], summary: Incident evidence timeline, operationId: incidentEvidence, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Evidence timeline, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/IncidentEvidenceItem' } } } } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}/export:
     get: { tags: [incidents], summary: Export one incident as CSV, operationId: exportIncident, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: CSV snapshot } } }
   /api/v1/incidents/{incident_id}/assignment:
@@ -2998,6 +3001,8 @@ components:
     IncidentFollowerRequest: { type: object, required: [user_id], properties: { user_id: { type: integer, format: int64 } } }
     IncidentNoteRequest: { type: object, required: [expected_version, content], properties: { expected_version: { type: integer, format: int64 }, content: { type: string, maxLength: 4000 } } }
     IncidentPostmortemRequest: { type: object, required: [expected_version], properties: { expected_version: { type: integer, format: int64 }, content: { type: string, maxLength: 10000 } } }
+    IncidentEvidenceField: { type: object, required: [label], properties: { label: { type: string }, value: { type: string } } }
+    IncidentEvidenceItem: { type: object, required: [source_type, source_ref, title, deep_link], properties: { source_type: { type: string, enum: [diagnosis, finding, alert, inspection, signal] }, source_ref: { type: string }, title: { type: string }, summary: { type: string }, severity: { type: string, enum: [info, warning, high, critical] }, resource: { $ref: '#/components/schemas/IncidentResource' }, observed_at: { type: string, format: date-time }, deep_link: { type: string }, fields: { type: array, items: { $ref: '#/components/schemas/IncidentEvidenceField' } } } }
     DiagnosisTimelineEntry:
       type: object
       description: One normalized evidence item on the diagnosis timeline (M94 read-only projection)

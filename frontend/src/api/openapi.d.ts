@@ -2340,6 +2340,23 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Incident evidence timeline */
+        get: operations["incidentEvidence"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         /** Transition incident status */
         patch: operations["transitionIncident"];
         trace?: never;
@@ -4930,6 +4947,24 @@ export interface components {
             /** Format: int64 */
             expected_version: number;
             content?: string;
+        };
+        IncidentEvidenceField: {
+            label: string;
+            value?: string;
+        };
+        IncidentEvidenceItem: {
+            /** @enum {string} */
+            source_type: "diagnosis" | "finding" | "alert" | "inspection" | "signal";
+            source_ref: string;
+            title: string;
+            summary?: string;
+            /** @enum {string} */
+            severity?: "info" | "warning" | "high" | "critical";
+            resource?: components["schemas"]["IncidentResource"];
+            /** Format: date-time */
+            observed_at?: string;
+            deep_link: string;
+            fields?: components["schemas"]["IncidentEvidenceField"][];
         };
         /** @description One normalized evidence item on the diagnosis timeline (M94 read-only projection) */
         DiagnosisTimelineEntry: {
@@ -9821,6 +9856,31 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Ok"];
+            404: components["responses"]["Error"];
+        };
+    };
+    incidentEvidence: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Evidence timeline */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["IncidentEvidenceItem"][];
+                    };
+                };
+            };
             404: components["responses"]["Error"];
         };
     };

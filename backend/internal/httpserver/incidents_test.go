@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 	"time"
 
@@ -99,6 +100,7 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	api.GET("/incidents", h.list)
 	api.GET("/incidents/summary", h.summary)
 	api.GET("/incidents/:incident_id", h.get)
+	api.GET("/incidents/:incident_id/evidence", h.evidence)
 	api.POST("/incidents", h.create)
 	api.PATCH("/incidents/:incident_id", h.transition)
 	return r
@@ -180,5 +182,46 @@ func TestIncidentHandler_CreateAndList(t *testing.T) {
 	missing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/999", "")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentHandler_Evidence(t *testing.T) {
+	engine := newIncidentTestEngine(t, newIncidentRepoStub())
+	created := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents", `{
+		"source_type": "finding", "source_ref": "finding:9:code:kind:default:pod-a",
+		"cluster_id": 3, "title": "manual pod issue", "severity": "high",
+		"summary": "manual report", "resource": {"kind":"Pod","namespace":"default","name":"pod-a"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create code = %d, body %s", created.Code, created.Body.String())
+	}
+	var record incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &record); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	resp := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/"+strconv.FormatInt(record.ID, 10)+"/evidence", "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("evidence code = %d, body %s", resp.Code, resp.Body.String())
+	}
+	var payload struct {
+		Items []incident.EvidenceItem `json:"items"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode evidence: %v", err)
+	}
+	if len(payload.Items) != 1 {
+		t.Fatalf("evidence items = %d, want 1", len(payload.Items))
+	}
+	item := payload.Items[0]
+	if item.SourceType != incident.SourceTypeFinding || item.Title != "manual pod issue" {
+		t.Errorf("unexpected evidence item: source=%s title=%s", item.SourceType, item.Title)
+	}
+	if item.DeepLink != "/incidents" {
+		t.Errorf("deep_link = %s, want /incidents", item.DeepLink)
+	}
+
+	missing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/99999/evidence", "")
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing evidence code = %d, want 404", missing.Code)
 	}
 }

@@ -103,6 +103,42 @@ func (r *incidentResolver) Resolve(ctx context.Context, sourceType, sourceRef st
 	}
 }
 
+// ResolveEvidence returns the structured evidence block shown on the incident
+// detail evidence timeline. It enriches the incident source with stable,
+// non-secret fields from the source module and a frontend deep-link for the
+// original evidence list.
+func (r *incidentResolver) ResolveEvidence(ctx context.Context, sourceType, sourceRef string, clusterID int64) (incident.EvidenceItem, error) {
+	info, err := r.Resolve(ctx, sourceType, sourceRef, clusterID)
+	if err != nil {
+		return incident.EvidenceItem{}, err
+	}
+	item := incident.EvidenceItem{
+		SourceType: sourceType,
+		SourceRef:  sourceRef,
+		Title:      info.Title,
+		Summary:    info.Summary,
+		Severity:   info.Severity,
+		Resource:   info.Resource,
+		ObservedAt: info.ObservedAt.UTC().Format("2006-01-02T15:04:05.000Z"),
+		DeepLink:   incident.IncidentDeepLink(sourceType),
+		Fields:     []incident.EvidenceField{},
+	}
+	switch sourceType {
+	case incident.SourceTypeDiagnosis:
+		item.Fields = append(item.Fields,
+			incident.EvidenceField{Label: "集群", Value: strconv.FormatInt(clusterID, 10)},
+			incident.EvidenceField{Label: "规则", Value: info.Resource.Name},
+		)
+	case incident.SourceTypeAlert:
+		item.Fields = append(item.Fields, incident.EvidenceField{Label: "来源", Value: "告警实例"})
+	case incident.SourceTypeInspection:
+		item.Fields = append(item.Fields, incident.EvidenceField{Label: "来源", Value: "巡检结果"})
+	case incident.SourceTypeSignal:
+		item.Fields = append(item.Fields, incident.EvidenceField{Label: "来源", Value: "信号实例"})
+	}
+	return item, nil
+}
+
 func (r *incidentResolver) resolveSignal(ctx context.Context, clusterID int64, sourceRef string) (incident.SourceInfo, error) {
 	const prefix = "signal:"
 	if !strings.HasPrefix(sourceRef, prefix) {

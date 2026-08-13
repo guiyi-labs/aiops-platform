@@ -135,6 +135,23 @@ func (h incidentHandler) get(c *gin.Context) {
 	writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to read incident")
 }
 
+func (h incidentHandler) evidence(c *gin.Context) {
+	id, ok := incidentID(c)
+	if !ok {
+		return
+	}
+	items, err := h.service.Evidence(c.Request.Context(), id)
+	if err == nil {
+		c.JSON(http.StatusOK, gin.H{"items": items})
+		return
+	}
+	if errors.Is(err, incident.ErrNotFound) {
+		writeError(c, http.StatusNotFound, "INCIDENT_NOT_FOUND", "incident does not exist")
+		return
+	}
+	writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to read incident evidence")
+}
+
 func (h incidentHandler) list(c *gin.Context) {
 	clusterID, err := strconv.ParseInt(defaultString(c.Query("cluster_id"), "0"), 10, 64)
 	if err != nil || clusterID < 0 {

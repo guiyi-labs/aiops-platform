@@ -412,10 +412,19 @@ else
   EXPORT_HEAD="$(curl -s -m 10 -H "Authorization: Bearer $TOKEN" "$BASE/api/v1/incidents/$INCIDENT_ID/export" | head -c 120)"
   SUMMARY="$(api GET /api/v1/incidents/summary)"
   TOTAL_INC="$(jq -r '.total // 0' <<<"$SUMMARY")"
+  EVIDENCE="$(api GET "/api/v1/incidents/$INCIDENT_ID/evidence")"
+  EV_TYPE="$(jq -r '.items[0].source_type // ""' <<<"$EVIDENCE")"
+  EV_LINK="$(jq -r '.items[0].deep_link // ""' <<<"$EVIDENCE")"
+  EV_TITLE="$(jq -r '.items[0].title // ""' <<<"$EVIDENCE")"
   if [[ "$FINAL_STATUS" == "resolved" ]] && [[ "$EXPORT_HEAD" == *"id"* || "$EXPORT_HEAD" == *"number"* || "$EXPORT_HEAD" == *","* ]]; then
     pass incident-journey "incident resolved, postmortem set, CSV export started with: $(echo "$EXPORT_HEAD" | head -c 60)…, summary total=$TOTAL_INC"
   else
     fail incident-journey "status=$FINAL_STATUS export_head=$(echo "$EXPORT_HEAD" | head -c 60) summary_total=$TOTAL_INC"
+  fi
+  if [[ "$EV_TYPE" == "diagnosis" ]] && [[ "$EV_LINK" == "/diagnoses" ]] && [[ -n "$EV_TITLE" ]]; then
+    pass incident-evidence "evidence timeline returns diagnosis source (deep_link=/diagnoses): ${EV_TITLE:0:50}"
+  else
+    fail incident-evidence "evidence type=$EV_TYPE deep_link=$EV_LINK title=$EV_TITLE"
   fi
 fi
 

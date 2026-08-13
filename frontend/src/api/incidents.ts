@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { Incident, IncidentCreateInput, IncidentListResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
 
 export function listIncidents(token: string, filters: { clusterID?: number; status?: IncidentStatus | ''; assigneeID?: number; followerID?: number; limit?: number } = {}): Promise<IncidentListResponse> {
   const query = new URLSearchParams({ limit: String(filters.limit ?? 50) })
@@ -12,6 +12,9 @@ export function listIncidents(token: string, filters: { clusterID?: number; stat
 
 export function getIncident(token: string, incidentID: number): Promise<Incident> {
   return authorizedRequest(`/api/v1/incidents/${incidentID}`, token)
+}
+export function getIncidentEvidence(token: string, incidentID: number): Promise<{ items: IncidentEvidenceItem[] }> {
+  return authorizedRequest(`/api/v1/incidents/${incidentID}/evidence`, token)
 }
 
 export function getIncidentSummary(token: string): Promise<IncidentSummary> {

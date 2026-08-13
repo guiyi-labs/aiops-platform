@@ -2,13 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { Download, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
 
-import { addIncidentFollower, addIncidentNote, assignIncident, createIncident, getIncident, getIncidentSummary, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
+import { addIncidentFollower, addIncidentNote, assignIncident, createIncident, getIncident, getIncidentEvidence, getIncidentSummary, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { UserProfile } from '../types/auth'
-import type { Incident, IncidentCreateInput, IncidentResourceRef, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
 
 interface IncidentCreateForm extends Omit<IncidentCreateInput, 'resource'> {
   resource: IncidentResourceRef
@@ -23,6 +23,8 @@ const errorMessage = ref('')
 
 const detail = ref<Incident | null>(null)
 const detailLoading = ref(false)
+const evidence = ref<IncidentEvidenceItem[]>([])
+const evidenceLoading = ref(false)
 const showCreate = ref(false)
 const saving = ref(false)
 
@@ -61,6 +63,10 @@ function severityTone(severity: IncidentSeverity): string {
 }
 
 function sourceTypeLabel(sourceType: Incident['source_type']): string {
+  return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例' }[sourceType]
+}
+
+function evidenceSourceLabel(sourceType: IncidentEvidenceItem['source_type']): string {
   return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例' }[sourceType]
 }
 
@@ -121,6 +127,7 @@ async function openDetail(incident: Incident) {
     if (canManage.value && assignableUsers.value.length === 0) {
       assignableUsers.value = (await listAssignableUsers(auth.accessToken)).items
     }
+    void loadEvidence(detail.value.id)
   } catch (err) {
     errorMessage.value = err instanceof APIError ? err.message : '加载事故详情失败'
   } finally {
@@ -247,6 +254,18 @@ async function handleExport(incident: Incident) {
   }
 }
 
+async function loadEvidence(incidentID: number) {
+  evidenceLoading.value = true
+  try {
+    const result = await getIncidentEvidence(auth.accessToken, incidentID)
+    evidence.value = result.items
+  } catch {
+    evidence.value = []
+  } finally {
+    evidenceLoading.value = false
+  }
+}
+
 onMounted(() => { void loadAll() })
 </script>
 
@@ -356,6 +375,33 @@ onMounted(() => { void loadAll() })
           <div><dt>SLA 截止</dt><dd>{{ formatTime(detail.sla_due_at) }}</dd></div>
           <div><dt>创建时间</dt><dd>{{ formatTime(detail.created_at) }}</dd></div>
         </dl>
+
+        <template v-if="evidenceLoading">
+          <h3>证据时间线</h3>
+          <p class="muted">正在加载证据…</p>
+        </template>
+        <template v-else-if="evidence.length">
+          <h3>证据时间线</h3>
+          <div class="incident-evidence">
+            <div v-for="item in evidence" :key="item.source_ref" class="evidence-card">
+              <div class="evidence-card-head">
+                <span class="evidence-source">{{ evidenceSourceLabel(item.source_type) }}</span>
+                <span class="severity-badge" :class="severityTone(item.severity ?? detail.severity)">{{ severityLabels[item.severity ?? detail.severity] }}</span>
+                <a v-if="item.deep_link" class="evidence-link" :href="item.deep_link">查看原始证据 ↗</a>
+              </div>
+              <div class="evidence-title">{{ item.title }}</div>
+              <p v-if="item.summary" class="evidence-summary">{{ item.summary }}</p>
+              <dl v-if="item.fields?.length" class="evidence-fields">
+                <div v-for="f in item.fields" :key="f.label + ':' + f.value">
+                  <dt>{{ f.label }}</dt>
+                  <dd>{{ f.value }}</dd>
+                </div>
+              </dl>
+              <div v-if="item.resource" class="evidence-resource">{{ item.resource.kind }} {{ item.resource.namespace ? item.resource.namespace + '/' : '' }}{{ item.resource.name }}</div>
+              <div class="evidence-src">来源 {{ item.source_ref }}<span v-if="item.observed_at"> · {{ formatTime(item.observed_at) }}</span></div>
+            </div>
+          </div>
+        </template>
 
         <template v-if="canManage">
           <h3>状态变更</h3>
@@ -544,6 +590,21 @@ onMounted(() => { void loadAll() })
 .incident-meta { margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
 .incident-meta div { display: flex; gap: 8px; font-size: 12px; }
 .incident-meta dt { color: #77858d; min-width: 68px; }
+.incident-evidence { display: grid; gap: 10px; }
+.evidence-card { padding: 12px 14px; background: #f0f4f6; border: 1px solid #dce4e7; border-radius: 8px; }
+.evidence-card-head { display: flex; align-items: center; gap: 8px; }
+.evidence-source { font-size: 11px; font-weight: 650; color: #2e7867; text-transform: uppercase; }
+.evidence-source { color: #3b6ea5; }
+.evidence-link { margin-left: auto; font-size: 11px; color: #3b6ea5; text-decoration: none; }
+.evidence-link:hover { text-decoration: underline; }
+.evidence-title { margin: 8px 0 0; font-size: 14px; font-weight: 650; color: #2f3d45; }
+.evidence-summary { margin: 4px 0 0; color: #46545c; font-size: 12px; line-height: 1.6; }
+.evidence-fields { margin: 10px 0 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 16px; }
+.evidence-fields div { display: flex; gap: 8px; font-size: 12px; }
+.evidence-fields dt { color: #77858d; min-width: 64px; }
+.evidence-fields dd { margin: 0; color: #3d4b53; overflow-wrap: anywhere; }
+.evidence-resource { margin: 10px 0 0; font-size: 12px; color: #3d4b53; }
+.evidence-src { margin-top: 8px; font-size: 11px; color: #99a4ab; overflow-wrap: anywhere; }
 .incident-meta dd { margin: 0; color: #3d4b53; overflow-wrap: anywhere; }
 .incident-drawer h3 { margin: 22px 0 10px; color: #39474e; font-size: 13px; }
 .action-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

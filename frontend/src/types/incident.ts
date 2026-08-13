@@ -41,6 +41,20 @@ export interface IncidentSummary {
   overdue: number
 }
 
+export interface IncidentEvidenceField { label: string; value?: string }
+
+export interface IncidentEvidenceItem {
+  source_type: IncidentSourceType
+  source_ref: string
+  title: string
+  summary?: string
+  severity?: IncidentSeverity
+  resource?: IncidentResourceRef
+  observed_at?: string
+  deep_link: string
+  fields?: IncidentEvidenceField[]
+}
+
 export interface IncidentCreateInput {
   source_type: IncidentSourceType
   source_ref: string

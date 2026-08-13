@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 280 |
+| 路由总数 | 281 |
 | 角色受限 | 83 |
-| 已审计 | 158 |
+| 已审计 | 159 |
 | scope=workspace | 13 |
 | scope=cluster | 82 |
 | scope=namespace | 32 |
-| scope=none | 153 |
+| scope=none | 154 |
 | 角色 operations_admin | 62 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 83 |
@@ -259,6 +259,7 @@
 | GET | `/api/v1/incidents/:incident_id` | any | none | - |
 | PATCH | `/api/v1/incidents/:incident_id` | `operations_admin`, `system_admin` | none | incident.status.update |
 | PATCH | `/api/v1/incidents/:incident_id/assignment` | `operations_admin`, `system_admin` | none | incident.assignment.update |
+| GET | `/api/v1/incidents/:incident_id/evidence` | any | none | incident.evidence.get |
 | GET | `/api/v1/incidents/:incident_id/export` | any | none | incident.export |
 | POST | `/api/v1/incidents/:incident_id/followers` | `operations_admin`, `system_admin` | none | incident.follower.add |
 | DELETE | `/api/v1/incidents/:incident_id/followers/:user_id` | `operations_admin`, `system_admin` | none | incident.follower.remove |

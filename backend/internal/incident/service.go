@@ -31,8 +31,9 @@ type SourceResolver interface {
 
 // Service is the M98 incident workspace application service.
 type Service struct {
-	repo     Repository
-	resolver SourceResolver
+	repo             Repository
+	resolver         SourceResolver
+	evidenceResolver EvidenceResolver
 }
 
 func NewService(repo Repository) *Service { return &Service{repo: repo} }
@@ -40,6 +41,13 @@ func NewService(repo Repository) *Service { return &Service{repo: repo} }
 // WithResolver attaches a source resolver. Returns the receiver for chaining.
 func (s *Service) WithResolver(resolver SourceResolver) *Service {
 	s.resolver = resolver
+	return s
+}
+
+// WithEvidenceResolver attaches the evidence timeline resolver. Returns the
+// receiver for chaining.
+func (s *Service) WithEvidenceResolver(resolver EvidenceResolver) *Service {
+	s.evidenceResolver = resolver
 	return s
 }
 

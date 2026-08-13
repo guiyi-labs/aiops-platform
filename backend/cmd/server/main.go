@@ -165,8 +165,10 @@ func main() {
 	sloService := slo.NewService(sloRepository,
 		slo.NewEvaluator(slo.NewMetricshistorySource(metricsHistoryService)),
 		slo.WithBurnAlertSink(signalsvc.NewSLOBurnSignalSink(signalService, sloRepository)))
+	incidentSourceResolver := NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService, signalService)
 	incidentService := incident.NewService(incident.NewGormRepository(database.GORM())).
-		WithResolver(NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService, signalService))
+		WithResolver(incidentSourceResolver).
+		WithEvidenceResolver(incidentSourceResolver)
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
 	appCatalogService := appcatalog.NewService(kubernetesService, appcatalog.NewGormRepository(database.GORM()))
 	// M58: GitOps read-only adapter (ArgoCD Application browse) + interactive

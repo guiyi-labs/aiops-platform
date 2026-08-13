@@ -9,6 +9,22 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Added - M107 Incident Evidence Timeline (v0.3.0-m107)
+
+- 后端：incident 详情新增「证据时间线」只读区块——`GET /api/v1/incidents/{incident_id}/evidence`
+  把 incident 背后的五源（diagnosis/finding/alert/inspection/signal）解析为结构化证据块
+  （来源/严重度/标题/摘要/资源/字段/深链），resolver 失败时安全回退到 incident 快照，
+  永不断详情；加入审计 `incident.evidence.get` 与权限矩阵。
+- OpenAPI：`/incidents/{incident_id}/evidence` + `IncidentEvidenceItem`/`IncidentEvidenceField`
+  schema；typegen 与 permission matrix 重新生成（CI sync gate 生效）。
+- 前端：`IncidentsView` 详情抽屉新增「证据时间线」证据卡（含前端深链「查看原始证据」）；
+  `getIncidentEvidence` API 封装。
+- 演示：`demo-drill.sh` incident-journey 新增 `incident-evidence` 断言（diagnosis 源 +
+  deep_link=/diagnoses）。
+- See [M107 change record](docs/changes/2026-08-13-m107-incident-evidence-timeline.md)。
+
 ### Changed - Login Panel Enhance (Frontend UX Track)
 
 - 登录页大气化：`console-theme.css` 右侧 `.login-form-panel` 加宽至

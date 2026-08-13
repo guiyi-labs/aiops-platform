@@ -2521,6 +2521,63 @@ tbody tr {
   }
 }
 
+/* ---- M93-B2: short-height adaptation (login) ---- */
+@media (max-width: 720px) and (max-height: 780px) {
+  /* Small phones (568-780px tall): give the card the whole screen.
+     Top brand/copy are hidden, panel moves up, card internals compact. */
+  .login-intro > .login-brand,
+  .login-intro > .login-copy {
+    display: none;
+  }
+
+  .login-page .login-form-panel {
+    padding: 18px 14px 14px;
+    place-items: start center;
+  }
+
+  .login-card {
+    padding: 20px 22px 18px;
+  }
+
+  .login-card .context-label {
+    margin-top: 14px;
+  }
+
+  .login-card .form-hint {
+    margin: 8px 0 16px;
+  }
+
+  .login-card .login-field {
+    margin-bottom: 12px;
+  }
+
+  .login-card .login-security-status {
+    margin-top: 10px;
+  }
+}
+
+@media (max-height: 660px) and (min-width: 721px) {
+  /* Short landscape / low-height desktop: never clip the card vertically;
+     safe-center keeps the top visible and the page may scroll. */
+  .login-page {
+    overflow-y: auto;
+  }
+
+  .login-page .login-form-panel {
+    place-items: safe center;
+    padding-top: 16px;
+    padding-bottom: 16px;
+  }
+}
+
+@media (max-height: 560px) and (min-width: 721px) {
+  /* Extreme short landscape: drop off-screen left column to reduce clutter. */
+  .login-visual,
+  .login-signal-strip {
+    display: none;
+  }
+}
+
 /* M93-C industrial technology shell */
 :root {
   --blue-50: #e9fbf8;

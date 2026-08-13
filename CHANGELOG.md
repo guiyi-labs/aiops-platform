@@ -8,7 +8,18 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
-## [Unreleased]
+
+### Changed - 登录页视觉第 15 轮：短视口纵向适配
+
+- 短屏手机（`max-width:720px and max-height:780px`）：隐藏顶部 brand/copy 文案层，
+  面板上移并紧凑化卡片内部间距（净高 542→472px），修复 320×568/360×640/375×667
+  下表单输入框与按钮被裁切（最高出屏 185px）的问题。
+- 矮屏横向（`min-width:721px and max-height:660px`）：`.login-page` 改 `overflow-y:auto`、
+  面板改 `place-items:safe center`，解除 `.login-page{overflow:hidden}` 对卡片的纵向裁切，
+  溢出时顶部对齐可滚动；`max-height:560px` 时隐藏已出屏的 `.login-visual`/`.login-signal-strip`。
+- 纯样式层，桌面/常规移动端（375×812/414×896/1440×900/1920×1080）几何与
+  第 13–14 轮完全一致，无回归。
+- See [change record](docs/changes/2026-08-13-login-short-height.md)。
 
 ### Changed - 登录页视觉第 14 轮：移动端登录卡片出屏修复
 

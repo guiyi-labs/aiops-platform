@@ -65,6 +65,33 @@ jobs:
           fi
           printf 'runtime_required=%s\n' "$runtime_required" >>"$GITHUB_OUTPUT"
 
+  change-record:
+    name: Change-record archive gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Enforce docs/changes/ record for non-doc changes (AGENTS.md §1)
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base=""
+          if [ "$EVENT_NAME" = push ]; then
+            base="$BEFORE_SHA"
+          elif [ "$EVENT_NAME" = pull_request ]; then
+            base="$PR_BASE_SHA"
+          fi
+          if [ -z "$base" ] || printf '%s' "$base" | grep -Eq '^0+$' || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          ./scripts/check-change-record.sh --base "$base"
+
   sensitive-scan:
     name: Sensitive-field scan
     runs-on: ubuntu-24.04
@@ -176,8 +203,8 @@ jobs:
         working-directory: backend
         run: |
           go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 60.0) { print "Coverage " a[1] "% is below 60.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 60.0% baseline" }}'
-      # M84: global coverage gate now 60% (W8); core package gates enforced below.
+          go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 65.0) { print "Coverage " a[1] "% is below 65.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 65.0% baseline" }}'
+      # M109: global coverage gate raised to 65% (was 60% since M84); core package gates enforced below.
       - name: Core package coverage gate (M84)
         working-directory: backend
         run: |
@@ -192,7 +219,7 @@ jobs:
       - name: Fuzz seed + benchmark smoke (M84)
         working-directory: backend
         run: |
-          go test -run '^Fuzz' -count=1 ./internal/metricshistory/ ./internal/deprecatedapi/ ./internal/apiquery/ ./internal/netpolicy/ ./internal/namespaceposture/ ./internal/optimization/ ./internal/kubernetes/ ./internal/posture/ ./internal/topology/
+          go test -run '^Fuzz' -count=1 ./internal/metricshistory/ ./internal/deprecatedapi/ ./internal/apiquery/ ./internal/netpolicy/ ./internal/namespaceposture/ ./internal/optimization/ ./internal/kubernetes/ ./internal/posture/ ./internal/topology/ ./internal/incident/ ./internal/correlation/
           go test -bench . -benchtime 5x -run '^$' ./internal/metricshistory/ ./internal/topology/ ./internal/posture/ ./internal/capability/
       - name: Generate and verify M96 scale fixture (report mode)
         working-directory: backend
@@ -347,6 +374,10 @@ jobs:
     if: ${{ always() && needs.changes.outputs.runtime_required == 'true' && needs.backend.result == 'success' && needs.frontend.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      # M109: report mode is the two-stable-cycle baseline; flip to fail-closed
+      # after the baselines recorded in docs/m96-gate-b-baselines.md are met.
+      GATE_B_MODE: report
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -610,12 +641,13 @@ jobs:
   result:
     name: CI result
     if: always()
-    needs: [changes, backend-image, backend, race, frontend, gate-b, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
+    needs: [changes, change-record, backend-image, backend, race, frontend, gate-b, manifests, credential-drill, audit-drill, identity-drill, recovery-drill, runtime]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       RUNTIME_REQUIRED: ${{ needs.changes.outputs.runtime_required }}
       CHANGE_SCOPE_RESULT: ${{ needs.changes.result }}
+      CHANGE_RECORD_RESULT: ${{ needs.change-record.result }}
       BACKEND_IMAGE_RESULT: ${{ needs.backend-image.result }}
       BACKEND_RESULT: ${{ needs.backend.result }}
       RACE_RESULT: ${{ needs.race.result }}
@@ -632,6 +664,9 @@ jobs:
         shell: bash
         run: |
           if [ "$CHANGE_SCOPE_RESULT" != success ]; then
+            exit 1
+          fi
+          if [ "$CHANGE_RECORD_RESULT" != success ]; then
             exit 1
           fi
           case "$RUNTIME_REQUIRED" in

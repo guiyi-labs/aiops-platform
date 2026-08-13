@@ -50,6 +50,7 @@ const REQUIRED_SAMPLE_INVARIANTS = [
 
 const args = parseArgs(process.argv.slice(2))
 const root = resolve(args.root ?? process.cwd())
+const mode = (process.env.GATE_B_MODE || 'report').trim()
 const output = resolve(args.output ?? join(root, '.artifacts', 'm96-gate-b', 'm96-gate-b.json'))
 const markdown = resolve(args.markdown ?? output.replace(/\.json$/i, '.md'))
 const checks = []
@@ -210,7 +211,7 @@ async function validateFixture(manifestPath, verificationPath, generationPath, b
 
   const backend = readJson(backendPath)
   requireValue('backend/schema', backend.schema_version, 'aiops.scale-benchmark/v1')
-  requireValue('backend/mode', backend.mode, 'report')
+  requireValue('backend/mode', backend.mode, mode)
   requireValue('backend/fixture/dataset_version', backend.fixture?.dataset_version, manifest.dataset_version)
   requireValue('backend/fixture/config_sha256', backend.fixture?.config_sha256, manifest.config_sha256)
   requireValue('backend/fixture/dataset_sha256', backend.fixture?.dataset_sha256, manifest.dataset_sha256)
@@ -305,7 +306,7 @@ function validateFrontend(baselinePath, samplesPath) {
   requireValue('frontend/fixture/pod_count', config.pod_count, EXPECTED.frontend.podCount)
   requireValue('frontend/fixture/node_count', config.node_count, 500)
   requireValue('frontend/fixture/namespace_count', config.namespace_count, 100)
-  requireValue('frontend/budget/mode', baseline.budget?.mode, 'report')
+  requireValue('frontend/budget/mode', baseline.budget?.mode, mode)
   requireValue('frontend/baseline/fixture/config_sha256', baseline.fixture?.configSha256, fixture.configSha256)
   requireValue('frontend/baseline/fixture/payload_sha256', baseline.fixture?.payloadSha256, fixture.payloadSha256)
   requireValue('frontend/baseline/fixture/payload_bytes', baseline.fixture?.payloadBytes, fixture.payloadBytes)
@@ -351,7 +352,7 @@ function validateCss(stylePath) {
   const style = readJson(stylePath)
   requireValue('css/schema', style.schema, EXPECTED.css.schema)
   requireValue('css/version', style.version, EXPECTED.css.version)
-  requireValue('css/mode', style.mode, EXPECTED.css.mode)
+  requireValue('css/mode', style.mode, mode)
   requireValue('css/import_order', JSON.stringify(style.importOrder), JSON.stringify(EXPECTED.css.importOrder))
   requireValue('css/removed_layer', style.removedUnreferencedLayer ?? style.removed, EXPECTED.css.removedLayer)
   const layers = Array.isArray(style.layers) ? style.layers : []
@@ -375,7 +376,7 @@ function summarize() {
     schemaVersion: 'aiops.m96-gate-b/v1',
     milestone: 'M96',
     gate: 'B',
-    mode: 'report',
+    mode: mode ?? 'report',
     generatedAt: new Date().toISOString(),
     expected: {
       fixture: EXPECTED.fixture,
@@ -415,7 +416,9 @@ function markdownReport(report) {
     '',
     '## Notes',
     '',
-    '- Latency, heap, long-task and CSS budget values remain report-mode observations.',
+    report.mode === 'fail-closed'
+      ? '- Latency, heap, long-task and CSS budget values are treated as production gates (fail-closed); regressions block CI.'
+      : '- Latency, heap, long-task and CSS budget values remain report-mode observations.',
     '- Fixture stream revalidation is performed when generated streams are available; hosted CI uploads the verified manifest and reports rather than the generated data streams.',
   ]
   if (report.warnings.length > 0) lines.push('', 'Warnings', '', ...report.warnings.map((warning) => `- ${warning}`))

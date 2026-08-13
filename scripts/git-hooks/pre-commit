@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# 仓库提交钩子：本地强制 AGENTS.md §1 归档铁律（CI 侧由 ci.yml 的
+# change-record job 兜底）。安装方式（仓库根目录执行）：
+#   ln -s ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+exec "$repo_root/scripts/check-change-record.sh" --staged

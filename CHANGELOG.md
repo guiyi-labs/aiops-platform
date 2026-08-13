@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M109 工程卓越收口：覆盖率门禁 65% + fuzz smoke 扩展 + Gate B 性能基线记录/模式开关
+
+- 覆盖率门禁：`ci.yml` 全局门禁基线 60%→**65%**（实测 65.16%），随此前覆盖率冲刺提交一并达成。
+- Fuzz 门禁：CI fuzz seed 列表追加 `./internal/incident/ ./internal/correlation/`（纳入 `FuzzEngineCorrelate` / `FuzzCanTransition` / `FuzzTransitionSequence`）。
+- Gate B 性能门禁预备：新增 `docs/m96-gate-b-baselines.md` 记录两个稳定成功周期（Run 31682162681、31683950601）；`scripts/m96-gate-b.mjs` 支持 `GATE_B_MODE` 开关（report / fail-closed），CI 门禁显示为 `report`，翻转步骤见入库文档。
+- 归档机械门禁：`scripts/check-change-record.sh` + `scripts/git-hooks/pre-commit` 本地强制归档铁律；`ci.yml` 新增 `change-record` job 并纳入 `result` 必填集（并行 Agent 交付，本块合入）。
+- See [change record](docs/changes/2026-08-13-m109-gate-closeout.md)。
+
 ### Added - M109 httpserver 覆盖率冲刺：60.9% → 65.16%，达成 65% 门禁
 
 - 覆盖 `auth.go` 全分支（login/refresh/logout/me/changePassword/sessions/revoke/withAuthentication/requireRoles 的错误哨兵表与成功路径，含 auth_version 失配、用户禁用、cookie 解析失败等）。

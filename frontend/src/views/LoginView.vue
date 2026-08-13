@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import {
+  Activity,
   ArrowRight,
+  Bell,
   Boxes,
   Check,
   Eye,
@@ -149,6 +151,27 @@ async function submit() {
             @mouseleave="activeCapability = null"
           ><i aria-hidden="true"></i>AUDIT-CLOSED</li>
         </ul>
+      </div>
+
+      <div class="login-signal-strip" aria-hidden="true">
+        <div class="login-signal-head">
+          <span class="login-signal-dot"></span>
+          <span class="login-signal-title">实时信号 · LIVE OPERATIONS</span>
+        </div>
+        <div class="login-signal-grid">
+          <div class="login-signal">
+            <i class="login-signal-ico"><Activity :size="15" /></i>
+            <span class="login-signal-meta"><b>12</b><em>在线集群</em></span>
+          </div>
+          <div class="login-signal">
+            <i class="login-signal-ico"><ShieldCheck :size="15" /></i>
+            <span class="login-signal-meta"><b>99.9%</b><em>SLO 达标</em></span>
+          </div>
+          <div class="login-signal">
+            <i class="login-signal-ico"><Bell :size="15" /></i>
+            <span class="login-signal-meta"><b>3</b><em>待处理告警</em></span>
+          </div>
+        </div>
       </div>
 
       <div class="login-visual" :data-capability="activeCapability || undefined">

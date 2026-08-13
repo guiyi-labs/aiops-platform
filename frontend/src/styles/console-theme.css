@@ -1256,8 +1256,10 @@ tbody tr {
   position: absolute;
   inset: 0;
   z-index: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: clamp(16px, 2.2vh, 30px);
   min-height: 100svh;
   padding: 32px clamp(42px, 5vw, 80px);
   padding-right: clamp(460px, 49vw, 760px);
@@ -1293,9 +1295,9 @@ tbody tr {
 .login-copy {
   position: relative;
   z-index: 2;
-  align-self: end;
+  align-self: stretch;
   margin: 0;
-  padding-top: clamp(28px, 7vh, 76px);
+  padding-top: 0;
 }
 
 .login-description {
@@ -1306,8 +1308,8 @@ tbody tr {
   position: relative;
   z-index: 2;
   width: min(100%, 620px);
-  margin: 12px 0 0;
-  align-self: end;
+  margin: 4px 0 0;
+  align-self: stretch;
   gap: 10px;
 }
 
@@ -1925,6 +1927,117 @@ tbody tr {
   100% { box-shadow: 0 28px 72px -34px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.03) inset; }
 }
 
+/* ---- M93-B1e: Round 9 — middle density & balance ---- */
+
+/* Keep brand text crisp above the ambient glow layers. */
+.login-brand {
+  position: relative;
+  z-index: 2;
+}
+
+.login-description {
+  margin-top: 14px;
+  max-width: 540px;
+  line-height: 1.62;
+}
+
+.login-features {
+  margin-top: 18px;
+}
+
+/* Middle filler: a quiet "live operations" status panel that gives the
+   previously empty band a clear purpose — divider, label, icon stats. */
+.login-signal-strip {
+  position: relative;
+  z-index: 2;
+  margin: 2px 0 0;
+  padding: 14px 16px 15px;
+  background: rgba(7, 16, 15, 0.32);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 18px 44px -32px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(6px);
+}
+
+.login-signal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.login-signal-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5eead4;
+  box-shadow: 0 0 10px rgba(94, 234, 212, 0.85);
+  animation: security-breathe 3.4s ease-in-out infinite;
+}
+
+.login-signal-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2.2px;
+  color: rgba(148, 163, 184, 0.62);
+}
+
+.login-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.login-signal {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.025);
+  transition: transform 200ms ease, border-color 200ms ease, background-color 200ms ease;
+}
+
+.login-signal:hover {
+  transform: translateY(-2px);
+  border-color: rgba(94, 234, 212, 0.28);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.login-signal-ico {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  place-items: center;
+  color: #5eead4;
+  background: rgba(45, 212, 191, 0.12);
+  border-radius: 8px;
+}
+
+.login-signal-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.12;
+}
+
+.login-signal-meta b {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f1f5f4;
+  letter-spacing: 0.2px;
+}
+
+.login-signal-meta em {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.4px;
+  color: rgba(148, 163, 184, 0.7);
+}
+/* ---- /M93-B1e ---- */
+
 .login-field > svg:first-child {
   position: absolute;
   left: 13px;
@@ -2199,6 +2312,9 @@ tbody tr {
   .login-intro h1 { font-size: 40px; }
   .login-capability { padding: 10px; }
   .login-capability strong { font-size: 15px; }
+  .login-signal-strip { padding: 12px 14px 13px; }
+  .login-signal { padding: 6px 8px; }
+  .login-signal-meta b { font-size: 14px; }
 }
 
 @media (max-height: 760px) and (min-width: 721px) {
@@ -2230,6 +2346,19 @@ tbody tr {
 
   .login-capability {
     padding-block: 8px;
+  }
+
+  .login-copy {
+    padding-top: 0;
+  }
+
+  .login-signal-strip {
+    margin-top: 10px;
+    padding: 10px 12px 11px;
+  }
+
+  .login-signal-grid {
+    gap: 8px;
   }
 
   .login-card {
@@ -2298,7 +2427,8 @@ tbody tr {
   .login-spine,
   .login-radar,
   .login-footer,
-  .login-features {
+  .login-features,
+  .login-signal-strip {
     display: none;
   }
 

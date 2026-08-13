@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 登录页视觉第 9 轮：中区紧凑化与平衡填充
+
+- 根因修复：`.login-intro` 原 `grid` + `.login-visual` 底部锚定造成标题与拓扑间长期"死区"；改为 `flex` 连续纵向栈（`justify-content:flex-start` + 统一 `gap`），中区空洞收敛为节奏化间距。
+- 新增中区填充块 `.login-signal-strip`（aria-hidden）：分隔线 + 标签 + 3 枚图标统计胶囊，把空旷中区赋予明确意图（状态概览）。
+- 间距收紧：去除 `.login-copy` 过大 `padding-top`，描述/特性行高与边距统一。矮屏保留并紧凑化该面板，移动端同策略隐藏。
+- 关键踩坑：抵消 base.css `.login-intro` 的 `justify-content:space-between` 透传。纯视觉层，无表单/无障碍回归。产物 `index-B2k1Maxs.css` + `index-DSssqMZx.js`。
+- See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
+
 ### Changed - 登录页视觉第 8 轮：叙事连贯 / 中央景深 / 卡片焦点 / 减噪
 
 - 左区新增信号脊柱（`.login-spine`）串联品牌→标题→拓扑，中央新增柔光景深（`.login-depth`）把空洞变为有意为之的纵深；登录卡新增四角括号（`.login-card-frame`）、载入一次性青色光晕收束（`.login-card-attract`）、整卡聚焦联动 `:has(.is-focused)`。

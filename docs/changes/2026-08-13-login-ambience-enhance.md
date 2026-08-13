@@ -285,3 +285,52 @@
 
 - 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
   容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。
+
+---
+
+## 第九轮（2026-08-13）— 中区紧凑化与平衡填充
+
+### Why
+
+用户反馈"网页元素中间显得空旷"：根因并非某个细节，而是 `.login-intro` 原为
+`display:grid; grid-template-rows: auto auto minmax(0,1fr)`，且 `.login-visual`
+（拓扑块）以 `align-self:end` 锚定在 `minmax(0,1fr)` 行的底部——标题块（品牌+标题+
+描述+特性）停在上方，拓扑块沉在下方，二者之间的 `1fr` 行被撑开成一段大尺度"死区"。
+第八轮的柔光景深 / 信号脊柱只是背景氛围，不足以填实这段空白。
+
+### What changed
+
+- **结构性修复**：`.login-intro` 由 `grid`+底部锚定改为
+  `display:flex; flex-direction:column; justify-content:flex-start; gap:clamp(16px,2.2vh,30px)`。
+  品牌 → 标题 → 状态面板 → 拓扑成为连续纵向栈，中区空洞收敛为富有节奏的统一间距。
+- **关键踩坑（cascade 透传）**：`base.css` 的 `.login-intro` 设了
+  `justify-content:space-between`，而 console-theme 的覆盖规则此前未声明该属性，导致
+  `space-between` 透传、把列重新撑开（中区空洞复活）。已在 console-theme 显式
+  `justify-content:flex-start` 抵消，并在产物中验证生效。
+- **中区填充块 `.login-signal-strip`（aria-hidden）**：新增一处"实时信号"状态面板——
+  顶部分隔线 + 呼吸点 + 标签 `实时信号 · LIVE OPERATIONS`，下方 3 枚图标统计胶囊
+  （在线集群 12 / SLO 达标 99.9% / 待处理告警 3），把空旷中区赋予明确意图（状态概览），
+  而非松散装饰。胶囊 hover 与能力卡同款微抬升。
+- **间距收紧（视觉平衡）**：`.login-copy` 去除过大的 `padding-top: clamp(28px,7vh,76px)`
+  （改由 flex `gap` 统一节奏）；`.login-description` 收紧 `margin-top:14px` + `max-width:540px`
+  + `line-height:1.62`；`.login-features` `margin-top:18px`。
+- **响应式**：≤1080px 收紧状态面板内边距与数字字号；矮屏（max-height:760 & min-width:721）
+  保留状态面板并紧凑化（`margin-top:10px` + 减 padding）；移动端（max-width:720）与
+  `.login-depth` / `.login-spine` / `.login-radar` / `.login-footer` 同策略 `display:none`。
+- 全部纯视觉层改动，未动表单逻辑与无障碍结构；状态面板 `aria-hidden`，不污染无障碍树。
+
+### Verification
+
+- `./node_modules/.bin/vite build`：✓ built，exit 0，无 CSS 语法错误。
+- 线上验证：新产物 `index-B2k1Maxs.css` + `index-DSssqMZx.js` 已 docker cp 覆盖进
+  `k8s-aiops-frontend-1`，`curl /login` 引用新 hash；CSS 实测 console-theme 的
+  `.login-intro` 同时含 `justify-content:flex-start` 与 `padding-right:clamp(460px…)`
+  （证伪 base.css 覆盖），且 `login-signal-strip` / `login-signal-grid` /
+  `login-signal-ico` / `login-signal-dot` 全部新规则 present。
+- 浏览器视觉复核仍受限（截图/resize 不可靠），构图与节奏观感建议在网络恢复后于宽屏
+  人工复核一次；逻辑层与无障碍结构未经改动，无回归风险。
+
+### Deployment（第九轮，并入 18080）
+
+- 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
+  容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。

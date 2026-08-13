@@ -73,6 +73,12 @@ Detailed change records for each milestone live under `docs/changes/`.
   `--verify` 全绿（login desktop diff 0.000%，其余 IDENTICAL）。
 - See [change record](docs/changes/2026-08-14-a11y-axe-audit.md)。
 
+### Changed - CSS Token 层第一轮收尾：console-theme 遗留字面量清零
+
+- `console-theme.css` 剩余 2 处 `#b91c1c` 字面量替换为 `var(--status-danger)`，
+  四层 CSS audit 全部 `replaceable=0`（pure refactor，零视觉变化）。
+- See [change record](docs/changes/2026-08-14-css-token-cleanups.md)。
+
 ### Changed - CSS Token 层收口（Track A · 主题收敛 · 第一批 112 处安全迁移）
 
 - 新增 `scripts/audit-css-tokens.mjs`：解析四层级联（base→console→motion→premium）

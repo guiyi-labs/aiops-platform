@@ -501,7 +501,7 @@ h1 {
 }
 
 .status-pill.ready { color: #166534; background: var(--success-bg); }
-.status-pill.unavailable { color: #b91c1c; background: var(--danger-bg); }
+.status-pill.unavailable { color: var(--status-danger); background: var(--danger-bg); }
 .status-pill.disabled { color: var(--text-secondary); background: var(--bg-tertiary); }
 .status-pill.unknown { color: #b45309; background: var(--warning-bg); }
 
@@ -2360,7 +2360,7 @@ tbody tr {
 
 .login-page--error .login-card-rail i {
   width: 100%;
-  background: #b91c1c;
+  background: var(--status-danger);
   transform: translateX(0);
 }
 

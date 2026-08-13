@@ -11,6 +11,23 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - Login Ambience Enhance (Frontend UX Track)
+
+- 登录页填充空旷感：`LoginView.vue` 左侧介绍区新增纯装饰三层——中段雷达扫描
+  SVG（同心环 + 旋转扫线 + 呼吸信号点，呼应"信号驱动/持续监测"）、标题下特性词条
+  strip（RULES-DRIVEN / EVIDENCE-FIRST / AUDIT-CLOSED）、底部信息条
+  （版权 + SIGNAL-DRIVEN / AUDIT-CLOSED 标签）。
+- `console-theme.css` 新增 `/* ---- M93-B1c ---- */` 块：radar 绝对定位垂直居中
+  （`width:clamp(240px,30vw,420px)`、opacity .5、衬于内容层之下）、features
+  11px 字距微光词条、footer 贴底两端分布；`login-visual` 加 `padding-bottom:40px`
+  隔离能力列表，`login-security-status` 加分隔线增强卡片结构感。
+- 响应式：矮屏断点（≤760px 高）隐藏 radar/footer、features 收紧；移动端断点
+  （≤720px 宽）radar/footer/features 全部隐藏，移动端布局零改动；新元素均
+  aria-hidden 或 role=list，不影响无障碍。
+- See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
+
+## [Unreleased]
+
 ### Added - M107 Incident Evidence Timeline (v0.3.0-m107)
 
 - 后端：incident 详情新增「证据时间线」只读区块——`GET /api/v1/incidents/{incident_id}/evidence`

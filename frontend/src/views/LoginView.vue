@@ -95,10 +95,42 @@ async function submit() {
       <ParticleNetwork :phase="authPhase" />
       <div class="login-brand"><span><Boxes :size="22" /></span>K8s AIOps</div>
 
+      <div class="login-radar" aria-hidden="true">
+        <svg viewBox="0 0 360 360" fill="none" focusable="false">
+          <g class="radar-rings">
+            <circle cx="180" cy="180" r="52" />
+            <circle cx="180" cy="180" r="96" />
+            <circle cx="180" cy="180" r="140" />
+            <circle cx="180" cy="180" r="176" />
+          </g>
+          <g class="radar-cross">
+            <line x1="4" y1="180" x2="356" y2="180" />
+            <line x1="180" y1="4" x2="180" y2="356" />
+            <line x1="66" y1="66" x2="294" y2="294" />
+            <line x1="294" y1="66" x2="66" y2="294" />
+          </g>
+          <g class="radar-sweep-g">
+            <path class="radar-wedge" d="M180 180 L180 8 A172 172 0 0 1 322.5 83 Z" />
+            <line class="radar-sweep-line" x1="180" y1="180" x2="180" y2="8" />
+          </g>
+          <g class="radar-blips">
+            <circle class="blip blip-a" cx="252" cy="92" r="3.5" />
+            <circle class="blip blip-b" cx="118" cy="268" r="3" />
+            <circle class="blip blip-c" cx="292" cy="238" r="2.6" />
+          </g>
+          <circle class="radar-center" cx="180" cy="180" r="5" />
+        </svg>
+      </div>
+
       <div class="login-copy">
         <p class="login-eyebrow">MULTI-CLUSTER OPERATIONS</p>
         <h1>让每一次故障判断<br /><em>都有证据可追溯</em></h1>
         <p class="login-description">统一接入 Kubernetes 集群，关联资源状态、事件与日志，以规则诊断为主、AI 解释为辅。</p>
+        <ul class="login-features" role="list">
+          <li><i aria-hidden="true"></i>RULES-DRIVEN</li>
+          <li><i aria-hidden="true"></i>EVIDENCE-FIRST</li>
+          <li><i aria-hidden="true"></i>AUDIT-CLOSED</li>
+        </ul>
       </div>
 
       <div class="login-visual" :data-capability="activeCapability || undefined">
@@ -208,6 +240,14 @@ async function submit() {
             <strong>审计闭环</strong>
           </div>
         </div>
+
+        <footer class="login-footer" aria-hidden="true">
+          <span class="login-footer-copy">© 2026 K8s AIOps · Evidence-first Operations</span>
+          <span class="login-footer-tags">
+            <i aria-hidden="true"></i>SIGNAL-DRIVEN
+            <i aria-hidden="true"></i>AUDIT-CLOSED
+          </span>
+        </footer>
       </div>
     </section>
 

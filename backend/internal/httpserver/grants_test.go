@@ -17,10 +17,12 @@ import (
 
 // grantsTestRepo is an in-memory authz.Repository for grants handler tests.
 type grantsTestRepo struct {
-	clusterGrants   map[int64]map[int64]authz.ClusterGrant
-	namespaceGrants map[int64]map[string]authz.NamespaceGrant
-	createErr       error
-	deleteErr       error
+	clusterGrants    map[int64]map[int64]authz.ClusterGrant
+	namespaceGrants  map[int64]map[string]authz.NamespaceGrant
+	createErr        error
+	deleteErr        error
+	listClusterErr   error
+	listNamespaceErr error
 }
 
 func newGrantsTestRepo() *grantsTestRepo {
@@ -62,6 +64,9 @@ func (r *grantsTestRepo) DeleteClusterGrant(_ context.Context, userID, clusterID
 }
 
 func (r *grantsTestRepo) ListClusterGrants(_ context.Context, userID int64) ([]authz.ClusterGrant, error) {
+	if r.listClusterErr != nil {
+		return nil, r.listClusterErr
+	}
 	if r.clusterGrants[userID] == nil {
 		return []authz.ClusterGrant{}, nil
 	}
@@ -106,6 +111,9 @@ func (r *grantsTestRepo) DeleteNamespaceGrant(_ context.Context, userID, cluster
 }
 
 func (r *grantsTestRepo) ListNamespaceGrants(_ context.Context, userID int64) ([]authz.NamespaceGrant, error) {
+	if r.listNamespaceErr != nil {
+		return nil, r.listNamespaceErr
+	}
 	if r.namespaceGrants[userID] == nil {
 		return []authz.NamespaceGrant{}, nil
 	}
@@ -363,5 +371,108 @@ func TestGrantsWriteGrantErrorReturnsFalseOnNil(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 	if handler.writeGrantError(c, nil) {
 		t.Fatal("writeGrantError returned true for nil error")
+	}
+}
+
+// --- M109: listNamespaceGrants + myGrants error + listClusterGrants error ---
+
+func TestGrantsListNamespaceGrantsEmptyByDefault(t *testing.T) {
+	router, handler := newGrantsRouter(newGrantsTestRepo())
+	router.GET("/users/:user_id/namespace-grants", handler.listNamespaceGrants)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/users/1/namespace-grants", nil))
+	if rec.Code != http.StatusOK || !contains(rec.Body.String(), `"items":[]`) {
+		t.Fatalf("expected 200 empty items, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGrantsListNamespaceGrantsWithGrants(t *testing.T) {
+	repo := newGrantsTestRepo()
+	_, _ = repo.CreateNamespaceGrant(context.Background(), 1, 10, "prod")
+	_, _ = repo.CreateNamespaceGrant(context.Background(), 1, 10, "staging")
+	router, handler := newGrantsRouter(repo)
+	router.GET("/users/:user_id/namespace-grants", handler.listNamespaceGrants)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/users/1/namespace-grants", nil))
+	if rec.Code != http.StatusOK || !contains(rec.Body.String(), "prod") {
+		t.Fatalf("expected 200 with grants, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGrantsListNamespaceGrantsError(t *testing.T) {
+	repo := newGrantsTestRepo()
+	repo.listNamespaceErr = errors.New("db fail")
+	router, handler := newGrantsRouter(repo)
+	router.GET("/users/:user_id/namespace-grants", handler.listNamespaceGrants)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/users/1/namespace-grants", nil))
+	if rec.Code != http.StatusInternalServerError || !contains(rec.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500 INTERNAL_ERROR, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGrantsListClusterGrantsError(t *testing.T) {
+	repo := newGrantsTestRepo()
+	repo.listClusterErr = errors.New("db fail")
+	router, handler := newGrantsRouter(repo)
+	router.GET("/users/:user_id/cluster-grants", handler.listClusterGrants)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/users/1/cluster-grants", nil))
+	if rec.Code != http.StatusInternalServerError || !contains(rec.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500 INTERNAL_ERROR, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGrantsMyGrantsClusterGrantsError(t *testing.T) {
+	repo := newGrantsTestRepo()
+	repo.listClusterErr = errors.New("db down")
+	router, handler := newGrantsRouter(repo)
+	router.GET("/my-grants", func(c *gin.Context) {
+		c.Request = c.Request.WithContext(requestctx.WithMetadata(c.Request.Context(), requestctx.Metadata{ActorID: 1}))
+		handler.myGrants(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/my-grants", nil))
+	if rec.Code != http.StatusInternalServerError || !contains(rec.Body.String(), "internal_error") {
+		t.Fatalf("expected 500 internal_error, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGrantsMyGrantsNamespaceGrantsError(t *testing.T) {
+	repo := newGrantsTestRepo()
+	repo.listNamespaceErr = errors.New("db down")
+	router, handler := newGrantsRouter(repo)
+	router.GET("/my-grants", func(c *gin.Context) {
+		c.Request = c.Request.WithContext(requestctx.WithMetadata(c.Request.Context(), requestctx.Metadata{ActorID: 1}))
+		handler.myGrants(c)
+	})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/my-grants", nil))
+	if rec.Code != http.StatusInternalServerError || !contains(rec.Body.String(), "internal_error") {
+		t.Fatalf("expected 500 internal_error, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGrantsDeleteNamespaceGrantInvalidClusterID(t *testing.T) {
+	router, handler := newGrantsRouter(newGrantsTestRepo())
+	router.DELETE("/users/:user_id/namespace-grants/:cluster_id/:namespace", handler.deleteNamespaceGrant)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/users/1/namespace-grants/abc/prod", nil))
+	if rec.Code != http.StatusBadRequest || !contains(rec.Body.String(), "INVALID_CLUSTER_ID") {
+		t.Fatalf("expected 400 INVALID_CLUSTER_ID, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestGrantsCreateNamespaceGrantEmptyNamespace(t *testing.T) {
+	router, handler := newGrantsRouter(newGrantsTestRepo())
+	router.POST("/users/:user_id/namespace-grants", handler.createNamespaceGrant)
+	body, _ := json.Marshal(map[string]int64{"cluster_id": 10})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/users/1/namespace-grants", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	// binding:"required" on Namespace catches empty namespace before handler check
+	if rec.Code != http.StatusBadRequest || !contains(rec.Body.String(), "INVALID_REQUEST") {
+		t.Fatalf("expected 400 INVALID_REQUEST, got %d: %s", rec.Code, rec.Body.String())
 	}
 }

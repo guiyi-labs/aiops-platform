@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M109 httpserver 覆盖率冲刺：60.9% → 65.16%，达成 65% 门禁
+
+- 覆盖 `auth.go` 全分支（login/refresh/logout/me/changePassword/sessions/revoke/withAuthentication/requireRoles 的错误哨兵表与成功路径，含 auth_version 失配、用户禁用、cookie 解析失败等）。
+- 覆盖 `servicemesh.go`（VS/DR 列与详情成功/404/500、traffic-metrics、`writeServiceMeshError` 全哨兵表）、`topology.go`（graph/changes 全校验与成功/错误）、`grants.go`（namespace 授权列表/`myGrants` 错误分支）、`incidents.go`（transition/assign/follower/note/postmortem/summary/export 的错误映射）。
+- 全局语句覆盖率 60.9%→**65.16%**（`go test -cover -p=1 -count=1 ./...`），达成 M109 路线图 65% 门禁；`go test ./... -short` 全绿、`gofmt -l` 干净。
+- See [change record](docs/changes/2026-08-13-m109-coverage-handler-tests.md)。
+
 ### Added - M109 incident 关键旅程 E2E：a11y 扩展 + correlation 深链/提升事故
 
 - a11y：axe 扫描路由新增 `/incidents`、`/aiops/correlation`（空态 + mock API），wcag2a/aa 0 critical/serious。

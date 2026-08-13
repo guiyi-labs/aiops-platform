@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -20,9 +21,15 @@ import (
 // implements the full contract but only exercises the create/get/list paths
 // exercised by the handler tests below.
 type incidentRepoStub struct {
-	nextID  int64
-	byID    map[int64]incident.Incident
-	sources map[string]int64
+	nextID            int64
+	byID              map[int64]incident.Incident
+	sources           map[string]int64
+	transitionErr     error
+	addFollowerErr    error
+	removeFollowerErr error
+	addNoteErr        error
+	setPostmortemErr  error
+	summaryErr        error
 }
 
 func newIncidentRepoStub() *incidentRepoStub {
@@ -72,12 +79,28 @@ func (r *incidentRepoStub) List(_ context.Context, _ incident.ListFilter) ([]inc
 	return items, nil
 }
 
-func (r *incidentRepoStub) Summary(context.Context) (incident.Summary, error) {
+func (r *incidentRepoStub) Summary(_ context.Context) (incident.Summary, error) {
+	if r.summaryErr != nil {
+		return incident.Summary{}, r.summaryErr
+	}
 	return incident.Summary{}, nil
 }
 
-func (r *incidentRepoStub) Transition(context.Context, int64, int64, string, incident.ActorRef, string) (incident.Incident, error) {
-	return incident.Incident{}, errors.New("not implemented")
+func (r *incidentRepoStub) Transition(_ context.Context, id, expectedVersion int64, toStatus string, _ incident.ActorRef, _ string) (incident.Incident, error) {
+	if r.transitionErr != nil {
+		return incident.Incident{}, r.transitionErr
+	}
+	record, ok := r.byID[id]
+	if !ok {
+		return incident.Incident{}, incident.ErrNotFound
+	}
+	if record.Version != expectedVersion {
+		return incident.Incident{}, incident.ErrVersionConflict
+	}
+	record.Status = toStatus
+	record.Version++
+	r.byID[id] = record
+	return record, nil
 }
 
 func (r *incidentRepoStub) Assign(_ context.Context, id, expectedVersion, assigneeUserID int64, _ incident.ActorRef, _ string) (incident.Incident, error) {
@@ -94,20 +117,56 @@ func (r *incidentRepoStub) Assign(_ context.Context, id, expectedVersion, assign
 	return record, nil
 }
 
-func (r *incidentRepoStub) AddFollower(context.Context, int64, int64, incident.ActorRef) (incident.Incident, error) {
-	return incident.Incident{}, errors.New("not implemented")
+func (r *incidentRepoStub) AddFollower(_ context.Context, id, userID int64, _ incident.ActorRef) (incident.Incident, error) {
+	if r.addFollowerErr != nil {
+		return incident.Incident{}, r.addFollowerErr
+	}
+	record, ok := r.byID[id]
+	if !ok {
+		return incident.Incident{}, incident.ErrNotFound
+	}
+	record.Version++
+	r.byID[id] = record
+	return record, nil
 }
 
-func (r *incidentRepoStub) RemoveFollower(context.Context, int64, int64, incident.ActorRef) (incident.Incident, error) {
-	return incident.Incident{}, errors.New("not implemented")
+func (r *incidentRepoStub) RemoveFollower(_ context.Context, id, userID int64, _ incident.ActorRef) (incident.Incident, error) {
+	if r.removeFollowerErr != nil {
+		return incident.Incident{}, r.removeFollowerErr
+	}
+	record, ok := r.byID[id]
+	if !ok {
+		return incident.Incident{}, incident.ErrNotFound
+	}
+	record.Version++
+	r.byID[id] = record
+	return record, nil
 }
 
-func (r *incidentRepoStub) AddNote(context.Context, int64, int64, incident.ActorRef, string) (incident.Incident, error) {
-	return incident.Incident{}, errors.New("not implemented")
+func (r *incidentRepoStub) AddNote(_ context.Context, id, expectedVersion int64, _ incident.ActorRef, content string) (incident.Incident, error) {
+	if r.addNoteErr != nil {
+		return incident.Incident{}, r.addNoteErr
+	}
+	record, ok := r.byID[id]
+	if !ok {
+		return incident.Incident{}, incident.ErrNotFound
+	}
+	record.Version++
+	r.byID[id] = record
+	return record, nil
 }
 
-func (r *incidentRepoStub) SetPostmortem(context.Context, int64, int64, incident.ActorRef, string) (incident.Incident, error) {
-	return incident.Incident{}, errors.New("not implemented")
+func (r *incidentRepoStub) SetPostmortem(_ context.Context, id, expectedVersion int64, _ incident.ActorRef, content string) (incident.Incident, error) {
+	if r.setPostmortemErr != nil {
+		return incident.Incident{}, r.setPostmortemErr
+	}
+	record, ok := r.byID[id]
+	if !ok {
+		return incident.Incident{}, incident.ErrNotFound
+	}
+	record.Version++
+	r.byID[id] = record
+	return record, nil
 }
 
 func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
@@ -308,5 +367,273 @@ func TestIncidentHandler_BatchAssignValidation(t *testing.T) {
 	recorder := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", string(body))
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("too many status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+// --- M109: incidents handler error branches (transition/assign/follower/note/postmortem/summary) ---
+
+func newIncidentHandlerTestRouter(stub *incidentRepoStub) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := incidentHandler{service: incident.NewService(stub)}
+	api := r.Group("/api/v1", withTestActor())
+	api.GET("/incidents/summary", h.summary)
+	api.POST("/incidents", h.create)
+	api.GET("/incidents/:incident_id", h.get)
+	api.PATCH("/incidents/:incident_id", h.transition)
+	api.PUT("/incidents/:incident_id/assign", h.assign)
+	api.POST("/incidents/:incident_id/followers", h.addFollower)
+	api.DELETE("/incidents/:incident_id/followers/:user_id", h.removeFollower)
+	api.POST("/incidents/:incident_id/notes", h.addNote)
+	api.PUT("/incidents/:incident_id/postmortem", h.setPostmortem)
+	api.GET("/incidents/:incident_id/export", h.export)
+	return r
+}
+
+func incCreate(t *testing.T, r *gin.Engine) incident.Incident {
+	t.Helper()
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents", `{
+		"source_type":"finding","source_ref":"finding:unique:1","cluster_id":1,
+		"title":"test","severity":"warning","resource":{"kind":"Pod","namespace":"default","name":"web"}
+	}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create failed %d: %s", w.Code, w.Body.String())
+	}
+	var rec incident.Incident
+	if err := json.Unmarshal(w.Body.Bytes(), &rec); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	return rec
+}
+
+func TestIncidentSummarySuccess(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	w := performIncidentRequest(r, http.MethodGet, "/api/v1/incidents/summary", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentSummaryError(t *testing.T) {
+	stub := newIncidentRepoStub()
+	stub.summaryErr = errors.New("db down")
+	r := newIncidentHandlerTestRouter(stub)
+	w := performIncidentRequest(r, http.MethodGet, "/api/v1/incidents/summary", "")
+	if w.Code != http.StatusInternalServerError || !contains(w.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentTransitionSuccess(t *testing.T) {
+	stub := newIncidentRepoStub()
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	body := fmt.Sprintf(`{"expected_version":%d,"status":"confirmed"}`, rec.Version)
+	w := performIncidentRequest(r, http.MethodPatch, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10), body)
+	if w.Code != http.StatusOK || !contains(w.Body.String(), "confirmed") {
+		t.Fatalf("expected 200 confirmed, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentTransitionInvalidStatus(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodPatch, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10),
+		`{"expected_version":1,"status":"bogus"}`)
+	if w.Code != http.StatusConflict || !contains(w.Body.String(), "INVALID_STATUS_TRANSITION") {
+		t.Fatalf("expected 409 INVALID_STATUS_TRANSITION, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentTransitionNotFound(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	w := performIncidentRequest(r, http.MethodPatch, "/api/v1/incidents/999", `{"expected_version":1,"status":"resolved"}`)
+	if w.Code != http.StatusNotFound || !contains(w.Body.String(), "INCIDENT_NOT_FOUND") {
+		t.Fatalf("expected 404 INCIDENT_NOT_FOUND, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentTransitionVersionConflict(t *testing.T) {
+	stub := newIncidentRepoStub()
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	// version is 1, pass stale expected_version=2
+	w := performIncidentRequest(r, http.MethodPatch, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10),
+		`{"expected_version":2,"status":"confirmed"}`)
+	if w.Code != http.StatusConflict || !contains(w.Body.String(), "VERSION_CONFLICT") {
+		t.Fatalf("expected 409 VERSION_CONFLICT, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentTransitionRepoError(t *testing.T) {
+	stub := newIncidentRepoStub()
+	stub.transitionErr = errors.New("db down")
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodPatch, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10),
+		`{"expected_version":1,"status":"resolved"}`)
+	if w.Code != http.StatusInternalServerError || !contains(w.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentAddFollowerSuccess(t *testing.T) {
+	stub := newIncidentRepoStub()
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/followers",
+		`{"user_id":2}`)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentAddFollowerNotFound(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents/999/followers", `{"user_id":2}`)
+	if w.Code != http.StatusNotFound || !contains(w.Body.String(), "INCIDENT_NOT_FOUND") {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentAddFollowerRepoError(t *testing.T) {
+	stub := newIncidentRepoStub()
+	stub.addFollowerErr = errors.New("db down")
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/followers",
+		`{"user_id":2}`)
+	if w.Code != http.StatusInternalServerError || !contains(w.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentRemoveFollowerSuccess(t *testing.T) {
+	stub := newIncidentRepoStub()
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodDelete, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/followers/2", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentRemoveFollowerBadUserID(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodDelete, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/followers/abc", "")
+	if w.Code != http.StatusBadRequest || !contains(w.Body.String(), "INVALID_USER_ID") {
+		t.Fatalf("expected 400 INVALID_USER_ID, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentRemoveFollowerNotFound(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	// hit non-existent incident id → ErrNotFound
+	w := performIncidentRequest(r, http.MethodDelete, "/api/v1/incidents/999/followers/2", "")
+	if w.Code != http.StatusNotFound || !contains(w.Body.String(), "INCIDENT_NOT_FOUND") {
+		t.Fatalf("expected 404 INCIDENT_NOT_FOUND, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentRemoveFollowerRepoError(t *testing.T) {
+	stub := newIncidentRepoStub()
+	stub.removeFollowerErr = errors.New("db down")
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodDelete, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/followers/2", "")
+	if w.Code != http.StatusInternalServerError || !contains(w.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentAddNoteSuccess(t *testing.T) {
+	stub := newIncidentRepoStub()
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	body := fmt.Sprintf(`{"expected_version":%d,"content":"looks bad"}`, rec.Version)
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/notes", body)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentAddNoteNotFound(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents/999/notes", `{"expected_version":1,"content":"nope"}`)
+	if w.Code != http.StatusNotFound || !contains(w.Body.String(), "INCIDENT_NOT_FOUND") {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentAddNoteEmptyContent(t *testing.T) {
+	stub := newIncidentRepoStub()
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	// service returns ErrInvalidNote for blank content
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/notes",
+		fmt.Sprintf(`{"expected_version":%d,"content":"   "}`, rec.Version))
+	if w.Code != http.StatusBadRequest || !contains(w.Body.String(), "INVALID_NOTE") {
+		t.Fatalf("expected 400 INVALID_NOTE, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentAddNoteRepoError(t *testing.T) {
+	stub := newIncidentRepoStub()
+	stub.addNoteErr = errors.New("db down")
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodPost, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/notes",
+		fmt.Sprintf(`{"expected_version":%d,"content":"note"}`, rec.Version))
+	if w.Code != http.StatusInternalServerError || !contains(w.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentSetPostmortemSuccess(t *testing.T) {
+	stub := newIncidentRepoStub()
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodPut, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/postmortem",
+		fmt.Sprintf(`{"expected_version":%d,"content":"root cause found"}`, rec.Version))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentSetPostmortemNotFound(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	w := performIncidentRequest(r, http.MethodPut, "/api/v1/incidents/999/postmortem", `{"expected_version":1,"content":"x"}`)
+	if w.Code != http.StatusNotFound || !contains(w.Body.String(), "INCIDENT_NOT_FOUND") {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentSetPostmortemRepoError(t *testing.T) {
+	stub := newIncidentRepoStub()
+	stub.setPostmortemErr = errors.New("db down")
+	r := newIncidentHandlerTestRouter(stub)
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodPut, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/postmortem",
+		fmt.Sprintf(`{"expected_version":%d,"content":"x"}`, rec.Version))
+	if w.Code != http.StatusInternalServerError || !contains(w.Body.String(), "INTERNAL_ERROR") {
+		t.Fatalf("expected 500, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentExportNotFound(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	w := performIncidentRequest(r, http.MethodGet, "/api/v1/incidents/999/export", "")
+	if w.Code != http.StatusNotFound || !contains(w.Body.String(), "INCIDENT_NOT_FOUND") {
+		t.Fatalf("expected 404, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestIncidentExportSuccess(t *testing.T) {
+	r := newIncidentHandlerTestRouter(newIncidentRepoStub())
+	rec := incCreate(t, r)
+	w := performIncidentRequest(r, http.MethodGet, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/export", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 	}
 }

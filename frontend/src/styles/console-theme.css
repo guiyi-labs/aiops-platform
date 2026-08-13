@@ -1258,7 +1258,7 @@ tbody tr {
   grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 100svh;
   padding: 32px clamp(42px, 5vw, 80px);
-  padding-right: clamp(440px, 46vw, 720px);
+  padding-right: clamp(460px, 49vw, 760px);
   overflow: hidden;
   background:
     linear-gradient(145deg, rgba(23, 40, 38, 0.96) 0%, rgba(17, 28, 27, 0.99) 58%, #121b1a 100%);
@@ -1289,6 +1289,8 @@ tbody tr {
 }
 
 .login-copy {
+  position: relative;
+  z-index: 2;
   align-self: end;
   margin: 0;
   padding-top: clamp(28px, 7vh, 76px);
@@ -1299,6 +1301,8 @@ tbody tr {
 }
 
 .login-visual {
+  position: relative;
+  z-index: 2;
   width: min(100%, 620px);
   margin: 12px 0 0;
   align-self: end;
@@ -1369,10 +1373,10 @@ tbody tr {
 
 .login-page .login-form-panel {
   position: absolute;
-  inset: 0 0 0 auto;
+  inset: 0 clamp(20px, 2.5vw, 48px) 0 auto;
   z-index: 3;
   display: grid;
-  width: min(560px, max(440px, 46vw));
+  width: min(540px, max(430px, 44vw));
   padding: 24px clamp(28px, 3vw, 52px);
   place-items: center;
   background: transparent;
@@ -1502,14 +1506,15 @@ tbody tr {
 /* Radar sweep decoration (left intro, mid section) */
 .login-page .login-intro > .login-radar {
   position: absolute;
-  top: 50%;
-  left: clamp(0px, 6vw, 48px);
+  bottom: clamp(74px, 15vh, 132px);
+  left: clamp(4px, 3vw, 24px);
   z-index: 1;
-  width: clamp(240px, 30vw, 420px);
+  width: clamp(170px, 19vw, 280px);
   aspect-ratio: 1;
-  transform: translateY(-46%);
-  opacity: 0.5;
+  opacity: 0.38;
   pointer-events: none;
+  -webkit-mask-image: radial-gradient(circle at 38% 38%, #000 0%, rgba(0, 0, 0, 0.85) 46%, transparent 74%);
+  mask-image: radial-gradient(circle at 38% 38%, #000 0%, rgba(0, 0, 0, 0.85) 46%, transparent 74%);
 }
 
 .login-radar svg {
@@ -1520,12 +1525,12 @@ tbody tr {
 
 .login-radar .radar-rings circle {
   fill: none;
-  stroke: rgba(94, 234, 212, 0.14);
+  stroke: rgba(94, 234, 212, 0.12);
   stroke-width: 1;
 }
 
 .login-radar .radar-cross line {
-  stroke: rgba(148, 163, 184, 0.08);
+  stroke: rgba(148, 163, 184, 0.07);
   stroke-width: 1;
 }
 
@@ -2169,8 +2174,11 @@ tbody tr {
   }
 
   .login-form-panel {
+    inset: 0;
     z-index: 3;
     display: grid;
+    width: 100%;
+    max-width: none;
     min-height: 100svh;
     margin: 0;
     padding: 210px 14px 24px;

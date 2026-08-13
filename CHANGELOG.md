@@ -90,6 +90,14 @@ Detailed change records for each milestone live under `docs/changes/`.
   下压并收敛外发光（暂停 hover 呼吸辉光），移动端同步；输入框聚焦时前置图标
   轻微抬起 + 青色 drop-shadow；标题 `em` 强调字 7s 慢速渐变流动（桌面生效，
   移动端保持平面青色）。
+- 布局修整（第五轮）：修复 radar 装饰与标题/能力列表重叠——radar 由垂直居中
+  大圆改为左下角小圆（`bottom:clamp(74px,15vh,132px)`、`width:clamp(170px,19vw,280px)`、
+  opacity .5→.38，z-index 1 衬于内容层下，copy/visual 提至 z-index 2）；
+  右侧登录面板不再贴死右缘，`inset` 右留 `clamp(20px,2.5vw,48px)` 呼吸边距，
+  宽度收敛至 `min(540px,max(430px,44vw))`，左侧介绍区 padding-right 同步
+  调至 `clamp(460px,49vw,760px)` 保持左右平衡；radar 追加 radial mask 径向
+  渐隐（圆环外围柔和融入背景），环/十字透明度微降；移动端断点面板重置
+  `inset:0; width:100%` 防边距残留。
 - See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
 
 ## [Unreleased]

@@ -156,11 +156,47 @@
   全部新规则。
 - 非持久部署的固化待办同前（网络恢复后重建镜像）。
 
+## Follow-up — Layout Fix & Refined Composition（第五轮）
+
+按 UI 复评审意见修三件事：①radar 与标题/能力列表视觉重叠；②右侧登录面板
+贴死右缘；③整体构图"角度"与细致度。全部改在 `console-theme.css`，不动模板：
+
+- **修复重叠**：radar 由 `top:50%` 垂直居中大圆（`width:clamp(240px,30vw,420px)`、
+  `translateY(-46%)`）改为**左下角装饰小圆**——`bottom:clamp(74px,15vh,132px)`、
+  `left:clamp(4px,3vw,24px)`、`width:clamp(170px,19vw,280px)`、opacity .5→.38、
+  移除 translateY。同时 `.login-copy` / `.login-visual` 补 `position:relative;
+  z-index:2`，radar 保持 z-index:1，确保任何重叠情形下装饰都衬于内容之下。
+- **面板不再贴右**：`.login-form-panel` 的 `inset` 从贴死右缘
+  `0 0 0 auto` 改为 `0 clamp(20px,2.5vw,48px) 0 auto`，右缘留出呼吸边距；
+  宽度从 `min(560px,max(440px,46vw))` 收敛为 `min(540px,max(430px,44vw))`；
+  左侧 `.login-intro` padding-right 同步调为 `clamp(460px,49vw,760px)`，
+  左右留白重新平衡，构图更居中沉稳。
+- **细致优化**：radar 追加 `mask-image: radial-gradient(circle at 38% 38%, #000 0%,
+  rgba(0,0,0,.85) 46%, transparent 74%)` 径向渐隐，圆环外围柔和融入背景；
+  环 `stroke` 透明度 .14→.12、十字线 .08→.07，降噪不抢戏。
+- **移动端防残留**：max-width:720px 断点内面板补 `inset:0; width:100%;
+  max-width:none`，避免右侧 inset 边距在移动端残留导致面板偏左。
+
+### Verification（第五轮）
+
+- `./node_modules/.bin/vite build`：✓ built，exit 0。
+- 浏览器计算样式实测（视口 1022×648，命中矮屏断点 radar 隐藏属预期）：
+  面板 `inset` 计算为 `0px 25.55px 0px 546.781px` → 右缘距视口 26px 呼吸
+  空间生效；intro padding-right ≈500px，左右平衡。
+- 临时注入样式强制显示 radar 测得实际位置 (24,357,194,194)：与 copy
+  （y78-301）完全错开；与 visual（y358-624）仅在底部区域部分重叠，且
+  z-index 1 < 2 衬于其下，不压任何文字。
+- 线上验证：第二次构建产物 `index-Cu24bNfX.css` + `index-znjG75sm.js` 已
+  docker cp 覆盖进 `k8s-aiops-frontend-1`，`curl /login` 引用新 hash；CSS
+  实测含 radar 新定位/mask-image/面板 inset 全部规则。
+- 非持久部署的固化待办同前（网络恢复后重建镜像）。
+
 ## Risks / Notes
 
 - **容器重建后回退**：18080 当前为容器内覆盖的 dist，`docker compose up -d`
   或容器重建会回到镜像旧版；请尽快在网络恢复后重建镜像（见 Deployment 节）。
-  建议后续在宽屏浏览器人工复核一次 radar 与能力列表/标题的实际叠加效果。
-- radar 与内容层 z-index 同为 1（DOM 顺序 radar 在前），属于"装饰衬于内容下"的
-  预期分层；若后续内容区需要更高叠层，请同步调整。
+  建议后续在宽屏浏览器人工复核一次整体构图与动效观感。
+- radar 为 `z-index:1` 底层装饰，`.login-copy` / `.login-visual` 提至
+  `z-index:2`（`.login-form-panel` 为 `z-index:3`），任何情形下装饰都衬于
+  内容之下；若后续内容区需要更高叠层，请同步调整。
 - 全部新元素 `aria-hidden="true"` 或 `role="list"`，不影响无障碍树与表单可访问性。

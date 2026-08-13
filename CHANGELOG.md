@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M109 工程卓越起步：fuzz 扩展 + 覆盖率提升
+
+- Fuzz：`FuzzEngineCorrelate`（correlation 引擎结构化随机输入，永不 panic + 结果一致性）、`FuzzCanTransition` / `FuzzTransitionSequence`（incident 状态机真值表 + Service 层 CAS 序列）。实测 FuzzEngineCorrelate 15s ≈189K execs、FuzzCanTransition 10s ≈1.2M execs、FuzzTransitionSequence 15s ≈1.5M execs 全绿。
+- 覆盖率：全局 60.6%→**60.9%**；重点包 incident 40.0%→43.1%、correlation 64.7%→67.2%、signal 56.4%→63.9%（补 List/Summary、assignFailureCode、SLA monitor Run、signal Get/IngestBatch/NopSourceReader、drain Run 生命周期、computeReasonCode、SourceRefForCorrelation）。
+- See [change record](docs/changes/2026-08-13-m109-fuzz-coverage.md)。
+
+
+
 ### Changed - M108 关联收口：集群级信号关联段 + demo-drill 41/41
 
 - 后端：`correlation.Worker` 命名空间段后追加 all-namespace 段，Node 级信号（namespace 为空）也能被关联（`maintenance_causes_node_failure` 等集群级规则生效）；upsert 按 case_key 归并，幂等。

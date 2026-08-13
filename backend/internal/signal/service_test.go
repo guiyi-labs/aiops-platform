@@ -2,6 +2,7 @@ package signal
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -241,4 +242,40 @@ func (m mockSourceReader) Completeness(context.Context, *int64, string) map[Prod
 func (m mockSourceReader) ActiveDiagnoses(context.Context, *int64, string) int64 { return 0 }
 func (m mockSourceReader) RecentChanges(context.Context, *int64, string, time.Time) ([]OverviewChange, OverviewOutcomes, error) {
 	return nil, OverviewOutcomes{}, nil
+}
+
+func TestService_GetNotFoundWithNopRepository(t *testing.T) {
+	svc := NewService(ServiceOptions{}) // nil repo -> NopRepository
+	if _, err := svc.Get(context.Background(), 123); !errors.Is(err, ErrSignalNotFound) {
+		t.Fatalf("Get err = %v, want ErrSignalNotFound", err)
+	}
+}
+
+func TestService_IngestBatchCountsSuccesses(t *testing.T) {
+	svc := NewService(ServiceOptions{}) // nil repo -> NopRepository, writes ignored
+	reqs := []IngestRequest{
+		{SignalID: "diag.pod.pending.v1", ClusterID: 1, Resource: ResourceCitation{Kind: "Pod", Namespace: "default", Name: "web-0"}, ObservedAt: time.Now()},
+		{SignalID: "bogus.signal.v1", ClusterID: 1, Resource: ResourceCitation{Kind: "Pod", Name: "x"}, ObservedAt: time.Now()},
+		{SignalID: "diag.pod.pending.v1", ClusterID: 1, Resource: ResourceCitation{Kind: "Pod", Name: "web-1"}, ObservedAt: time.Now()},
+	}
+	ok, err := svc.IngestBatch(context.Background(), reqs)
+	if err == nil {
+		t.Fatal("expected first error from batch with unregistered signal")
+	}
+	if ok != 2 {
+		t.Fatalf("IngestBatch ok = %d, want 2", ok)
+	}
+}
+
+func TestNopSourceReaderDefaults(t *testing.T) {
+	r := NopSourceReader{}
+	if got := r.Completeness(context.Background(), nil, ""); got == nil || len(got) != 0 {
+		t.Fatalf("Completeness = %v, want empty map", got)
+	}
+	if got := r.ActiveDiagnoses(context.Background(), nil, ""); got != 0 {
+		t.Fatalf("ActiveDiagnoses = %d, want 0", got)
+	}
+	if items, outcomes, err := r.RecentChanges(context.Background(), nil, "", time.Now()); err != nil || items != nil || outcomes != (OverviewOutcomes{}) {
+		t.Fatalf("RecentChanges = %v/%v/%v, want nil/empty/nil", items, outcomes, err)
+	}
 }

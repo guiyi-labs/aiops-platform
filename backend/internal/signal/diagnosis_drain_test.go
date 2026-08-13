@@ -137,3 +137,32 @@ func TestDiagnosisDrainToleratesListAndIngestFailures(t *testing.T) {
 		t.Errorf("watermark = %v, want advanced despite ingest failures", d.watermark)
 	}
 }
+
+func TestDiagnosisDrainRunLifecycle(t *testing.T) {
+	// Run() sets its watermark to the current time on start; the record must
+	// be strictly newer so the immediate pass picks it up.
+	recordTime := time.Now().Add(2 * time.Second)
+	reader := &fakeDiagnosisListReader{records: []diagnosis.Record{
+		drainRecord(1, diagnosis.RuleNodeNotReady, recordTime),
+	}}
+	repo := &drainCaptureRepo{}
+	svc := NewService(ServiceOptions{Repository: repo})
+	d := NewDiagnosisDrain(DrainConfig{Interval: time.Hour, PageSize: 10}, reader, svc, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		d.Run(ctx)
+		close(done)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not stop after context cancellation")
+	}
+	if len(repo.occurrences) != 1 {
+		t.Fatalf("Run ingested %d occurrences, want 1 (immediate pass)", len(repo.occurrences))
+	}
+}

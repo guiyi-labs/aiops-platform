@@ -170,3 +170,23 @@ func TestBuildTriggerLinkZeroFreshnessIsNil(t *testing.T) {
 		t.Errorf("coverage should be empty when input omits it, got %q", link.Coverage)
 	}
 }
+
+func TestComputeReasonCode(t *testing.T) {
+	rule := RuleDescriptor{ReasonCode: "rollout_precedes_pod_failure"}
+	cases := []struct {
+		conf   ConfidenceClass
+		change ChangeEventInput
+		want   string
+	}{
+		{ConfidenceConfirmed, ChangeEventInput{Result: "failed"}, rule.ReasonCode},
+		{ConfidenceCandidate, ChangeEventInput{Result: "succeeded"}, "change_succeeded_but_symptoms_persist"},
+		{ConfidenceCandidate, ChangeEventInput{Result: "failed"}, "partial_factor_match"},
+		{ConfidenceContradicted, ChangeEventInput{}, "contradicting_evidence"},
+		{ConfidenceUnknown, ChangeEventInput{}, "insufficient_evidence"},
+	}
+	for _, c := range cases {
+		if got := computeReasonCode(rule, c.conf, c.change); got != c.want {
+			t.Errorf("computeReasonCode(%s, %+v) = %q, want %q", c.conf, c.change, got, c.want)
+		}
+	}
+}

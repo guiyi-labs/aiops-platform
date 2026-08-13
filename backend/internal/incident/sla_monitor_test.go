@@ -116,3 +116,26 @@ func TestSLAMonitorDisabledIsNoop(t *testing.T) {
 		t.Fatalf("disabled monitor must not enqueue, got %d", len(enqueuer.events))
 	}
 }
+
+func TestSLAMonitorRunLifecycle(t *testing.T) {
+	candidates := &slaCandidateStub{items: []SLACandidate{{IncidentID: 1, Number: "INC-000001"}}}
+	enqueuer := &slaEnqueuerStub{}
+	monitor := NewSLAMonitor(SLAMonitorConfig{Enabled: true, PollInterval: time.Hour, BatchSize: 50}, candidates, enqueuer, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		monitor.Run(ctx)
+		close(done)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run did not stop after context cancellation")
+	}
+	if !candidates.breachedCalled {
+		t.Error("Run did not evaluate breached reminders before stopping")
+	}
+}

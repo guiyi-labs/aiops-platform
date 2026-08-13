@@ -764,3 +764,59 @@ func TestService_FindBySource(t *testing.T) {
 		t.Errorf("missing source err = %v, want ErrNotFound", err)
 	}
 }
+
+func TestService_ListAndSummary(t *testing.T) {
+	repo := newFakeRepository()
+	svc := NewService(repo)
+	first, err := svc.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeFinding,
+		SourceRef:  "finding:list-1",
+		ClusterID:  1,
+		Title:      "list item",
+		Severity:   SeverityWarning,
+		Resource:   ResourceRef{Kind: "Pod", Name: "web-0"},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := svc.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeFinding,
+		SourceRef:  "finding:list-2",
+		ClusterID:  2,
+		Title:      "list item 2",
+		Severity:   SeverityInfo,
+		Resource:   ResourceRef{Kind: "Node", Name: "demo-node"},
+	}); err != nil {
+		t.Fatalf("create 2: %v", err)
+	}
+
+	items, err := svc.List(context.Background(), ListFilter{ClusterID: 1})
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(items) != 1 || items[0].ID != first.ID {
+		t.Fatalf("list = %+v, want only cluster 1 incident", items)
+	}
+
+	sum, err := svc.Summary(context.Background())
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if sum.Total != 2 {
+		t.Errorf("summary total = %d, want 2", sum.Total)
+	}
+}
+
+func TestAssignFailureCode(t *testing.T) {
+	cases := map[error]string{
+		ErrNotFound:         "INCIDENT_NOT_FOUND",
+		ErrVersionConflict:  "VERSION_CONFLICT",
+		ErrAssigneeNotFound: "ASSIGNEE_NOT_FOUND",
+		errors.New("boom"):  "INTERNAL_ERROR",
+	}
+	for err, want := range cases {
+		if got := assignFailureCode(err); got != want {
+			t.Errorf("assignFailureCode(%v) = %q, want %q", err, got, want)
+		}
+	}
+}

@@ -58,7 +58,10 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
   Desktop/Mobile 截图基线 + 像素容差（复用 M96 截图基线机制；登录页 13 轮成果一并纳入）。
   ✅ 登录页基线已落地：`scripts/capture-ui-baselines.mjs`（capture/`--verify`）+ 
   `docs/ui-baselines/`（Desktop 1440×900 / Mobile 375×812，像素 diff+掩码+确定性随机），
-  见 `docs/changes/2026-08-13-ui-baseline-screenshots.md`；其余视图依次纳入 `views` 即可。
+  见 `docs/changes/2026-08-13-ui-baseline-screenshots.md`；控制台首批 4 页
+  （Dashboard `/`、Clusters `/clusters`、Workloads `/workloads`、Diagnoses `/diagnoses`，
+  鉴权捕获）已一并纳入并 `--verify` 全绿，见
+  `docs/changes/2026-08-13-ui-baseline-console-pages.md`；其余视图依次追加 `views` 即可。
 - **响应式审计**：35 个视图在 ≤720px 的可用性（表格横向滚动、工具栏折叠、抽屉全屏化）。
 - **交互统一**：SkeletonCard / EmptyState / 错误重试 / toast 语义在全部视图落地一致；
   axe 双视口 0 critical/serious，console error = 0。

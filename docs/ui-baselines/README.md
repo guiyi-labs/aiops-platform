@@ -39,10 +39,21 @@ node scripts/capture-ui-baselines.mjs --verify
    `manifest.json` 的 `masks`，对比时跳过该区域（登录页掩码为
    `.login-signal:nth-child(3) b` 的本地时间）。
 
+## 已收录视图
+
+| view | route | readyText | 鉴权 |
+|---|---|---|---|
+| login | `/login` | 进入控制台 | 否（时钟区掩码） |
+| dashboard | `/` | 集群态势 | 是 |
+| clusters | `/clusters` | 多集群管理 | 是 |
+| workloads | `/workloads` | 资源工作台 | 是 |
+| diagnoses | `/diagnoses` | 故障分析 | 是 |
+
 ## 新增视图基线
 
-在脚本 `views` 数组中追加 `{ name, path, readyText, masks? }` 条目即可；
-`viewportSet` 默认 Desktop 1440×900 / Mobile 375×812 两档。
+在脚本 `views` 数组中追加 `{ name, path, readyText, auth?, masks? }` 条目即可；
+`auth: true` 会先以 `AIOPS_UI_USERNAME`/`AIOPS_UI_PASSWORD`（默认 admin/admin123）
+幂等登录（已认证则跳过）。`viewportSet` 默认 Desktop 1440×900 / Mobile 375×812 两档。
 
 ## 已知边界
 

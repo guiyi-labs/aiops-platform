@@ -28,6 +28,8 @@ const baselineDir = path.resolve(process.env.AIOPS_UI_BASELINES_DIR || path.join
 const manifestPath = path.join(baselineDir, 'manifest.json')
 const imagesDir = path.join(baselineDir, 'images')
 const diffThreshold = Number(process.env.AIOPS_UI_DIFF_THRESHOLD || '0.002') // 0.2% tolerated pixels
+const uiUsername = process.env.AIOPS_UI_USERNAME || 'admin'
+const uiPassword = process.env.AIOPS_UI_PASSWORD || 'admin123'
 
 const CHROME =
   process.env.AIOPS_BROWSER_PATH ||
@@ -50,6 +52,38 @@ const views = [
     readyText: '进入控制台',
     settleMs: 1400,
     masks: ['document.querySelectorAll(".login-signal")[2]?.querySelector("b")'],
+  },
+  {
+    name: 'dashboard',
+    path: '/',
+    readyText: '集群态势',
+    settleMs: 1600,
+    auth: true,
+    masks: [],
+  },
+  {
+    name: 'clusters',
+    path: '/clusters',
+    readyText: '多集群管理',
+    settleMs: 1400,
+    auth: true,
+    masks: [],
+  },
+  {
+    name: 'workloads',
+    path: '/workloads',
+    readyText: '资源工作台',
+    settleMs: 1400,
+    auth: true,
+    masks: [],
+  },
+  {
+    name: 'diagnoses',
+    path: '/diagnoses',
+    readyText: '故障分析',
+    settleMs: 1400,
+    auth: true,
+    masks: [],
   },
 ]
 
@@ -171,6 +205,37 @@ function rectWithin(rect, viewport) {
   return { x, y, w, h }
 }
 
+async function login(client) {
+  await client.send('Page.navigate', { url: `${baseUrl}/login` })
+  await waitFor(client, `document.readyState === 'complete'`, 'login document load')
+  const alreadyAuthenticated = await evaluate(client, `location.pathname !== '/login'`)
+  if (alreadyAuthenticated) {
+    await delay(800)
+    return
+  }
+  await waitFor(
+    client,
+    `document.querySelector('#username') && document.querySelector('#password')`,
+    'login form',
+  )
+  await evaluate(
+    client,
+    `(() => {
+      const username = document.querySelector('#username')
+      const password = document.querySelector('#password')
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+      setter.call(username, ${JSON.stringify(uiUsername)})
+      username.dispatchEvent(new Event('input', { bubbles: true }))
+      setter.call(password, ${JSON.stringify(uiPassword)})
+      password.dispatchEvent(new Event('input', { bubbles: true }))
+      document.querySelector('.login-card').requestSubmit()
+      return true
+    })()`,
+  )
+  await waitFor(client, `location.pathname !== '/login'`, 'successful login')
+  await delay(800)
+}
+
 async function captureEntry(client, view, viewport) {
   const mobile = viewport.width < 600
   await client.send('Emulation.setDeviceMetricsOverride', {
@@ -182,6 +247,7 @@ async function captureEntry(client, view, viewport) {
   await client.send('Emulation.setEmulatedMedia', {
     features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
   })
+  if (view.auth) await login(client)
   await navigate(client, `${baseUrl}${view.path}`, view.readyText)
   await delay(view.settleMs || 1200)
 

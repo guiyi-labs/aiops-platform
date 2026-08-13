@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "generatedAt": "2026-08-13T15:37:02.858Z",
-  "commit": "0da3462",
+  "generatedAt": "2026-08-13T15:45:51.693Z",
+  "commit": "e1d45f7",
   "baseUrl": "http://127.0.0.1:18080",
   "motion": "reduce",
   "diffThreshold": 0.002,
@@ -11,9 +11,9 @@
       "path": "/login",
       "viewport": "1440x900",
       "file": "images/login-desktop-1440x900.png",
-      "sha256": "787515e5c74fab9b35d9b3451e3d6e4c470bd69426636b4e14775265c2d0ed4d",
-      "bytes": 496798,
-      "commit": "0da3462",
+      "sha256": "e35d08eda76cebcd06c3bf73a5c50aa9543f89fe026f8a7159f338c73469f307",
+      "bytes": 496749,
+      "commit": "e1d45f7",
       "motion": "reduce",
       "masks": [
         {
@@ -31,7 +31,95 @@
       "file": "images/login-mobile-375x812.png",
       "sha256": "c1eacc64d1888823d5d745b801382c6fb866f4ae6ff47e7674c217fd0120efee",
       "bytes": 59583,
-      "commit": "0da3462",
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "dashboard",
+      "path": "/",
+      "viewport": "1440x900",
+      "file": "images/dashboard-desktop-1440x900.png",
+      "sha256": "8c5a84dbd3eb07155f2ba1a4874e2187fa7aee0634df507a9d79ae4e6397c306",
+      "bytes": 169271,
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "dashboard",
+      "path": "/",
+      "viewport": "375x812",
+      "file": "images/dashboard-mobile-375x812.png",
+      "sha256": "fa936811ea0bba41c5b1797323bf097afccda71b7ca068e3814327994120770a",
+      "bytes": 74717,
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "clusters",
+      "path": "/clusters",
+      "viewport": "1440x900",
+      "file": "images/clusters-desktop-1440x900.png",
+      "sha256": "942ebbf2c9a0ee6fb1abe7c3793bffaa220c1edd4b77737956ad16bcfa3c2e81",
+      "bytes": 100865,
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "clusters",
+      "path": "/clusters",
+      "viewport": "375x812",
+      "file": "images/clusters-mobile-375x812.png",
+      "sha256": "25820f953c7f852a9527cd566426ef5806cced7c9e8090b29043ce6b225b1980",
+      "bytes": 42095,
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "workloads",
+      "path": "/workloads",
+      "viewport": "1440x900",
+      "file": "images/workloads-desktop-1440x900.png",
+      "sha256": "7b632d454ab1da89c1cf363bcc7e22ebcfecdf06f6d36b028c6c7385031c00ce",
+      "bytes": 121541,
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "workloads",
+      "path": "/workloads",
+      "viewport": "375x812",
+      "file": "images/workloads-mobile-375x812.png",
+      "sha256": "0d03e6410307dfe2f478ac4af10a29c26fa8634da1ca72e9e10370f67ae98fac",
+      "bytes": 55503,
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "diagnoses",
+      "path": "/diagnoses",
+      "viewport": "1440x900",
+      "file": "images/diagnoses-desktop-1440x900.png",
+      "sha256": "79932b26ab9a3919c8ccbcaf7fe66dd59413be7ea03b4eff2a039ae2d2386ec2",
+      "bytes": 107019,
+      "commit": "e1d45f7",
+      "motion": "reduce",
+      "masks": []
+    },
+    {
+      "view": "diagnoses",
+      "path": "/diagnoses",
+      "viewport": "375x812",
+      "file": "images/diagnoses-mobile-375x812.png",
+      "sha256": "ca1d70984a4b3e194c270d06438df8a22a2996ae44bf5b5a1d592475b1147400",
+      "bytes": 50641,
+      "commit": "e1d45f7",
       "motion": "reduce",
       "masks": []
     }

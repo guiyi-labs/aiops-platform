@@ -22,6 +22,17 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 sed]
 
+### Added - UI 截图基线扩展：控制台关键页面（鉴权捕获）
+
+- `scripts/capture-ui-baselines.mjs` 新增幂等 `login()`（原生 value setter + requestSubmit，
+  默认 admin/admin123，`AIOPS_UI_USERNAME/PASSWORD` 可覆盖），把截图基线机制扩展到
+  控制台页面。
+- 新收录 4 个鉴权页面 × Desktop 1440×900 / Mobile 375×812：`/`（集群态势）、
+  `/clusters`（多集群管理）、`/workloads`（资源工作台）、`/diagnoses`（故障分析）。
+- 基线共 10 条，`--verify` 全绿：login desktop diff 0.000%，其余 9 条 sha256 一致
+  （控制台页面当前为无集群空态，数据稳定故像素确定）。
+- See [change record](docs/changes/2026-08-13-ui-baseline-console-pages.md)。
+
 ### Changed - 登录页视觉第 15 轮：短视口纵向适配
 
 - 短屏手机（`max-width:720px and max-height:780px`）：隐藏顶部 brand/copy 文案层，

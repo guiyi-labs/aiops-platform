@@ -39,3 +39,7 @@ tmp/
 # Playwright
 playwright-report/
 test-results/
+
+# agent scratch workspaces (non-deliverable)
+.qoder/
+.workbuddy/

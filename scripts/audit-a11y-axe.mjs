@@ -231,7 +231,7 @@ async function auditView(client, view, viewport) {
         (e.method === 'Runtime.exceptionThrown') ||
         (e.method === 'Log.entryAdded' && e.params?.entry?.level === 'error'),
     )
-    const probes = all.filter((e) => e.method === 'Log.entryAdded' && /401/.test(e.params?.entry?.text || ''))
+    const probes = all.filter((e) => e.method === 'Log.entryAdded' && /401|responded with a status of 404/.test(e.params?.entry?.text || ''))
     const exceptions = all.filter((e) => !probes.includes(e))
     return { probes: probes.length, exceptions }
   }

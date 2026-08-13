@@ -94,10 +94,14 @@ async function loadRepos() {
   }
 }
 
-async function loadPlans() {
+async function loadPlans(clusterId?: number) {
   loadingPlans.value = true
   try {
-    plans.value = (await listAppCatalogPlans(auth.accessToken)).items
+    if (!clusterId) {
+      plans.value = []
+      return
+    }
+    plans.value = (await listAppCatalogPlans(auth.accessToken, { cluster_id: clusterId })).items
   } catch {
     // 计划加载失败不阻塞
   } finally {
@@ -224,7 +228,7 @@ async function runExecute() {
   try {
     plan.value = await executeDeploy(auth.accessToken, plan.value.id, plan.value.confirmation_token, crypto.randomUUID())
     notice.value = '部署已执行完成'
-    await loadPlans()
+    await loadPlans(clusters.value[0]?.id)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '执行失败，Kubernetes 可能拒绝了变更'
   } finally {
@@ -246,7 +250,8 @@ function formatTime(value?: string): string {
 const diffText = computed(() => (plan.value?.deploy_diff ? JSON.stringify(plan.value.deploy_diff, null, 2) : ''))
 
 onMounted(async () => {
-  await Promise.all([loadClusters(), loadRepos(), loadPlans()])
+  await loadClusters()
+  await Promise.all([loadRepos(), loadPlans(clusters.value[0]?.id)])
 })
 </script>
 
@@ -463,7 +468,7 @@ onMounted(async () => {
     <section class="catalog-panel">
       <header class="panel-header">
         <div class="panel-title"><Package :size="16" /><strong>部署计划</strong></div>
-        <button class="secondary-button" type="button" :disabled="loadingPlans" @click="loadPlans"><RefreshCw :size="14" :class="{ spinning: loadingPlans }" />刷新</button>
+        <button class="secondary-button" type="button" :disabled="loadingPlans" @click="loadPlans(clusters[0]?.id)"><RefreshCw :size="14" :class="{ spinning: loadingPlans }" />刷新</button>
       </header>
       <div v-if="loadingPlans" class="empty-hint">正在加载计划…</div>
       <table v-else-if="plans.length > 0" class="data-table">

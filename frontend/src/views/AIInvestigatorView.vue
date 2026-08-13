@@ -131,11 +131,14 @@ async function loadCases() {
   casesLoading.value = true
   casesError.value = ''
   try {
-    const [clusterResp, caseResp] = await Promise.all([
-      listClusters(auth.accessToken),
-      listCorrelationCases(auth.accessToken, { limit: 100 }),
-    ])
+    const clusterResp = await listClusters(auth.accessToken)
     clusters.value = clusterResp.items ?? []
+    const clusterId = clusters.value[0]?.id
+    if (!clusterId) {
+      cases.value = []
+      return
+    }
+    const caseResp = await listCorrelationCases(auth.accessToken, { cluster_id: clusterId, limit: 100 })
     cases.value = caseResp.items ?? []
     if (cases.value.length > 0 && selectedCaseId.value === null) {
       selectedCaseId.value = cases.value[0].id

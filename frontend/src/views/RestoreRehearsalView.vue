@@ -166,7 +166,7 @@ onMounted(() => void initialize().then(() => void loadPlans()))
         <RefreshCw :size="16" :class="{ spin: loading }" />
         <span>刷新</span>
       </button>
-      <select v-model="selectedClusterID" class="cluster-select" :disabled="clusters.length === 0">
+      <select v-model="selectedClusterID" class="cluster-select" aria-label="选择集群" :disabled="clusters.length === 0">
         <option v-for="cluster in clusters" :key="cluster.id" :value="cluster.id">{{ cluster.name }}</option>
       </select>
     </template>

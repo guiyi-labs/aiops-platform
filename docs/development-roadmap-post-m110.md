@@ -66,13 +66,16 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
   全绿；audit-logs 因实时追加内容仅纳入 axe 不纳入像素基线。首批见
   `docs/changes/2026-08-13-ui-baseline-screenshots.md` / `2026-08-13-ui-baseline-console-pages.md`，
   第三批见 `docs/changes/2026-08-14-ui-baseline-batch3.md`。
-- **响应式审计**：35 个视图在 ≤720px 的可用性（表格横向滚动、工具栏折叠、抽屉全屏化）。
+- **响应式审计**：31 个视图在 ≤720px 的可用性（表格横向滚动、工具栏折叠、抽屉全屏化）。
+  ✅ 全量落地：31/31 视图 375px 审计 `overflowX=false`、无可点击元素出屏，见
+  `docs/changes/2026-08-14-a11y-fixes-batch3.md`。
 - **交互统一**：SkeletonCard / EmptyState / 错误重试 / toast 语义在全部视图落地一致；
   axe 双视口 0 critical/serious，console error = 0。
-  ✅ 门禁脚本已落地并全量铺开：`scripts/audit-a11y-axe.mjs`（CDP+axe-core，双视口，
-  0 critical/serious/0 app 错误），覆盖 **32 视图**（含 audit-logs），并修复
-  Workloads Tab 对比度 serious，见 `docs/changes/2026-08-14-a11y-axe-audit.md`、
-  `docs/changes/2026-08-14-ui-baseline-batch3.md`。
+  ✅ 门禁脚本已落地并全量收口：`scripts/audit-a11y-axe.mjs`（CDP+axe-core，双视口，
+  0 critical/serious/0 app errors），覆盖 **32 视图**（含 audit-logs），
+  62 条截图基线 `--verify` 全绿；并修复 Workloads Tab / 用户页 / audit-logs 对比度、
+  select 无障碍、缺 cluster_id 400 缺陷，见 `docs/changes/2026-08-14-a11y-axe-audit.md`、
+  `docs/changes/2026-08-14-ui-baseline-batch3.md`、`2026-08-14-a11y-fixes-batch3.md`。
 - **性能**：沿用 M93-B2 登录页预算与 M96 前端 DOM 硬上限，不破坏既有预算基线。
 
 **衔接契约（必须满足）**：门禁 `pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm build`

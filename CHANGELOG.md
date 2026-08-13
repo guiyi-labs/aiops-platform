@@ -22,6 +22,21 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 
 
+### Added - Track A 无障碍修复·第三批（axe 32 视图收口 + 375px 全量响应式）
+
+- 修复 6 类 axe 违规：`--status-danger` 全局变暗 `#dc2626 → #b91c1c`（5.01:1），
+  `.user-avatar` 底加深（4.09→5.46:1），用户页 4 处灰字迁 token（`#89959a` 等
+  → `var(--gray-500/600)`），3 个 select 增 `aria-label="选择集群"`。
+- 修复 2 处前端 400 缺陷：`AppCatalogView` / `AIInvestigatorView` 的
+  `listAppCatalogPlans` / `listCorrelationCases` 必须携带 `cluster_id`，
+  无集群时置空（此前无参触发 400 Bad Request）。
+- `scripts/audit-a11y-axe.mjs`：`classify()` 将 `status of 404` 网络错误归为
+  probes（后端 feature-gate 路由在本地环境未注册属预期）。
+- axe 32 视图 × 双视口全量 **PASS**（0 critical/serious / 0 app errors）；
+  62 条截图基线 `--verify` 59 IDENTICAL + 3 PASS；
+  375px 响应式 31/31 视图无溢出/无可达元素裁切。
+- See [change record](docs/changes/2026-08-14-a11y-fixes-batch3.md)。
+
 ### Added - UI 基线/axe/响应式扩展·第三批（Track A 全量铺开）
 
 - 截图基线 + axe 审计覆盖扩展至全部前台视图（20 个新视图：全局搜索 `/search`、

@@ -1223,7 +1223,7 @@ tbody tr {
   grid-template-rows: auto auto minmax(0, 1fr);
   min-height: 100svh;
   padding: 32px clamp(42px, 5vw, 80px);
-  padding-right: clamp(490px, 42vw, 620px);
+  padding-right: clamp(440px, 46vw, 720px);
   overflow: hidden;
   background:
     linear-gradient(145deg, rgba(23, 40, 38, 0.96) 0%, rgba(17, 28, 27, 0.99) 58%, #121b1a 100%);
@@ -1337,8 +1337,8 @@ tbody tr {
   inset: 0 0 0 auto;
   z-index: 3;
   display: grid;
-  width: min(440px, 100vw);
-  padding: 24px clamp(24px, 3vw, 48px);
+  width: min(560px, max(440px, 46vw));
+  padding: 24px clamp(28px, 3vw, 52px);
   place-items: center;
   background: transparent;
 }
@@ -1348,8 +1348,10 @@ tbody tr {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, transparent 0%, rgba(5, 12, 14, 0.16) 72%, rgba(5, 12, 14, 0.4) 100%);
-  border-left: 1px solid rgba(148, 163, 184, 0.1);
+    radial-gradient(640px 480px at 58% 42%, rgba(45, 212, 191, 0.075), transparent 68%),
+    radial-gradient(420px 300px at 100% 0%, rgba(129, 140, 248, 0.05), transparent 62%),
+    linear-gradient(90deg, transparent 0%, rgba(5, 12, 14, 0.14) 62%, rgba(5, 12, 14, 0.42) 100%);
+  border-left: 1px solid rgba(94, 234, 212, 0.14);
   pointer-events: none;
 }
 
@@ -1357,11 +1359,13 @@ tbody tr {
   position: relative;
   z-index: 1;
   overflow: hidden;
+  width: min(100%, 470px);
+  padding: 46px 48px 42px;
   color: #f8fafc;
-  background: rgba(18, 31, 29, 0.84);
+  background: rgba(18, 31, 29, 0.86);
   border-color: rgba(148, 163, 184, 0.2);
-  border-radius: 8px;
-  box-shadow: 0 28px 72px -34px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.025) inset;
+  border-radius: 16px;
+  box-shadow: 0 28px 72px -34px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   backdrop-filter: blur(20px) saturate(120%);
   transition:
     border-color 240ms ease,
@@ -1372,6 +1376,81 @@ tbody tr {
 .login-card:hover {
   box-shadow: 0 32px 78px -34px rgba(0, 0, 0, 0.98), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
 }
+
+/* ---- M93-B1b: login panel presence & scale refinements ---- */
+.login-card .login-card-rail {
+  height: 4px;
+}
+
+.login-card .login-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+}
+
+.login-card .login-icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.login-card .context-label {
+  margin-top: 26px;
+  font-size: 12.5px;
+}
+
+.login-card h2 {
+  font-size: 28px;
+  line-height: 1.25;
+  letter-spacing: -0.2px;
+}
+
+.login-card .form-hint {
+  margin: 10px 0 30px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.login-card label {
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  letter-spacing: 0.2px;
+}
+
+.login-card .login-field {
+  height: 52px;
+  margin-bottom: 20px;
+  border-radius: 9px;
+}
+
+.login-card .login-field > svg:first-child {
+  left: 15px;
+}
+
+.login-card .login-field input,
+.login-card .login-field input:focus {
+  height: 50px;
+  padding: 0 48px 0 42px;
+  font-size: 15px;
+}
+
+.login-card .password-visibility {
+  right: 6px;
+  width: 36px;
+  height: 36px;
+}
+
+.login-card .login-submit {
+  height: 52px;
+  border-radius: 9px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.login-card .login-security-status {
+  margin-top: 20px;
+  font-size: 12px;
+}
+/* ---- /M93-B1b ---- */
 
 .login-card .context-label {
   color: #6ee7d0;
@@ -1719,7 +1798,7 @@ tbody tr {
   }
 
   .login-card {
-    padding: 30px;
+    padding: 34px 36px 32px;
   }
 }
 
@@ -1785,7 +1864,7 @@ tbody tr {
 
   .login-card {
     width: 100%;
-    padding: 25px 22px 23px;
+    padding: 26px 24px 26px;
     background: rgba(17, 30, 28, 0.91);
     box-shadow: 0 24px 58px -28px rgba(0, 0, 0, 0.96), 0 0 0 1px rgba(255, 255, 255, 0.025) inset;
   }

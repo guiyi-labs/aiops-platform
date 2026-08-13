@@ -9,6 +9,19 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - Login Panel Enhance (Frontend UX Track)
+
+- 登录页大气化：`console-theme.css` 右侧 `.login-form-panel` 加宽至
+  `min(560px, max(440px, 46vw))`，`.login-page` 左侧介绍区 `padding-right` 同步
+  `clamp(440px, 46vw, 720px)`；`.login-card` 显式放大至 `width:min(100%,470px)`、
+  内边距 `46px 48px 42px`、圆角 16px、背景加深 `rgba(18,31,29,.86)`。
+- 面板「舞台感」：`::before` 新增双径向 + 线性渐变辉光背板与青色左边框
+  `rgba(94,234,212,.14)`，消除"角落小卡片"观感。
+- 内部元素精修（`/* ---- M93-B1b ---- */` 块）：rail 4px、icon 48px、标题 28px、
+  输入框 52px 高/50px input/15px 字号、按钮 52px/650 字重、间距与 label 全面放大；
+  矮屏（≤760px 高）与移动端（≤720px 宽）断点内边距同步适配。
+- See [change record](docs/changes/2026-08-13-login-panel-enhance.md)。
+
 ## [Unreleased]
 
 ### Added - Post-M106 Development Roadmap

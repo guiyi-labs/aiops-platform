@@ -2795,6 +2795,15 @@ h2 {
   border-left: 3px solid #d15f4d;
 }
 
+.ok-message {
+  margin: 16px 0 0;
+  padding: 10px 12px;
+  color: #1e6f3c;
+  font-size: 12px;
+  background: #eef9f1;
+  border-left: 3px solid #3e9a5c;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;

@@ -4,6 +4,7 @@ import {
   Boxes,
   ChevronDown,
   ClipboardList,
+  FilePlus2,
   Play,
   Plus,
   RefreshCw,
@@ -20,6 +21,7 @@ import {
   listInspectionTasks,
   runInspection,
 } from '../api/inspection'
+import { createIncident } from '../api/incidents'
 import { listClusters } from '../api/clusters'
 import { APIError } from '../api/auth'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
@@ -65,12 +67,40 @@ const newPlan = ref<CreateInspectionPlanRequest>({
   enabled: true,
 })
 
+const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
+
 const canCreate = computed(
   () =>
     newPlan.value.name.trim().length > 0 &&
     newPlan.value.cluster_ids.length > 0 &&
     newPlan.value.rule_codes.length > 0,
 )
+
+const promoteError = ref('')
+const promoteNotice = ref('')
+
+async function promoteResultToIncident(result: InspectionResultView) {
+  promoteError.value = ''
+  promoteNotice.value = ''
+  try {
+    const incident = await createIncident(auth.accessToken, {
+      source_type: 'inspection',
+      source_ref: `inspection:${result.id}`,
+      cluster_id: result.cluster_id,
+      title: '巡检结果关联事故',
+      severity: 'warning',
+      summary: `从巡检结果 #${result.id} (${result.rule_code}) 提升的事故工作区`,
+      resource: { kind: result.resource_kind || '', namespace: result.namespace || '', name: result.resource_name || '' },
+    })
+    promoteNotice.value = `已创建事故工作区 ${incident.number}`
+  } catch (err) {
+    if (err instanceof APIError && err.code === 'SOURCE_ALREADY_USED') {
+      promoteNotice.value = '该巡检结果已存在关联的事故工作区'
+    } else {
+      promoteError.value = err instanceof APIError ? err.message : '创建事故工作区失败'
+    }
+  }
+}
 
 function formatTime(value?: string): string {
   if (!value) return '--'
@@ -490,6 +520,8 @@ onMounted(async () => {
           <span v-else class="muted">点击上方任务以查看结果</span>
         </header>
 
+        <p v-if="promoteError" class="error-message">{{ promoteError }}</p>
+        <p v-if="promoteNotice" class="ok-message">{{ promoteNotice }}</p>
         <p v-if="resultsError" class="error-message">{{ resultsError }}</p>
         <div v-else-if="!selectedTaskId" class="panel-empty">选择一个任务以加载其巡检结果</div>
         <div v-else-if="resultsLoading" class="panel-empty">加载中…</div>
@@ -505,6 +537,7 @@ onMounted(async () => {
                 <th>资源</th>
                 <th>观测时间</th>
                 <th>证据</th>
+                <th>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -516,6 +549,11 @@ onMounted(async () => {
                 <td class="mono">{{ item.resource_kind ? `${item.resource_kind}/${item.resource_name || ''}` : '—' }}</td>
                 <td>{{ formatTime(item.observed_at) }}</td>
                 <td><FindingEvidencePanel :finding="fromInspectionResult(item)" compact /></td>
+                <td>
+                  <button v-if="canManage && item.state !== 'resolved'" type="button" class="icon-button compact" title="创建事故工作区" aria-label="创建事故工作区" @click="promoteResultToIncident(item)">
+                    <FilePlus2 :size="14" />
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>

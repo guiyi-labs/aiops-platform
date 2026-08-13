@@ -8,6 +8,7 @@ import (
 	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/inspection"
 )
 
 type fakeDiagnosisReader struct {
@@ -106,5 +107,85 @@ func TestResolveNonexistentSourceType(t *testing.T) {
 	r := resolverWithTypicalRecords()
 	if _, err := r.Resolve(context.Background(), "bogus", "x", 7); err != incident.ErrInvalidSource {
 		t.Errorf("bogus source err = %v, want ErrInvalidSource", err)
+	}
+}
+
+type fakeInspectionReader struct {
+	results map[int64]inspection.ResultView
+	err     error
+}
+
+func (f *fakeInspectionReader) Get(_ context.Context, id int64) (inspection.ResultView, error) {
+	if f.err != nil {
+		return inspection.ResultView{}, f.err
+	}
+	r, ok := f.results[id]
+	if !ok {
+		return inspection.ResultView{}, inspection.ErrResultNotFound
+	}
+	return r, nil
+}
+
+func TestResolveInspection(t *testing.T) {
+	r := &incidentResolver{
+		diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}},
+		alerts:           &fakeAlertResolver{instances: map[int64]alert.Instance{}},
+		inspections: &fakeInspectionReader{results: map[int64]inspection.ResultView{
+			11: {
+				ID:           11,
+				ClusterID:    7,
+				RuleCode:     "node_not_ready",
+				SignalCode:   "inspect.node.not_ready.v1",
+				Severity:     "critical",
+				State:        "firing",
+				ResourceKind: "Node",
+				ResourceName: "demo-node",
+				ResourceUID:  "node-uid",
+				ObservedAt:   time.Now().UTC(),
+			},
+		}},
+	}
+	info, err := r.Resolve(context.Background(), incident.SourceTypeInspection, "inspection:11", 7)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if info.Title != "Inspection node_not_ready demo-node" {
+		t.Errorf("title = %q", info.Title)
+	}
+	if info.Severity != "critical" || info.Resource.Name != "demo-node" {
+		t.Errorf("severity/resource wrong: %+v", info)
+	}
+}
+
+func TestResolveInspectionRejectsForeignCluster(t *testing.T) {
+	r := &incidentResolver{
+		diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}},
+		alerts:           &fakeAlertResolver{instances: map[int64]alert.Instance{}},
+		inspections: &fakeInspectionReader{results: map[int64]inspection.ResultView{
+			11: {ID: 11, ClusterID: 999, RuleCode: "x", Severity: "warning"},
+		}},
+	}
+	if _, err := r.Resolve(context.Background(), incident.SourceTypeInspection, "inspection:11", 7); err != incident.ErrInvalidSource {
+		t.Errorf("foreign cluster err = %v, want ErrInvalidSource", err)
+	}
+}
+
+func TestResolveInspectionInvalidOrMissing(t *testing.T) {
+	r := &incidentResolver{
+		diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}},
+		alerts:           &fakeAlertResolver{instances: map[int64]alert.Instance{}},
+		inspections:      &fakeInspectionReader{results: map[int64]inspection.ResultView{}},
+	}
+	for _, src := range []string{"inspection:", "inspection:abc", "inspection:-3", "alert:9", "diagnosis:9"} {
+		if _, err := r.Resolve(context.Background(), incident.SourceTypeInspection, src, 7); err != incident.ErrInvalidSource {
+			t.Errorf("Resolve(%q) err = %v, want ErrInvalidSource", src, err)
+		}
+	}
+	if _, err := r.Resolve(context.Background(), incident.SourceTypeInspection, "inspection:999", 7); err != incident.ErrInvalidSource {
+		t.Errorf("missing result err = %v, want ErrInvalidSource", err)
+	}
+	r2 := &incidentResolver{diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{}}, alerts: &fakeAlertResolver{instances: map[int64]alert.Instance{}}}
+	if _, err := r2.Resolve(context.Background(), incident.SourceTypeInspection, "inspection:1", 7); err != incident.ErrInvalidSource {
+		t.Errorf("nil inspections err = %v, want ErrInvalidSource", err)
 	}
 }

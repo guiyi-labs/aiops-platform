@@ -9,6 +9,19 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M104 Inspection-to-Incident Triage (v0.3.0-m104)
+
+- 后端：`incident` 支持 `inspection` 来源——`SourceTypeInspection` + `SourceRefForInspection`；
+  `incidentResolver` 新增巡检来源：查结果 → 集群防泄漏校验（结果 `ClusterID` 必须等于调用方）
+  → `normalizeIncidentSeverity` 严重级富集（critical/warning/info）；迁移 `000043` 放开
+  `incidents.source_type` CHECK 增加 `'inspection'`；OpenAPI `source_type` enum 增加 `inspection`。
+- 前端：`InspectionView` 巡检结果新增「创建事故工作区」按钮（ops/system_admin 且未 resolved，
+  处理 `SOURCE_ALREADY_USED`，新增 `.ok-message` 成功样式）；`IncidentsView` 来源类型增加
+  「巡检结果」、自动填充禁用与详情友好来源标签；`IncidentSourceType` / typegen 同步含 `inspection`。
+- 演示演练：`demo-drill.sh` 新增「Inspection → incident」6 条断言（运行 n‍ode_not_ready →
+  轮询任务 → 取结果 → 提升事故 → 严重级富集 critical → 重复提升去重），端到端 28/28 PASS。
+- See [M104 change record](docs/changes/2026-08-13-m104-inspection-incident-triage.md)。
+
 ### Added - M103 Alert-to-Incident Triage (v0.3.0-m103)
 
 - 后端：`incident` 支持 `alert` 来源——`SourceTypeAlert` + `SourceRefForAlert`，

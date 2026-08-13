@@ -4884,7 +4884,7 @@ export interface components {
         };
         IncidentCreateRequest: {
             /** @enum {string} */
-            source_type: "diagnosis" | "finding" | "alert";
+            source_type: "diagnosis" | "finding" | "alert" | "inspection";
             /** @description diagnosis:<id> for diagnosis sources */
             source_ref: string;
             /** Format: int64 */

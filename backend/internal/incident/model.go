@@ -19,9 +19,10 @@ const (
 	StatusResolved  = "resolved"
 	StatusDismissed = "dismissed"
 
-	SourceTypeDiagnosis = "diagnosis"
-	SourceTypeFinding   = "finding"
-	SourceTypeAlert     = "alert"
+	SourceTypeDiagnosis  = "diagnosis"
+	SourceTypeFinding    = "finding"
+	SourceTypeAlert      = "alert"
+	SourceTypeInspection = "inspection"
 
 	EventTypeSystem = "system"
 	EventTypeNote   = "note"
@@ -176,6 +177,12 @@ func SourceRefForDiagnosis(diagnosisID int64) string {
 // instance promoted into an incident workspace.
 func SourceRefForAlert(alertID int64) string {
 	return "alert:" + strconv.FormatInt(alertID, 10)
+}
+
+// SourceRefForInspection builds the stable dedup identity for an inspection
+// result promoted into an incident workspace.
+func SourceRefForInspection(resultID int64) string {
+	return "inspection:" + strconv.FormatInt(resultID, 10)
 }
 
 // SourceRefForFinding builds the stable dedup identity for a client-observed

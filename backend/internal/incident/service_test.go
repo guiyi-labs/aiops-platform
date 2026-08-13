@@ -297,7 +297,7 @@ type fakeResolver struct {
 }
 
 func (f *fakeResolver) Resolve(_ context.Context, sourceType, _ string, _ int64) (SourceInfo, error) {
-	if sourceType != SourceTypeDiagnosis && sourceType != SourceTypeAlert {
+	if sourceType != SourceTypeDiagnosis && sourceType != SourceTypeAlert && sourceType != SourceTypeInspection {
 		return SourceInfo{}, ErrInvalidSource
 	}
 	if f.err != nil {
@@ -423,6 +423,39 @@ func TestCreateFromAlert(t *testing.T) {
 	})
 	if !errors.Is(err, ErrSourceAlreadyUsed) {
 		t.Errorf("duplicate alert create err = %v, want ErrSourceAlreadyUsed", err)
+	}
+}
+
+func TestCreateFromInspection(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	service.WithResolver(&fakeResolver{info: SourceInfo{
+		Title:    "Inspection node_not_ready demo-node",
+		Summary:  "inspect.node.not_ready.v1 (firing)",
+		Severity: SeverityHigh,
+		Resource: ResourceRef{Kind: "Node", Namespace: "", Name: "demo-node", UID: "uid-node"},
+	}})
+	incident, err := service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeInspection,
+		SourceRef:  SourceRefForInspection(11),
+		ClusterID:  7,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if incident.SourceType != SourceTypeInspection || incident.SourceRef != "inspection:11" {
+		t.Errorf("inspection source not preserved: %+v", incident)
+	}
+	if incident.Title != "Inspection node_not_ready demo-node" || incident.Severity != SeverityHigh {
+		t.Errorf("inspection resolver enrichment failed: %+v", incident)
+	}
+
+	_, err = service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeInspection,
+		SourceRef:  SourceRefForInspection(11),
+		ClusterID:  7,
+	})
+	if !errors.Is(err, ErrSourceAlreadyUsed) {
+		t.Errorf("duplicate inspection create err = %v, want ErrSourceAlreadyUsed", err)
 	}
 }
 

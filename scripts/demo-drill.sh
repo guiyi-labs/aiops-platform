@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# M102 (local track): reproducible demo drill — 登录 → 态势 → 根因 → 证据 →
-# 受控动作 → 验证 → 事故复盘, against a fully isolated offline compose
+# M102+ (local track): reproducible demo drill — 登录 → 态势 → 根因 → 证据 →
+# 受控动作 → 验证 → 事故复盘 → 告警/巡检提升为事故, against a fully isolated offline compose
 # environment with a bundled mock Kubernetes API server.
 #
 # The platform's real API drives the whole journey; the mock k8s API
@@ -467,7 +467,60 @@ else
   fi
 fi
 
-# ---------- 11. cleanup ----------
+# ---------- 11. inspection -> incident (巡检结果提升为事故) ----------
+
+scenario "Inspection -> incident (巡检结果提升为事故): node_not_ready result promotes to incident workspace"
+INSP_RUN="$(api POST /api/v1/aiops/inspection/run "{\"cluster_ids\":[$CLUSTER_ID],\"rule_codes\":[\"node_not_ready\"]}")"
+INSP_TASK_ID="$(jq -r '.id // 0' <<<"$INSP_RUN")"
+INSP_TASK_STATUS="$(jq -r '.status // empty' <<<"$INSP_RUN")"
+if [[ -z "$INSP_TASK_ID" || "$INSP_TASK_ID" == "0" ]] || [[ "$INSP_TASK_STATUS" != "pending" && "$INSP_TASK_STATUS" != "running" ]]; then
+  fail inspection-run "inspection run failed: $INSP_RUN"
+else
+  pass inspection-run "inspection task id=$INSP_TASK_ID accepted (status=$INSP_TASK_STATUS)"
+  # mock 的 demo-node 恒 NotReady，node_not_ready 必命中；轮询任务直到 completed。
+  for attempt in $(seq 1 60); do
+    INSP_TASK="$(api GET "/api/v1/aiops/inspection/tasks/$INSP_TASK_ID")"
+    INSP_TASK_STATUS="$(jq -r '.status // empty' <<<"$INSP_TASK")"
+    [[ "$INSP_TASK_STATUS" == "completed" || "$INSP_TASK_STATUS" == "failed" ]] && break
+    sleep 2
+  done
+  if [[ "$INSP_TASK_STATUS" != "completed" ]]; then
+    fail inspection-task "inspection task not completed: $INSP_TASK"
+  else
+    pass inspection-task "inspection task completed (findings=$(jq -r '.finding_count' <<<"$INSP_TASK"))"
+    INSP_RESULTS="$(api GET "/api/v1/aiops/inspection/results?task_id=$INSP_TASK_ID&cluster_id=$CLUSTER_ID")"
+    INSP_RESULT_ID="$(jq -r --arg code node_not_ready '.items[] | select(.rule_code == $code) | .id' <<<"$INSP_RESULTS" | head -1 || true)"
+    if [[ -n "$INSP_RESULT_ID" && "$INSP_RESULT_ID" != "0" ]]; then
+      pass inspection-result "inspection result id=$INSP_RESULT_ID (node_not_ready, cluster=$CLUSTER_ID)"
+      INSP_INC="$(api POST /api/v1/incidents "{\"source_type\":\"inspection\",\"source_ref\":\"inspection:$INSP_RESULT_ID\",\"cluster_id\":$CLUSTER_ID,\"severity\":\"info\",\"title\":\"inspection promoted incident\"}")"
+      INSP_INC_ID="$(jq -r '.id // 0' <<<"$INSP_INC")"
+      INSP_INC_SEV="$(jq -r '.severity // empty' <<<"$INSP_INC")"
+      INSP_INC_SRC="$(jq -r '.source_type // empty' <<<"$INSP_INC")"
+      if [[ -n "$INSP_INC_ID" && "$INSP_INC_ID" != "0" ]] && [[ "$INSP_INC_SRC" == "inspection" ]]; then
+        pass inspection-incident "incident $INSP_INC_ID created from inspection result #$INSP_RESULT_ID, severity=$INSP_INC_SEV (enriched from result)"
+        if [[ "$INSP_INC_SEV" == "critical" ]]; then
+          pass inspection-incident-severity "inspection incident severity enriched to critical from node_not_ready result"
+        else
+          fail inspection-incident-severity "severity=$INSP_INC_SEV expected critical (node_not_ready)"
+        fi
+        # 同一巡检结果不可重复提升（dedup）。
+        DUP="$(api POST /api/v1/incidents "{\"source_type\":\"inspection\",\"source_ref\":\"inspection:$INSP_RESULT_ID\",\"cluster_id\":$CLUSTER_ID,\"severity\":\"info\",\"title\":\"dup\"}")"
+        DUP_FAIL="$(jq -r '.code // empty' <<<"$DUP" 2>/dev/null || true)"
+        if [[ "$DUP_FAIL" == *"SOURCE_ALREADY_USED"* ]] || [[ "$(jq -r '.id // 0' <<<"$DUP")" == "0" ]]; then
+          pass inspection-incident-dedup "duplicate inspection promote rejected (SOURCE_ALREADY_USED)"
+        else
+          fail inspection-incident-dedup "duplicate was not rejected: $DUP"
+        fi
+      else
+        fail inspection-incident "incident create failed: $INSP_INC"
+      fi
+    else
+      fail inspection-result "no node_not_ready result after task completion: $INSP_RESULTS"
+    fi
+  fi
+fi
+
+# ---------- 12. cleanup ----------
 
 scenario "Cleanup"
 cleanup_stack
@@ -499,6 +552,7 @@ FAILED="$(grep -c '|fail|' "$WORK/results.txt" || true)"
   echo "    \"remediation_plan\": \"$PLAN_ID\","
   echo "    \"deployment_annotations\": { \"restarted_at\": \"$RESTART_AT\", \"remediation_id\": \"$REMED_ID\" },"
   echo "    \"incident\": { \"id\": $INCIDENT_ID, \"status\": \"$FINAL_STATUS\", \"version\": $NEXT_VERSION }"
+  echo "    \"inspection_incident\": { \"result_id\": ${INSP_RESULT_ID:-0}, \"incident_id\": ${INSP_INC_ID:-0}, \"severity\": \"${INSP_INC_SEV:-}\" }"
   echo "  },"
   echo "  \"steps\": ["
   FIRST=1

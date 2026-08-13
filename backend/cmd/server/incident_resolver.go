@@ -10,6 +10,7 @@ import (
 	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/inspection"
 )
 
 // diagnosisRecordReader reads a persisted diagnosis record by id.
@@ -19,12 +20,14 @@ type diagnosisRecordReader interface {
 
 // incidentResolver dispatches incident source enrichment by source type:
 // diagnosis sources resolve from persisted diagnosis records; alert sources
-// resolve the linked diagnosis of a firing alert instance. Finding sources
-// carry their own metadata and are not resolvable here (ErrInvalidSource
-// falls back to caller-provided fields).
+// resolve the linked diagnosis of a firing alert instance; inspection
+// sources resolve a persisted inspection result. Finding sources carry their
+// own metadata and are not resolvable here (ErrInvalidSource falls back to
+// caller-provided fields).
 type incidentResolver struct {
 	diagnosisRecords diagnosisRecordReader
 	alerts           alertResolver
+	inspections      inspectionResultReader
 }
 
 // alertResolver fetches a cluster-scoped alert instance plus its rule-metric
@@ -43,10 +46,26 @@ func (a alertServiceAdapter) Get(ctx context.Context, clusterID, id int64) (aler
 	return a.svc.GetInstance(ctx, clusterID, id)
 }
 
-func NewIncidentResolver(records *diagnosis.GormRepository, alerts *alert.Service) *incidentResolver {
+// inspectionResultReader fetches a persisted inspection result by id.
+type inspectionResultReader interface {
+	Get(ctx context.Context, id int64) (inspection.ResultView, error)
+}
+
+// inspectionServiceAdapter adapts *inspection.Service to the narrow
+// inspectionResultReader interface used by the incident resolver.
+type inspectionServiceAdapter struct {
+	svc *inspection.Service
+}
+
+func (a inspectionServiceAdapter) Get(ctx context.Context, id int64) (inspection.ResultView, error) {
+	return a.svc.GetResult(ctx, id)
+}
+
+func NewIncidentResolver(records *diagnosis.GormRepository, alerts *alert.Service, inspections *inspection.Service) *incidentResolver {
 	return &incidentResolver{
 		diagnosisRecords: records,
 		alerts:           alertServiceAdapter{svc: alerts},
+		inspections:      inspectionServiceAdapter{svc: inspections},
 	}
 }
 
@@ -56,8 +75,64 @@ func (r *incidentResolver) Resolve(ctx context.Context, sourceType, sourceRef st
 		return r.resolveDiagnosis(ctx, sourceRef)
 	case incident.SourceTypeAlert:
 		return r.resolveAlert(ctx, clusterID, sourceRef)
+	case incident.SourceTypeInspection:
+		return r.resolveInspection(ctx, clusterID, sourceRef)
 	default:
 		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+}
+
+func (r *incidentResolver) resolveInspection(ctx context.Context, clusterID int64, sourceRef string) (incident.SourceInfo, error) {
+	const prefix = "inspection:"
+	if !strings.HasPrefix(sourceRef, prefix) {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	id, err := strconv.ParseInt(strings.TrimPrefix(sourceRef, prefix), 10, 64)
+	if err != nil || id < 1 {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	if r.inspections == nil {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	result, err := r.inspections.Get(ctx, id)
+	if err != nil {
+		if errors.Is(err, inspection.ErrResultNotFound) {
+			return incident.SourceInfo{}, incident.ErrInvalidSource
+		}
+		return incident.SourceInfo{}, fmt.Errorf("resolve inspection result %d: %w", id, err)
+	}
+	// Anti-leakage: the caller's cluster must own the result.
+	if result.ClusterID != clusterID {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
+	title := result.RuleCode
+	if result.ResourceName != "" {
+		title += " " + result.ResourceName
+	}
+	return incident.SourceInfo{
+		Title:    "Inspection " + title,
+		Summary:  result.SignalCode + " (" + result.State + ")",
+		Severity: normalizeIncidentSeverity(result.Severity),
+		Resource: incident.ResourceRef{
+			Kind:      result.ResourceKind,
+			Namespace: result.Namespace,
+			Name:      result.ResourceName,
+			UID:       result.ResourceUID,
+		},
+		ObservedAt: result.ObservedAt,
+	}, nil
+}
+
+// normalizeIncidentSeverity maps inspection severities (critical/warning/info)
+// onto the incident severity vocabulary (info/warning/high/critical).
+func normalizeIncidentSeverity(severity string) string {
+	switch severity {
+	case "critical":
+		return incident.SeverityCritical
+	case "warning":
+		return incident.SeverityWarning
+	default:
+		return incident.SeverityInfo
 	}
 }
 

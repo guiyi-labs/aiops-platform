@@ -135,8 +135,26 @@ func main() {
 	// client-observed finding) with a stable number, assignee, followers,
 	// timeline, status machine and a read-only postmortem view.
 	alertService := alert.NewService(alert.NewGormRepository(database.GORM()), diagnosis.NewGormRepository(database.GORM()), metricsHistoryService, cfg.AlertMinEvaluationInterval)
+	// M52: intelligent inspection (KubeEye-style compile-time rule catalog).
+	// The rule executor uses the same read-only kubernetes gateway as M49/M51;
+	// the cluster lister resolves reachable clusters for ad-hoc runs. Both are
+	// wired as adapters so the inspection package stays free of kubernetes.
+	inspectionService, err := inspection.NewService(
+		inspection.Config{
+			MaxConcurrentClusters: 4,
+			PerClusterTimeout:     15 * time.Second,
+			MaxTaskResults:        1000,
+		},
+		inspection.NewGormRepository(database.GORM()),
+		inspection.NewDefaultExecutor(kubernetesService),
+		inspectionClusterLister{svc: clusterService},
+		logger,
+	)
+	if err != nil {
+		logger.Fatal("configure inspection service", zap.Error(err))
+	}
 	incidentService := incident.NewService(incident.NewGormRepository(database.GORM())).
-		WithResolver(NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService))
+		WithResolver(NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService))
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
 	appCatalogService := appcatalog.NewService(kubernetesService, appcatalog.NewGormRepository(database.GORM()))
 	// M58: GitOps read-only adapter (ArgoCD Application browse) + interactive
@@ -318,28 +336,6 @@ func main() {
 	eventStreamService, err := eventstream.NewService(eventstream.Config{}, kubernetesEventLister{gateway: kubernetesService})
 	if err != nil {
 		logger.Fatal("configure eventstream service", zap.Error(err))
-	}
-
-	// M52: intelligent inspection (KubeEye-style compile-time rule catalog).
-	// The rule executor uses the same read-only kubernetes gateway as M49/M51;
-	// the cluster lister resolves reachable clusters for ad-hoc runs. Both
-	// the executor and lister are wired as adapters so the inspection package
-	// stays free of kubernetes-gateway dependencies.
-	inspectionExecutor := inspection.NewDefaultExecutor(kubernetesService)
-	inspectionRepo := inspection.NewGormRepository(database.GORM())
-	inspectionService, err := inspection.NewService(
-		inspection.Config{
-			MaxConcurrentClusters: 4,
-			PerClusterTimeout:     15 * time.Second,
-			MaxTaskResults:        1000,
-		},
-		inspectionRepo,
-		inspectionExecutor,
-		inspectionClusterLister{svc: clusterService},
-		logger,
-	)
-	if err != nil {
-		logger.Fatal("configure inspection service", zap.Error(err))
 	}
 
 	// M52: service-mesh read-only access. Istio VirtualService/DestinationRule

@@ -71,6 +71,9 @@ func TestSourceRefs(t *testing.T) {
 	if got := SourceRefForAlert(9); got != "alert:9" {
 		t.Errorf("SourceRefForAlert(9) = %q, want %q", got, "alert:9")
 	}
+	if got := SourceRefForInspection(11); got != "inspection:11" {
+		t.Errorf("SourceRefForInspection(11) = %q, want %q", got, "inspection:11")
+	}
 	got := SourceRefForFinding(7, "pod.crash_loop_backoff.v1", "Pod", "default", "web-0", "uid-1")
 	want := "finding:7:pod.crash_loop_backoff.v1:Pod:default:web-0:uid-1"
 	if got != want {

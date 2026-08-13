@@ -8,6 +8,17 @@ Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
+## [Unreleased]
+
+### Changed - 登录页视觉第 14 轮：移动端登录卡片出屏修复
+
+- 修复移动端断点级联陷阱：`@media (max-width:720px)` 内 `.login-form-panel` 选择器提升
+  为 `.login-page .login-form-panel`（特异性对齐桌面规则），`max-width:none` 收紧为
+  `max-width:100%`；375/414px 窄屏下面板贴齐视口、卡片两侧保留 14px 安全边距，
+  解决第 13 轮桌面居中公式在移动端把卡片挤出屏幕（左缘出屏 16–42px、右侧空档）的问题。
+- 实测 375/414/768/1024/1440/1920 全断点通过：无横向滚动、无元素重叠、桌面端
+  13 轮基线几何不变（card 1440: `861,161 452x578`、1920: `1323,251 434x578`）。
+- See [change record](docs/changes/2026-08-13-login-mobile-flush.md)。
 
 ### Added - 后续开发路线规划：M110 收口 + M111–M115 执行序
 

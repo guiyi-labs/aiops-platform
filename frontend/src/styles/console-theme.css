@@ -2496,12 +2496,12 @@ tbody tr {
     display: none;
   }
 
-  .login-form-panel {
+  .login-page .login-form-panel {
     inset: 0;
     z-index: 3;
     display: grid;
     width: 100%;
-    max-width: none;
+    max-width: 100%;
     min-height: 100svh;
     margin: 0;
     padding: 210px 14px 24px;

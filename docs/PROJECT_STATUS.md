@@ -73,7 +73,10 @@
 | M102（本地轨道 v3）🔄 | `scripts/dual-env-compose-drill.sh`：双全新隔离环境 install/关键旅程/持久化/清理 10/10（`report-20260812-213243-bf91f0.json`）；`APP_UPGRADE_BACKEND_IMAGE`（离线构建 `k8s-aiops-backend:v0.3.0-rc.5-local`）跨 digest 升级/回滚 14/14（`report-20260812-214043-17a17c.json`）；`APP_BACKUP_RESTORE=1` 第三全新环境逻辑备份恢复 16/16（`report-20260812-215101-1fcddd.json`）。真实组织 kind/Helm、WAL/PITR 与 M89/M90 仍需授权后补齐，未完成前保持 RC |
 | M109（工程卓越收口）✅ | incident 关键旅程浏览器 E2E（a11y/console-error/双视口 76 PASS）；全局覆盖率 60.9%→65.16% 并上调 `ci.yml` 门禁至 65%；correlation/incident 状态机 fuzz 纳入 CI fuzz seed；Gate B 性能门禁记录两稳定周期后翻转为 fail-closed（`docs/m96-gate-b-baselines.md`）；归档机械门禁（`scripts/check-change-record.sh` + pre-commit + CI job）。`baseline-m109-coverage-65-20260813` / `baseline-m109-gate-closeout-20260813` / `baseline-m109-gate-b-failclosed-20260813` / `baseline-m109-incident-e2e-20260813`。M110（RC 刷新 v0.3.0-rc.6）待启 |
 
-> 当前执行入口：`docs/next-long-term-plan.md`。M93-B2–M97（Gate B/C）、M98、M99、M100、M101 本地数据轨、M89 身份轨本地预研、M102 本地轨道第一步均已归档；`v0.3.0-rc.4` 的 main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
+> 当前执行入口：`docs/development-roadmap-post-m110.md`（M111+ 主线与并行轨；M107–M110 序
+> 见 `docs/development-roadmap-post-m106.md`）。M93-B2–M97（Gate B/C）、M98、M99、M100、
+> M101 本地数据轨、M89 身份轨本地预研、M102 本地轨道第一步均已归档；`v0.3.0-rc.4` 的
+> main CI、完整 Release、keyless Cosign 和 GitHub prerelease 证据已通过，历史 RC 失败记录保持不可变；
 > M89 生产身份、M90 数据可靠性与 M102 跨 digest 第二环境升级/回滚继续作为组织授权轨，未完成时版本保持 RC，不宣称 GA。
 
 ---

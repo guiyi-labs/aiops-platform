@@ -1,6 +1,7 @@
 # 后续开发路线：M107+（含前端界面优化并行轨）
 
-- Status: Active
+- Status: Superseded（M107–M110 已收口/待发布；M111+ 以
+  [`docs/development-roadmap-post-m110.md`](development-roadmap-post-m110.md) 为准）
 - Updated: 2026-08-13
 - Baseline: M106（commit `d28c2b1`，tag `baseline-m106-20260813`，CI `31666531921` 15/15 全绿）
 - 上位路线：[`docs/long-term-roadmap.md`](long-term-roadmap.md)（原则不变）

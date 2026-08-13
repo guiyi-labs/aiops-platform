@@ -9,6 +9,20 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - 后续开发路线规划：M110 收口 + M111–M115 执行序
+
+- 新增 `docs/development-roadmap-post-m110.md` 作为 M110 之后的执行入口：Track 0 M110 收口
+  （推送本地提交、授权 push `v0.3.0-rc.6`、发布后全新环境/升级回滚/备份恢复演练、封口）；
+  Track A 前端优化轨收口（CSS token 层、关键页面截图基线、≤720px 响应式审计、交互统一）；
+  Track B M111 事故响应深化（runbook 关联、MTTA/MTTR KPI、事故模板与严重级矩阵、SLA 升级链、
+  复盘导出）；Track C M112 AI 协调查询与解释深化（会话式调查、AI 事故摘要、解释覆盖率大盘，
+  严守引用纪律）；Track D M113 优化中心闭环与巡检深化（finding→runbook 预览导航）；
+  Track E M114 可观测性深化（SLO burn 扩展、指标历史下采样、事件流增强）；Track F M115
+  工程卓越冲刺（覆盖率 65%→70%、性能基准 fail-closed、fuzz 扩展）；Track G M89/M90 授权轨
+  （Deferred，随时可启动）。
+- `docs/development-roadmap-post-m106.md` 头部增加被取代指针（M111+ 以本路线为准）。
+- See [change record](docs/changes/2026-08-13-roadmap-post-m110.md)。
+
 ### Changed - 登录页视觉第 13 轮：登录框向页面中心靠拢（右区内部水平居中）
 
 - 登录框 `.login-form-panel` 右插边由固定 `clamp(20px,2.5vw,48px)`（贴右缘）改为

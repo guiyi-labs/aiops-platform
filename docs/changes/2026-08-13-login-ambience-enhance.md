@@ -486,3 +486,56 @@
 
 - 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
   容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。
+
+---
+
+## Round 13 — 登录框向页面中心靠拢（右区内部水平居中）
+
+### 决策
+
+用户要求把右侧登录框"向页面中间（水平居中方向）靠拢，与左侧或整体视觉中心对齐"，
+且"保持间距协调、不影响其他页面元素排版"。
+
+判定：
+- 左侧内容固定在 `.login-intro` 的预留右区（`padding-right: clamp(460px,49vw,760px)`）
+  内左对齐排版，**不能**把登录框移到屏幕正中央（会与左侧内容重叠），也不能改动预留区
+  以免牵动其他元素。
+- 因此可行且稳妥的目标是：让登录框**在其预留右区内水平居中**——即右插边由固定的
+  `clamp(20px,2.5vw,48px)`（贴右边缘、左侧留大块空洞）改为由预留区几何推导的居中值。
+  这样登录框向页面中心方向内收，视觉上不再"粘"在屏幕右缘，同时各宽度下都不会与
+  左侧内容重叠。
+
+### 改动（纯视觉层，未动表单逻辑与无障碍）
+
+- `frontend/src/styles/console-theme.css`
+  - `.login-page .login-form-panel` 的 `inset` 右值由
+    `clamp(20px, 2.5vw, 48px)` 改为
+    `calc((clamp(460px, 49vw, 760px) - min(540px, max(430px, 44vw))) / 2)`。
+    - 其中 `clamp(460px,49vw,760px)` 即 `.login-intro` 的 `padding-right`（预留区宽度），
+      `min(540px,max(430px,44vw))` 即面板自身宽度；二者相减再除以 2 即为"预留区内居中"
+      所需的右插边。
+    - 数学上保证 `右插边 ≥ 0` 且面板左缘始终在预留区右边界之内，**任意宽度均不重叠**
+      左侧内容；屏幕越宽、预留区越大，内收幅度越明显（1440px 下约内收 ~46px）。
+  - 垂直居中保持不变（`inset: 0 ... 0 auto` + `place-items: center` 仍使卡片垂直居中）。
+  - 移动端（`max-width:720px`）与矮屏断点的覆盖规则不变，本改只作用于桌面 ≥721px。
+  - 未改动 `.login-intro` 预留区与任何左侧元素，故其他元素排版不受影响。
+
+### 级联确认
+
+`base.css` 的 `.login-form-panel{display:grid;min-height:100vh;padding:36px;place-items:center}`
+出现在拼接 CSS 前部；console-theme 的 `.login-page .login-form-panel`（更高特异性、且后导入）
+胜出，应用 `position:absolute` 与新 `inset` 计算值。
+
+### Verification
+
+- 构建 `./node_modules/.bin/vite build` ✅ → 新产物 `index-CjnRW6xW.css` + `index-CHBY35MD.js`。
+- `docker cp` 已覆盖 `k8s-aiops-frontend-1`；`curl` 实测服务 CSS：
+  - 旧 `clamp(20px,2.5vw,48px)` 已完全消失；
+  - 新规则 `inset:0 calc((clamp(460px,49vw,760px) - min(540px,max(430px,44vw)))/2) 0 auto`
+    存在；
+  - `clamp(460px,49vw,760px)`（预留区几何）被引用，确认是 console-theme 副本胜出。
+
+### Deployment（第十三轮，并入 18080）
+
+- 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
+  容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。

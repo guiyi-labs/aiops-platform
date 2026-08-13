@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 登录页视觉第 13 轮：登录框向页面中心靠拢（右区内部水平居中）
+
+- 登录框 `.login-form-panel` 右插边由固定 `clamp(20px,2.5vw,48px)`（贴右缘）改为
+  `calc((clamp(460px,49vw,760px) - min(540px,max(430px,44vw))) / 2)`，在其预留右区内
+  水平居中，向页面中心方向内收，各宽度下均不与左侧内容重叠、不动预留区（不影响其他排版）。
+
 ### Changed - 登录页视觉第 12 轮：分层居中对齐（容器居中 · 文字左齐）
 
 - 采纳"分层对齐"而非"全部居中"：左区整列在可用区域内水平+垂直居中（`align-items:center` + `justify-content:safe center`），块内文字保持左对齐。

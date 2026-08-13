@@ -1388,7 +1388,11 @@ tbody tr {
 
 .login-page .login-form-panel {
   position: absolute;
-  inset: 0 clamp(20px, 2.5vw, 48px) 0 auto;
+  /* Pull the panel inward toward the page centre: right-inset is derived from the
+     intro's reserved right zone (same geometry as .login-intro padding-right) minus
+     the panel width, halved. This centres the panel inside its zone at every width,
+     so it no longer hugs the viewport edge yet never overlaps the left content. */
+  inset: 0 calc((clamp(460px, 49vw, 760px) - min(540px, max(430px, 44vw))) / 2) 0 auto;
   z-index: 3;
   display: grid;
   width: min(540px, max(430px, 44vw));

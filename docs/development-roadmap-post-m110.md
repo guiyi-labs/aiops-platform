@@ -54,6 +54,10 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 - **主题收敛**：`base.css` / `console-theme.css` / `motion.css` / `premium-ui.css` 四层
   建立可审计的 CSS token 层，删除失效覆盖（M106 修过 `section[class*="panel"]` 覆盖登录
   面板；M93-C 选择器数量为上限）。
+  ✅ 第一批已落地：`scripts/audit-css-tokens.mjs`（有效值解析 + MATCHED/ORPHAN 分类 +
+  `--apply`/`--check` 门禁）+ 112 处精确值迁移（像素基线 10/10 零回归），见
+  `docs/changes/2026-08-14-css-token-layer.md`；遗留不一致旧调色板值（`#5a6672` 等）为
+  第二轮，需逐视图重建基线。
 - **关键页面截图基线**：incident 列表/详情、告警、巡检、信号、工作负载、拓扑
   Desktop/Mobile 截图基线 + 像素容差（复用 M96 截图基线机制；登录页 13 轮成果一并纳入）。
   ✅ 登录页基线已落地：`scripts/capture-ui-baselines.mjs`（capture/`--verify`）+ 

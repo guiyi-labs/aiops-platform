@@ -22,6 +22,17 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 sed]
 
+### Changed - CSS Token 层收口（Track A · 主题收敛 · 第一批 112 处安全迁移）
+
+- 新增 `scripts/audit-css-tokens.mjs`：解析四层级联（base→console→motion→premium）
+  的 token 有效值，扫描硬编码颜色字面量并分类 MATCHED/ORPHAN，提供
+  `--apply`（精确值安全替换）/`--check`（CI 门禁）/默认审计报告三模式。
+- 首批迁移 112 处精确值匹配字面量为 `var()`：base.css 85 处（`#ffffff`→`var(--gray-0)`×80 等）、
+  console-theme.css 27 处（`#2dd4bf`→`var(--blue-400)`×13 等）。
+- 像素基线回归 10/10 全绿（login desktop diff 0.000%、其余 sha256 一致），证明零视觉变化；
+  `--check` 后 MATCHED=0。遗留不一致旧调色板值（`#5a6672`×45 等）量化留待第二轮。
+- See [change record](docs/changes/2026-08-14-css-token-layer.md)。
+
 ### Added - UI 响应式审计（Track A · ≤720px 首批）
 
 - 对登录页 + `/`、`/clusters`、`/workloads`、`/diagnoses` 在 375×812 移动视口做

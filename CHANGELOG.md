@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M109 incident 关键旅程 E2E：a11y 扩展 + correlation 深链/提升事故
+
+- a11y：axe 扫描路由新增 `/incidents`、`/aiops/correlation`（空态 + mock API），wcag2a/aa 0 critical/serious。
+- E2E：新增 `correlation.spec.ts`——`?case_id=` 深链聚焦案例详情、提升事故（通知 + 已关联徽章 + 跳转 `/incidents` 双向深链回程）、409 `SOURCE_ALREADY_USED` 去重稳定提示；Desktop/Mobile 双视口，console error 严格断言（仅过滤预期 409 资源日志）。
+- Playwright 全量 76/76 PASS（Desktop + Mobile）。
+- See [change record](docs/changes/2026-08-13-m109-incident-e2e.md)。
+
 ### Added - M109 工程卓越起步：fuzz 扩展 + 覆盖率提升
 
 - Fuzz：`FuzzEngineCorrelate`（correlation 引擎结构化随机输入，永不 panic + 结果一致性）、`FuzzCanTransition` / `FuzzTransitionSequence`（incident 状态机真值表 + Service 层 CAS 序列）。实测 FuzzEngineCorrelate 15s ≈189K execs、FuzzCanTransition 10s ≈1.2M execs、FuzzTransitionSequence 15s ≈1.5M execs 全绿。

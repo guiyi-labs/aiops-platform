@@ -69,6 +69,9 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 - **响应式审计**：35 个视图在 ≤720px 的可用性（表格横向滚动、工具栏折叠、抽屉全屏化）。
 - **交互统一**：SkeletonCard / EmptyState / 错误重试 / toast 语义在全部视图落地一致；
   axe 双视口 0 critical/serious，console error = 0。
+  ✅ 门禁脚本 + 首批 5 视图已落地：`scripts/audit-a11y-axe.mjs`（CDP+axe-core，双视口，
+  0 critical/serious/0 app 错误），并修复 Workloads Tab 对比度 serious，见
+  `docs/changes/2026-08-14-a11y-axe-audit.md`；其余视图按同模式纳入。
 - **性能**：沿用 M93-B2 登录页预算与 M96 前端 DOM 硬上限，不破坏既有预算基线。
 
 **衔接契约（必须满足）**：门禁 `pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm build`

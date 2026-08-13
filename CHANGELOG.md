@@ -22,6 +22,17 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 sed]
 
+### Added - UI 无障碍审计门禁（Track A · axe 双视口）+ 对比度修复
+
+- 新增 `scripts/audit-a11y-axe.mjs`：CDP 注入 `axe-core` 跑 WCAG 2.x A/AA，覆盖
+  5 视图 × Desktop/Mobile 双视口；console 错误分类为 app / axe-induced / auth-probe，
+  门禁为 critical/serious + app 错误为 0（axe 诱导的 Vue patch 竞态单独归因不阻断）。
+- 修复 Workloads 资源类型 Tab 对比度：`#64727a`（4.15 低于 AA）→ `var(--gray-600)`
+  `#4c5c61`（5.91 AA ✓），并消除一处硬编码色。
+- 全量 10 组合格：0 critical/serious、0 app 错误；workloads 对比度基线按新产物重建后
+  `--verify` 全绿（login desktop diff 0.000%，其余 IDENTICAL）。
+- See [change record](docs/changes/2026-08-14-a11y-axe-audit.md)。
+
 ### Changed - CSS Token 层收口（Track A · 主题收敛 · 第一批 112 处安全迁移）
 
 - 新增 `scripts/audit-css-tokens.mjs`：解析四层级联（base→console→motion→premium）

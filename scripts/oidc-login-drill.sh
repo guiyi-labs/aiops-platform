@@ -138,7 +138,7 @@ if [[ -z "$PG_CONTAINER" ]]; then
 fi
 PG_HOST_PORT="$(docker port "$PG_CONTAINER" 5432/tcp 2>/dev/null | head -1 | sed -n 's/.*://p' || true)"
 PG_HOST_PORT="${PG_HOST_PORT:-15432}"
-HOST_DB_URL="postgres://aiops:change_me@127.0.0.1:$PG_HOST_PORT/aiops?sslmode=disable"
+HOST_DB_URL="postgres://aiops:admin123@127.0.0.1:$PG_HOST_PORT/aiops?sslmode=disable"
 echo "postgres container: $PG_CONTAINER (host port $PG_HOST_PORT)"
 
 # ---------- build ----------

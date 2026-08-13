@@ -15,7 +15,7 @@ describe('auth API', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(session), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(login('admin', 'change_me_now')).resolves.toEqual(session)
+    await expect(login('admin', 'admin123')).resolves.toEqual(session)
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/login', expect.objectContaining({
       method: 'POST',
       credentials: 'same-origin',

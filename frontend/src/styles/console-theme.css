@@ -1208,7 +1208,7 @@ tbody tr {
  * ============================================================ */
 
 .login-page {
-  grid-template-columns: minmax(0, 1fr) minmax(430px, 38vw);
+  display: block;
   min-height: 100svh;
   isolation: isolate;
   color: #f8fafc;
@@ -1332,12 +1332,14 @@ tbody tr {
   filter: brightness(1.28) drop-shadow(0 0 8px rgba(94, 234, 212, 0.72));
 }
 
-.login-form-panel {
-  position: relative;
+.login-page .login-form-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
   z-index: 3;
-  grid-column: 2;
-  min-height: 100svh;
-  padding: 32px clamp(28px, 3.5vw, 54px);
+  display: grid;
+  width: min(440px, 100vw);
+  padding: 24px clamp(24px, 3vw, 48px);
+  place-items: center;
   background: transparent;
 }
 
@@ -1346,9 +1348,8 @@ tbody tr {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(7, 15, 14, 0.34) 0%, rgba(8, 17, 16, 0.76) 18%, rgba(8, 17, 16, 0.92) 100%);
-  border-left: 1px solid rgba(148, 163, 184, 0.12);
-  backdrop-filter: blur(14px);
+    linear-gradient(90deg, transparent 0%, rgba(5, 12, 14, 0.16) 72%, rgba(5, 12, 14, 0.4) 100%);
+  border-left: 1px solid rgba(148, 163, 184, 0.1);
   pointer-events: none;
 }
 
@@ -2232,10 +2233,10 @@ body,
 }
 
 .login-form-panel::before {
-  background: rgba(4, 12, 15, 0.88);
-  border-left-color: rgba(45, 212, 191, 0.22);
-  box-shadow: -20px 0 50px -36px rgba(45, 212, 191, 0.55);
-  backdrop-filter: blur(10px);
+  background: linear-gradient(90deg, transparent 55%, rgba(5, 12, 14, 0.3) 100%);
+  border-left-color: rgba(45, 212, 191, 0.14);
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .login-card {

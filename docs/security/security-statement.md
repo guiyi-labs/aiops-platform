@@ -13,7 +13,7 @@
 
 ## 2. 数据保护
 
-- 集群凭据加密存储：版本化密钥环 + 离线再加密（`backend/cmd/credential-reencrypt`）；kubeconfig 与其他凭据不入库明文、不入 Git（`.env.example` 仅为模板，默认值均为 `change_me`）。
+- 集群凭据加密存储：版本化密钥环 + 离线再加密（`backend/cmd/credential-reencrypt`）；kubeconfig 与其他凭据不入库明文、不入 Git（`.env.example` 仅为模板，默认值均为 `admin123`（本地开发口令），生产必须覆盖）。
 - 敏感字段静态扫描门禁（`scripts/scan-sensitive-fields.sh`）与日志/审计脱敏契约测试（M100-C）：响应与审计详情只含路由元数据与资源身份，不含凭据、token、上游错误体。
 - 审计：所有高权限操作写 `audit_logs`；离线归档带 Ed25519 签名、外部信任公钥验签、篡改拒绝（M20 Phase 10）。
 - 数据库：PostgreSQL 17（本地）；逻辑备份 + WAL/PITR 演练证据（M101 本地轨）。

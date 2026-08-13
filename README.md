@@ -84,7 +84,7 @@ docker compose up --build
 - Backend readiness: `http://localhost:8080/api/v1/health/ready`
 - Backend metrics (local/internal monitoring only): `http://localhost:8080/metrics`
 
-开发环境首次启动会创建系统管理员，默认账号为 `admin` / `change_me_now`。该口令仅用于本地开发，部署前必须通过环境变量修改。
+开发环境首次启动会创建系统管理员，默认账号为 `admin` / `admin123`。该口令仅用于本地开发，部署前必须通过环境变量修改。
 
 停止服务：
 

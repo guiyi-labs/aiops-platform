@@ -35,7 +35,7 @@ PostgreSQL 默认映射到宿主机 `15432`，以避开 Windows/Hyper-V 常见�
 | `ACCESS_TOKEN_TTL` | 短期访问令牌有效期 | `15m` |
 | `REFRESH_TOKEN_TTL` | HttpOnly 刷新会话有效期 | `168h` |
 | `BOOTSTRAP_ADMIN_USERNAME` | 空数据库首次启动管理员 | `admin` |
-| `BOOTSTRAP_ADMIN_PASSWORD` | 空数据库首次启动管理员口令 | `change_me_now` |
+| `BOOTSTRAP_ADMIN_PASSWORD` | 空数据库首次启动管理员口令 | `admin123` |
 | `CREDENTIAL_ENCRYPTION_KEY` | Base64 编码的 32 字节 AES 密钥 | development-only value |
 | `CREDENTIAL_KEY_VERSION` | 凭据密钥版本标识 | `v1` |
 | `CREDENTIAL_DECRYPTION_KEYS` | 最多 8 个旧版本到 Base64 32 字节密钥的 JSON 映射，仅用于过渡解密 | `{}` |

@@ -133,7 +133,7 @@ function Assert-HistoryResponse {
 $DatabaseName = Get-RuntimeValue -Name 'POSTGRES_DB' -Fallback 'aiops'
 $DatabaseUser = Get-RuntimeValue -Name 'POSTGRES_USER' -Fallback 'aiops'
 if ([string]::IsNullOrWhiteSpace($Username)) { $Username = Get-RuntimeValue -Name 'BOOTSTRAP_ADMIN_USERNAME' -Fallback 'admin' }
-if ([string]::IsNullOrWhiteSpace($Password)) { $Password = Get-RuntimeValue -Name 'BOOTSTRAP_ADMIN_PASSWORD' -Fallback 'change_me_now' }
+if ([string]::IsNullOrWhiteSpace($Password)) { $Password = Get-RuntimeValue -Name 'BOOTSTRAP_ADMIN_PASSWORD' -Fallback 'admin123' }
 $targetName = "metrics-history-target-$RunID"
 $decoyName = "metrics-history-decoy-$RunID"
 

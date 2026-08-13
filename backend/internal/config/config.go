@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultDatabaseURL = "postgres://aiops:change_me@localhost:5432/aiops?sslmode=disable"
+	defaultDatabaseURL = "postgres://aiops:admin123@localhost:5432/aiops?sslmode=disable"
 	defaultHTTPAddress = ":8080"
 )
 
@@ -307,8 +307,8 @@ func Load() (Config, error) {
 	if len(jwtSigningKey) < 32 {
 		return Config{}, fmt.Errorf("JWT_SIGNING_KEY must contain at least 32 characters")
 	}
-	bootstrapPassword := stringFromEnv("BOOTSTRAP_ADMIN_PASSWORD", "change_me_now")
-	if environment == "production" && bootstrapPassword == "change_me_now" {
+	bootstrapPassword := stringFromEnv("BOOTSTRAP_ADMIN_PASSWORD", "admin123")
+	if environment == "production" && (bootstrapPassword == "change_me_now" || bootstrapPassword == "admin123") {
 		return Config{}, fmt.Errorf("BOOTSTRAP_ADMIN_PASSWORD must be changed in production")
 	}
 	credentialKey := stringFromEnv("CREDENTIAL_ENCRYPTION_KEY", "ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE=")

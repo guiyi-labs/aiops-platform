@@ -76,7 +76,7 @@ scan_file() {
     if [[ "$content" =~ ^(export[[:space:]]+)?[A-Z0-9_]*PASSWORD=([^[:space:]]*)$ ]]; then
       local value="${BASH_REMATCH[2]}"
       case "$value" in
-        "" | change_me | change_me_now | change-me | example | your-* | \*\*\*)
+        "" | change_me | change_me_now | admin123 | change-me | example | your-* | \*\*\*)
           ;;
         \$* | \<* | \"* | \'*)
           ;;

@@ -9,6 +9,27 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Changed - M106 Local UX Polish (v0.3.0-m106)
+
+- 口令：本地开发默认凭据统一 `admin123`——`BOOTSTRAP_ADMIN_PASSWORD`、Postgres
+  `POSTGRES_PASSWORD`/`DATABASE_URL` 默认值全面切换（`backend/internal/config/config.go`、
+  `compose.yaml`、`.env.example`）；production guard 同步拒绝 `admin123`；文档
+  （README / development / security-statement / PROJECT_STATUS）与所有演示/演练脚本、
+  前端登录测试断言同步；敏感扫描 allowlist 增加 `admin123`。
+- 登录页：`console-theme.css` 登录页改为全屏单一场景——`.login-page` 由两列 grid 改
+  `display:block`，`.login-form-panel` 选择器提升为 `.login-page .login-form-panel`
+  （特异性压制 `premium-ui.css` 的 `section[class*="panel"]{position:relative}` 误匹配），
+  布局改 `position:absolute; inset:0 0 0 auto; width:min(440px,100vw)`，遮罩层改极淡
+  渐变，消除右侧大片黑带。
+- 侧栏：折叠状态基线复核（72px 折叠宽 / 44px nav-item），label 隐藏无溢出，折叠开关
+  展开/收起均可用。
+- 栈：本地栈已启用最新镜像——后端 `k8s-aiops-backend:latest`（`v0.3.0-m106`，
+  alpine:3.22 离线重建）与前端 `k8s-aiops-frontend:latest`（新 dist），全新 volume
+  bootstrap，`admin/admin123` 登录验证通过。
+- See [M106 change record](docs/changes/2026-08-13-m106-local-shell-polish.md)。
+
 ### Added - M105 Signal-to-Incident Triage (v0.3.0-m105)
 
 - 后端：接通 M39 诊断信号摄取管线——新增 `DiagnosisDrain` 后台 worker（`updated_at`

@@ -86,7 +86,7 @@ services:
     environment:
       POSTGRES_DB: aiops
       POSTGRES_USER: aiops
-      POSTGRES_PASSWORD: change_me
+      POSTGRES_PASSWORD: admin123
     ports:
       - "$PG_PORT:5432"
     volumes:
@@ -104,12 +104,12 @@ services:
     environment:
       APP_ENV: development
       HTTP_ADDR: :8080
-      DATABASE_URL: postgres://aiops:change_me@postgres:5432/aiops?sslmode=disable
+      DATABASE_URL: postgres://aiops:admin123@postgres:5432/aiops?sslmode=disable
       JWT_SIGNING_KEY: $JWT_KEY
       ACCESS_TOKEN_TTL: 15m
       REFRESH_TOKEN_TTL: 168h
       BOOTSTRAP_ADMIN_USERNAME: admin
-      BOOTSTRAP_ADMIN_PASSWORD: change_me_now
+      BOOTSTRAP_ADMIN_PASSWORD: admin123
       CREDENTIAL_ENCRYPTION_KEY: $CRED_KEY
       CREDENTIAL_KEY_VERSION: v1
       CREDENTIAL_DECRYPTION_KEYS: ""
@@ -151,10 +151,10 @@ cat > "$BUNDLE/config/env.example" <<'ENV'
 APP_ENV=development
 POSTGRES_DB=aiops
 POSTGRES_USER=aiops
-POSTGRES_PASSWORD=change_me
+POSTGRES_PASSWORD=admin123
 JWT_SIGNING_KEY=change_me_jwt_signing_key
 BOOTSTRAP_ADMIN_USERNAME=admin
-BOOTSTRAP_ADMIN_PASSWORD=change_me_now
+BOOTSTRAP_ADMIN_PASSWORD=admin123
 CREDENTIAL_ENCRYPTION_KEY=change_me_32_byte_base64_key
 CREDENTIAL_KEY_VERSION=v1
 AI_ENABLED=false
@@ -249,7 +249,7 @@ for attempt in $(seq 1 30); do
   [[ "$FE_CODE" == "200" ]] && break
   sleep 2
 done
-LOGIN="$(curl -s -m 5 -X POST "$BASE/api/v1/auth/login" -H 'Content-Type: application/json' -d '{"username":"admin","password":"change_me_now"}' 2>/dev/null || true)"
+LOGIN="$(curl -s -m 5 -X POST "$BASE/api/v1/auth/login" -H 'Content-Type: application/json' -d '{"username":"admin","password":"admin123"}' 2>/dev/null || true)"
 TOKEN="$(jq -r '.access_token // empty' <<<"$LOGIN" 2>/dev/null || true)"
 ME="$(curl -s -m 5 -H "Authorization: Bearer $TOKEN" "$BASE/api/v1/auth/me" 2>/dev/null || true)"
 UNAME="$(jq -r '.username // empty' <<<"$ME")"

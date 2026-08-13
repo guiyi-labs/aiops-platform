@@ -70,6 +70,11 @@ Detailed change records for each milestone live under `docs/changes/`.
   `label:has()` 标签随聚焦联动变色（渐进增强）；提交按钮 hover 叠加 2.2s
   呼吸辉光（保留 sheen 扫光）；安全状态图标 3.4s 微呼吸。全部新动画自动受
   全局 `prefers-reduced-motion` 复位覆盖。
+- 触觉细节（第四轮）：登录卡片 hover 上浮 4px 并叠加青色泛光与边框微染，顶部
+  轨道条同步提亮辉光；提交按钮按下时 `translateY(1px) + scale(0.992)` 触感
+  下压并收敛外发光（暂停 hover 呼吸辉光），移动端同步；输入框聚焦时前置图标
+  轻微抬起 + 青色 drop-shadow；标题 `em` 强调字 7s 慢速渐变流动（桌面生效，
+  移动端保持平面青色）。
 - See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
 
 ## [Unreleased]

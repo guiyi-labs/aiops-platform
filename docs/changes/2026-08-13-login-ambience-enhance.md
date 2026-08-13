@@ -120,6 +120,42 @@
   新动画规则。
 - 非持久部署的固化待办同前（网络恢复后重建镜像）。
 
+## Follow-up — Hover Lift & Press Feedback（第四轮）
+
+承接第三轮微交互收尾，继续在 `console-theme.css` 上做一组"静置感→在场感"的
+触觉级细化，不动模板结构：
+
+- **卡片 hover 浮升**：`.login-card:hover` 增加 `transform: translateY(-4px)`
+  （transition 早已含 transform，300ms `cubic-bezier(0.16,1,0.3,1)` 自然生效），
+  阴影由 32px/78px 抬至 36px/84px 并叠加青色泛光
+  `0 22px 52px -30px rgba(45,212,191,.4)`，边框微染青（`rgba(94,234,212,.3)`）；
+  顶部轨道条 `.login-card-rail i` 同步提亮为 `#a7f3d0` + 16px 辉光（rail 的 `i`
+  增加 `box-shadow` transition；hover 只改颜色，不干扰 Vue 状态驱动的
+  translateX 滑入）。
+- **提交按钮按压触感**：`:active:not(:disabled)` 从纯背景变色升级为
+  `translateY(1px) scale(0.992)` 轻微下压 + 外发光收敛
+  （`0 8px 18px -14px rgba(45,212,191,.85)`）+ `animation: none` 暂停 hover
+  呼吸辉光（动画优先级高于静态声明，不停掉则按压阴影变化被覆盖）；移动端
+  max-width:720px 断点内同步补 scale 下压，保持体验一致。
+- **输入框图标微动**：`.login-field > svg:first-child` 增加
+  `transition: transform/filter 240ms`；`.is-focused` 时图标
+  `translateY(-1px) scale(1.06)` + 青色 `drop-shadow`，与信号光带/label 联动同一
+  触发源，颜色随 `.login-field` 的 `color` 继承自动变青。
+- **标题渐变流动**：`.login-intro h1 em` 桌面折线渐变加 `background-size:200%`
+  与 `login-title-flow` 7s 慢速往返流动（`background-position` 0%→100%），克制
+  不抢戏；移动端覆盖块补 `animation:none`，保持平面青色设计不变。
+- 全局 `prefers-reduced-motion` 复位自动覆盖 `login-title-flow`（hover/active
+  为状态瞬态，reduced-motion 下 0.01ms 直达终态亦可接受）。
+
+### Deployment（第四轮，并入 18080）
+
+- 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`；
+  本轮产物 `index-C7BzpdRi.css` + `index-RhMxlb3v.js`（与本地构建 hash 一致）。
+- 验证：`curl 127.0.0.1:18080/login` 引用新 hash；CSS 实测含 `login-title-flow`
+  / `scale(.992)` / `translateY(-4px)` / `background:#a7f3d0`（rail hover 提亮）
+  全部新规则。
+- 非持久部署的固化待办同前（网络恢复后重建镜像）。
+
 ## Risks / Notes
 
 - **容器重建后回退**：18080 当前为容器内覆盖的 dist，`docker compose up -d`

@@ -1024,9 +1024,16 @@ tbody tr {
 .login-intro h1 em {
   font-style: normal;
   background: linear-gradient(92deg, #5eead4 8%, #a5b4fc 55%, #818cf8 92%);
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  animation: login-title-flow 7s ease-in-out infinite alternate;
+}
+
+@keyframes login-title-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 100% 50%; }
 }
 
 /* ---- Visual block: grid backdrop + topology + stats ---- */
@@ -1402,7 +1409,17 @@ tbody tr {
 }
 
 .login-card:hover {
-  box-shadow: 0 32px 78px -34px rgba(0, 0, 0, 0.98), 0 0 0 1px rgba(255, 255, 255, 0.035) inset;
+  transform: translateY(-4px);
+  border-color: rgba(94, 234, 212, 0.3);
+  box-shadow:
+    0 36px 84px -34px rgba(0, 0, 0, 0.98),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 22px 52px -30px rgba(45, 212, 191, 0.4);
+}
+
+.login-card:hover .login-card-rail i {
+  background: #a7f3d0;
+  box-shadow: 0 0 16px -2px rgba(94, 234, 212, 0.9);
 }
 
 /* ---- M93-B1b: login panel presence & scale refinements ---- */
@@ -1715,7 +1732,7 @@ tbody tr {
   height: 100%;
   background: #5eead4;
   transform: translateX(-110%);
-  transition: background-color 220ms ease;
+  transition: background-color 220ms ease, box-shadow 220ms ease;
 }
 
 .login-field {
@@ -1782,6 +1799,12 @@ tbody tr {
   position: absolute;
   left: 13px;
   pointer-events: none;
+  transition: transform 240ms ease, filter 240ms ease;
+}
+
+.login-field.is-focused > svg:first-child {
+  transform: translateY(-1px) scale(1.06);
+  filter: drop-shadow(0 0 6px rgba(94, 234, 212, 0.55));
 }
 
 .login-field input,
@@ -1846,6 +1869,9 @@ tbody tr {
 
 .login-submit:active:not(:disabled) {
   background: #267565;
+  box-shadow: 0 8px 18px -14px rgba(45, 212, 191, 0.85);
+  transform: translateY(1px) scale(0.992);
+  animation: none;
 }
 
 @keyframes login-submit-glow {
@@ -2553,6 +2579,7 @@ body,
   color: #71eadb;
   background: none;
   -webkit-text-fill-color: currentColor;
+  animation: none;
 }
 
 .login-description {
@@ -2710,6 +2737,7 @@ body,
 
 .login-submit:active:not(:disabled) {
   background: #14b8a6;
+  transform: translateY(1px) scale(0.992);
 }
 
 .login-security-status {

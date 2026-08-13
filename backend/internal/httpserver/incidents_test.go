@@ -55,6 +55,15 @@ func (r *incidentRepoStub) Get(_ context.Context, id int64) (incident.Incident, 
 	return record, nil
 }
 
+func (r *incidentRepoStub) FindBySource(_ context.Context, sourceType, sourceRef string) (incident.Incident, error) {
+	for _, record := range r.byID {
+		if record.SourceType == sourceType && record.SourceRef == sourceRef {
+			return record, nil
+		}
+	}
+	return incident.Incident{}, incident.ErrNotFound
+}
+
 func (r *incidentRepoStub) List(_ context.Context, _ incident.ListFilter) ([]incident.Incident, error) {
 	items := make([]incident.Incident, 0, len(r.byID))
 	for _, record := range r.byID {

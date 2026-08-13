@@ -382,6 +382,7 @@ export interface CaseView {
   resource_links: ResourceLink[]
   change_candidates: ChangeCandidate[]
   generated_at: string
+  incident?: { id: number; number: string; title: string; status: string } | null
 }
 
 export interface CaseListResponse {

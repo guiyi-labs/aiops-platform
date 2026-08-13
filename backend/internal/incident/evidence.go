@@ -68,7 +68,7 @@ func (s *Service) Evidence(ctx context.Context, id int64) ([]EvidenceItem, error
 		resolved.ObservedAt = record.ObservedAt.UTC().Format("2006-01-02T15:04:05.000Z")
 	}
 	if resolved.DeepLink == "" {
-		resolved.DeepLink = IncidentDeepLink(record.SourceType)
+		resolved.DeepLink = IncidentDeepLink(record.SourceType, record.SourceRef)
 	}
 	return []EvidenceItem{resolved}, nil
 }
@@ -83,14 +83,14 @@ func snapshotEvidence(record Incident) EvidenceItem {
 		Severity:   record.Severity,
 		Resource:   record.Resource,
 		ObservedAt: record.ObservedAt.UTC().Format("2006-01-02T15:04:05.000Z"),
-		DeepLink:   IncidentDeepLink(record.SourceType),
+		DeepLink:   IncidentDeepLink(record.SourceType, record.SourceRef),
 	}
 }
 
-// IncidentDeepLink returns the frontend route for the source module list. The
-// receiving views do not support deep query focus yet; the evidence block
-// carries the stable source_ref for manual location.
-func IncidentDeepLink(sourceType string) string {
+// IncidentDeepLink returns the frontend route for the source module. The
+// correlation source deep-links to the exact case via ?case_id=<id> so the
+// receiving view can focus the case; other sources land on their module list.
+func IncidentDeepLink(sourceType, sourceRef string) string {
 	switch strings.TrimSpace(sourceType) {
 	case SourceTypeDiagnosis:
 		return "/diagnoses"
@@ -101,6 +101,10 @@ func IncidentDeepLink(sourceType string) string {
 	case SourceTypeSignal:
 		return "/aiops/overview"
 	case SourceTypeCorrelation:
+		caseID := strings.TrimPrefix(strings.TrimSpace(sourceRef), "correlation:")
+		if caseID != "" && caseID != sourceRef {
+			return "/aiops/correlation?case_id=" + caseID
+		}
 		return "/aiops/correlation"
 	default:
 		return "/incidents"

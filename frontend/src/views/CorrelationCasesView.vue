@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { Boxes, Filter, GitBranch, Link2, RefreshCw, Sparkles, X, Zap } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
@@ -12,6 +13,7 @@ import type { Cluster } from '../types/cluster'
 import type { ActionCandidate, CaseConfidence, CaseStatus, CaseView, CorrelationCase } from '../types/aiops'
 
 const auth = useAuthStore()
+const route = useRoute()
 const clusters = ref<Cluster[]>([])
 const selectedClusterID = ref<number | null>(null)
 const statusFilter = ref<CaseStatus | ''>('')
@@ -167,6 +169,9 @@ async function promoteToIncident() {
       title: `关联案例事故 ${c.case_key}`,
       summary: `从关联案例 #${c.id} 提升的事故工作区`,
     })
+    if (caseView.value) {
+      caseView.value.incident = { id: incident.id, number: incident.number, title: incident.title, status: incident.status }
+    }
     noticeMessage.value = `已创建事故工作区 ${incident.number}`
   } catch (err) {
     if (err instanceof APIError && err.code === 'SOURCE_ALREADY_USED') {
@@ -197,9 +202,33 @@ async function changeCluster() {
 async function initialize() {
   try {
     clusters.value = (await listClusters(auth.accessToken)).items.filter((item) => item.enabled)
-    selectedClusterID.value = clusters.value[0]?.id ?? null
   } catch {
     errorMessage.value = '无法加载集群列表'
+  }
+  const caseID = Number(route.query.case_id)
+  if (Number.isInteger(caseID) && caseID > 0) {
+    // M108 deep link: /aiops/correlation?case_id=<id> focuses one case.
+    selectedClusterID.value = null
+    detailLoading.value = true
+    actionsLoading.value = true
+    try {
+      const [view, actionResp] = await Promise.all([
+        getCorrelationCase(auth.accessToken, caseID),
+        listCorrelationActions(auth.accessToken, caseID),
+      ])
+      selectedCaseID.value = caseID
+      caseView.value = view
+      actions.value = actionResp.items
+      const owner = clusters.value.find((item) => item.id === view.case.cluster_id)
+      selectedClusterID.value = owner?.id ?? null
+    } catch {
+      detailError.value = '无法加载关联案例详情'
+    } finally {
+      detailLoading.value = false
+      actionsLoading.value = false
+    }
+  } else {
+    selectedClusterID.value = clusters.value[0]?.id ?? null
   }
   await loadCases()
 }
@@ -315,6 +344,7 @@ onMounted(initialize)
             <span class="mini-badge neutral">证据完整度 {{ completenessPercent(caseView.case.evidence_completeness) }}</span>
             <span class="mini-badge neutral">首次观察 {{ formatTime(caseView.case.first_observed_at) }}</span>
             <span class="mini-badge neutral">最近观察 {{ formatTime(caseView.case.last_observed_at) }}</span>
+            <a v-if="caseView.incident" class="mini-badge linked-incident" :href="'/incidents'">已关联事故 {{ caseView.incident.number }} ↗</a>
           </div>
 
           <section v-if="caseView" class="detail-section">
@@ -630,6 +660,13 @@ onMounted(initialize)
 .action-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+.linked-incident {
+  color: var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
+  text-decoration: none;
+  font-weight: 600;
 }
 .notice-message {
   margin-top: 12px;

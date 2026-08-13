@@ -9,6 +9,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M108 Correlation Case ↔ Incident 双向深链 (v0.3.0-m108)
+
+- 后端：`incident` 新增 `FindBySource(source_type, source_ref)` 反查；correlation case view 富集可选 `incident{id,number,title,status}`（只读 best-effort，缺失不阻断视图）；`IncidentDeepLink` 签名扩展，correlation 证据深链精确到 `/aiops/correlation?case_id=<id>`。
+- 前端：`CaseView` 类型加 `incident?`；`CorrelationCasesView` 支持 `?case_id=` 深链聚焦（自动选集群并展开详情），详情徽章行显示「已关联事故 INC-xxxx ↗」入口（提升成功后即时回显）。
+- OpenAPI：`CorrelationCaseView` schema 增加 `incident`；typegen 重新生成。
+- 演示：demo-drill 第 13 节新增 `correlation-incident-deeplink` 断言（案例视图回显事故 ID）。
+- See [change record](docs/changes/2026-08-13-m108-correlation-deeplink.md)。
+
+
+
 ### Added - M108 Correlation Case → Incident (v0.3.0-m108)
 
 - 后端：关联案例成为第 6 类事故来源 `correlation`——`incidents.source_type` CHECK 迁移 `000046`；resolver 解析 `correlation:<id>`（前缀/ID 校验、案例不存在→`ErrInvalidSource`、跨集群防泄漏），severity 按案例置信度富集（confirmed→high / candidate→warning / 其余 info），title/summary 带 case_key/rule_id/信号数，资源与首次观测时间取自案例。

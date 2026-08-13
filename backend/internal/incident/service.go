@@ -136,6 +136,13 @@ func (s *Service) Get(ctx context.Context, id int64) (Incident, error) {
 }
 
 // List returns incidents matching the filter.
+// FindBySource returns the incident tied to a (source_type, source_ref)
+// pair, or ErrNotFound when none exists. Used by read-only enrichment (e.g.
+// correlation case views linking back to their incident workspace).
+func (s *Service) FindBySource(ctx context.Context, sourceType, sourceRef string) (Incident, error) {
+	return s.repo.FindBySource(ctx, sourceType, sourceRef)
+}
+
 func (s *Service) List(ctx context.Context, filter ListFilter) ([]Incident, error) {
 	return s.repo.List(ctx, filter)
 }

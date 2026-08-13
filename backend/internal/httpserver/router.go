@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -649,6 +650,15 @@ func New(logger *zap.Logger, options Options) http.Handler {
 	// M42 multi-signal correlation and deterministic RCA
 	if options.CorrelationService != nil {
 		correlationAPI := correlationHandler{service: options.CorrelationService}
+		if options.Incidents != nil {
+			correlationAPI.incidentBySource = func(ctx context.Context, sourceRef string) (*incident.Incident, error) {
+				rec, err := options.Incidents.FindBySource(ctx, incident.SourceTypeCorrelation, sourceRef)
+				if err != nil {
+					return nil, err
+				}
+				return &rec, nil
+			}
+		}
 		// Rule catalog is a read-only public contract.
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/rules", AuthRequired: true, Handler: correlationAPI.listCorrelationRules, AuditAction: "aiops.correlation.rules.list", AuditResource: "CorrelationRule"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/correlation/cases", AuthRequired: true, Handler: correlationAPI.listCorrelationCases, AuditAction: "aiops.correlation.cases.list", AuditResource: "CorrelationCase"})

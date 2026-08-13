@@ -41,6 +41,15 @@ func (r *fakeEvidenceRepo) Get(_ context.Context, id int64) (Incident, error) {
 	return record, nil
 }
 
+func (r *fakeEvidenceRepo) FindBySource(_ context.Context, sourceType, sourceRef string) (Incident, error) {
+	for _, record := range r.byID {
+		if record.SourceType == sourceType && record.SourceRef == sourceRef {
+			return record, nil
+		}
+	}
+	return Incident{}, ErrNotFound
+}
+
 func (r *fakeEvidenceRepo) List(context.Context, ListFilter) ([]Incident, error) { return nil, nil }
 func (r *fakeEvidenceRepo) Summary(context.Context) (Summary, error)             { return Summary{}, nil }
 func (r *fakeEvidenceRepo) Transition(context.Context, int64, int64, string, ActorRef, string) (Incident, error) {
@@ -159,4 +168,16 @@ func TestService_Evidence_NotFound(t *testing.T) {
 	svc := NewService(repo)
 	_, err := svc.Evidence(context.Background(), 999)
 	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestIncidentDeepLink_CorrelationFocused(t *testing.T) {
+	if got := IncidentDeepLink(SourceTypeCorrelation, "correlation:42"); got != "/aiops/correlation?case_id=42" {
+		t.Errorf("correlation deep link = %q, want /aiops/correlation?case_id=42", got)
+	}
+	if got := IncidentDeepLink(SourceTypeCorrelation, ""); got != "/aiops/correlation" {
+		t.Errorf("correlation fallback deep link = %q, want /aiops/correlation", got)
+	}
+	if got := IncidentDeepLink(SourceTypeSignal, "signal:7"); got != "/aiops/overview" {
+		t.Errorf("signal deep link = %q, want /aiops/overview", got)
+	}
 }

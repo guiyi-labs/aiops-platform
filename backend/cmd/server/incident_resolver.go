@@ -140,7 +140,7 @@ func (r *incidentResolver) ResolveEvidence(ctx context.Context, sourceType, sour
 		Severity:   info.Severity,
 		Resource:   info.Resource,
 		ObservedAt: info.ObservedAt.UTC().Format("2006-01-02T15:04:05.000Z"),
-		DeepLink:   incident.IncidentDeepLink(sourceType),
+		DeepLink:   incident.IncidentDeepLink(sourceType, sourceRef),
 		Fields:     []incident.EvidenceField{},
 	}
 	switch sourceType {

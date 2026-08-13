@@ -89,6 +89,16 @@ func (f *fakeRepository) Get(_ context.Context, id int64) (Incident, error) {
 	return cloneIncident(*record), nil
 }
 
+func (f *fakeRepository) FindBySource(_ context.Context, sourceType, sourceRef string) (Incident, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	id, ok := f.sources[sourceKey(sourceType, sourceRef)]
+	if !ok {
+		return Incident{}, ErrNotFound
+	}
+	return cloneIncident(*f.byID[id]), nil
+}
+
 func (f *fakeRepository) List(_ context.Context, filter ListFilter) ([]Incident, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -723,5 +733,34 @@ func TestBatchAssignValidation(t *testing.T) {
 	}
 	if _, err := service.BatchAssign(ctx, BatchAssignInput{IncidentIDs: ids, AssigneeUserID: 2, Actor: actor}); !errors.Is(err, ErrBatchTooLarge) {
 		t.Fatalf("too large err = %v", err)
+	}
+}
+
+func TestService_FindBySource(t *testing.T) {
+	repo := newFakeRepository()
+	svc := NewService(repo)
+	created, err := svc.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeCorrelation,
+		SourceRef:  "correlation:5",
+		ClusterID:  1,
+		Title:      "case-linked incident",
+		Severity:   SeverityHigh,
+		Resource:   ResourceRef{Kind: "Node", Name: "K8S-W1"},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	got, err := svc.FindBySource(context.Background(), SourceTypeCorrelation, "correlation:5")
+	if err != nil {
+		t.Fatalf("find by source: %v", err)
+	}
+	if got.ID != created.ID {
+		t.Errorf("find by source id = %d, want %d", got.ID, created.ID)
+	}
+
+	_, err = svc.FindBySource(context.Background(), SourceTypeCorrelation, "correlation:999")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("missing source err = %v, want ErrNotFound", err)
 	}
 }

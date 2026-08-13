@@ -14,6 +14,7 @@ import (
 type Repository interface {
 	Create(context.Context, *Incident) error
 	Get(context.Context, int64) (Incident, error)
+	FindBySource(context.Context, string, string) (Incident, error)
 	List(context.Context, ListFilter) ([]Incident, error)
 	Summary(context.Context) (Summary, error)
 	Transition(context.Context, int64, int64, string, ActorRef, string) (Incident, error)
@@ -145,6 +146,20 @@ func (r *GormRepository) ListSLAEligible(ctx context.Context, eventType string, 
 func (r *GormRepository) Get(ctx context.Context, id int64) (Incident, error) {
 	var stored storedIncident
 	if err := r.db.WithContext(ctx).Raw(incidentSelect+" WHERE i.id = ?", id).Scan(&stored).Error; err != nil {
+		return Incident{}, err
+	}
+	if stored.ID == 0 {
+		return Incident{}, ErrNotFound
+	}
+	return r.assemble(ctx, stored)
+}
+
+// FindBySource returns the single incident tied to a (source_type,
+// source_ref) pair. The incidents_source_unique constraint guarantees at most
+// one row; ErrNotFound is returned when no incident exists yet.
+func (r *GormRepository) FindBySource(ctx context.Context, sourceType, sourceRef string) (Incident, error) {
+	var stored storedIncident
+	if err := r.db.WithContext(ctx).Raw(incidentSelect+" WHERE i.source_type = ? AND i.source_ref = ?", sourceType, sourceRef).Scan(&stored).Error; err != nil {
 		return Incident{}, err
 	}
 	if stored.ID == 0 {

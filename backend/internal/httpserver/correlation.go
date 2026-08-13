@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"k8s-aiops.local/backend/internal/correlation"
+	"k8s-aiops.local/backend/internal/incident"
 )
 
 // correlationHandler exposes the M42 correlation service as read-only query
@@ -26,6 +28,25 @@ import (
 //	GET /api/v1/aiops/correlation/cases/:id/actions   — action candidates
 type correlationHandler struct {
 	service *correlation.Service
+	// incidentBySource optionally resolves the incident linked to a
+	// correlation source ref (correlation:<id>). Read-only enrichment; when
+	// nil or the incident is missing, the case view simply omits it.
+	incidentBySource func(ctx context.Context, sourceRef string) (*incident.Incident, error)
+}
+
+// correlationCaseViewResponse is the case view enriched with the linked
+// incident workspace (M108 bidirectional deep link).
+type correlationCaseViewResponse struct {
+	correlation.CaseView
+	Incident *incidentSummary `json:"incident,omitempty"`
+}
+
+// incidentSummary is the minimal incident reference embedded in the case view.
+type incidentSummary struct {
+	ID     int64  `json:"id"`
+	Number string `json:"number"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
 }
 
 // listCorrelationRules handles GET /api/v1/aiops/correlation/rules.
@@ -105,7 +126,14 @@ func (h correlationHandler) getCorrelationCase(c *gin.Context) {
 		writeCorrelationError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, view)
+	resp := correlationCaseViewResponse{CaseView: view}
+	if h.incidentBySource != nil {
+		sourceRef := incident.SourceRefForCorrelation(id)
+		if inc, err := h.incidentBySource(c.Request.Context(), sourceRef); err == nil {
+			resp.Incident = &incidentSummary{ID: inc.ID, Number: inc.Number, Title: inc.Title, Status: inc.Status}
+		}
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // getCorrelationCaseGraph handles GET /api/v1/aiops/correlation/cases/:id/graph.

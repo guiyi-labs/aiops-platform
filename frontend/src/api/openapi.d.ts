@@ -6104,6 +6104,15 @@ export interface components {
         };
         CorrelationCaseView: {
             case: components["schemas"]["CorrelationCase"];
+            /** @description Incident workspace linked to this correlation case (M108 bidirectional deep link; present only when the case was promoted) */
+            incident?: {
+                /** Format: int64 */
+                id: number;
+                number: string;
+                title: string;
+                /** @enum {string} */
+                status: "open" | "confirmed" | "resolved" | "dismissed";
+            };
             signal_links: components["schemas"]["CorrelationSignalLink"][];
             resource_links: components["schemas"]["CorrelationResourceLink"][];
             change_candidates: components["schemas"]["CorrelationChangeCandidate"][];

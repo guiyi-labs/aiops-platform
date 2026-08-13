@@ -614,6 +614,15 @@ if [[ -n "$CORR_CASE_ID" && "$CORR_CASE_ID" != "0" ]]; then
     else
       fail correlation-incident-dedup "duplicate was not rejected: $DUP"
     fi
+    # M108 Block 2: case view links back to the incident workspace
+    # (bidirectional deep link enrichment).
+    LINKED="$(api GET "/api/v1/aiops/correlation/cases/$CORR_CASE_ID")"
+    LINKED_INC_ID="$(jq -r '.incident.id // 0' <<<"$LINKED")"
+    if [[ -n "$LINKED_INC_ID" && "$LINKED_INC_ID" != "0" ]] && [[ "$LINKED_INC_ID" == "$CORR_INC_ID" ]]; then
+      pass correlation-incident-deeplink "case view links incident #$LINKED_INC_ID (bidirectional deep link)"
+    else
+      fail correlation-incident-deeplink "case view incident = ${LINKED_INC_ID:-missing}, want $CORR_INC_ID"
+    fi
   else
     fail correlation-incident "incident create failed: $CORR_INC"
   fi

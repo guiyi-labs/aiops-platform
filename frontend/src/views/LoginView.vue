@@ -118,6 +118,10 @@ async function submit() {
             <circle class="blip blip-b" cx="118" cy="268" r="3" />
             <circle class="blip blip-c" cx="292" cy="238" r="2.6" />
           </g>
+          <g class="radar-pulses">
+            <circle class="radar-pulse pulse-a" cx="180" cy="180" r="16" />
+            <circle class="radar-pulse pulse-b" cx="180" cy="180" r="16" />
+          </g>
           <circle class="radar-center" cx="180" cy="180" r="5" />
         </svg>
       </div>
@@ -127,9 +131,21 @@ async function submit() {
         <h1>让每一次故障判断<br /><em>都有证据可追溯</em></h1>
         <p class="login-description">统一接入 Kubernetes 集群，关联资源状态、事件与日志，以规则诊断为主、AI 解释为辅。</p>
         <ul class="login-features" role="list">
-          <li><i aria-hidden="true"></i>RULES-DRIVEN</li>
-          <li><i aria-hidden="true"></i>EVIDENCE-FIRST</li>
-          <li><i aria-hidden="true"></i>AUDIT-CLOSED</li>
+          <li
+            :class="{ 'is-active': activeCapability === 'governance' }"
+            @mouseenter="activeCapability = 'governance'"
+            @mouseleave="activeCapability = null"
+          ><i aria-hidden="true"></i>RULES-DRIVEN</li>
+          <li
+            :class="{ 'is-active': activeCapability === 'diagnosis' }"
+            @mouseenter="activeCapability = 'diagnosis'"
+            @mouseleave="activeCapability = null"
+          ><i aria-hidden="true"></i>EVIDENCE-FIRST</li>
+          <li
+            :class="{ 'is-active': activeCapability === 'audit' }"
+            @mouseenter="activeCapability = 'audit'"
+            @mouseleave="activeCapability = null"
+          ><i aria-hidden="true"></i>AUDIT-CLOSED</li>
         </ul>
       </div>
 

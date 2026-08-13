@@ -54,9 +54,41 @@
   features 紧跟标题下，footer 贴底部两端分布，与能力列表由 `padding-bottom:40px`
   隔离。
 
+## Follow-up — Signal Flow Enhancement（第二轮）
+
+承接首轮装饰落地后，按评审建议补一组"信号流"增强，并部署至 18080 前端容器：
+
+- `LoginView.vue` 雷达 SVG 新增 `.radar-pulses`（两条差相扩散脉冲圆，
+  `radar-ping 4.8s ease-out infinite`、`.pulse-b` 延迟 2.4s），呼应"持续监测"
+  的动态感。
+- `.login-features` 三个词条绑定 `activeCapability` 联动：mouseenter 分别映射
+  governance / diagnosis / audit（与右侧能力列表同一状态源），mouseleave 复位；
+  词条自身带 `is-active` 态，hover 时文字提亮、圆点放大辉光。拓扑图随词条
+  hover 同步点亮对应节点，形成"词条 → 拓扑"交互闭环。
+- `.login-footer::before` 新增极淡横向刻度线（`repeating-linear-gradient`
+  1px/14px），强化"时间线/信号"质感；刻度线随 footer 在矮屏/移动端一并隐藏。
+- 全局 `prefers-reduced-motion` 复位（`*` 通配）自动覆盖 `radar-ping`，无需
+  单独处理。
+
+### Deployment（并入 18080 最新版本）
+
+- Docker Hub 网络不可达（`registry-1.docker.io` i/o timeout，重试仍失败），
+  `docker compose build frontend` 无法完成；本地缺少 `nginx:1.27-alpine`，
+  无法通过本地镜像 tag 兜底。
+- 临时部署方式：`docker cp` 将本地 `frontend/dist/*` 覆盖进运行中的
+  `k8s-aiops-frontend-1` 容器 `/usr/share/nginx/html/`（nginx 静态文件即时
+  生效）。验证：`curl 127.0.0.1:18080/login` 引用 `index-CT82b2pN.css` +
+  `index-CgyTq-6b.js`，`LoginView-Oc19Iw3S.js` 含 RULES-DRIVEN/mouseenter，
+  CSS 含 radar-pulse/radar-ping/login-footer:before；浏览器实测 radar/
+  pulse/footer 均渲染、无控制台错误。
+- 注意：此部署非持久（容器重建后回退至镜像内旧 dist）。待 Docker Hub
+  网络恢复后需执行 `docker compose build frontend && docker compose up -d
+  frontend` 重建镜像固化。
+
 ## Risks / Notes
 
-- 浏览器视口无法 resize 到桌面宽度（被锁定在移动端断点），宽屏渲染基于公式推导，
+- **容器重建后回退**：18080 当前为容器内覆盖的 dist，`docker compose up -d`
+  或容器重建会回到镜像旧版；请尽快在网络恢复后重建镜像（见 Deployment 节）。
   建议后续在宽屏浏览器人工复核一次 radar 与能力列表/标题的实际叠加效果。
 - radar 与内容层 z-index 同为 1（DOM 顺序 radar 在前），属于"装饰衬于内容下"的
   预期分层；若后续内容区需要更高叠层，请同步调整。

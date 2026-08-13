@@ -32,6 +32,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 响应式：矮屏断点（≤760px 高）隐藏 radar/footer、features 收紧；移动端断点
   （≤720px 宽）radar/footer/features 全部隐藏，移动端布局零改动；新元素均
   aria-hidden 或 role=list，不影响无障碍。
+- 信号流增强（第二轮）：雷达加双扩散脉冲圆（radar-ping 差相动画）；三个特性
+  词条 hover 联动 `activeCapability`，与右侧拓扑图节点点亮互操作，词条自身
+  `is-active` 高亮；footer 加极淡横向刻度线。
+- 部署：Docker Hub 不可达导致镜像重建失败，临时以 `docker cp` 将新 dist 覆盖
+  进 18080 前端容器（非持久，容器重建后回退，待网络恢复后重建镜像固化）。
 - See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
 
 ## [Unreleased]

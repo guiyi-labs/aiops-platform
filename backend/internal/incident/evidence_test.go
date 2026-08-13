@@ -20,7 +20,6 @@ func newFakeEvidenceRepo() *fakeEvidenceRepo {
 	return &fakeEvidenceRepo{byID: map[int64]Incident{}, nextID: 1, sources: map[string]int64{}}
 }
 
-
 func (r *fakeEvidenceRepo) Create(_ context.Context, record *Incident) error {
 	if _, exists := r.sources[record.SourceType+"|"+record.SourceRef]; exists {
 		return ErrSourceAlreadyUsed
@@ -43,7 +42,7 @@ func (r *fakeEvidenceRepo) Get(_ context.Context, id int64) (Incident, error) {
 }
 
 func (r *fakeEvidenceRepo) List(context.Context, ListFilter) ([]Incident, error) { return nil, nil }
-func (r *fakeEvidenceRepo) Summary(context.Context) (Summary, error)            { return Summary{}, nil }
+func (r *fakeEvidenceRepo) Summary(context.Context) (Summary, error)             { return Summary{}, nil }
 func (r *fakeEvidenceRepo) Transition(context.Context, int64, int64, string, ActorRef, string) (Incident, error) {
 	return Incident{}, errors.New("unused")
 }

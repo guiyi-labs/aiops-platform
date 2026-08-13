@@ -2340,7 +2340,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Transition incident status */
+        patch: operations["transitionIncident"];
         trace?: never;
     };
     "/api/v1/incidents/{incident_id}/evidence": {
@@ -2357,8 +2358,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Transition incident status */
-        patch: operations["transitionIncident"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/incidents/{incident_id}/export": {
@@ -9859,6 +9859,26 @@ export interface operations {
             404: components["responses"]["Error"];
         };
     };
+    transitionIncident: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentTransitionRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Ok"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+        };
+    };
     incidentEvidence: {
         parameters: {
             query?: never;
@@ -9882,26 +9902,6 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
-        };
-    };
-    transitionIncident: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                incident_id: components["parameters"]["IncidentID"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["IncidentTransitionRequest"];
-            };
-        };
-        responses: {
-            200: components["responses"]["Ok"];
-            404: components["responses"]["Error"];
-            409: components["responses"]["Error"];
         };
     };
     exportIncident: {

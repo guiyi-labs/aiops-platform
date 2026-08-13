@@ -17,15 +17,15 @@ type EvidenceField struct {
 // alert / inspection / signal) behind an incident so operators can reach the
 // original evidence in at most a few interactions.
 type EvidenceItem struct {
-	SourceType string         `json:"source_type"`
-	SourceRef  string         `json:"source_ref"`
-	Title      string         `json:"title"`
-	Summary    string         `json:"summary"`
-	Severity   string         `json:"severity"`
-	Resource   ResourceRef    `json:"resource"`
-	ObservedAt string         `json:"observed_at"`
+	SourceType string          `json:"source_type"`
+	SourceRef  string          `json:"source_ref"`
+	Title      string          `json:"title"`
+	Summary    string          `json:"summary"`
+	Severity   string          `json:"severity"`
+	Resource   ResourceRef     `json:"resource"`
+	ObservedAt string          `json:"observed_at"`
 	Fields     []EvidenceField `json:"fields,omitempty"`
-	DeepLink   string         `json:"deep_link"`
+	DeepLink   string          `json:"deep_link"`
 }
 
 // EvidenceResolver resolves an incident source into the structured evidence

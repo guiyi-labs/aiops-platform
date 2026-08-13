@@ -73,6 +73,14 @@ Detailed change records for each milestone live under `docs/changes/`.
   `--verify` 全绿（login desktop diff 0.000%，其余 IDENTICAL）。
 - See [change record](docs/changes/2026-08-14-a11y-axe-audit.md)。
 
+### Added - CI 门禁集成：`pnpm ui:gate` 一键全量校验（Track A · CI 衔接）
+
+- 新增 `scripts/ui-gate.mjs`：按序执行 CSS token 审计 (`--check`) → 截图基线
+  `--verify` → axe 审计（32 视图 × 2 视口）→ bundle gate，任一步非零即中止。
+- `frontend/package.json`：新增 `"ui:gate": "node ../scripts/ui-gate.mjs"` 脚本入口。
+- 一键通过：`pnpm ui:gate` → `PASS: 4/4`（CSS tokens + baselines + axe + bundle）。
+- See [change record](docs/changes/2026-08-14-ui-gate-ci-integration.md)。
+
 ### Changed - CSS Token 层第一轮收尾：console-theme 遗留字面量清零
 
 - `console-theme.css` 剩余 2 处 `#b91c1c` 字面量替换为 `var(--status-danger)`，

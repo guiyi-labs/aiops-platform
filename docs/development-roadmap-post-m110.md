@@ -74,8 +74,12 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
   ✅ 门禁脚本已落地并全量收口：`scripts/audit-a11y-axe.mjs`（CDP+axe-core，双视口，
   0 critical/serious/0 app errors），覆盖 **32 视图**（含 audit-logs），
   62 条截图基线 `--verify` 全绿；并修复 Workloads Tab / 用户页 / audit-logs 对比度、
-  select 无障碍、缺 cluster_id 400 缺陷，见 `docs/changes/2026-08-14-a11y-axe-audit.md`、
-  `docs/changes/2026-08-14-ui-baseline-batch3.md`、`2026-08-14-a11y-fixes-batch3.md`。
+  select 无障碍、缺 cluster_id 400 缺陷。
+  ✅ **CI 衔接**：`scripts/ui-gate.mjs` + `pnpm ui:gate` 一键串联四件套门禁
+  （CSS tokens → baselines → axe → bundle），`PASS: 4/4`。
+  见 `docs/changes/2026-08-14-a11y-axe-audit.md`、
+  `2026-08-14-ui-baseline-batch3.md`、`2026-08-14-a11y-fixes-batch3.md`、
+  `2026-08-14-ui-gate-ci-integration.md`。
 - **性能**：沿用 M93-B2 登录页预算与 M96 前端 DOM 硬上限，不破坏既有预算基线。
 
 **衔接契约（必须满足）**：门禁 `pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm build`

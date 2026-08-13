@@ -426,3 +426,63 @@
 
 - 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
   容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。
+
+---
+
+## Round 12 — 分层居中对齐（容器居中 · 文字左齐）
+
+### 决策
+
+用户要求"全部居中"或"分层对齐"二选一。本轮**采纳分层对齐**，理由：
+
+1. 标题为长句（"让每一次故障判断都有证据可追溯"），一律居中会造成两侧锯齿、
+   可读性下降；
+2. 企业级控制台登录页更适合"容器居中、文字左齐"的稳重感；
+3. 右侧登录面板为固定右区，左区文字不能真的移到屏幕正中（会撞面板），故"居中"指
+   左区内容块整体在可用区域内居中，块内文字保持左对齐。
+
+### 改动（纯视觉层，未动表单逻辑与无障碍）
+
+- `frontend/src/styles/console-theme.css`
+  - `.login-intro`（主区块 M93）：新增 `align-items: center`（水平居中整列）+
+    `justify-content: safe center`（垂直居中整列；`safe` 在内容超高时回退到
+    `start`，避免溢出裁切）。保留 `padding-right: clamp(460px,49vw,760px)` 为右面板留白。
+  - 左区各直接子块统一挂 `width: 100%; max-width: 680px`，使品牌 → 标题块 →
+    状态条 → 视觉柱共享同一条 680px 左对齐基线：
+    - `.login-copy`（已含）、`.login-brand`、`.login-signal-strip`、`.login-visual`。
+  - `eyebrow / h1 / .login-description / .login-features` 均为 `.login-copy` 子元素，
+    随 680px 容器自动对齐，文字保持 `text-align: left`。
+  - `.login-description` 维持 `max-width: 540px` 内约束（落实建议①：主内容与辅助信息
+    分层，长文本限宽提升可读性）。
+  - **修复级联陷阱**：M93-B1f 块中存在重复的 `.login-visual`，旧值
+    `width: min(100%,620px)` 与 `margin-top: auto` 会覆盖主区块并把视觉柱顶到底部、
+    破坏居中。已改为 `width:100%; max-width:680px; margin-top:0`，与主区块一致。
+  - 表单操作按钮组（落实建议②）：`.login-submit` 由 `justify-content:center` 改为
+    `width:100%; justify-content: flex-start`（按钮作为居中容器占满表单宽，但内部
+    图标+文字左对齐）；`.login-submit-label` 由 `text-align:center` 改为 `text-align:left`。
+  - 响应式：矮屏 / 移动端断点保留；移动端 `place-items: start center` 已居中，桌面端
+    通过上述 `max-width: 680px` 限制内容最大宽度并居中容器。
+- `frontend/src/views/LoginView.vue`：本轮无结构改动（DOM 已在第十一轮就绪）。
+
+### 级联确认
+
+`base.css` 含中性主题 `.login-intro{...justify-content:space-between...}` 与
+`.login-submit`/`.login-brand` 默认样式；`console-theme.css` 在构建中后导入并胜出。
+本轮已在产物中确认 console-theme 的 `safe center` / `flex-start` / `max-width:680px`
+标记均存在，且 base 的 `space-between` 被覆盖（同 Round 9 / Round 11 的既有规律）。
+
+### Verification
+
+- 构建 `./node_modules/.bin/vite build` ✅ → 新产物 `index-SLA8DKWZ.css` + `index-Dc_OCtFF.js`。
+- `docker cp` 已覆盖 `k8s-aiops-frontend-1`；`curl` 实测服务 CSS 含：
+  - `.login-intro{...align-items:center;justify-content:safe center...}`（console-theme 副本）；
+  - `.login-brand{...max-width:680px;text-align:left}`；
+  - `.login-signal-strip{...max-width:680px}`；
+  - `.login-visual` 含 `max-width:680px`，且无残留 `min(100%,620px)`；
+  - `.login-submit{...width:100%;...justify-content:flex-start...}`；
+  - `.login-submit-label{...text-align:left}`。
+
+### Deployment（第十二轮，并入 18080）
+
+- 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
+  容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。

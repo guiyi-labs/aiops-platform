@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 登录页视觉第 12 轮：分层居中对齐（容器居中 · 文字左齐）
+
+- 采纳"分层对齐"而非"全部居中"：左区整列在可用区域内水平+垂直居中（`align-items:center` + `justify-content:safe center`），块内文字保持左对齐。
+- 左区各直接子块（`.login-brand` / `.login-copy` / `.login-signal-strip` / `.login-visual`）统一 `width:100%; max-width:680px`，对齐到同一条 680px 左基线；eyebrow/h1/描述/特性均为 `.login-copy` 子元素自动跟随。
+- `.login-description` 维持 `max-width:540px` 限宽，落实主内容/辅助信息分层、提升长文本可读性。
+- 修复 M93-B1f 重复 `.login-visual`（`min(100%,620px)` + `margin-top:auto`）覆盖主区块居中的级联陷阱，改为 `max-width:680px; margin-top:0`。
+- 表单主操作按钮组：`.login-submit` 改为 `width:100%; justify-content:flex-start`（占满表单宽、内部文字左齐），`.login-submit-label` 改 `text-align:left`。
+
 ### Changed - 登录页视觉第 11 轮：底部文字统一与图形居中对齐
 
 - 统一底部 caption 样式：特性卡片标签与 footer 小字统一为 11px / font-weight 500 / 0.4px 字间距 / 1.35–1.45 行高。

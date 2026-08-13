@@ -1260,7 +1260,8 @@ tbody tr {
   z-index: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: safe center;
   gap: clamp(16px, 2.2vh, 30px);
   min-height: 100svh;
   padding: 32px clamp(42px, 5vw, 80px);
@@ -1297,9 +1298,11 @@ tbody tr {
 .login-copy {
   position: relative;
   z-index: 2;
-  align-self: stretch;
+  width: 100%;
+  max-width: 680px;
   margin: 0;
   padding-top: 0;
+  text-align: left;
 }
 
 .login-description {
@@ -1310,8 +1313,9 @@ tbody tr {
   position: relative;
   z-index: 2;
   display: flex;
-  width: min(100%, 620px);
-  margin-top: auto;
+  width: 100%;
+  max-width: 680px;
+  margin-top: 0;
   margin-bottom: 0;
   align-self: center;
   flex-direction: column;
@@ -1917,6 +1921,9 @@ tbody tr {
 .login-brand {
   position: relative;
   z-index: 2;
+  width: 100%;
+  max-width: 680px;
+  text-align: left;
 }
 
 .login-description {
@@ -1934,6 +1941,8 @@ tbody tr {
 .login-signal-strip {
   position: relative;
   z-index: 2;
+  width: 100%;
+  max-width: 680px;
   margin: 2px 0 0;
   padding: 14px 16px 15px;
   background: rgba(7, 16, 15, 0.32);
@@ -2040,8 +2049,9 @@ tbody tr {
 
 .login-visual {
   display: flex;
-  width: min(100%, 620px);
-  margin-top: auto;
+  width: 100%;
+  max-width: 680px;
+  margin-top: 0;
   margin-bottom: 0;
   align-self: center;
   flex-direction: column;
@@ -2144,9 +2154,10 @@ tbody tr {
 
 .login-submit {
   display: inline-flex;
+  width: 100%;
   min-width: 0;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 9px;
   isolation: isolate;
   color: #ffffff;
@@ -2181,7 +2192,7 @@ tbody tr {
 
 .login-submit-label {
   min-width: 132px;
-  text-align: center;
+  text-align: left;
 }
 
 .login-submit-progress {

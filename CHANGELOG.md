@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M110 RC-6 发布预检（本地就绪确认）
+
+- 新增 `docs/m110-release-preflight.md`：15 项本地预检全过（后端编译/测试、前端 typecheck/lint/build、release 工具测试、Dockerfile/Helm/kustomize、迁移自包含、release workflow 质量门继承 M109 全部 CI 门禁）。
+- 触发方式：用户授权后 push `v0.3.0-rc.6` tag 触发 Release workflow；发布后按清单执行全新环境安装/升级/回滚/备份恢复演练与 digest 签名核对。
+- See [change record](docs/changes/2026-08-13-m110-release-preflight.md)。
+
 ### Changed - M109 Gate B 性能门禁翻转为 fail-closed
 
 - 四处证据生产者（`pod-scale-perf-report.mjs`、`login-perf-report.mjs`、`style-audit.mjs`、`scalebench/report.go`）的 `mode` 从 `report` 翻转为 `fail-closed`；CI `GATE_B_MODE` 同步切换。超阈值现在显式视为回归，阻断 CI。

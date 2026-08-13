@@ -90,6 +90,58 @@ func (r *GormRepository) Create(ctx context.Context, record *Incident) error {
 	})
 }
 
+// ListSLAEligible returns open/confirmed incidents whose SLA deadline falls
+// within [dueAfter, dueBefore] and that have no notification delivery of the
+// given event type yet. Used by the SLA monitor; the caller decides whether a
+// deadline is approaching or breached.
+func (r *GormRepository) ListSLAEligible(ctx context.Context, eventType string, dueAfter, dueBefore time.Time, limit int) ([]SLACandidate, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	var stored []struct {
+		IncidentID   int64
+		Number       string
+		Title        string
+		Severity     string
+		Status       string
+		Summary      string
+		AssigneeID   int64
+		AssigneeName string
+		ObservedAt   time.Time
+		SLADueAt     time.Time
+	}
+	err := r.db.WithContext(ctx).Raw(`SELECT i.id, i.number, i.title, i.severity, i.status, i.summary,
+		COALESCE(i.assigned_to_user_id, 0) AS assignee_id, COALESCE(u.display_name, '') AS assignee_name,
+		i.observed_at, i.sla_due_at
+		FROM incidents i
+		LEFT JOIN users u ON u.id = i.assigned_to_user_id
+		WHERE i.status IN ('open', 'confirmed')
+		  AND i.sla_due_at >= ?
+		  AND i.sla_due_at <= ?
+		  AND NOT EXISTS (
+		      SELECT 1 FROM notification_deliveries nd
+		      WHERE nd.incident_id = i.id AND nd.event_type = ?
+		  )
+		ORDER BY i.sla_due_at, i.id
+		LIMIT ?`, dueAfter, dueBefore, eventType, limit).Scan(&stored).Error
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]SLACandidate, 0, len(stored))
+	for _, item := range stored {
+		candidates = append(candidates, SLACandidate{
+			IncidentID: item.IncidentID, Number: item.Number, Title: item.Title,
+			Severity: item.Severity, Status: item.Status, Summary: item.Summary,
+			AssigneeID: item.AssigneeID, AssigneeName: item.AssigneeName,
+			ObservedAt: item.ObservedAt, SLADueAt: item.SLADueAt,
+		})
+	}
+	return candidates, nil
+}
+
 func (r *GormRepository) Get(ctx context.Context, id int64) (Incident, error) {
 	var stored storedIncident
 	if err := r.db.WithContext(ctx).Raw(incidentSelect+" WHERE i.id = ?", id).Scan(&stored).Error; err != nil {

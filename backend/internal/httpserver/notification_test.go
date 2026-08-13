@@ -20,6 +20,9 @@ type notificationRepositoryStub struct {
 }
 
 func (s *notificationRepositoryStub) SetEnabled(context.Context, bool) error { return nil }
+func (s *notificationRepositoryStub) Enqueue(context.Context, notification.EnqueueInput) error {
+	return nil
+}
 func (s *notificationRepositoryStub) Claim(context.Context, int, time.Time) ([]notification.Delivery, error) {
 	return nil, nil
 }
@@ -73,5 +76,33 @@ func TestNotificationRetryRejectsWhenDisabled(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/notification-deliveries/19/retry", nil))
 	if recorder.Code != http.StatusConflict || repository.retryID != 0 {
 		t.Fatalf("status=%d retryID=%d", recorder.Code, repository.retryID)
+	}
+}
+
+func TestNotificationListAcceptsIncidentIDFilter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repository := &notificationRepositoryStub{response: notification.ListResponse{Items: []notification.Delivery{}, Total: 0}}
+	service := notification.NewService(notification.ServiceConfig{}, repository, nil)
+	router := gin.New()
+	router.GET("/api/v1/notification-deliveries", notificationHandler{service: service}.list)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/notification-deliveries?incident_id=10&limit=25", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "0") {
+		t.Fatalf("expected zero total, body=%s", recorder.Body.String())
+	}
+}
+
+func TestNotificationListRejectsUnsupportedEventType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := notification.NewService(notification.ServiceConfig{}, &notificationRepositoryStub{}, nil)
+	router := gin.New()
+	router.GET("/api/v1/notification-deliveries", notificationHandler{service: service}.list)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/notification-deliveries?event_type=unknown.event", nil))
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "INVALID_QUERY") {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

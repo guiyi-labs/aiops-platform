@@ -3,7 +3,8 @@ export type NotificationDeliveryStatus = 'pending' | 'delivering' | 'delivered' 
 
 export interface NotificationDelivery {
   id: number
-  diagnosis_id: number
+  diagnosis_id?: number
+  incident_id?: number
   event_type: NotificationEventType
   status: NotificationDeliveryStatus
   attempts: number

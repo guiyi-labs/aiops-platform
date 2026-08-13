@@ -17,6 +17,7 @@ type repositoryStub struct {
 	claimCalls    int
 	deliveredID   int64
 	deliveredAt   time.Time
+	enqueued      EnqueueInput
 	failedID      int64
 	failedMax     int
 	failedNext    time.Time
@@ -26,6 +27,10 @@ type repositoryStub struct {
 }
 
 func (r *repositoryStub) SetEnabled(context.Context, bool) error { return nil }
+func (r *repositoryStub) Enqueue(_ context.Context, input EnqueueInput) error {
+	r.enqueued = input
+	return nil
+}
 func (r *repositoryStub) Claim(context.Context, int, time.Time) ([]Delivery, error) {
 	r.claimCalls++
 	return r.claimed, nil
@@ -138,5 +143,17 @@ func TestSafeErrorRedactsConfiguredWebhookURL(t *testing.T) {
 func TestRetryDelayIsExponentiallyBounded(t *testing.T) {
 	if retryDelay(10*time.Second, 3) != 40*time.Second || retryDelay(10*time.Minute, 3) != maximumRetryDelay {
 		t.Fatal("unexpected retry delay")
+	}
+}
+
+func TestServiceEnqueueForwardsToRepository(t *testing.T) {
+	repository := &repositoryStub{}
+	service := NewService(ServiceConfig{}, repository, nil)
+	input := EnqueueInput{IncidentID: 9, EventType: EventTypeIncidentSLABreached, Payload: `{"event":"incident.sla_breached"}`}
+	if err := service.Enqueue(context.Background(), input); err != nil {
+		t.Fatalf("Enqueue() error = %v", err)
+	}
+	if repository.enqueued != input {
+		t.Fatalf("enqueued = %#v, want %#v", repository.enqueued, input)
 	}
 }

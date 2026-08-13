@@ -2521,7 +2521,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List diagnosis notification deliveries */
+        /** List diagnosis and incident notification deliveries */
         get: operations["listNotificationDeliveries"];
         put?: never;
         post?: never;
@@ -10065,7 +10065,8 @@ export interface operations {
         parameters: {
             query?: {
                 diagnosis_id?: number;
-                event_type?: "diagnosis.created" | "diagnosis.status_changed" | "diagnosis.assigned";
+                incident_id?: number;
+                event_type?: "diagnosis.created" | "diagnosis.status_changed" | "diagnosis.assigned" | "incident.sla_approaching" | "incident.sla_breached";
                 status?: "pending" | "delivering" | "delivered" | "dead";
                 limit?: components["parameters"]["Limit"];
             };

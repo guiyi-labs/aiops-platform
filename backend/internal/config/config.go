@@ -58,6 +58,10 @@ type Config struct {
 	NotificationRetryBase      time.Duration
 	NotificationMaxAttempts    int
 	NotificationBatchSize      int
+	IncidentSLAMonitorEnabled  bool
+	IncidentSLAPollInterval    time.Duration
+	IncidentSLAApproachingWin  time.Duration
+	IncidentSLABatchSize       int
 	AlertEnabled               bool
 	AlertPollInterval          time.Duration
 	AlertClaimBatch            int
@@ -301,6 +305,25 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	incidentSLAPollInterval, err := durationFromEnv("INCIDENT_SLA_POLL_INTERVAL", 30*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+	incidentSLAApproachingWindow, err := durationFromEnv("INCIDENT_SLA_APPROACHING_WINDOW", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	if incidentSLAPollInterval <= 0 || incidentSLAApproachingWindow <= 0 {
+		return Config{}, fmt.Errorf("incident SLA monitor intervals must be positive")
+	}
+	incidentSLABatchSize, err := intFromEnv("INCIDENT_SLA_BATCH_SIZE", 20, 1, 100)
+	if err != nil {
+		return Config{}, err
+	}
+	incidentSLAMonitorEnabled, err := boolFromEnv("INCIDENT_SLA_MONITOR_ENABLED", true)
+	if err != nil {
+		return Config{}, err
+	}
 
 	environment := stringFromEnv("APP_ENV", "development")
 	jwtSigningKey := stringFromEnv("JWT_SIGNING_KEY", "dev-only-signing-key-change-before-production")
@@ -458,6 +481,10 @@ func Load() (Config, error) {
 		NotificationRetryBase:      notificationRetryBase,
 		NotificationMaxAttempts:    notificationMaxAttempts,
 		NotificationBatchSize:      notificationBatchSize,
+		IncidentSLAMonitorEnabled:  incidentSLAMonitorEnabled,
+		IncidentSLAPollInterval:    incidentSLAPollInterval,
+		IncidentSLAApproachingWin:  incidentSLAApproachingWindow,
+		IncidentSLABatchSize:       incidentSLABatchSize,
 		AlertEnabled:               alertEnabled,
 		AlertPollInterval:          alertPollInterval,
 		AlertClaimBatch:            alertClaimBatch,

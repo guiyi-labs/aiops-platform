@@ -19,8 +19,17 @@ func (h notificationHandler) list(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "diagnosis_id must be a positive integer")
 		return
 	}
+	incidentID, err := strconv.ParseInt(defaultString(c.Query("incident_id"), "0"), 10, 64)
+	if err != nil || incidentID < 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "incident_id must be a positive integer")
+		return
+	}
 	eventType := strings.TrimSpace(c.Query("event_type"))
-	if eventType != "" && eventType != "diagnosis.created" && eventType != "diagnosis.status_changed" && eventType != "diagnosis.assigned" {
+	switch eventType {
+	case "", notification.EventTypeDiagnosisCreated, notification.EventTypeDiagnosisStatusChange,
+		notification.EventTypeDiagnosisAssigned, notification.EventTypeIncidentSLAApproach,
+		notification.EventTypeIncidentSLABreached:
+	default:
 		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "event_type is not supported")
 		return
 	}
@@ -34,7 +43,7 @@ func (h notificationHandler) list(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "limit must be between 1 and 100")
 		return
 	}
-	response, err := h.service.List(c.Request.Context(), notification.ListFilter{DiagnosisID: diagnosisID, EventType: eventType, Status: status, Limit: limit})
+	response, err := h.service.List(c.Request.Context(), notification.ListFilter{DiagnosisID: diagnosisID, IncidentID: incidentID, EventType: eventType, Status: status, Limit: limit})
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to list notification deliveries")
 		return

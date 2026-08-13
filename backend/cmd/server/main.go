@@ -166,7 +166,8 @@ func main() {
 		slo.NewEvaluator(slo.NewMetricshistorySource(metricsHistoryService)),
 		slo.WithBurnAlertSink(signalsvc.NewSLOBurnSignalSink(signalService, sloRepository)))
 	incidentSourceResolver := NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService, signalService)
-	incidentService := incident.NewService(incident.NewGormRepository(database.GORM())).
+	incidentRepository := incident.NewGormRepository(database.GORM())
+	incidentService := incident.NewService(incidentRepository).
 		WithResolver(incidentSourceResolver).
 		WithEvidenceResolver(incidentSourceResolver)
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))
@@ -442,13 +443,25 @@ func main() {
 		RequestTimeout: cfg.NotificationRequestTimeout, RetryBase: cfg.NotificationRetryBase,
 		MaxAttempts: cfg.NotificationMaxAttempts, BatchSize: cfg.NotificationBatchSize,
 	}, notificationRepository, logger)
+	incidentSLAMonitor := incident.NewSLAMonitor(incident.SLAMonitorConfig{
+		// The SLA monitor feeds the notification webhook outbox, so it is only
+		// active when notifications are enabled (mirrors the diagnosis trigger).
+		Enabled:           cfg.IncidentSLAMonitorEnabled && cfg.NotificationEnabled,
+		PollInterval:      cfg.IncidentSLAPollInterval,
+		ApproachingWindow: cfg.IncidentSLAApproachingWin,
+		BatchSize:         cfg.IncidentSLABatchSize,
+	}, incidentRepository, slaEnqueuer{service: notificationService}, logger)
 	backgroundContext, stopBackground := context.WithCancel(context.Background())
 	defer stopBackground()
 	var backgroundWait sync.WaitGroup
-	backgroundWait.Add(5)
+	backgroundWait.Add(6)
 	go func() {
 		defer backgroundWait.Done()
 		notificationService.Run(backgroundContext)
+	}()
+	go func() {
+		defer backgroundWait.Done()
+		incidentSLAMonitor.Run(backgroundContext)
 	}()
 	go func() {
 		defer backgroundWait.Done()

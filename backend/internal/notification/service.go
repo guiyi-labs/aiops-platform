@@ -92,6 +92,11 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (ListResponse, er
 	return s.repository.List(ctx, filter)
 }
 
+// Enqueue writes a delivery into the outbox (used by the incident SLA monitor).
+func (s *Service) Enqueue(ctx context.Context, input EnqueueInput) error {
+	return s.repository.Enqueue(ctx, input)
+}
+
 func (s *Service) Retry(ctx context.Context, id int64) error {
 	return s.repository.Retry(ctx, id)
 }

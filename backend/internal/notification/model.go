@@ -9,9 +9,19 @@ import (
 var ErrDeliveryNotFound = errors.New("notification delivery not found")
 var ErrDeliveryNotRetryable = errors.New("notification delivery is not retryable")
 
+// Event types produced by the diagnosis trigger and the incident SLA monitor.
+const (
+	EventTypeDiagnosisCreated      = "diagnosis.created"
+	EventTypeDiagnosisStatusChange = "diagnosis.status_changed"
+	EventTypeDiagnosisAssigned     = "diagnosis.assigned"
+	EventTypeIncidentSLAApproach   = "incident.sla_approaching"
+	EventTypeIncidentSLABreached   = "incident.sla_breached"
+)
+
 type Delivery struct {
 	ID            int64           `json:"id"`
-	DiagnosisID   int64           `json:"diagnosis_id"`
+	DiagnosisID   int64           `json:"diagnosis_id,omitempty"`
+	IncidentID    int64           `json:"incident_id,omitempty"`
 	EventType     string          `json:"event_type"`
 	Status        string          `json:"status"`
 	Attempts      int             `json:"attempts"`
@@ -23,8 +33,19 @@ type Delivery struct {
 	Payload       json.RawMessage `json:"-"`
 }
 
+// EnqueueInput is a single outbox delivery. Exactly one of DiagnosisID and
+// IncidentID should be set; incident events are deduplicated per
+// (incident_id, event_type) by a partial unique index.
+type EnqueueInput struct {
+	DiagnosisID int64
+	IncidentID  int64
+	EventType   string
+	Payload     string
+}
+
 type ListFilter struct {
 	DiagnosisID int64
+	IncidentID  int64
 	EventType   string
 	Status      string
 	Limit       int

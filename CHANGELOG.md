@@ -9,9 +9,17 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
-## [Unreleased]
+### Added - Change-record archive gate
 
-### Changed - Login Ambience Enhance (Frontend UX Track)
+- 为 AGENTS.md §1 归档铁律添加最小机械门禁：新增
+  `scripts/check-change-record.sh`，当改动包含非文档代码文件时要求同一改动
+  存在 `docs/changes/YYYY-MM-DD-<slug>.md` change-record，缺失时输出指向
+  AGENTS.md 归档规则的可读错误并拦截。
+- CI：`ci.yml` 新增 `change-record` job（push/PR/dispatch 均运行）并纳入
+  `result` 汇总的必填结果；另提供可选本地钩子 `scripts/git-hooks/pre-commit`。
+- See [change record](docs/changes/2026-08-13-archive-gate-change-record.md)。
+
+## [Unreleased]
 
 - 登录页填充空旷感：`LoginView.vue` 左侧介绍区新增纯装饰三层——中段雷达扫描
   SVG（同心环 + 旋转扫线 + 呼吸信号点，呼应"信号驱动/持续监测"）、标题下特性词条
@@ -40,6 +48,24 @@ Detailed change records for each milestone live under `docs/changes/`.
   `getIncidentEvidence` API 封装。
 - 演示：`demo-drill.sh` incident-journey 新增 `incident-evidence` 断言（diagnosis 源 +
   deep_link=/diagnoses）。
+
+## [Unreleased]
+
+### Added - M107 Incident SLA Notifications (v0.3.0-m107)
+
+- 后端：incident 的 SLA `overdue` 此前仅在 UI 展示；新增 `SLAMonitor` 后台任务，在通知启用时
+  周期扫描 open/confirmed 事故，把「临近 15 分钟」与「已逾期」事件原子写入现有
+  `notification_deliveries` outbox（幂等部分唯一索引 `(incident_id, event_type)`），随原有
+  webhook 投递 + 重试闭环送出去；payload 含事故号/标题/严重度/SLA 截止/深链。
+- 数据库：迁移 `000045` 让 outbox 支持可空 `incident_id`（不依赖 diagnosis 存在，
+  finding/alert/inspection/signal 源事故同样可提醒），并加对应索引；up/down 实测往返可用。
+- 契约：`notification-deliveries` API 新增 `incident_id` 过滤与
+  `incident.sla_approaching` / `incident.sla_breached` 事件类型，OpenAPI/typegen/权限矩阵同步。
+- 前端：Webhook 投递视图支持事故 ID 过滤 + 两类 SLA 事件；incident 列表/详情 SLA 徽标新增
+  `approaching` 色调（临近高亮），逾期/临近更醒目。
+- 配置：`INCIDENT_SLA_MONITOR_ENABLED` / `INCIDENT_SLA_POLL_INTERVAL` /
+  `INCIDENT_SLA_APPROACHING_WINDOW` / `INCIDENT_SLA_BATCH_SIZE`。
+- See [change record](docs/changes/2026-08-13-m107-incident-sla-notifications.md)。
 - See [M107 change record](docs/changes/2026-08-13-m107-incident-evidence-timeline.md)。
 
 ### Changed - Login Panel Enhance (Frontend UX Track)

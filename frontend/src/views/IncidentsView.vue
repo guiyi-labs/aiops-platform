@@ -77,6 +77,8 @@ function formatTime(value?: string): string {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date)
 }
 
+const SLA_APPROACHING_WINDOW_MS = 15 * 60 * 1000
+
 function slaLabel(incident: Incident): string {
   if (incident.status === 'resolved' || incident.status === 'dismissed') return 'SLA 已关闭'
   const milliseconds = new Date(incident.sla_due_at).getTime() - Date.now()
@@ -85,6 +87,14 @@ function slaLabel(incident: Incident): string {
   const minutes = absoluteMinutes % 60
   const duration = hours > 0 ? `${hours}小时${minutes > 0 ? `${minutes}分` : ''}` : `${minutes}分钟`
   return milliseconds < 0 ? `已逾期 ${duration}` : `剩余 ${duration}`
+}
+
+function slaTone(incident: Incident): string {
+  if (incident.status === 'resolved' || incident.status === 'dismissed') return ''
+  const remaining = new Date(incident.sla_due_at).getTime() - Date.now()
+  if (remaining < 0) return 'overdue'
+  if (remaining <= SLA_APPROACHING_WINDOW_MS) return 'approaching'
+  return ''
 }
 
 const allowedTransitions = computed<IncidentStatus[]>(() => {
@@ -338,7 +348,7 @@ onMounted(() => { void loadAll() })
             <td><span class="workflow-status" :class="incident.status">{{ statusLabels[incident.status] }}</span></td>
             <td>{{ incident.assignee?.name ?? '未指派' }}</td>
             <td>#{{ incident.cluster_id }}</td>
-            <td><span class="sla-badge" :class="{ overdue: incident.overdue }">{{ slaLabel(incident) }}</span></td>
+            <td><span class="sla-badge" :class="slaTone(incident)">{{ slaLabel(incident) }}</span></td>
             <td>{{ formatTime(incident.updated_at) }}</td>
             <td>
               <button class="icon-button compact" type="button" title="导出 CSV" aria-label="导出 CSV" @click="handleExport(incident)"><Download :size="15" /></button>
@@ -362,7 +372,7 @@ onMounted(() => { void loadAll() })
         <div class="incident-badges">
           <span class="severity-badge" :class="severityTone(detail.severity)">{{ severityLabels[detail.severity] }}</span>
           <span class="workflow-status" :class="detail.status">{{ statusLabels[detail.status] }}</span>
-          <span class="sla-badge" :class="{ overdue: detail.overdue }">{{ slaLabel(detail) }}</span>
+          <span class="sla-badge" :class="slaTone(detail)">{{ slaLabel(detail) }}</span>
           <span class="assignee-badge" v-if="detail.assignee"><UserCheck :size="13" />{{ detail.assignee.name }}</span>
           <span class="version-badge">v{{ detail.version }}</span>
         </div>
@@ -577,6 +587,7 @@ onMounted(() => { void loadAll() })
 .workflow-status.dismissed { color: #5a6672; background: #eef1f3; }
 .sla-badge { display: inline-flex; padding: 2px 7px; border-radius: 8px; font-size: 11px; color: #4c6c9b; background: #e8eef7; }
 .sla-badge.overdue { color: #b13a2a; background: #fbe9e6; }
+.sla-badge.approaching { color: #9a6700; background: #fdf3d7; }
 .assignee-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 10px; font-size: 11px; color: #2e7867; background: #e3f1ed; }
 .version-badge { display: inline-flex; padding: 3px 8px; border-radius: 10px; font-size: 11px; color: #69578a; background: #f0ecfa; }
 .incident-drawer {

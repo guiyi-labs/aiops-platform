@@ -22,6 +22,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 sed]
 
+### Added - UI 响应式审计（Track A · ≤720px 首批）
+
+- 对登录页 + `/`、`/clusters`、`/workloads`、`/diagnoses` 在 375×812 移动视口做
+  CDP 实测：页级无横向溢出、无可点击元素出屏（审计证据见
+  `docs/changes/2026-08-13-ui-responsive-audit-mobile.md`），无代码改动。
+
 ### Added - UI 截图基线扩展：控制台关键页面（鉴权捕获）
 
 - `scripts/capture-ui-baselines.mjs` 新增幂等 `login()`（原生 value setter + requestSubmit，

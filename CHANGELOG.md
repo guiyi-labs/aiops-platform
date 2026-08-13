@@ -22,6 +22,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 sed]
 
+### Added - UI 基线/axe/响应式扩展·第二批（Track A）
+
+- 截图基线 + axe 审计覆盖扩展 6 个高价值视图：事件中心 `/events`、资源拓扑
+  `/topology`、事故工作空间 `/incidents`、优化中心 `/optimization`、告警规则
+  `/alerts`、AIOps 概览 `/aiops/overview`（Desktop 1440×900 / Mobile 375×812）。
+- 基线扩至 22 条，`--verify` 全绿（login desktop diff 0.000%，其余 IDENTICAL）；
+  axe 双视口新增 12 组合格（0 critical/serious / 0 app 错误）；375px 响应式
+  6 页无横向溢出、无不可达交互元素（优化中心 Tab 为可滚动容器内元素，可达）。
+- See [change record](docs/changes/2026-08-14-ui-baseline-batch2.md)。
+
 ### Added - UI 无障碍审计门禁（Track A · axe 双视口）+ 对比度修复
 
 - 新增 `scripts/audit-a11y-axe.mjs`：CDP 注入 `axe-core` 跑 WCAG 2.x A/AA，覆盖

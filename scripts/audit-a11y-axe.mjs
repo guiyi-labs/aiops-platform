@@ -41,6 +41,12 @@ const views = [
   { name: 'clusters', path: '/clusters', readyText: '多集群管理', auth: true, settle: 1400 },
   { name: 'workloads', path: '/workloads', readyText: '资源工作台', auth: true, settle: 1400 },
   { name: 'diagnoses', path: '/diagnoses', readyText: '故障分析', auth: true, settle: 1400 },
+  { name: 'events', path: '/events', readyText: '事件中心', auth: true, settle: 1600 },
+  { name: 'topology', path: '/topology', readyText: '资源拓扑', auth: true, settle: 1800 },
+  { name: 'incidents', path: '/incidents', readyText: '事故工作空间', auth: true, settle: 1600 },
+  { name: 'optimization', path: '/optimization', readyText: '优化中心', auth: true, settle: 1600 },
+  { name: 'alerts', path: '/alerts', readyText: '告警规则', auth: true, settle: 1600 },
+  { name: 'aiops-overview', path: '/aiops/overview', readyText: '智能运维概览', auth: true, settle: 1600 },
 ]
 const viewports = [
   { name: 'desktop-1440x900', width: 1440, height: 900 },

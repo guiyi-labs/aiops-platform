@@ -33,6 +33,7 @@ Block 1 已交付 correlation 案例一键提升为事故（含 `SOURCE_ALREADY_
 ### 演示演练（demo-drill）
 
 - `scripts/demo-drill.sh`：第 13 节新增 `correlation-incident-deeplink` 断言——提升事故后 `GET /aiops/correlation/cases/<id>` 返回的 `.incident.id` 必须等于事故 ID（验证双向深链富集端到端）。
+- 第 13 节追加 M108 验收「2/2 信号归并」：demo 第二个诊断信号（pod.oom_killed → `correlation.rollout_causes_pod_failure.v1` 规则，冷启动路径）应归一为第二个独立案例并可提升为事故（`correlation-case-merge` / `correlation-incident-merge`），报告 `evidence` 增加 `correlation_incident_2`。
 
 ## Verification
 

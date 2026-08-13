@@ -630,6 +630,30 @@ else
   fail correlation-case-ingest "no active correlation case after retries: $CORR_CASES"
 fi
 
+# M108 验收「2/2 信号归并」：demo 的第二个诊断信号（pod.oom_killed → rollout
+# causes pod failure 规则）也应归一出独立案例并可提升为事故。冷启动路径不依赖
+# change event，CORRELATION_INTERVAL=30s 保证轮询窗口内出案例。
+CORR_CASE2_ID=""
+for attempt in $(seq 1 60); do
+  CORR_CASES2="$(api GET "/api/v1/aiops/correlation/cases?cluster_id=$CLUSTER_ID&limit=20")"
+  CORR_CASE2_ID="$(jq -r --argjson exclude "${CORR_CASE_ID:-0}" '.items[] | select(.status == "active" and .id != $exclude) | .id' <<<"$CORR_CASES2" | head -1 || true)"
+  [[ -n "$CORR_CASE2_ID" && "$CORR_CASE2_ID" != "0" ]] && break
+  sleep 2
+done
+if [[ -n "$CORR_CASE2_ID" && "$CORR_CASE2_ID" != "0" ]]; then
+  pass correlation-case-merge "second correlation case id=$CORR_CASE2_ID (2/2 signals correlated)"
+  CORR2_INC="$(api POST /api/v1/incidents "{\"source_type\":\"correlation\",\"source_ref\":\"correlation:$CORR_CASE2_ID\",\"cluster_id\":$CLUSTER_ID,\"title\":\"correlation promoted incident 2\"}")"
+  CORR2_INC_ID="$(jq -r '.id // 0' <<<"$CORR2_INC")"
+  CORR2_INC_SRC="$(jq -r '.source_type // empty' <<<"$CORR2_INC")"
+  if [[ -n "$CORR2_INC_ID" && "$CORR2_INC_ID" != "0" ]] && [[ "$CORR2_INC_SRC" == "correlation" ]]; then
+    pass correlation-incident-merge "incident $CORR2_INC_ID created from correlation case #$CORR_CASE2_ID (2/2 promoted)"
+  else
+    fail correlation-incident-merge "incident create failed for case #$CORR_CASE2_ID: $CORR2_INC"
+  fi
+else
+  fail correlation-case-merge "no second correlation case after retries: $CORR_CASES2"
+fi
+
 # ---------- 14. cleanup ----------
 
 scenario "Cleanup"
@@ -664,7 +688,8 @@ FAILED="$(grep -c '|fail|' "$WORK/results.txt" || true)"
   echo "    \"incident\": { \"id\": $INCIDENT_ID, \"status\": \"$FINAL_STATUS\", \"version\": $NEXT_VERSION },"
   echo "    \"inspection_incident\": { \"result_id\": ${INSP_RESULT_ID:-0}, \"incident_id\": ${INSP_INC_ID:-0}, \"severity\": \"${INSP_INC_SEV:-}\" },"
   echo "    \"signal_incident\": { \"signal_id\": ${DIAG_SIGNAL_ID:-0}, \"incident_id\": ${SIGNAL_INC_ID:-0}, \"severity\": \"${SIGNAL_INC_SEV:-}\" },"
-  echo "    \"correlation_incident\": { \"case_id\": ${CORR_CASE_ID:-0}, \"incident_id\": ${CORR_INC_ID:-0}, \"severity\": \"${CORR_INC_SEV:-}\" }"
+  echo "    \"correlation_incident\": { \"case_id\": ${CORR_CASE_ID:-0}, \"incident_id\": ${CORR_INC_ID:-0}, \"severity\": \"${CORR_INC_SEV:-}\" },"
+  echo "    \"correlation_incident_2\": { \"case_id\": ${CORR_CASE2_ID:-0}, \"incident_id\": ${CORR2_INC_ID:-0} }"
   echo "  },"
   echo "  \"steps\": ["
   FIRST=1

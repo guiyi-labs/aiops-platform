@@ -14,7 +14,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 后端：`incident` 新增 `FindBySource(source_type, source_ref)` 反查；correlation case view 富集可选 `incident{id,number,title,status}`（只读 best-effort，缺失不阻断视图）；`IncidentDeepLink` 签名扩展，correlation 证据深链精确到 `/aiops/correlation?case_id=<id>`。
 - 前端：`CaseView` 类型加 `incident?`；`CorrelationCasesView` 支持 `?case_id=` 深链聚焦（自动选集群并展开详情），详情徽章行显示「已关联事故 INC-xxxx ↗」入口（提升成功后即时回显）。
 - OpenAPI：`CorrelationCaseView` schema 增加 `incident`；typegen 重新生成。
-- 演示：demo-drill 第 13 节新增 `correlation-incident-deeplink` 断言（案例视图回显事故 ID）。
+- 演示：demo-drill 第 13 节新增 `correlation-incident-deeplink` 断言（案例视图回显事故 ID）+「2/2 信号归并」断言（pod.oom_killed 信号归一为第二案例并可提升）。
 - See [change record](docs/changes/2026-08-13-m108-correlation-deeplink.md)。
 
 

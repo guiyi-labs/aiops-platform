@@ -116,6 +116,12 @@ func (w *Worker) runClusterPass(ctx context.Context, c cluster.Cluster) {
 	for _, ns := range namespaces.Items {
 		w.runScope(ctx, c.ID, ns.Metadata.Name)
 	}
+	// Cluster-scoped signals (e.g. Node-level diag.node.not_ready.v1) carry an
+	// empty namespace and are invisible to per-namespace passes; run one extra
+	// all-namespace pass so cluster-scoped rules (e.g.
+	// maintenance_causes_node_failure) can correlate. Upserts merge on
+	// case_key, so repeated passes are idempotent.
+	w.runScope(ctx, c.ID, "")
 }
 
 func (w *Worker) runScope(ctx context.Context, clusterID int64, namespace string) {

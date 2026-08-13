@@ -428,7 +428,7 @@ else
   else
     fail incident-evidence "evidence type=$EV_TYPE deep_link=$EV_LINK title=$EV_TITLE"
   fi
-  BATCH="$(api POST /api/v1/incidents/batch-assign "{\"incident_ids\":[\"$INCIDENT_ID\"],\"assignee_user_id\":$ADMIN_ID,\"comment\":\"demo drill batch handoff\"}")"
+  BATCH="$(api POST /api/v1/incidents/batch-assign "{\"incident_ids\":[$INCIDENT_ID],\"assignee_user_id\":$ADMIN_ID,\"comment\":\"demo drill batch handoff\"}")"
   BATCH_ASSIGNED="$(jq -r '.assigned // 0' <<<"$BATCH")"
   BATCH_TOTAL="$(jq -r '.total // 0' <<<"$BATCH")"
   if [[ "$BATCH_ASSIGNED" -ge 1 && "$BATCH_TOTAL" -ge 1 ]]; then

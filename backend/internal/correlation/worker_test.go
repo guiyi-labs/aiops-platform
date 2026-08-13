@@ -66,7 +66,9 @@ func TestWorkerRunPassScopesAndSkipsDisabled(t *testing.T) {
 	want := []scopeCall{
 		{clusterID: 1, namespace: "app"},
 		{clusterID: 1, namespace: "data"},
+		{clusterID: 1, namespace: ""}, // cluster-scoped pass (Node-level signals)
 		{clusterID: 3, namespace: "tools"},
+		{clusterID: 3, namespace: ""}, // cluster-scoped pass
 	}
 	if len(correlate.calls) != len(want) {
 		t.Fatalf("calls = %+v, want %+v", correlate.calls, want)

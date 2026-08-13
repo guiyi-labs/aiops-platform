@@ -338,11 +338,7 @@ async function submit() {
         </div>
 
         <footer class="login-footer" aria-hidden="true">
-          <span class="login-footer-copy">© 2026 K8s AIOps · Evidence-first Operations</span>
-          <span class="login-footer-tags">
-            <i aria-hidden="true"></i>SIGNAL-DRIVEN
-            <i aria-hidden="true"></i>AUDIT-CLOSED
-          </span>
+          <span>© 2026 K8s AIOps · Evidence-first Operations · SIGNAL-DRIVEN · AUDIT-CLOSED</span>
         </footer>
       </div>
     </section>

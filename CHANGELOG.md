@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 登录页视觉第 11 轮：底部文字统一与图形居中对齐
+
+- 统一底部 caption 样式：特性卡片标签与 footer 小字统一为 11px / font-weight 500 / 0.4px 字间距 / 1.35–1.45 行高。
+- 简化 footer 结构：去掉 copy+tags 两段式与 dot 分隔，改为单行居中文字。
+- 将 footer 从 `.login-intro` 绝对定位改回 `.login-visual` 内部普通流，宽度与能力条对齐（540px）并居中。
+- 拓扑图形 `.login-topology` max-width 从 620px 收紧到 540px，与能力条同宽；`.login-visual` 改为 flex column + `align-self:center` + `margin-top:auto`，使底部装饰柱水平居中并锚定到底部。
+
 ### Changed - 登录页视觉第 10 轮：去伪数据，接入真实控制台状态
 
 - 移除第九轮 `.login-signal-strip` 的硬编码虚构指标（在线集群 12 / SLO 99.9% / 待处理告警 3）。

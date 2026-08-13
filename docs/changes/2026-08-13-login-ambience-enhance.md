@@ -379,3 +379,50 @@
 
 - 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
   容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。
+
+## Round 11 — 底部文字统一与图形居中对齐
+
+### 问题
+
+用户反馈登录页底部：
+1. 文字样式不统一：特性卡片小标签（`多集群治理` 等）与 footer 小字在字号、字重、
+   颜色、行高、字间距上不一致，视觉零散。
+2. 图形偏左：`.login-topology`（节点拓扑 SVG）max-width 620px 且左对齐，而下方
+   `.login-capabilities` 只有 540px 且居中，导致拓扑图明显偏左、与能力卡片错位，
+   整体底部显得突兀。
+
+### 改动
+
+- `frontend/src/views/LoginView.vue`
+  - 简化 `login-footer`：把 copy + tags（带 dot 分隔）的两段式结构合并为单行居中文字，
+    去掉 `<i>` 装饰点与 `login-footer-copy/login-footer-tags` 类名。
+- `frontend/src/styles/console-theme.css`
+  - `.login-visual`：改为 flex column + `align-items: center`，并添加
+    `margin-top: auto; align-self: center;`，使整个底部装饰柱（拓扑 → 能力卡 → footer）
+    在左区水平居中并锚定到底部。
+  - `.login-topology`：`max-width` 由 620px 收紧为 540px，与能力条同宽，
+    `margin-inline: auto` 保证居中。
+  - `.login-capability span`：统一为 caption 规范
+    `11px/500/0.4px letter-spacing/line-height 1.35`，颜色改为
+    `rgba(148,163,184,0.78)`，与 footer 小字一致。
+  - `.login-capability strong`：由 `#ffffff 19px/700` 调整为
+    `rgba(248,250,252,0.98) 18px/650/line-height 1.25`，降低侵略性。
+  - `.login-visual > .login-footer`：从 `.login-intro` 的绝对定位改为 visual 内部普通流，
+    宽度 540px 居中，字号/字重/颜色/行高/字间距与 capability span 对齐，顶部保留
+    点状分隔线。
+  - 新增 `M93-B1f` 注释块归档本轮改动。
+  - 响应式同步：1080px 下 capability span / footer 同步缩小为 10px；
+    移除矮屏断点中已废弃的 `.login-visual { padding-bottom: 0 }`。
+
+### Verification
+
+- 产物 `index-Dfcxq6tu.css` + `index-BP5Gmvn2.js`；`/login` 引用新 hash。
+- CSS 实测最终 `.login-visual` 含 `margin-top:auto; align-self:center; align-items:center`。
+- CSS 实测 `.login-topology` 含 `max-width:540px; margin-inline:auto`。
+- CSS 中旧结构 `bottom:22px`、`login-footer-copy`、`login-footer-tags` 已全部消失。
+- JS 产物中已无 `login-footer-tags` 字符串。
+
+### Deployment（第十一轮，并入 18080）
+
+- 沿用 `docker cp` 覆盖 `k8s-aiops-frontend-1:/usr/share/nginx/html/`（非持久部署，
+  容器重建回退）；Docker Hub 仍不可达，固化待办同前（网络恢复后重建镜像）。

@@ -181,6 +181,18 @@ CHANGELOG.md         Keep a Changelog 1.1.0 / SemVer 2.0.0 history
 - 所有高风险操作必须经过权限校验、人工确认并写入审计日志。
 - kubeconfig 和其他凭据不得提交到 Git。
 
+本项目从**已有且可访问的 Kubernetes 集群**开始，负责 Kubernetes 的 Day 2 运行期管理：
+
+| 阶段 | 负责仓库 | 本项目边界 |
+|---|---|---|
+| Day 0/1 | [`kubernetes-cluster-bootstrap`](https://github.com/guiyi-labs/kubernetes-cluster-bootstrap) | Linux 预检、containerd、kubeadm、控制平面、Worker、CNI、HA 和交付验收 |
+| Linux 运行期 | [`devops-automation`](https://github.com/guiyi-labs/devops-automation) | SSH 主机、systemd、进程、磁盘、批量任务、备份和主机监控 |
+| Kubernetes 运行期 | `aiops-platform`（本项目） | 多集群、工作负载、指标/日志/事件、SLO、诊断、事故响应和受控修复 |
+
+因此，集群创建、节点初始化、操作系统配置、containerd 安装、kubeadm init/join、CNI 安装和
+控制平面 HA 交付不属于本项目范围。本项目只接收集群连接信息和验收结果，不复制 bootstrap
+脚本，也不把 Linux 主机运维能力重新做成另一套控制台。
+
 ## Repository Notes
 
 - Git 历史已完成安全脱敏重写，清除了历史提交中的个人邮箱；历史文档中的旧 commit hash

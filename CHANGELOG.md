@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 明确基础设施项目的 Day 0/1/2 生命周期边界
+
+- README 新增 `kubernetes-cluster-bootstrap`、`devops-automation` 与 `aiops-platform` 的职责矩阵，
+  明确 AIOps 从已有 Kubernetes 集群开始，不负责操作系统初始化、containerd、kubeadm、CNI 或控制平面 HA。
+- 新增 ADR 0088 和对应 change record，固定三个项目的入口、交接信息和不重复建设原则。
+- See [change record](docs/changes/2026-08-14-lifecycle-boundaries.md)。
+
 ### Added - M113-2 容量感知预览（节点按剩余资源排序的只读适配评估）
 
 - 新增只读 `POST /api/v1/optimization/capacity/preview`：输入候选工作负载资源请求（CPU/内存/GPU/存储），实时读取集群节点的 `status.allocatable` 与用量指标，评估每节点的剩余头寸并按适配度排序；逐约束输出"为什么适配/为什么不适配"（satisfied/violated/unknown）与数据更新时间。

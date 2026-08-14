@@ -734,6 +734,22 @@ paths:
     post: { tags: [incidents], summary: Open an incident workspace, operationId: createIncident, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentCreateRequest' } } } }, responses: { '201': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/summary:
     get: { tags: [incidents], summary: Incident count board, operationId: incidentSummary, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/incidents/metrics:
+    get:
+      tags: [incidents]
+      summary: Incident response KPI metrics
+      description: >-
+        Derives bounded MTTA, MTTR and SLA compliance metrics from incident timestamps and
+        append-only lifecycle events. The default window is 30 days and the maximum is 90 days;
+        the response discloses the 200-incident sample limit. Missing lifecycle samples are null.
+      operationId: incidentMetrics
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, required: false, schema: { type: integer, format: int64, minimum: 0, default: 0 } }
+        - { name: days, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 90, default: 30 } }
+      responses:
+        '200': { description: Derived incident KPI metrics, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentMetrics' } } } }
+        '400': { $ref: '#/components/responses/Error' }
   /api/v1/incidents/batch-assign:
     post: { tags: [incidents], summary: Batch assign incidents to one assignee, operationId: batchAssignIncidents, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentBatchAssignRequest' } } } }, responses: { '200': { description: Partial-success batch result, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentBatchAssignResult' } } } }, '400': { $ref: '#/components/responses/Error' }, '401': { $ref: '#/components/responses/Error' }, '500': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}:
@@ -2997,6 +3013,26 @@ components:
         previous: { type: boolean }
     DiagnosisRequest: { type: object, required: [resource_kind, name], properties: { resource_kind: { type: string, enum: [Pod, Service, Node, Deployment, Ingress, PersistentVolumeClaim, HorizontalPodAutoscaler] }, namespace: { type: string, description: Required for namespaced resources; empty for Node }, name: { type: string } } }
     IncidentCreateRequest: { type: object, required: [source_type, source_ref, cluster_id], properties: { source_type: { type: string, enum: [diagnosis, finding, alert, inspection, signal, correlation] }, source_ref: { type: string, description: diagnosis:<id> for diagnosis sources, alert:<id> for firing alert instances, inspection:<id> for inspection results, signal:<id> for normalized signal occurrences, otherwise a stable finding identity }, cluster_id: { type: integer, format: int64 }, title: { type: string, maxLength: 500 }, severity: { type: string, enum: [info, warning, high, critical] }, summary: { type: string, maxLength: 4000 }, observed_at: { type: string, format: date-time }, resource: { $ref: '#/components/schemas/IncidentResource' } } }
+    IncidentMetrics:
+      type: object
+      additionalProperties: false
+      required: [window_days, cluster_id, sample_limit, sampled, truncated, assigned, acknowledged, resolved, overdue, sla_evaluated, sla_compliant, sla_compliance_rate, first_assigned_seconds, mtta_seconds, mttr_seconds]
+      properties:
+        window_days: { type: integer, minimum: 1, maximum: 90 }
+        cluster_id: { type: integer, format: int64, minimum: 0 }
+        sample_limit: { type: integer, minimum: 1 }
+        sampled: { type: integer, minimum: 0 }
+        truncated: { type: boolean }
+        assigned: { type: integer, minimum: 0 }
+        acknowledged: { type: integer, minimum: 0 }
+        resolved: { type: integer, minimum: 0 }
+        overdue: { type: integer, minimum: 0 }
+        sla_evaluated: { type: integer, minimum: 0 }
+        sla_compliant: { type: integer, minimum: 0 }
+        sla_compliance_rate: { type: number, format: double, minimum: 0, maximum: 1, nullable: true }
+        first_assigned_seconds: { type: number, format: double, minimum: 0, nullable: true }
+        mtta_seconds: { type: number, format: double, minimum: 0, nullable: true }
+        mttr_seconds: { type: number, format: double, minimum: 0, nullable: true }
     IncidentResource: { type: object, properties: { kind: { type: string }, namespace: { type: string }, name: { type: string }, uid: { type: string } } }
     IncidentTransitionRequest: { type: object, required: [expected_version, status], properties: { expected_version: { type: integer, format: int64 }, status: { type: string, enum: [open, confirmed, resolved, dismissed] }, comment: { type: string, maxLength: 2000 } } }
     IncidentAssignmentRequest: { type: object, required: [expected_version, assignee_user_id], properties: { expected_version: { type: integer, format: int64 }, assignee_user_id: { type: integer, format: int64 }, comment: { type: string, maxLength: 2000 } } }

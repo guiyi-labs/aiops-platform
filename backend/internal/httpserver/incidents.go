@@ -203,6 +203,28 @@ func (h incidentHandler) summary(c *gin.Context) {
 	c.JSON(http.StatusOK, summary)
 }
 
+func (h incidentHandler) metrics(c *gin.Context) {
+	clusterID, err := strconv.ParseInt(defaultString(c.Query("cluster_id"), "0"), 10, 64)
+	if err != nil || clusterID < 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "cluster_id must be a non-negative integer")
+		return
+	}
+	windowDays := incident.DefaultMetricsWindowDays
+	if rawDays := strings.TrimSpace(c.Query("days")); rawDays != "" {
+		windowDays, err = strconv.Atoi(rawDays)
+		if err != nil || windowDays < 1 || windowDays > incident.MaxMetricsWindowDays {
+			writeError(c, http.StatusBadRequest, "INVALID_QUERY", "days must be between 1 and 90")
+			return
+		}
+	}
+	metrics, err := h.service.Metrics(c.Request.Context(), incident.MetricsFilter{ClusterID: clusterID, WindowDays: windowDays})
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to calculate incident metrics")
+		return
+	}
+	c.JSON(http.StatusOK, metrics)
+}
+
 func (h incidentHandler) transition(c *gin.Context) {
 	id, ok := incidentID(c)
 	if !ok {

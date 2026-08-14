@@ -2326,6 +2326,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Incident response KPI metrics
+         * @description Derives bounded MTTA, MTTR and SLA compliance metrics from incident timestamps and append-only lifecycle events. The default window is 30 days and the maximum is 90 days; the response discloses the 200-incident sample limit. Missing lifecycle samples are null.
+         */
+        get: operations["incidentMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/batch-assign": {
         parameters: {
             query?: never;
@@ -4930,6 +4950,28 @@ export interface components {
             /** Format: date-time */
             observed_at?: string;
             resource?: components["schemas"]["IncidentResource"];
+        };
+        IncidentMetrics: {
+            window_days: number;
+            /** Format: int64 */
+            cluster_id: number;
+            sample_limit: number;
+            sampled: number;
+            truncated: boolean;
+            assigned: number;
+            acknowledged: number;
+            resolved: number;
+            overdue: number;
+            sla_evaluated: number;
+            sla_compliant: number;
+            /** Format: double */
+            sla_compliance_rate: number | null;
+            /** Format: double */
+            first_assigned_seconds: number | null;
+            /** Format: double */
+            mtta_seconds: number | null;
+            /** Format: double */
+            mttr_seconds: number | null;
         };
         IncidentResource: {
             kind?: string;
@@ -9886,6 +9928,30 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Ok"];
+        };
+    };
+    incidentMetrics: {
+        parameters: {
+            query?: {
+                cluster_id?: number;
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Derived incident KPI metrics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentMetrics"];
+                };
+            };
+            400: components["responses"]["Error"];
         };
     };
     batchAssignIncidents: {

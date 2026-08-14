@@ -511,6 +511,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						incidentAPI := incidentHandler{service: options.Incidents}
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents", AuthRequired: true, Handler: incidentAPI.list})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/summary", AuthRequired: true, Handler: incidentAPI.summary})
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/metrics", AuthRequired: true, Handler: incidentAPI.metrics})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id", AuthRequired: true, Handler: incidentAPI.get})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/evidence", AuthRequired: true, Handler: incidentAPI.evidence, AuditAction: "incident.evidence.get", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/export", AuthRequired: true, Handler: incidentAPI.export, AuditAction: "incident.export", AuditResource: "Incident"})

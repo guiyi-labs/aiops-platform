@@ -92,6 +92,10 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 
 **目标**：incident 从"能协作"升级为"可运营、可度量、可交接"，全部复用既有领域组件。
 
+**执行进度（2026-08-14）**：已完成 KPI 基础层：新增真实时间戳派生的
+`GET /api/v1/incidents/metrics`，包含窗口/样本边界披露与 OpenAPI/typegen 契约；事故 KPI
+视图、runbook 关联、升级链和复盘导出仍按本节顺序推进。
+
 - **Runbook 关联**：incident 详情页挂接可执行/建议 runbook（复用 M43/M44/M81 的
   `insight` / `automation` / `aiinvestigator` runbook 目录，只读链接 + 当前步骤状态），
   不新增任意操作，写路径仍走既有受控动作目录。

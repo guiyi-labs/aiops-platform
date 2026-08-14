@@ -52,6 +52,24 @@ export interface IncidentSummary {
   overdue: number
 }
 
+export interface IncidentMetrics {
+  window_days: number
+  cluster_id: number
+  sample_limit: number
+  sampled: number
+  truncated: boolean
+  assigned: number
+  acknowledged: number
+  resolved: number
+  overdue: number
+  sla_evaluated: number
+  sla_compliant: number
+  sla_compliance_rate: number | null
+  first_assigned_seconds: number | null
+  mtta_seconds: number | null
+  mttr_seconds: number | null
+}
+
 export interface IncidentEvidenceField { label: string; value?: string }
 
 export interface IncidentEvidenceItem {

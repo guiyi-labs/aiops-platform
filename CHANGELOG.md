@@ -9,6 +9,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M111 事故响应 KPI 基础层
+
+- 新增只读 `GET /api/v1/incidents/metrics`，按时间窗口和可选集群派生事故的首次指派耗时、
+  MTTA、MTTR、解决事故 SLA 达标率和逾期数量。
+- 指标严格使用已有事故时间戳与 append-only 时间线；默认 30 天、最多 90 天、最多 200 条样本，
+  响应披露 `sample_limit` / `sampled` / `truncated`，无有效样本返回 `null`。
+- 同步 OpenAPI、前端 typegen 与 `getIncidentMetrics` 客户端封装；后端全量测试/lint、前端 143 测试
+  与 `pnpm ui:gate` 4/4 全绿。
+- See [change record](docs/changes/2026-08-14-m111-incident-kpi.md)。
+
 ### Fixed - CI Backend lint：aiexplain 测试桩无效赋值（SA4005）
 
 - `golangci-lint` staticcheck 曾以 `SA4005` 报

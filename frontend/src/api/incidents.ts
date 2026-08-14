@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { Incident, IncidentBatchAssignResult, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentBatchAssignResult, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentMetrics, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
 
 export function listIncidents(token: string, filters: { clusterID?: number; status?: IncidentStatus | ''; assigneeID?: number; followerID?: number; limit?: number } = {}): Promise<IncidentListResponse> {
   const query = new URLSearchParams({ limit: String(filters.limit ?? 50) })
@@ -19,6 +19,14 @@ export function getIncidentEvidence(token: string, incidentID: number): Promise<
 
 export function getIncidentSummary(token: string): Promise<IncidentSummary> {
   return authorizedRequest('/api/v1/incidents/summary', token)
+}
+
+export function getIncidentMetrics(token: string, filters: { clusterID?: number; days?: number } = {}): Promise<IncidentMetrics> {
+  const query = new URLSearchParams()
+  if (filters.clusterID !== undefined) query.set('cluster_id', String(filters.clusterID))
+  if (filters.days !== undefined) query.set('days', String(filters.days))
+  const suffix = query.toString()
+  return authorizedRequest(`/api/v1/incidents/metrics${suffix ? `?${suffix}` : ''}`, token)
 }
 
 export function createIncident(token: string, input: IncidentCreateInput): Promise<Incident> {

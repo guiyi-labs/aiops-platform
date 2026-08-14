@@ -177,6 +177,7 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	api := r.Group("/api/v1", withTestActor())
 	api.GET("/incidents", h.list)
 	api.GET("/incidents/summary", h.summary)
+	api.GET("/incidents/metrics", h.metrics)
 	api.GET("/incidents/:incident_id", h.get)
 	api.GET("/incidents/:incident_id/evidence", h.evidence)
 	api.POST("/incidents", h.create)
@@ -261,6 +262,29 @@ func TestIncidentHandler_CreateAndList(t *testing.T) {
 	missing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/999", "")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentHandler_MetricsValidatesWindowAndReturnsEmptySamples(t *testing.T) {
+	engine := newIncidentTestEngine(t, newIncidentRepoStub())
+	empty := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/metrics?days=14", "")
+	if empty.Code != http.StatusOK {
+		t.Fatalf("metrics code = %d, body %s", empty.Code, empty.Body.String())
+	}
+	var metrics map[string]any
+	if err := json.Unmarshal(empty.Body.Bytes(), &metrics); err != nil {
+		t.Fatalf("decode metrics: %v", err)
+	}
+	if metrics["window_days"] != float64(14) || metrics["sample_limit"] != float64(incident.MetricsSampleLimit) {
+		t.Fatalf("unexpected metrics metadata: %+v", metrics)
+	}
+	if metrics["mtta_seconds"] != nil || metrics["sla_compliance_rate"] != nil {
+		t.Fatalf("empty lifecycle metrics must be null: %+v", metrics)
+	}
+
+	invalid := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/metrics?days=91", "")
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("invalid metrics window code = %d, want 400", invalid.Code)
 	}
 }
 

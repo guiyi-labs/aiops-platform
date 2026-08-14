@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { exportIncidentPostmortem, getIncidentMetrics, getIncidentRunbook, listIncidentResponseCatalog } from './incidents'
+import { exportIncidentPostmortem, getIncidentContext, getIncidentMetrics, getIncidentRunbook, listIncidentResponseCatalog } from './incidents'
 
 describe('incident response catalog API', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -55,6 +55,43 @@ describe('incident runbook API', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(getIncidentRunbook('token', 8)).resolves.toMatchObject(response)
+  })
+})
+
+describe('incident context cockpit API', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('loads the aggregated M112-1 cockpit with the resource-context contract', async () => {
+    const response = {
+      resource_context: { scope: { cluster_id: 3, kind: 'Deployment', name: 'api' }, observed_at: '2026-08-14T00:00:00Z', source: 'incident_snapshot', freshness: { age_seconds: 300, as_of: '2026-08-14T00:00:00Z' }, empty_sample: { count: 0, bounded: true, semantic: 'fail_closed' } },
+      incident: { id: 7, number: 'INC-000007', title: 'deployment unavailable' },
+      sla: { due_at: '2026-08-14T04:00:00Z', overdue: false, remaining: '2小时', deadline_text: '剩余 2小时' },
+      health: { status: 'confirmed', overdue: false, evidence_available: true, runbook_available: true, note_count: 1, system_event_count: 2 },
+      evidence_sources: [{ source_type: 'diagnosis', count: 1, deep_link: '/diagnoses' }],
+      recent_events: [],
+      recommended_actions: [{ action: 'deployment.rollout_restart', target_kind: 'Deployment', dry_run_first: true, summary: 'Preview rollout restart' }],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getIncidentContext('token', 7)).resolves.toMatchObject({ resource_context: { empty_sample: { semantic: 'fail_closed' } } })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/incidents/7/context', expect.any(Object))
+  })
+
+  it('keeps a missing cockpit fail-closed (no runbook claimed)', async () => {
+    const response = {
+      resource_context: { scope: { cluster_id: 3 }, observed_at: '2026-08-14T00:00:00Z', source: 'incident_snapshot', freshness: { age_seconds: 0, as_of: '2026-08-14T00:00:00Z' }, empty_sample: { count: 0, bounded: true, semantic: 'fail_closed' } },
+      incident: { id: 8, number: 'INC-000008', title: 'missing source' },
+      sla: { due_at: '2026-08-14T00:00:00Z', overdue: false, remaining: '--', deadline_text: '未设置' },
+      health: { status: 'open', overdue: false, evidence_available: true, runbook_available: false, note_count: 0, system_event_count: 1 },
+      evidence_sources: [],
+      recent_events: [],
+      recommended_actions: [],
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getIncidentContext('token', 8)).resolves.toMatchObject({ health: { runbook_available: false } })
   })
 })
 

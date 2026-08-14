@@ -30,6 +30,13 @@ type incidentRunbookResponse struct {
 	Runbook     *insight.Runbook `json:"runbook,omitempty"`
 }
 
+// incidentCockpitResponse is the M112-1 aggregated context cockpit. It adds
+// the resource-context contract block on top of the deterministic aggregate;
+// it makes no Kubernetes calls and never fabricates health.
+type incidentCockpitResponse struct {
+	incident.ContextCockpit
+}
+
 type createIncidentRequest struct {
 	SourceType string               `json:"source_type" binding:"required"`
 	SourceRef  string               `json:"source_ref" binding:"required"`
@@ -212,6 +219,64 @@ func (h incidentHandler) runbook(c *gin.Context) {
 	response.Runbook = &runbook
 	response.Available = true
 	c.JSON(http.StatusOK, response)
+}
+
+// context (M112-1) builds the deterministic incident context cockpit. The
+// cockpit aggregates the incident snapshot, SLA state, evidence sources,
+// recent timeline, a runbook brief and recommended dry-run actions under
+// the shared resource-context contract. It performs no Kubernetes calls,
+// and runbook/evidence resolution failure degrades gracefully (never 500
+// for missing external sources).
+func (h incidentHandler) context(c *gin.Context) {
+	id, ok := incidentID(c)
+	if !ok {
+		return
+	}
+	record, err := h.service.Get(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, incident.ErrNotFound) {
+			writeError(c, http.StatusNotFound, "INCIDENT_NOT_FOUND", "incident does not exist")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to read incident context")
+		return
+	}
+	observedAt := time.Now().UTC()
+
+	// Resolve evidence (snapshot fallback when the resolver is absent or
+	// the source record is gone — never breaks the cockpit).
+	evidenceItems, err := h.service.Evidence(c.Request.Context(), id)
+	if err != nil {
+		evidenceItems = nil
+	}
+
+	// Resolve the runbook brief. A missing resolver or missing domain means
+	// "no runbook" (Health.RunbookAvailable=false), not an error.
+	var runbookBrief *incident.RunbookBrief
+	var recommended []incident.RecommendedAction
+	if h.sourceResolver != nil {
+		if info, resolveErr := h.sourceResolver.Resolve(c.Request.Context(), record.SourceType, record.SourceRef, record.ClusterID); resolveErr == nil && strings.TrimSpace(info.Domain) != "" {
+			runbook := insight.Resolve(record.ClusterID, info.Domain, record.Resource.Kind, record.Resource.Namespace, record.Resource.Name, strings.TrimSpace(info.FindingCode))
+			runbookBrief = incident.BuildRunbookBriefFromResolved(info.Domain, strings.TrimSpace(info.FindingCode), len(runbook.Diagnoses), len(runbook.Inspection), len(runbook.Operations))
+			recommended = make([]incident.RecommendedAction, 0, len(runbook.Operations))
+			for _, op := range runbook.Operations {
+				recommended = append(recommended, incident.RecommendedAction{
+					Action:      op.Action,
+					TargetKind:  op.TargetKind,
+					DryRunFirst: op.DryRunFirst,
+					Summary:     op.Summary,
+				})
+			}
+		}
+	}
+
+	cockpit := incident.BuildContextCockpit(incident.ContextCockpitInput{
+		Incident:           record,
+		Evidence:           evidenceItems,
+		RunbookBrief:       runbookBrief,
+		RecommendedActions: recommended,
+	}, observedAt)
+	c.JSON(http.StatusOK, incidentCockpitResponse{ContextCockpit: cockpit})
 }
 
 func (h incidentHandler) list(c *gin.Context) {

@@ -516,6 +516,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/metrics", AuthRequired: true, Handler: incidentAPI.metrics})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id", AuthRequired: true, Handler: incidentAPI.get})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/evidence", AuthRequired: true, Handler: incidentAPI.evidence, AuditAction: "incident.evidence.get", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/context", AuthRequired: true, Handler: incidentAPI.context, AuditAction: "incident.context.get", AuditResource: "IncidentContext"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/runbook", AuthRequired: true, Handler: incidentAPI.runbook, AuditAction: "incident.runbook.get", AuditResource: "IncidentRunbook"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/export", AuthRequired: true, Handler: incidentAPI.export, AuditAction: "incident.export", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/postmortem/export", AuthRequired: true, Handler: incidentAPI.exportPostmortem, AuditAction: "incident.postmortem.export", AuditResource: "Incident"})

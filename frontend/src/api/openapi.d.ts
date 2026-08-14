@@ -2415,6 +2415,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aggregated M112-1 incident context cockpit */
+        get: operations["incidentContextCockpit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/{incident_id}/runbook": {
         parameters: {
             query?: never;
@@ -5126,6 +5143,105 @@ export interface components {
             domain?: string;
             finding_code?: string;
             runbook?: components["schemas"]["InsightRunbook"];
+        };
+        /** @description M112-1 aggregated incident context cockpit. Deterministic read derived from the incident snapshot, evidence resolver and insight runbook mapping; makes no Kubernetes calls and never fabricates health. */
+        IncidentContextCockpit: {
+            /** @description Resource-context contract shared across M112-M114 aggregates. */
+            resource_context: {
+                scope: {
+                    /** Format: int64 */
+                    cluster_id?: number;
+                    namespace?: string;
+                    kind?: string;
+                    name?: string;
+                    source_type?: string;
+                };
+                /** Format: date-time */
+                observed_at: string;
+                source: string;
+                freshness: {
+                    /** Format: int64 */
+                    age_seconds?: number;
+                    /** Format: date-time */
+                    as_of?: string;
+                };
+                /** @description Fail-closed empty-sample semantics: no data is never shown as healthy. */
+                empty_sample: {
+                    count?: number;
+                    bounded?: boolean;
+                    /** @enum {string} */
+                    semantic?: "fail_closed" | "safe_absent";
+                };
+            };
+            incident: {
+                /** Format: int64 */
+                id?: number;
+                number?: string;
+                title?: string;
+                /** @enum {string} */
+                severity?: "info" | "warning" | "high" | "critical";
+                /** @enum {string} */
+                status?: "open" | "confirmed" | "resolved" | "dismissed";
+                summary?: string;
+                source_type?: string;
+                resource?: components["schemas"]["IncidentResource"];
+                /** Format: int64 */
+                version?: number;
+                /** Format: date-time */
+                created_at?: string;
+                /** Format: date-time */
+                updated_at?: string;
+            };
+            sla: {
+                /** Format: date-time */
+                due_at?: string;
+                overdue?: boolean;
+                remaining?: string;
+                deadline_text?: string;
+            };
+            health: {
+                status?: string;
+                overdue?: boolean;
+                evidence_available?: boolean;
+                runbook_available?: boolean;
+                note_count?: number;
+                system_event_count?: number;
+            };
+            evidence_sources: {
+                source_type?: string;
+                count?: number;
+                deep_link?: string;
+            }[];
+            /** @description Timeline events newest-first, bounded to the last 10. */
+            recent_events: {
+                /** Format: int64 */
+                id?: number;
+                /** @enum {string} */
+                event_type?: "system" | "note";
+                actor?: {
+                    /** Format: int64 */
+                    id?: number;
+                    name?: string;
+                };
+                content?: string;
+                /** Format: date-time */
+                created_at?: string;
+            }[];
+            /** @description Present only when a runbook could be resolved from a trustworthy source domain. */
+            runbook_brief?: {
+                domain?: string;
+                finding_code?: string;
+                diagnosis_routes?: number;
+                inspection_rules?: number;
+                operation_count?: number;
+            };
+            /** @description Read-only dry-run candidates from the runbook catalog; never executed from the cockpit. */
+            recommended_actions: {
+                action?: string;
+                target_kind?: string;
+                dry_run_first?: boolean;
+                summary?: string;
+            }[];
         };
         /** @description One normalized evidence item on the diagnosis timeline (M94 read-only projection) */
         DiagnosisTimelineEntry: {
@@ -10140,6 +10256,29 @@ export interface operations {
                     "application/json": {
                         items?: components["schemas"]["IncidentEvidenceItem"][];
                     };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    incidentContextCockpit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deterministic incident context cockpit with the resource-context contract block */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentContextCockpit"];
                 };
             };
             404: components["responses"]["Error"];

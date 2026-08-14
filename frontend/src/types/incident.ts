@@ -125,3 +125,92 @@ export interface IncidentResponseCatalog {
   templates: IncidentResponseTemplate[]
   severity_matrix: IncidentSeverityTarget[]
 }
+
+// --- M112-1 context cockpit ---
+
+export interface IncidentResourceScope {
+  cluster_id: number
+  namespace?: string
+  kind?: string
+  name?: string
+  source_type?: string
+}
+
+export interface IncidentFreshnessInfo {
+  age_seconds: number
+  as_of: string
+}
+
+export interface IncidentEmptySampleInfo {
+  count: number
+  bounded: boolean
+  semantic: 'fail_closed' | 'safe_absent'
+}
+
+export interface IncidentResourceContext {
+  scope: IncidentResourceScope
+  observed_at: string
+  source: string
+  freshness: IncidentFreshnessInfo
+  empty_sample: IncidentEmptySampleInfo
+}
+
+export interface IncidentHealthSummary {
+  status: IncidentStatus
+  overdue: boolean
+  evidence_available: boolean
+  runbook_available: boolean
+  note_count: number
+  system_event_count: number
+}
+
+export interface IncidentEvidenceSourceSummary {
+  source_type: IncidentSourceType
+  count: number
+  deep_link: string
+}
+
+export interface IncidentSLASummary {
+  due_at: string
+  overdue: boolean
+  remaining: string
+  deadline_text: string
+}
+
+export interface IncidentRunbookBrief {
+  domain: string
+  finding_code: string
+  diagnosis_routes: number
+  inspection_rules: number
+  operation_count: number
+}
+
+export interface IncidentRecommendedAction {
+  action: string
+  target_kind: string
+  dry_run_first: boolean
+  summary: string
+}
+
+export interface IncidentContextCockpit {
+  resource_context: IncidentResourceContext
+  incident: {
+    id: number
+    number: string
+    title: string
+    severity: IncidentSeverity
+    status: IncidentStatus
+    summary: string
+    source_type: IncidentSourceType
+    resource: IncidentResourceRef
+    version: number
+    created_at: string
+    updated_at: string
+  }
+  sla: IncidentSLASummary
+  health: IncidentHealthSummary
+  evidence_sources: IncidentEvidenceSourceSummary[]
+  recent_events: IncidentTimelineEvent[]
+  runbook_brief?: IncidentRunbookBrief
+  recommended_actions: IncidentRecommendedAction[]
+}

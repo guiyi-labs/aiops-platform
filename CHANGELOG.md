@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M112-1 事故上下文驾驶舱（资源上下文契约首次落地）
+
+- 新增只读 `GET /api/v1/incidents/{incident_id}/context`，聚合事故快照、SLA 状态、证据来源汇总、最近 10 条时间线、runbook 摘要与只读 dry-run 建议动作，供值班人员在事故详情首屏完成判断。
+- 首次落地跨 M112–M114 资源上下文契约：响应携带 `resource_context`（scope、observed_at、来源、freshness、空样本语义，空样本固定 `fail_closed`）。
+- 驾驶舱为纯确定性只读聚合：不调用 Kubernetes API、不伪造集群健康；来源域缺失时 runbook 明确不可用（fail-closed）；实时集群健康经证据 deep link 与后续 M114 事件驾驶舱承载。
+- 同步 OpenAPI/typegen、权限矩阵（`incident.context.get`）、前端类型与客户端；事故详情抽屉新增「上下文驾驶舱」区块。
+- 无数据库迁移（只读聚合）。See [change record](docs/changes/2026-08-14-m112-1-context-cockpit.md)。
+
 ### Changed - 后续路线吸收资源上下文与容量感知能力
 
 - 基于外部 K8s 运维平台调研，更新 M112–M114 执行路线：M112 增加事故上下文驾驶舱，

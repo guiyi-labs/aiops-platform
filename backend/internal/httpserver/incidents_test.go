@@ -416,6 +416,114 @@ func TestIncidentHandler_RunbookIsReadOnlyAndFailClosed(t *testing.T) {
 	}
 }
 
+func TestIncidentHandler_ContextCockpit(t *testing.T) {
+	repo := newIncidentRepoStub()
+	created := performIncidentRequest(newIncidentTestEngine(t, repo), http.MethodPost, "/api/v1/incidents", `{
+		"source_type": "finding", "source_ref": "finding:12:code:Deployment:default:api",
+		"cluster_id": 3, "title": "deployment unavailable", "severity": "critical",
+		"summary": "replicas unavailable", "resource": {"kind":"Deployment","namespace":"default","name":"api"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create code = %d, body %s", created.Code, created.Body.String())
+	}
+	var record incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &record); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := incidentHandler{
+		service:        incident.NewService(repo),
+		sourceResolver: incidentSourceResolverStub{info: incident.SourceInfo{Domain: "network", FindingCode: "NET-EXPOSE"}},
+	}
+	r.GET("/api/v1/incidents/:incident_id/context", h.context)
+	path := "/api/v1/incidents/" + strconv.FormatInt(record.ID, 10) + "/context"
+	resp := performIncidentRequest(r, http.MethodGet, path, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("context code = %d, body %s", resp.Code, resp.Body.String())
+	}
+	var cockpit struct {
+		ResourceContext incident.ResourceContext     `json:"resource_context"`
+		Incident        incident.IncidentSnapshot    `json:"incident"`
+		SLA             incident.SLASummary          `json:"sla"`
+		Health          incident.HealthSummary       `json:"health"`
+		RunbookBrief    *incident.RunbookBrief       `json:"runbook_brief"`
+		Recommended     []incident.RecommendedAction `json:"recommended_actions"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &cockpit); err != nil {
+		t.Fatalf("decode context: %v", err)
+	}
+	if cockpit.ResourceContext.Scope.ClusterID != 3 || cockpit.ResourceContext.Scope.Kind != "Deployment" {
+		t.Fatalf("scope mismatch: %+v", cockpit.ResourceContext.Scope)
+	}
+	if cockpit.ResourceContext.ObservedAt.IsZero() {
+		t.Fatal("observed_at must be present")
+	}
+	if cockpit.ResourceContext.EmptySample.Semantic != "fail_closed" {
+		t.Fatalf("empty sample semantic = %q", cockpit.ResourceContext.EmptySample.Semantic)
+	}
+	if cockpit.Incident.ID != record.ID || cockpit.Incident.Title != "deployment unavailable" {
+		t.Fatalf("incident snapshot mismatch: %+v", cockpit.Incident)
+	}
+	if !cockpit.Health.EvidenceAvailable {
+		t.Fatal("snapshot evidence fallback should be available")
+	}
+	// Runbook resolution succeeded through the stub resolver.
+	if cockpit.RunbookBrief == nil || cockpit.RunbookBrief.Domain != "network" {
+		t.Fatalf("runbook brief mismatch: %+v", cockpit.RunbookBrief)
+	}
+	if len(cockpit.Recommended) == 0 {
+		t.Fatal("deployment runbook should carry dry-run actions")
+	}
+
+	missing := performIncidentRequest(r, http.MethodGet, "/api/v1/incidents/99999/context", "")
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing context code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentHandler_ContextCockpitFailClosedNoResolver(t *testing.T) {
+	repo := newIncidentRepoStub()
+	created := performIncidentRequest(newIncidentTestEngine(t, repo), http.MethodPost, "/api/v1/incidents", `{
+		"source_type": "finding", "source_ref": "finding:13:code:Pod:default:web",
+		"cluster_id": 3, "title": "pod pending", "severity": "high",
+		"summary": "pending", "resource": {"kind":"Pod","namespace":"default","name":"web"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create code = %d, body %s", created.Code, created.Body.String())
+	}
+	var record incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &record); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := incidentHandler{service: incident.NewService(repo)}
+	r.GET("/api/v1/incidents/:incident_id/context", h.context)
+	path := "/api/v1/incidents/" + strconv.FormatInt(record.ID, 10) + "/context"
+	resp := performIncidentRequest(r, http.MethodGet, path, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("context code = %d, body %s", resp.Code, resp.Body.String())
+	}
+	var cockpit incident.ContextCockpit
+	if err := json.Unmarshal(resp.Body.Bytes(), &cockpit); err != nil {
+		t.Fatalf("decode context: %v", err)
+	}
+	// Without a resolver the cockpit must still render (snapshot only) and
+	// must NOT claim a runbook is available.
+	if cockpit.Health.RunbookAvailable {
+		t.Fatal("runbook must not be available without resolver")
+	}
+	if cockpit.RunbookBrief != nil {
+		t.Fatalf("runbook brief must be nil without resolver, got %+v", cockpit.RunbookBrief)
+	}
+	if cockpit.Health.EvidenceAvailable == false {
+		t.Fatal("snapshot evidence fallback should keep evidence available")
+	}
+}
+
 func TestIncidentHandler_BatchAssign(t *testing.T) {
 	repo := newIncidentRepoStub()
 	engine := newIncidentTestEngine(t, repo)

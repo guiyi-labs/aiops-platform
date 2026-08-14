@@ -760,6 +760,8 @@ paths:
 
   /api/v1/incidents/{incident_id}/evidence:
     get: { tags: [incidents], summary: Incident evidence timeline, operationId: incidentEvidence, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Evidence timeline, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/IncidentEvidenceItem' } } } } } } }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/{incident_id}/context:
+    get: { tags: [incidents], summary: Aggregated M112-1 incident context cockpit, operationId: incidentContextCockpit, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Deterministic incident context cockpit with the resource-context contract block, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentContextCockpit' } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}/runbook:
     get: { tags: [incidents], summary: Resolve an incident read-only runbook, operationId: incidentRunbook, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Runbook association status, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentRunbookResponse' } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}/export:
@@ -3082,6 +3084,111 @@ components:
         domain: { type: string }
         finding_code: { type: string }
         runbook: { $ref: '#/components/schemas/InsightRunbook' }
+    IncidentContextCockpit:
+      type: object
+      additionalProperties: false
+      description: M112-1 aggregated incident context cockpit. Deterministic read derived from the incident snapshot, evidence resolver and insight runbook mapping; makes no Kubernetes calls and never fabricates health.
+      required: [resource_context, incident, sla, health, evidence_sources, recent_events, recommended_actions]
+      properties:
+        resource_context:
+          type: object
+          required: [scope, observed_at, source, freshness, empty_sample]
+          description: Resource-context contract shared across M112-M114 aggregates.
+          properties:
+            scope:
+              type: object
+              properties:
+                cluster_id: { type: integer, format: int64 }
+                namespace: { type: string }
+                kind: { type: string }
+                name: { type: string }
+                source_type: { type: string }
+            observed_at: { type: string, format: date-time }
+            source: { type: string }
+            freshness:
+              type: object
+              properties:
+                age_seconds: { type: integer, format: int64 }
+                as_of: { type: string, format: date-time }
+            empty_sample:
+              type: object
+              description: 'Fail-closed empty-sample semantics: no data is never shown as healthy.'
+              properties:
+                count: { type: integer }
+                bounded: { type: boolean }
+                semantic: { type: string, enum: [fail_closed, safe_absent] }
+        incident:
+          type: object
+          properties:
+            id: { type: integer, format: int64 }
+            number: { type: string }
+            title: { type: string }
+            severity: { type: string, enum: [info, warning, high, critical] }
+            status: { type: string, enum: [open, confirmed, resolved, dismissed] }
+            summary: { type: string }
+            source_type: { type: string }
+            resource: { $ref: '#/components/schemas/IncidentResource' }
+            version: { type: integer, format: int64 }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+        sla:
+          type: object
+          properties:
+            due_at: { type: string, format: date-time }
+            overdue: { type: boolean }
+            remaining: { type: string }
+            deadline_text: { type: string }
+        health:
+          type: object
+          properties:
+            status: { type: string }
+            overdue: { type: boolean }
+            evidence_available: { type: boolean }
+            runbook_available: { type: boolean }
+            note_count: { type: integer }
+            system_event_count: { type: integer }
+        evidence_sources:
+          type: array
+          items:
+            type: object
+            properties:
+              source_type: { type: string }
+              count: { type: integer }
+              deep_link: { type: string }
+        recent_events:
+          type: array
+          description: Timeline events newest-first, bounded to the last 10.
+          items:
+            type: object
+            properties:
+              id: { type: integer, format: int64 }
+              event_type: { type: string, enum: [system, note] }
+              actor:
+                type: object
+                properties:
+                  id: { type: integer, format: int64 }
+                  name: { type: string }
+              content: { type: string }
+              created_at: { type: string, format: date-time }
+        runbook_brief:
+          type: object
+          description: Present only when a runbook could be resolved from a trustworthy source domain.
+          properties:
+            domain: { type: string }
+            finding_code: { type: string }
+            diagnosis_routes: { type: integer }
+            inspection_rules: { type: integer }
+            operation_count: { type: integer }
+        recommended_actions:
+          type: array
+          description: Read-only dry-run candidates from the runbook catalog; never executed from the cockpit.
+          items:
+            type: object
+            properties:
+              action: { type: string }
+              target_kind: { type: string }
+              dry_run_first: { type: boolean }
+              summary: { type: string }
     DiagnosisTimelineEntry:
       type: object
       description: One normalized evidence item on the diagnosis timeline (M94 read-only projection)

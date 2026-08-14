@@ -2,13 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { Download, FileText, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
 
-import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, exportIncidentPostmortem, getIncident, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidentResponseCatalog, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
+import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, exportIncidentPostmortem, getIncident, getIncidentContext, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidentResponseCatalog, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { UserProfile } from '../types/auth'
-import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentContextCockpit, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
 
 interface IncidentCreateForm extends Omit<IncidentCreateInput, 'resource'> {
   resource: IncidentResourceRef
@@ -33,6 +33,8 @@ const evidence = ref<IncidentEvidenceItem[]>([])
 const evidenceLoading = ref(false)
 const runbook = ref<IncidentRunbookResponse | null>(null)
 const runbookLoading = ref(false)
+const cockpit = ref<IncidentContextCockpit | null>(null)
+const cockpitLoading = ref(false)
 const showCreate = ref(false)
 const saving = ref(false)
 const responseCatalog = ref<IncidentResponseCatalog | null>(null)
@@ -86,6 +88,14 @@ const resolutionDuration = computed(() => {
   return hours > 0 ? `${hours}小时${minutes % 60}分` : `${minutes}分钟`
 })
 const linkedRunbook = computed(() => (runbook.value?.available ? runbook.value.runbook ?? null : null))
+const cockpitFormatAge = computed(() => {
+  const seconds = cockpit.value?.resource_context.freshness.age_seconds ?? 0
+  if (seconds < 60) return `${seconds}秒`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes}分钟`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}小时${minutes % 60}分`
+})
 const compatibleTemplates = computed(() => responseCatalog.value?.templates.filter((template) => template.source_types.includes(newIncident.value.source_type)) ?? [])
 const selectedTemplate = computed(() => compatibleTemplates.value.find((template) => template.id === newIncident.value.template_id) ?? compatibleTemplates.value[0])
 const selectedSlaTarget = computed(() => responseCatalog.value?.severity_matrix.find((target) => target.severity === newIncident.value.severity)?.target_minutes ?? null)
@@ -233,11 +243,13 @@ async function openDetail(incident: Incident) {
     noteContent.value = ''
     postmortemContent.value = detail.value.postmortem ?? ''
     runbook.value = null
+    cockpit.value = null
     if (canManage.value && assignableUsers.value.length === 0) {
       assignableUsers.value = (await listAssignableUsers(auth.accessToken)).items
     }
     void loadEvidence(detail.value.id)
     void loadRunbook(detail.value.id)
+    void loadCockpit(detail.value.id)
   } catch (err) {
     errorMessage.value = err instanceof APIError ? err.message : '加载事故详情失败'
   } finally {
@@ -425,6 +437,18 @@ async function loadRunbook(incidentID: number) {
   }
 }
 
+async function loadCockpit(incidentID: number) {
+  cockpitLoading.value = true
+  try {
+    const result = await getIncidentContext(auth.accessToken, incidentID)
+    if (detail.value?.id === incidentID) cockpit.value = result
+  } catch {
+    if (detail.value?.id === incidentID) cockpit.value = null
+  } finally {
+    if (detail.value?.id === incidentID) cockpitLoading.value = false
+  }
+}
+
 onMounted(() => { void loadAll(); void loadResponseCatalog() })
 </script>
 
@@ -554,6 +578,38 @@ onMounted(() => { void loadAll(); void loadResponseCatalog() })
           <div><dt>SLA 截止</dt><dd>{{ formatTime(detail.sla_due_at) }}</dd></div>
           <div><dt>创建时间</dt><dd>{{ formatTime(detail.created_at) }}</dd></div>
         </dl>
+
+        <h3>上下文驾驶舱</h3>
+        <p v-if="cockpitLoading" class="muted">正在组装上下文…</p>
+        <div v-else-if="cockpit" class="incident-cockpit">
+          <div class="cockpit-contract">
+            <span class="cockpit-tag">scope {{ cockpit.resource_context.scope.cluster_id ? '#' + cockpit.resource_context.scope.cluster_id : '-' }}</span>
+            <span class="cockpit-tag">数据源 {{ cockpit.resource_context.source }}</span>
+            <span class="cockpit-tag">freshness {{ cockpitFormatAge }}</span>
+            <span class="cockpit-tag">空样本 fail_closed</span>
+          </div>
+          <div class="cockpit-health">
+            <span><strong>{{ statusLabels[cockpit.health.status] }}</strong><small>状态</small></span>
+            <span><strong class="sla-tone" :class="{ overdue: cockpit.health.overdue }">{{ cockpit.sla.deadline_text }}</strong><small>SLA</small></span>
+            <span><strong>{{ cockpit.evidence_sources.length }}</strong><small>证据来源</small></span>
+            <span><strong>{{ cockpit.health.note_count }}</strong><small>备注</small></span>
+            <span><strong>{{ cockpit.health.system_event_count }}</strong><small>系统事件</small></span>
+          </div>
+          <div v-if="cockpit.evidence_sources.length" class="cockpit-evidence">
+            <a v-for="src in cockpit.evidence_sources" :key="src.source_type" class="cockpit-source-link" :href="src.deep_link">
+              {{ evidenceSourceLabel(src.source_type) }} × {{ src.count }} ↗
+            </a>
+          </div>
+          <div v-if="cockpit.recommended_actions.length" class="cockpit-actions">
+            <strong>建议动作（只读 dry-run）</strong>
+            <div v-for="action in cockpit.recommended_actions" :key="action.action" class="cockpit-action">
+              <span>{{ action.action }}</span>
+              <small>{{ action.target_kind }} · {{ action.dry_run_first ? '必须先预览' : '受控操作' }}</small>
+            </div>
+          </div>
+          <p v-if="!cockpit.health.runbook_available" class="muted">当前事故暂无可信的只读 runbook（来源域缺失或解析器未启用）。</p>
+        </div>
+        <p v-else class="muted">上下文驾驶舱加载失败（不影响其余区块）。</p>
 
         <h3>响应 Runbook</h3>
         <p v-if="runbookLoading" class="muted">正在解析响应步骤…</p>
@@ -856,6 +912,22 @@ onMounted(() => { void loadAll(); void loadResponseCatalog() })
 .runbook-item p, .runbook-note { margin: 0; color: #46545c; font-size: 11px; line-height: 1.5; }
 .runbook-item small, .incident-runbook code { color: #77858d; font-size: 10px; overflow-wrap: anywhere; }
 .runbook-unavailable { margin: 0; padding: 10px 12px; color: #7a5b25; background: #fff8e7; border: 1px solid #f0dfb5; border-radius: 6px; font-size: 12px; }
+.incident-cockpit { display: grid; gap: 10px; padding: 12px 14px; background: #f5f8fc; border: 1px solid #dbe5ef; border-radius: 8px; }
+.cockpit-contract { display: flex; gap: 6px; flex-wrap: wrap; }
+.cockpit-tag { padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 650; color: #4c6c9b; background: #e8eef7; }
+.cockpit-health { display: flex; gap: 10px; flex-wrap: wrap; }
+.cockpit-health > span { display: inline-flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: 10px; background: #ffffff; border: 1px solid #e3e8ea; }
+.cockpit-health strong { font-size: 14px; color: #2b3a55; }
+.cockpit-health strong.sla-tone.overdue { color: #b13a2a; }
+.cockpit-health small { font-size: 11px; color: #8593a8; }
+.cockpit-evidence { display: flex; gap: 6px; flex-wrap: wrap; }
+.cockpit-source-link { padding: 3px 9px; border-radius: 12px; font-size: 11px; color: #1d4ed8; background: #e4ecfc; text-decoration: none; }
+.cockpit-source-link:hover { text-decoration: underline; }
+.cockpit-actions { display: grid; gap: 6px; }
+.cockpit-actions > strong { color: #39474e; font-size: 11px; }
+.cockpit-action { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: #ffffff; border: 1px solid #e1e8ed; border-radius: 6px; }
+.cockpit-action span { color: #3b6ea5; font-size: 12px; font-weight: 650; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.cockpit-action small { margin-left: auto; color: #77858d; font-size: 10px; }
 .incident-evidence { display: grid; gap: 10px; }
 .evidence-card { padding: 12px 14px; background: #f0f4f6; border: 1px solid #dce4e7; border-radius: 8px; }
 .evidence-card-head { display: flex; align-items: center; gap: 8px; }

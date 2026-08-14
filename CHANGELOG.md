@@ -9,6 +9,19 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - 开源许可识别（NOASSERTION → Apache-2.0）
+
+- 将 `LICENSE` 替换为规范 Apache License 2.0 全文并保留 `Copyright 2025-2026 Guiyi Labs` 声明，修复 GitHub 将许可证识别为 NOASSERTION 的问题（原文件被截断改写，缺 4.4/4.6/4.7 条款与 APPENDIX 段）。
+- See [change record](docs/changes/2026-08-14-license-apache2.md)。
+
+### Added - M111 事故响应模板与复盘 Markdown 导出
+
+- 新增只读 `GET /api/v1/incidents/templates`，返回 Node NotReady、Deployment Unavailable、OOMKilled、通用事故模板和当前严重级 SLA 矩阵；创建事故可携带 `template_id`，模板默认值与来源解析保持兼容。
+- 事故快照持久化 `template_id`；严重级目标支持 `INCIDENT_SLA_TARGETS` 环境配置，默认 critical/high/warning/info 为 1h/4h/24h/72h，SLA 截止时间按矩阵计算。
+- 新增 `GET /api/v1/incidents/{incident_id}/postmortem/export`，输出包含事故叙事、证据时间线、决策/动作时间线和结果指标的 Markdown；事故详情支持下载，CSV 导出同步带出模板标识。
+- 同步迁移 `000048`、OpenAPI/typegen、权限矩阵、前端模板选择和部署配置。
+- See [change record](docs/changes/2026-08-14-m111-incident-templates-postmortem-export.md)。
+
 ### Added - M111 事故响应 KPI 基础层
 
 - 新增只读 `GET /api/v1/incidents/metrics`，按时间窗口和可选集群派生事故的首次指派耗时、

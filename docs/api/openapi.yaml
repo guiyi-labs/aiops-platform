@@ -912,6 +912,26 @@ paths:
         '200': { description: List of alert instances, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/AlertInstance' } } } } }
         '401': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/alerts/overview:
+    get:
+      tags: [alerts]
+      summary: M114-1 alert noise reduction — bounded aggregation of instances by rule with correlation-case linkage
+      description: "Read-only aggregation of alert instances grouped by rule (resource). Folded per rule within a bounded window: firing_count / resolved_count, first_fired_at / last_fired_at, and related_case_ids linking the alert to active correlation cases that cover the same resource. fail-closed: an empty window reports fail_closed=true (never treated as healthy). All queries bounded: window_minutes (1-10080, default 1440), max_groups (1-200, default 50), limit (1-200, default 100)."
+      operationId: alertOverview
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClusterID' }
+        - { name: window_minutes, in: query, schema: { type: integer, minimum: 1, maximum: 10080, default: 1440 } }
+        - { name: max_groups, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 100 }, description: Rules and instances fetch cap }
+      responses:
+        '200':
+          description: Alert noise-reduction aggregation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertOverviewResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/clusters/{cluster_id}/alerts/{alert_id}:
     get:
       tags: [alerts]
@@ -1638,6 +1658,27 @@ paths:
       responses:
         '200': { description: SLI template catalog, content: { application/json: { schema: { $ref: '#/components/schemas/SLITemplateCatalog' } } } }
         '401': { $ref: '#/components/responses/Error' }
+  /api/v1/aiops/slos/burn-summary:
+    get:
+      tags: [slo]
+      summary: M114-1 SLO burn posture summary (read-only)
+      description: "Posture overview per SLO definition in scope: status (burning / healthy / unavailable / no_data), latest burn rate, coverage and error budget remaining. Pure read aggregation over existing definitions and evaluations — no writes. Bounded by limit (1-200, default 50); optional filters namespace / template / cluster_id."
+      operationId: sloBurnSummary
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, schema: { type: integer, format: int64 }, description: Filter by cluster }
+        - { name: namespace, in: query, schema: { type: string } }
+        - { name: template, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string, enum: [burning, healthy, unavailable, no_data] }, description: Filter response by computed status }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: SLO burn posture summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SLOBurnSummaryResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/aiops/slos:
     get:
       tags: [slo]
@@ -3896,6 +3937,40 @@ components:
         latest_evidence_anchor: { type: object, additionalProperties: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    AlertOverviewGroup:
+      type: object
+      additionalProperties: false
+      required: [rule_id, display_name, resource_kind, resource_name, metric_name, firing_count, resolved_count, first_fired_at, last_fired_at]
+      properties:
+        rule_id: { type: integer, format: int64 }
+        display_name: { type: string }
+        resource_kind: { type: string }
+        resource_name: { type: string }
+        metric_name: { type: string }
+        firing_count: { type: integer, description: Firing instances folded into this group }
+        resolved_count: { type: integer, description: Resolved instances folded into this group }
+        first_fired_at: { type: string, format: date-time }
+        last_fired_at: { type: string, format: date-time }
+        related_case_ids:
+          type: array
+          items: { type: integer, format: int64 }
+          description: Active correlation cases covering the same resource
+    AlertOverviewResponse:
+      type: object
+      additionalProperties: false
+      required: [scope, observed_at, window_minutes, groups_total, groups, total_firing, total_resolved, fail_closed]
+      properties:
+        scope: { type: string }
+        observed_at: { type: string, format: date-time }
+        window_minutes: { type: integer }
+        groups_total: { type: integer }
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/AlertOverviewGroup' }
+        total_firing: { type: integer }
+        total_resolved: { type: integer }
+        fail_closed: { type: boolean, description: True when the window has no alerts (never treated as healthy) }
+        empty_note: { type: string }
     ActorRef:
       type: object
       required: [id, name]
@@ -4626,6 +4701,33 @@ components:
         state: { type: string, enum: [healthy, burning_slow, burning_fast, breached, unavailable] }
         coverage: { type: string, enum: [complete, partial, unavailable] }
         evaluated_at: { type: string, format: date-time }
+    SLOBurnSummaryItem:
+      type: object
+      additionalProperties: false
+      required: [slo_id, cluster_id, service, template, objective, status]
+      properties:
+        slo_id: { type: integer, format: int64 }
+        cluster_id: { type: integer, format: int64 }
+        service: { $ref: '#/components/schemas/SLOServiceRef' }
+        template: { type: string }
+        objective: { type: number, format: double, minimum: 0, maximum: 1 }
+        status: { type: string, enum: [burning, healthy, unavailable, no_data] }
+        burn_rate: { type: number, format: double, minimum: 0 }
+        ratio: { type: number, format: double, minimum: 0, maximum: 1 }
+        coverage: { type: string, enum: [complete, partial, unavailable] }
+        error_budget_remaining: { type: number, format: double, minimum: 0, maximum: 1 }
+        evaluated_at: { type: string, format: date-time }
+    SLOBurnSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total, truncated, observed_at]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SLOBurnSummaryItem' }
+        total: { type: integer }
+        truncated: { type: boolean }
+        observed_at: { type: string, format: date-time }
     SLOEvaluationList:
       type: object
       additionalProperties: false

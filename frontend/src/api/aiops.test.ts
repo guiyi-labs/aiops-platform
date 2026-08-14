@@ -10,8 +10,9 @@ import {
   getAIOpsOverview,
   getCorrelationCase,
   getInvestigation,
-  getTopologyGraph,
   getQualityReport,
+  getSLOBurnSummary,
+  getTopologyGraph,
   listAutomationPlans,
   listCorrelationCases,
   listInvestigations,
@@ -132,6 +133,19 @@ describe('aiops API client (M39-M45/M56)', () => {
     const [path, init] = fetchMock.mock.calls[0] ?? []
     expect(path).toBe('/api/v1/aiops/slos/11/evaluate')
     expect(init).toMatchObject({ method: 'POST' })
+  })
+
+  it('fetches an SLO burn summary with bounded params', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ items: [], total: 0, truncated: false }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getSLOBurnSummary('token', { cluster_id: 7, limit: 50, state: 'burning' })
+
+    const [path] = fetchMock.mock.calls[0] ?? []
+    expect(path).toContain('/api/v1/aiops/slos/burn-summary?')
+    expect(path).toContain('cluster_id=7')
+    expect(path).toContain('limit=50')
+    expect(path).toContain('state=burning')
   })
 
   it('lists correlation cases with filters', async () => {

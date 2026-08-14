@@ -11,7 +11,8 @@ import type {
   SLODefinition,
   SLODefinitionListResponse,
   SLOEvaluation,
-  SLOEvaluationListResponse,
+  BurnStatus,
+  SLOBurnSummaryResponse, SLOEvaluationListResponse,
   SLITemplate,
   SLOCreateRequest,
   SLOPatchRequest,
@@ -148,6 +149,21 @@ export function listSLOEvaluations(
   if (params?.limit) sp.set('limit', String(params.limit))
   const q = sp.toString()
   return authorizedRequest(`/api/v1/aiops/slos/${id}/evaluations${q ? `?${q}` : ''}`, token)
+}
+
+// M114-1 SLO burn posture (read-only aggregation over definitions + latest evaluations)
+export function getSLOBurnSummary(
+  token: string,
+  params?: { cluster_id?: number; namespace?: string; template?: string; state?: BurnStatus; limit?: number },
+): Promise<SLOBurnSummaryResponse> {
+  const sp = new URLSearchParams()
+  if (params?.cluster_id) sp.set('cluster_id', String(params.cluster_id))
+  if (params?.namespace) sp.set('namespace', params.namespace)
+  if (params?.template) sp.set('template', params.template)
+  if (params?.state) sp.set('state', params.state)
+  if (params?.limit) sp.set('limit', String(params.limit))
+  const q = sp.toString()
+  return authorizedRequest(`/api/v1/aiops/slos/burn-summary${q ? `?${q}` : ''}`, token)
 }
 
 // ── M42 Correlation ─────────────────────────────────────────────────────────

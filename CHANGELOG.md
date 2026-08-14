@@ -9,7 +9,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M114-1 SLO Burn 总览与告警降噪聚合（两个只读聚合端点，复用 correlation 引擎）
+
+- 新增只读 `GET /api/v1/aiops/slos/burn-summary?cluster_id=&namespace=&template=&state=&limit=`：纯读 SLO 定义 + 最新评估，计算每定义 burn posture（burning / healthy / unavailable / no_data）、burn rate、coverage、错误预算剩余；排序燃烧优先，limit ≤ 200，无写路径。
+- 新增只读 `GET /api/v1/clusters/:cluster_id/alerts/overview?window_minutes=&max_groups=&limit=`：告警降噪——按规则聚合实例（firing/resolved 计数、首末触发），并关联活跃 correlation case（资源 kind+name 匹配 → related_case_ids 深链）；fail-closed 空窗不视为健康。
+- 新增纯包 `internal/alertoverview`、`internal/sloburnsummary`（ADR 0004，无 cluster 访问、无副作用）；全部查询有界（window 1–10080 / max_groups 1–200 / limit 1–200）。
+- 前端"告警规则"页新增告警降噪面板（窗口切换、统计卡、聚合表、`/correlation?case=N` 深链）；"SLO 仪表盘"新增 Burn 总览卡片区（状态色、Burn ×率、Ratio、Budget）。
+- See [change record](docs/changes/2026-08-14-m114-1-slo-burn-and-alert-noise-reduction.md)。
+
 ### Added - M114-2 事件驾驶舱（重复事件按严重级/原因/资源聚合 + 趋势 + 深链）
+（重复事件按严重级/原因/资源聚合 + 趋势 + 深链）
 
 - 新增只读 `GET /api/v1/clusters/:cluster_id/events/cockpit?window_minutes=&max_groups=&page_limit=`：把 Kubernetes 原生事件按（严重级 warning/info、原因、命名空间、资源类型与名称）分组折叠，输出去重计数（event_count + raw_count 累计次数）、首次/最近发生时间、按天趋势与原始证据深链（resource_uid/kind/namespace/name + sample_message）。
 - 新增纯包 `internal/eventcockpit`（ADR 0004，无 cluster 访问、无写路径）：`Aggregate()` 窗口外事件过滤、严重级归一化、稳定排序后截断、按天趋势桶；fail-closed——窗口内无事件一律 `fail_closed=true` 且不视为健康（M99-D 契约）。

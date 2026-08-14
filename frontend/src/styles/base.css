@@ -1162,6 +1162,68 @@ button:not(:disabled):active,
   }
 }
 
+/* M114-1 alert noise reduction */
+.noise-panel {
+  margin: 24px 0 30px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.noise-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.noise-panel-heading h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.noise-panel-sub {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.noise-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.noise-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.noise-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--gray-0);
+}
+.noise-stat span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.noise-stat strong {
+  font-size: 20px;
+  color: var(--text-primary);
+}
+.noise-stat .danger-text {
+  color: var(--status-danger);
+}
+.noise-muted {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+
 .event-sync-time {
   display: inline-flex;
   align-items: center;

@@ -55,3 +55,28 @@ export interface AlertInstance {
   created_at: string
   updated_at: string
 }
+
+export interface AlertOverviewGroup {
+  rule_id: number
+  display_name: string
+  resource_kind: string
+  resource_name: string
+  metric_name: string
+  firing_count: number
+  resolved_count: number
+  first_fired_at: string
+  last_fired_at: string
+  related_case_ids?: number[]
+}
+
+export interface AlertOverviewResponse {
+  scope: string
+  observed_at: string
+  window_minutes: number
+  groups_total: number
+  groups: AlertOverviewGroup[]
+  total_firing: number
+  total_resolved: number
+  fail_closed: boolean
+  empty_note?: string
+}

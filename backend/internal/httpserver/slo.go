@@ -11,6 +11,7 @@ import (
 
 	"k8s-aiops.local/backend/internal/requestctx"
 	"k8s-aiops.local/backend/internal/slo"
+	"k8s-aiops.local/backend/internal/sloburnsummary"
 )
 
 // sloHandler exposes the M41 SLO service: definition CRUD, evaluation
@@ -356,6 +357,103 @@ func (h sloHandler) listSLOEvaluations(c *gin.Context) {
 		writeError(c, http.StatusInternalServerError, "SLO_QUERY_FAILED", "failed to list slo evaluations")
 		return
 	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// burnSummary handles GET /api/v1/aiops/slos/burn-summary.
+// It computes a posture overview for each SLO definition in the caller's
+// scope: status (burning / healthy / unavailable / no_data), latest burn
+// rate, coverage and error budget remaining.  No writes — pure reads over
+// definitions + their latest evaluations, bounded by limit.
+func (h sloHandler) burnSummary(c *gin.Context) {
+	if h.service == nil {
+		writeError(c, http.StatusServiceUnavailable, "SLO_UNAVAILABLE", "slo service is not configured")
+		return
+	}
+	ctx := c.Request.Context()
+
+	// Parse bounded query parameters.
+	filter := slo.DefinitionFilter{}
+	if v := c.Query("namespace"); v != "" {
+		filter.Namespace = v
+	}
+	if v := c.Query("template"); v != "" {
+		filter.Template = slo.SLITemplate(v)
+	}
+	if v := c.Query("cluster_id"); v != "" {
+		cid, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || cid <= 0 {
+			writeError(c, http.StatusBadRequest, "INVALID_QUERY", "cluster_id must be a positive integer")
+			return
+		}
+		filter.ClusterID = cid
+	}
+	limit := 50
+	if v := c.Query("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 200 {
+			writeError(c, http.StatusBadRequest, "INVALID_QUERY", "limit must be between 1 and 200")
+			return
+		}
+		limit = n
+	}
+
+	// Fetch definitions (enabled only — those without evals show as no_data).
+	enabled := true
+	filter.Enabled = &enabled
+	filter.Limit = limit
+	defResp, err := h.service.ListDefinitions(ctx, filter)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "SLO_QUERY_FAILED", "failed to list slo definitions")
+		return
+	}
+
+	// Build the sloburnsummary inputs.  For each definition, fetch its
+	// latest evaluation (bounded N+1; N ≤ limit ≤ 200).
+	defs := make([]sloburnsummary.DefRef, 0, len(defResp.Items))
+	latest := make(map[int64]sloburnsummary.EvalRef, len(defResp.Items))
+	for _, d := range defResp.Items {
+		defs = append(defs, sloburnsummary.DefRef{
+			ID:        d.ID,
+			ClusterID: d.ClusterID,
+			Service: sloburnsummary.ServiceRef{
+				Kind:      d.Service.Kind,
+				Namespace: d.Service.Namespace,
+				Name:      d.Service.Name,
+				UID:       d.Service.UID,
+			},
+			Template:  string(d.Template),
+			Objective: d.Objective,
+		})
+		eval, err := h.service.LatestEvaluation(ctx, d.ID)
+		if err == nil && eval.ID != 0 {
+			latest[d.ID] = sloburnsummary.EvalRef{
+				State:           string(eval.State),
+				BurnRate:        eval.BurnRate,
+				Ratio:           eval.Ratio,
+				Coverage:        string(eval.Coverage),
+				ErrorBudget:     eval.ErrorBudget,
+				RemainingBudget: eval.RemainingBudget,
+				EvaluatedAt:     eval.EvaluatedAt,
+			}
+		}
+	}
+
+	resp := sloburnsummary.Summarize(defs, latest, limit)
+
+	// Optional post-hoc filter: if state query is provided, keep only matching items.
+	if stateFilter := c.Query("state"); stateFilter != "" {
+		filtered := make([]sloburnsummary.Item, 0, len(resp.Items))
+		for _, item := range resp.Items {
+			if string(item.Status) == stateFilter {
+				filtered = append(filtered, item)
+			}
+		}
+		resp.Items = filtered
+		resp.Total = len(filtered)
+		resp.Truncated = false
+	}
+
 	c.JSON(http.StatusOK, resp)
 }
 

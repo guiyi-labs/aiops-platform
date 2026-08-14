@@ -8,12 +8,14 @@ import (
 
 	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/auth"
+	"k8s-aiops.local/backend/internal/correlation"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
 
 type alertHandler struct {
-	service *alert.Service
-	users   *auth.Service
+	service     *alert.Service
+	users       *auth.Service
+	correlation *correlation.Service
 }
 
 func (h *alertHandler) createRule(c *gin.Context) {

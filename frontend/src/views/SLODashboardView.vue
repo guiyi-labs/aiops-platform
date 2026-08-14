@@ -3,11 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { ChevronDown, ChevronRight, Clock, Gauge, PlayCircle, RefreshCw, Target } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
-import { evaluateSLO, listSLITemplates, listSLODefinitions, listSLOEvaluations } from '../api/aiops'
+import { evaluateSLO, getSLOBurnSummary, listSLITemplates, listSLODefinitions, listSLOEvaluations } from '../api/aiops'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { EvaluationState, SLITemplate, SLODefinition, SLOEvaluation } from '../types/aiops'
+import type { EvaluationState, SLOBurnSummaryItem, SLITemplate, SLODefinition, SLOEvaluation } from '../types/aiops'
 
 const auth = useAuthStore()
 const clusters = ref<Cluster[]>([])
@@ -20,6 +20,8 @@ const evaluationHistory = ref<Map<number, SLOEvaluation[]>>(new Map())
 const expandedSLOIDs = ref<Set<number>>(new Set())
 const evaluating = ref<Set<number>>(new Set())
 const loadingHistory = ref<Set<number>>(new Set())
+const burnSummary = ref<SLOBurnSummaryItem[]>([])
+const burnSummaryLoading = ref(false)
 
 const loading = ref(false)
 const errorMessage = ref('')
@@ -59,6 +61,10 @@ function stateLabel(state: EvaluationState): string {
     breached: '已突破',
     unavailable: '不可用',
   } as const)[state]
+}
+
+function burnStatusLabel(status: SLOBurnSummaryItem['status']): string {
+  return ({ burning: '烧燃中', healthy: '健康', unavailable: '不可用', no_data: '无数据' } as const)[status]
 }
 
 function coverageLabel(coverage: string): string {
@@ -200,8 +206,24 @@ async function loadDefinitions() {
   }
 }
 
+async function loadBurnSummary() {
+  if (!selectedClusterID.value) {
+    burnSummary.value = []
+    return
+  }
+  burnSummaryLoading.value = true
+  try {
+    const resp = await getSLOBurnSummary(auth.accessToken, { cluster_id: selectedClusterID.value, limit: 100 })
+    burnSummary.value = resp.items
+  } catch {
+    burnSummary.value = []
+  } finally {
+    burnSummaryLoading.value = false
+  }
+}
+
 async function changeCluster() {
-  await loadDefinitions()
+  await Promise.all([loadDefinitions(), loadBurnSummary()])
 }
 
 async function initialize() {
@@ -216,7 +238,7 @@ async function initialize() {
   } catch {
     templates.value = []
   }
-  await loadDefinitions()
+  await Promise.all([loadDefinitions(), loadBurnSummary()])
 }
 
 onMounted(initialize)
@@ -242,6 +264,27 @@ onMounted(initialize)
     </section>
 
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
+    <section v-if="burnSummary.length > 0" class="burn-summary-strip" aria-label="SLO Burn 总览">
+      <div class="burn-summary-header">
+        <h3>Burn 总览 · {{ burnSummary.length }} 个 SLO</h3>
+        <div v-if="burnSummaryLoading" class="burn-summary-loading"><RefreshCw class="spinning" :size="14" /></div>
+      </div>
+      <div class="burn-summary-grid">
+        <div v-for="item in burnSummary" :key="item.slo_id" class="burn-card" :class="`burn-${item.status}`">
+          <div class="burn-card-header">
+            <strong>{{ item.service.name }}</strong>
+            <span class="burn-status-badge" :class="item.status">{{ burnStatusLabel(item.status) }}</span>
+          </div>
+          <small>{{ item.service.namespace }} · {{ item.service.kind }}</small>
+          <div class="burn-card-metrics">
+            <span v-if="item.burn_rate != null">Burn ×{{ item.burn_rate.toFixed(2) }}</span>
+            <span v-if="item.ratio != null">Ratio {{ formatPercent(item.ratio) }}</span>
+            <span v-if="item.error_budget_remaining != null">Budget {{ formatPercent(item.error_budget_remaining) }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div v-if="!loading && clusters.length === 0" class="resource-empty">
       <Gauge :size="30" />
@@ -674,5 +717,83 @@ onMounted(initialize)
   .bar-row {
     grid-template-columns: 80px 1fr 38px;
   }
+}
+
+.burn-summary-strip {
+  margin: 6px 0 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.burn-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.burn-summary-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.burn-summary-loading {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+}
+.burn-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 12px;
+}
+.burn-card {
+  padding: 12px 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: var(--gray-0);
+}
+.burn-card.burn-burning {
+  border-color: var(--status-danger);
+  background: var(--danger-bg);
+}
+.burn-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.burn-card-header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.burn-card > small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.burn-status-badge {
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 10px;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+.burn-status-badge.burning { color: var(--status-danger); background: #fbeae6; }
+.burn-status-badge.healthy { color: var(--status-success); background: #e5f3ea; }
+.burn-status-badge.unavailable { color: var(--status-warning); background: #fdf3e3; }
+.burn-status-badge.no_data { color: var(--text-muted); background: var(--border-subtle); }
+.burn-card-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 9px;
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 </style>

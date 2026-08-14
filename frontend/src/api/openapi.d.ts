@@ -2841,6 +2841,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/{cluster_id}/alerts/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * M114-1 alert noise reduction — bounded aggregation of instances by rule with correlation-case linkage
+         * @description Read-only aggregation of alert instances grouped by rule (resource). Folded per rule within a bounded window: firing_count / resolved_count, first_fired_at / last_fired_at, and related_case_ids linking the alert to active correlation cases that cover the same resource. fail-closed: an empty window reports fail_closed=true (never treated as healthy). All queries bounded: window_minutes (1-10080, default 1440), max_groups (1-200, default 50), limit (1-200, default 100).
+         */
+        get: operations["alertOverview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{cluster_id}/alerts/{alert_id}": {
         parameters: {
             query?: never;
@@ -3591,6 +3611,26 @@ export interface paths {
         };
         /** List the server-owned SLI template catalog */
         get: operations["listSLITemplates"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/slos/burn-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * M114-1 SLO burn posture summary (read-only)
+         * @description Posture overview per SLO definition in scope: status (burning / healthy / unavailable / no_data), latest burn rate, coverage and error budget remaining. Pure read aggregation over existing definitions and evaluations — no writes. Bounded by limit (1-200, default 50); optional filters namespace / template / cluster_id.
+         */
+        get: operations["sloBurnSummary"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6020,6 +6060,37 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        AlertOverviewGroup: {
+            /** Format: int64 */
+            rule_id: number;
+            display_name: string;
+            resource_kind: string;
+            resource_name: string;
+            metric_name: string;
+            /** @description Firing instances folded into this group */
+            firing_count: number;
+            /** @description Resolved instances folded into this group */
+            resolved_count: number;
+            /** Format: date-time */
+            first_fired_at: string;
+            /** Format: date-time */
+            last_fired_at: string;
+            /** @description Active correlation cases covering the same resource */
+            related_case_ids?: number[];
+        };
+        AlertOverviewResponse: {
+            scope: string;
+            /** Format: date-time */
+            observed_at: string;
+            window_minutes: number;
+            groups_total: number;
+            groups: components["schemas"]["AlertOverviewGroup"][];
+            total_firing: number;
+            total_resolved: number;
+            /** @description True when the window has no alerts (never treated as healthy) */
+            fail_closed: boolean;
+            empty_note?: string;
+        };
         ActorRef: {
             /** Format: int64 */
             id: number;
@@ -6844,6 +6915,35 @@ export interface components {
             coverage: "complete" | "partial" | "unavailable";
             /** Format: date-time */
             evaluated_at: string;
+        };
+        SLOBurnSummaryItem: {
+            /** Format: int64 */
+            slo_id: number;
+            /** Format: int64 */
+            cluster_id: number;
+            service: components["schemas"]["SLOServiceRef"];
+            template: string;
+            /** Format: double */
+            objective: number;
+            /** @enum {string} */
+            status: "burning" | "healthy" | "unavailable" | "no_data";
+            /** Format: double */
+            burn_rate?: number;
+            /** Format: double */
+            ratio?: number;
+            /** @enum {string} */
+            coverage?: "complete" | "partial" | "unavailable";
+            /** Format: double */
+            error_budget_remaining?: number;
+            /** Format: date-time */
+            evaluated_at?: string;
+        };
+        SLOBurnSummaryResponse: {
+            items: components["schemas"]["SLOBurnSummaryItem"][];
+            total: number;
+            truncated: boolean;
+            /** Format: date-time */
+            observed_at: string;
         };
         SLOEvaluationList: {
             items: components["schemas"]["SLOEvaluation"][];
@@ -11477,6 +11577,35 @@ export interface operations {
             500: components["responses"]["Error"];
         };
     };
+    alertOverview: {
+        parameters: {
+            query?: {
+                window_minutes?: number;
+                max_groups?: number;
+                /** @description Rules and instances fetch cap */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                cluster_id: components["parameters"]["ClusterID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Alert noise-reduction aggregation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertOverviewResponse"];
+                };
+            };
+            400: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
     getAlertInstance: {
         parameters: {
             query?: never;
@@ -12781,6 +12910,36 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+        };
+    };
+    sloBurnSummary: {
+        parameters: {
+            query?: {
+                /** @description Filter by cluster */
+                cluster_id?: number;
+                namespace?: string;
+                template?: string;
+                /** @description Filter response by computed status */
+                state?: "burning" | "healthy" | "unavailable" | "no_data";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SLO burn posture summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SLOBurnSummaryResponse"];
+                };
+            };
+            400: components["responses"]["Error"];
+            500: components["responses"]["Error"];
         };
     };
     listSLODefinitions: {

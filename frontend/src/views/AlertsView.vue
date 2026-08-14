@@ -3,13 +3,13 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Bell, BellOff, FilePlus2, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
-import { createAlertRule, deleteAlertRule, listAlertInstances, listAlertRules, patchAlertRule } from '../api/alert'
+import { createAlertRule, deleteAlertRule, getAlertOverview, listAlertInstances, listAlertRules, patchAlertRule } from '../api/alert'
 import { createIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { AlertRule, AlertRuleCreate, AlertInstance, AlertInstanceState } from '../types/alert'
+import type { AlertOverviewResponse, AlertRule, AlertRuleCreate, AlertInstance, AlertInstanceState } from '../types/alert'
 
 const auth = useAuthStore()
 const clusters = ref<Cluster[]>([])
@@ -21,6 +21,9 @@ const errorMessage = ref('')
 const noticeMessage = ref('')
 const showCreateDialog = ref(false)
 const stateFilter = ref<AlertInstanceState | ''>('firing')
+const overview = ref<AlertOverviewResponse | null>(null)
+const overviewLoading = ref(false)
+const overviewWindowMinutes = ref(1440)
 
 const newRule = ref<AlertRuleCreate>({
   display_name: '',
@@ -108,8 +111,24 @@ async function loadInstances() {
   }
 }
 
+async function loadOverview() {
+  if (!selectedClusterID.value) return
+  overviewLoading.value = true
+  try {
+    overview.value = await getAlertOverview(auth.accessToken!, selectedClusterID.value, { window_minutes: overviewWindowMinutes.value })
+  } catch {
+    overview.value = null
+  } finally {
+    overviewLoading.value = false
+  }
+}
+
+function overviewSeverityType(group: AlertOverviewResponse['groups'][number]): 'danger' | 'success' {
+  return group.firing_count > 0 ? 'danger' : 'success'
+}
+
 async function refresh() {
-  await Promise.all([loadRules(), loadInstances()])
+  await Promise.all([loadRules(), loadInstances(), loadOverview()])
 }
 
 async function handleCreate() {
@@ -169,6 +188,7 @@ async function promoteToIncident(inst: AlertInstance) {
 }
 
 watch(selectedClusterID, () => refresh())
+watch(overviewWindowMinutes, () => loadOverview())
 onMounted(() => loadClusters())
 </script>
 
@@ -224,6 +244,61 @@ onMounted(() => loadClusters())
           </template>
         </el-table-column>
       </el-table>
+
+      <div class="noise-panel" v-loading="overviewLoading">
+        <div class="noise-panel-heading">
+          <div>
+            <h3>告警降噪 · 规则维度聚合</h3>
+            <span class="noise-panel-sub">按规则折叠重复实例 · 有界窗口 · 关联 correlation 案例深链</span>
+          </div>
+          <div class="noise-panel-controls">
+            <el-select v-model="overviewWindowMinutes" style="width: 120px" @change="loadOverview">
+              <el-option label="1 小时" :value="60" />
+              <el-option label="6 小时" :value="360" />
+              <el-option label="24 小时" :value="1440" />
+              <el-option label="7 天" :value="10080" />
+            </el-select>
+          </div>
+        </div>
+
+        <el-alert v-if="overview?.fail_closed" :title="overview?.empty_note ?? '窗口内没有告警'" type="warning" show-icon :closable="false" style="margin: 12px 0" />
+        <template v-else-if="overview">
+          <div class="noise-stats">
+            <div class="noise-stat"><span>聚合组</span><strong>{{ overview.groups_total }}</strong></div>
+            <div class="noise-stat"><span>触发中</span><strong class="danger-text">{{ overview.total_firing }}</strong></div>
+            <div class="noise-stat"><span>已恢复</span><strong>{{ overview.total_resolved }}</strong></div>
+            <div class="noise-stat"><span>关联案例</span><strong>{{ overview.groups.reduce((acc, g) => acc + (g.related_case_ids?.length ?? 0), 0) }}</strong></div>
+          </div>
+          <el-table :data="overview.groups" stripe size="small" empty-text="窗口内无告警">
+            <el-table-column label="规则" min-width="150">
+              <template #default="{ row }"><strong>{{ row.display_name }}</strong><span class="noise-muted"> · {{ row.metric_name }}</span></template>
+            </el-table-column>
+            <el-table-column label="资源" min-width="130">
+              <template #default="{ row }">{{ row.resource_kind }}/{{ row.resource_name }}</template>
+            </el-table-column>
+            <el-table-column label="触发/恢复" width="110">
+              <template #default="{ row }"><el-tag :type="overviewSeverityType(row)" size="small">{{ row.firing_count }}</el-tag> / {{ row.resolved_count }}</template>
+            </el-table-column>
+            <el-table-column label="首次触发" width="160">
+              <template #default="{ row }">{{ formatTime(row.first_fired_at) }}</template>
+            </el-table-column>
+            <el-table-column label="最近触发" width="160">
+              <template #default="{ row }">{{ formatTime(row.last_fired_at) }}</template>
+            </el-table-column>
+            <el-table-column label="关联案例" width="130">
+              <template #default="{ row }">
+                <template v-if="row.related_case_ids?.length">
+                  <el-tag v-for="caseID in row.related_case_ids" :key="caseID" type="warning" size="small" style="margin-right: 4px">
+                    <a :href="`/correlation?case=${caseID}`" @click.prevent="$router.push(`/correlation?case=${caseID}`)">#{{ caseID }}</a>
+                  </el-tag>
+                </template>
+                <span v-else class="noise-muted">-</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </template>
+        <el-empty v-else-if="!overviewLoading" description="暂无聚合数据" :image-size="60" />
+      </div>
 
       <h3 style="margin-top: 24px">告警实例</h3>
       <el-table :data="instances" stripe empty-text="暂无告警实例">

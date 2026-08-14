@@ -443,7 +443,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/promotions/:promotion_id/execute", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: promotionAPI.execute})
 					}
 					if options.Alert != nil {
-						alertAPI := alertHandler{service: options.Alert, users: options.Auth}
+						alertAPI := alertHandler{service: options.Alert, users: options.Auth, correlation: options.CorrelationService}
 						alertRuleRoutes := v1.Group("/clusters/:cluster_id/alert-rules", withAuthentication(options.Auth), withClusterContext(), requireClusterAccess(options.Authz))
 						reg.register(alertRuleRoutes, RouteDescriptor{Method: "GET", Path: "", Handler: alertAPI.listRules})
 						reg.register(alertRuleRoutes, RouteDescriptor{Method: "POST", Path: "", RequiredRoles: rolesSystemOpsAdmin, Handler: alertAPI.createRule, AuditAction: "alert_rule.create", AuditResource: "AlertRule"})
@@ -452,6 +452,9 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						reg.register(alertRuleRoutes, RouteDescriptor{Method: "DELETE", Path: "/:rule_id", RequiredRoles: rolesSystemOpsAdmin, Handler: alertAPI.deleteRule, AuditAction: "alert_rule.delete", AuditResource: "AlertRule"})
 						alertRoutes := v1.Group("/clusters/:cluster_id/alerts", withAuthentication(options.Auth), withClusterContext(), requireClusterAccess(options.Authz))
 						reg.register(alertRoutes, RouteDescriptor{Method: "GET", Path: "", Handler: alertAPI.listInstances})
+						// M114-1 alert noise reduction: bounded read-only aggregation
+						// of alert instances by rule with correlation-case linkage.
+						reg.register(alertRoutes, RouteDescriptor{Method: "GET", Path: "/overview", AuthRequired: true, Handler: alertAPI.overview, AuditAction: "alert.overview.read", AuditResource: "AlertOverview"})
 						reg.register(alertRoutes, RouteDescriptor{Method: "GET", Path: "/:alert_id", Handler: alertAPI.getInstance})
 					}
 					if options.Backup != nil {
@@ -667,6 +670,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		sloAPI := sloHandler{service: options.SLOService}
 		// Templates catalog is a read-only public contract.
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/templates", AuthRequired: true, Handler: sloAPI.listSLITemplates, AuditAction: "aiops.slo.templates.list", AuditResource: "SLITemplate"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/burn-summary", AuthRequired: true, Handler: sloAPI.burnSummary, AuditAction: "aiops.slo.burn.list", AuditResource: "SLOBurnSummary"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos", AuthRequired: true, Handler: sloAPI.listSLODefinitions, AuditAction: "aiops.slo.definitions.list", AuditResource: "SLODefinition"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/slos", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: sloAPI.createSLODefinition, AuditAction: "aiops.slo.definitions.create", AuditResource: "SLODefinition"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/slos/:id", AuthRequired: true, Handler: sloAPI.getSLODefinition, AuditAction: "aiops.slo.definitions.read", AuditResource: "SLODefinition"})

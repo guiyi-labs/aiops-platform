@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 304 |
+| 路由总数 | 306 |
 | 角色受限 | 87 |
-| 已审计 | 180 |
+| 已审计 | 182 |
 | scope=workspace | 13 |
-| scope=cluster | 84 |
+| scope=cluster | 85 |
 | scope=namespace | 32 |
-| scope=none | 175 |
+| scope=none | 176 |
 | 角色 operations_admin | 66 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 87 |
@@ -80,6 +80,7 @@
 | PATCH | `/api/v1/aiops/slos/:id` | `operations_admin`, `system_admin` | none | aiops.slo.definitions.update |
 | POST | `/api/v1/aiops/slos/:id/evaluate` | `operations_admin`, `system_admin` | none | aiops.slo.evaluate |
 | GET | `/api/v1/aiops/slos/:id/evaluations` | any | none | aiops.slo.evaluations.list |
+| GET | `/api/v1/aiops/slos/burn-summary` | any | none | aiops.slo.burn.list |
 | GET | `/api/v1/aiops/slos/templates` | any | none | aiops.slo.templates.list |
 | GET | `/api/v1/aiops/topology/changes` | any | none | aiops.topology.changes.list |
 | GET | `/api/v1/aiops/topology/graph` | any | none | aiops.topology.graph.read |
@@ -138,6 +139,7 @@
 | PATCH | `/api/v1/clusters/:cluster_id/alert-rules/:rule_id` | `operations_admin`, `system_admin` | cluster | alert_rule.update |
 | GET | `/api/v1/clusters/:cluster_id/alerts` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/alerts/:alert_id` | any | cluster | - |
+| GET | `/api/v1/clusters/:cluster_id/alerts/overview` | any | cluster | alert.overview.read |
 | GET | `/api/v1/clusters/:cluster_id/api-resources` | any | cluster | kubernetes.api_resources.read |
 | GET | `/api/v1/clusters/:cluster_id/backup-plans` | any | cluster | - |
 | POST | `/api/v1/clusters/:cluster_id/backup-plans/preview` | `operations_admin`, `system_admin` | cluster | backup.preview |

@@ -273,6 +273,29 @@ export interface SLOEvaluationListResponse {
   truncated: boolean
 }
 
+export type BurnStatus = 'burning' | 'healthy' | 'unavailable' | 'no_data'
+
+export interface SLOBurnSummaryItem {
+  slo_id: number
+  cluster_id: number
+  service: ServiceRef
+  template: string
+  objective: number
+  status: BurnStatus
+  burn_rate?: number
+  ratio?: number
+  coverage?: SignalCoverage
+  error_budget_remaining?: number
+  evaluated_at?: string
+}
+
+export interface SLOBurnSummaryResponse {
+  items: SLOBurnSummaryItem[]
+  total: number
+  truncated: boolean
+  observed_at: string
+}
+
 export interface SLITemplate {
   code: string
   display_name: string

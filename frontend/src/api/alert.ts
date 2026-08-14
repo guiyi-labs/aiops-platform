@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { AlertRule, AlertRuleCreate, AlertRulePatch, AlertInstance } from '../types/alert'
+import type { AlertInstance, AlertOverviewResponse, AlertRule, AlertRuleCreate, AlertRulePatch } from '../types/alert'
 
 export function listAlertRules(token: string, clusterID: number): Promise<AlertRule[]> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/alert-rules`, token)
@@ -38,4 +38,12 @@ export function listAlertInstances(token: string, clusterID: number, filters: { 
 
 export function getAlertInstance(token: string, clusterID: number, alertID: number): Promise<AlertInstance> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/alerts/${alertID}`, token)
+}
+
+export function getAlertOverview(token: string, clusterID: number, params: { window_minutes?: number; max_groups?: number } = {}): Promise<AlertOverviewResponse> {
+  const query = new URLSearchParams()
+  if (params.window_minutes) query.set('window_minutes', String(params.window_minutes))
+  if (params.max_groups) query.set('max_groups', String(params.max_groups))
+  const qs = query.toString()
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/alerts/overview${qs ? '?' + qs : ''}`, token)
 }

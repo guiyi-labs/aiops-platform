@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - CI Backend lint：aiexplain 测试桩无效赋值（SA4005）
+
+- `golangci-lint` staticcheck 曾以 `SA4005` 报
+  `backend/internal/httpserver/aiexplain_handler_test.go` 的
+  `aiexplainRepoStub.Save`：值接收者下 `saved` 字段赋值对外不可见且从未被读取。
+- 删除该未读字段与无效赋值行，接口实现与错误返回不变；backend
+  `gofmt` / `go vet` / `golangci-lint ./...` / `go test ./...` 全绿。
+- See [change record](docs/changes/2026-08-14-ci-backend-lint-sa4005.md)。
+
 ### Added - UI 截图基线机制（Track A · 登录页先行）
 
 - 新增 `scripts/capture-ui-baselines.mjs`：CDP 驱动 headless Chrome 捕获登录页

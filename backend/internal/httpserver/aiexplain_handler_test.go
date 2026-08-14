@@ -34,7 +34,6 @@ func (s aiexplainProviderStub) Generate(context.Context, aiexplain.Prompt) (aiex
 }
 
 type aiexplainRepoStub struct {
-	saved       aiexplain.Explanation
 	items       []aiexplain.Explanation
 	feedback    aiexplain.FeedbackResult
 	usage       aiexplain.Usage
@@ -48,7 +47,6 @@ type aiexplainRepoStub struct {
 }
 
 func (s aiexplainRepoStub) Save(_ context.Context, item *aiexplain.Explanation) error {
-	s.saved = *item
 	return s.saveErr
 }
 func (s aiexplainRepoStub) List(context.Context, int64, int64) ([]aiexplain.Explanation, error) {

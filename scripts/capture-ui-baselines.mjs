@@ -51,7 +51,7 @@ const views = [
     path: '/login',
     readyText: '进入控制台',
     settleMs: 1400,
-    masks: ['document.querySelectorAll(".login-signal")[2]?.querySelector("b")'],
+    masks: ['document.querySelector(".login-signal-strip")'],
   },
   {
     name: 'dashboard',
@@ -583,9 +583,24 @@ async function main() {
 
     // Deterministic capture: stub Math.random so particle canvases and any
     // layout randomness render identically across runs (baseline vs verify).
+    // Deterministic capture: stub Math.random + /api/v1/health/live so particle
+    // canvases AND the login status panel (live status/version/clock region)
+    // render identically across runs (baseline vs verify).
     await client.send('Page.addScriptToEvaluateOnNewDocument', {
       source:
-        '(() => { let s = 20260813; const next = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; Math.random = next; })();',
+        `(() => {
+          let s = 20260813;
+          const next = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+          Math.random = next;
+          const origFetch = window.fetch.bind(window);
+          window.fetch = (url, init) => {
+            const u = typeof url === 'string' ? url : (url && url.url) || '';
+            if (u.includes('/api/v1/health/live')) {
+              return Promise.resolve(new Response(JSON.stringify({ status: 'ok', service: 'k8s-aiops-api', version: 'dev', checked_at: '2026-08-14T00:00:00Z' }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+            }
+            return origFetch(url, init);
+          };
+        })();`,
     })
 
     const commit = currentCommit()

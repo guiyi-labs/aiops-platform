@@ -1250,7 +1250,7 @@ tbody tr {
   display: block;
   min-height: 100svh;
   isolation: isolate;
-  color: #f8fafc;
+  color: var(--gray-0);
   background: #101918;
 }
 
@@ -1419,7 +1419,7 @@ tbody tr {
   overflow: hidden;
   width: min(100%, 470px);
   padding: 46px 48px 42px;
-  color: #f8fafc;
+  color: var(--gray-0);
   background: rgba(18, 31, 29, 0.86);
   border-color: rgba(148, 163, 184, 0.2);
   border-radius: 16px;
@@ -1694,7 +1694,7 @@ tbody tr {
 }
 
 .login-card h2 {
-  color: #f8fafc;
+  color: var(--gray-0);
 }
 
 .login-card .form-hint,
@@ -2121,7 +2121,7 @@ tbody tr {
   height: 44px;
   margin: 0;
   padding: 0 44px 0 40px;
-  color: #f8fafc;
+  color: var(--gray-0);
   caret-color: #5eead4;
   background: transparent;
   border: 0;
@@ -2132,7 +2132,7 @@ tbody tr {
 .login-field input:-webkit-autofill,
 .login-field input:-webkit-autofill:hover,
 .login-field input:-webkit-autofill:focus {
-  -webkit-text-fill-color: #f8fafc;
+  -webkit-text-fill-color: var(--gray-0);
   box-shadow: 0 0 0 1000px #1b2b29 inset;
   transition: background-color 9999s ease-out;
 }
@@ -2606,7 +2606,7 @@ tbody tr {
   --text-primary: #102126;
   --text-secondary: #4a5d63;
   --text-tertiary: #607278;
-  --text-muted: #66777d;
+  --text-muted: #5a6672;
   --bg-primary: #edf2f3;
   --bg-secondary: #f5f8f8;
   --bg-tertiary: #e5ecee;

@@ -54,10 +54,11 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 - **主题收敛**：`base.css` / `console-theme.css` / `motion.css` / `premium-ui.css` 四层
   建立可审计的 CSS token 层，删除失效覆盖（M106 修过 `section[class*="panel"]` 覆盖登录
   面板；M93-C 选择器数量为上限）。
-  ✅ 第一批已落地：`scripts/audit-css-tokens.mjs`（有效值解析 + MATCHED/ORPHAN 分类 +
-  `--apply`/`--check` 门禁）+ 112 处精确值迁移（像素基线 10/10 零回归），见
-  `docs/changes/2026-08-14-css-token-layer.md`；遗留不一致旧调色板值（`#5a6672` 等）为
-  第二轮，需逐视图重建基线。
+  ✅ 两轮均落地：`scripts/audit-css-tokens.mjs`（有效值解析 + MATCHED/ORPHAN 分类 +
+  `--apply`/`--check` 门禁）+ 第一轮 112 处精确值迁移 + 第二轮 ~240 处 orphan
+  旧调色板字面量语义收敛（`#5a6672`→`var(--text-muted)` 等），四层 `replaceable=0`，
+  orphan 仅剩刻意设计值（登录氛围/阴影/通知）；基线整体重建后 `--verify` 全绿。见
+  `docs/changes/2026-08-14-css-token-layer.md`、`docs/changes/2026-08-14-css-token-round2-migration.md`。
 - **关键页面截图基线**：全平台前台视图
   Desktop/Mobile 截图基线 + 像素容差（复用 M96 截图基线机制；登录页 15 轮成果一并纳入）。
   ✅ 已全量落地：`scripts/capture-ui-baselines.mjs`（capture/`--verify`）+ 

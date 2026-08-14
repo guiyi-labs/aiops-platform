@@ -73,6 +73,18 @@ Detailed change records for each milestone live under `docs/changes/`.
   `--verify` 全绿（login desktop diff 0.000%，其余 IDENTICAL）。
 - See [change record](docs/changes/2026-08-14-a11y-axe-audit.md)。
 
+### Changed - CSS Token 第二轮：旧调色板字面量迁移（Track A · 主题收敛）
+
+- `base.css` 迁移 ~230 处 orphan 字面量 → `var()` 引用（45 处 `#5a6672`→`var(--text-muted)`、
+  44 处 `#dfe5e8`→`var(--border-soft)` 等，语义 1:1 或近邻收敛），恢复 console 主题
+  级联；`console-theme.css` 迁移 5 处 + 收敛 M93-C 重复 `--text-muted`（`#66777d`→`#5a6672`，
+  wizard-steps 对比度 4.22→5.31:1）。
+- 登录基线确定性修复：`capture-ui-baselines.mjs` 新文档脚本确定性 stub
+  `/api/v1/health/live`，登录掩码扩至整个 `.login-signal-strip`，消除状态条
+  "检测中/正常" 竞态导致的间歇失败。
+- 42 基线产物重建；`--verify` 62 条全绿，axe 32 视图 0/0，`pnpm ui:gate` 4/4 PASS。
+- See [change record](docs/changes/2026-08-14-css-token-round2-migration.md)。
+
 ### Added - CI 门禁集成：`pnpm ui:gate` 一键全量校验（Track A · CI 衔接）
 
 - 新增 `scripts/ui-gate.mjs`：按序执行 CSS token 审计 (`--check`) → 截图基线

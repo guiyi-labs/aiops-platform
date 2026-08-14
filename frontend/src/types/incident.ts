@@ -214,3 +214,29 @@ export interface IncidentContextCockpit {
   runbook_brief?: IncidentRunbookBrief
   recommended_actions: IncidentRecommendedAction[]
 }
+
+// --- M112-2 incident AI chat ---
+
+export interface IncidentChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface IncidentChatCitation {
+  evidence_id: string
+  claim: string
+}
+
+export interface IncidentChatResponse {
+  incident_id: number
+  resource_context: IncidentResourceContext
+  mode: 'ai' | 'deterministic'
+  answer: string
+  next_checks?: string[]
+  citations: IncidentChatCitation[]
+  provider: string
+  model: string
+  input_tokens: number
+  output_tokens: number
+  fail_closed: boolean
+}

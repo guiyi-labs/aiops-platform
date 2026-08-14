@@ -8,6 +8,7 @@ import (
 
 	"k8s-aiops.local/backend/internal/aiexplain"
 	"k8s-aiops.local/backend/internal/aiinvestigator"
+	"k8s-aiops.local/backend/internal/incidentchat"
 	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/appcatalog"
 	"k8s-aiops.local/backend/internal/audit"
@@ -60,6 +61,7 @@ func buildFullEngine(t *testing.T) *gin.Engine {
 		// M98 incident workspace: non-nil so the incident routes are
 		// registered and covered by the route contract test.
 		Incidents:        incident.NewService(nil),
+		IncidentResolver: incidentSourceResolverStub{info: incident.SourceInfo{Domain: "network"}},
 		Audit:            &audit.Service{},
 		AIExplanation:    &aiexplain.Service{},
 		Notifications:    notification.NewService(notification.ServiceConfig{}, nil, nil),
@@ -106,6 +108,10 @@ func buildFullEngine(t *testing.T) *gin.Engine {
 		// registered and covered by the route contract test. NopRepository
 		// avoids a database dependency during route registration.
 		AIInvestigatorService: aiinvestigator.NewService(aiinvestigator.NopRepository{}, nil, nil),
+		// M112-2 incident AI chat service: non-nil so the chat route is
+		// registered and covered by the route contract test. Deterministic
+		// NopProvider is used when AI is disabled.
+		IncidentChat: incidentchat.NewService(incidentchat.ServiceConfig{}, incidentChatAdapter{service: incident.NewService(nil)}, nil),
 		// M44 policy-constrained automation service: non-nil so the automation
 		// routes are registered and covered by the route contract test.
 		// NopRepository avoids a database dependency during route registration.

@@ -2,13 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { Download, FileText, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
 
-import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, exportIncidentPostmortem, getIncident, getIncidentContext, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidentResponseCatalog, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
+import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, exportIncidentPostmortem, getIncident, getIncidentContext, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidentResponseCatalog, listIncidents, removeIncidentFollower, sendIncidentChat, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { UserProfile } from '../types/auth'
-import type { Incident, IncidentContextCockpit, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentChatResponse, IncidentContextCockpit, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
 
 interface IncidentCreateForm extends Omit<IncidentCreateInput, 'resource'> {
   resource: IncidentResourceRef
@@ -35,6 +35,10 @@ const runbook = ref<IncidentRunbookResponse | null>(null)
 const runbookLoading = ref(false)
 const cockpit = ref<IncidentContextCockpit | null>(null)
 const cockpitLoading = ref(false)
+const chatMessages = ref<{ role: 'user' | 'assistant'; content: string }[]>([])
+const chatInput = ref('')
+const chatLoading = ref(false)
+const chatError = ref('')
 const showCreate = ref(false)
 const saving = ref(false)
 const responseCatalog = ref<IncidentResponseCatalog | null>(null)
@@ -244,6 +248,9 @@ async function openDetail(incident: Incident) {
     postmortemContent.value = detail.value.postmortem ?? ''
     runbook.value = null
     cockpit.value = null
+    chatMessages.value = []
+    chatInput.value = ''
+    chatError.value = ''
     if (canManage.value && assignableUsers.value.length === 0) {
       assignableUsers.value = (await listAssignableUsers(auth.accessToken)).items
     }
@@ -449,6 +456,26 @@ async function loadCockpit(incidentID: number) {
   }
 }
 
+async function sendChat() {
+  if (!detail.value || chatLoading.value) return
+  const question = chatInput.value.trim()
+  if (!question) return
+  const currentID = detail.value.id
+  chatMessages.value = [...chatMessages.value, { role: 'user', content: question }]
+  chatInput.value = ''
+  chatLoading.value = true
+  chatError.value = ''
+  try {
+    const response: IncidentChatResponse = await sendIncidentChat(auth.accessToken, currentID, chatMessages.value)
+    const detailText = response.mode === 'deterministic' ? `（确定性摘要${response.fail_closed ? ' · 引用校验降级' : ''}）` : '（AI 调查）'
+    chatMessages.value = [...chatMessages.value, { role: 'assistant', content: `${response.answer} ${detailText}` }]
+  } catch (err) {
+    chatError.value = err instanceof APIError ? err.message : 'AI 调查请求失败'
+  } finally {
+    chatLoading.value = false
+  }
+}
+
 onMounted(() => { void loadAll(); void loadResponseCatalog() })
 </script>
 
@@ -610,6 +637,22 @@ onMounted(() => { void loadAll(); void loadResponseCatalog() })
           <p v-if="!cockpit.health.runbook_available" class="muted">当前事故暂无可信的只读 runbook（来源域缺失或解析器未启用）。</p>
         </div>
         <p v-else class="muted">上下文驾驶舱加载失败（不影响其余区块）。</p>
+
+        <h3>会话式 AI 调查</h3>
+        <div class="incident-chat">
+          <div class="chat-history" v-if="chatMessages.length > 0 || chatLoading">
+            <div v-for="(msg, idx) in chatMessages" :key="idx" :class="['chat-bubble', msg.role]">
+              {{ msg.content }}
+            </div>
+            <div v-if="chatLoading" class="chat-bubble assistant loading">正在查询证据库…</div>
+          </div>
+          <p v-else class="muted">在事故上下文中连续提问，回答将附带证据引用。AI 未启用时降级为基于证据的确定性摘要。</p>
+          <div class="chat-controls">
+            <input v-model="chatInput" type="text" placeholder="在这个事故中提问…" aria-label="事故调查提问" :disabled="chatLoading" @keydown.enter.prevent="sendChat">
+            <button class="primary-button" type="button" :disabled="chatLoading || !chatInput.trim()" @click="sendChat">提问</button>
+          </div>
+          <p v-if="chatError" class="error-message">{{ chatError }}</p>
+        </div>
 
         <h3>响应 Runbook</h3>
         <p v-if="runbookLoading" class="muted">正在解析响应步骤…</p>
@@ -928,6 +971,16 @@ onMounted(() => { void loadAll(); void loadResponseCatalog() })
 .cockpit-action { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: #ffffff; border: 1px solid #e1e8ed; border-radius: 6px; }
 .cockpit-action span { color: #3b6ea5; font-size: 12px; font-weight: 650; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .cockpit-action small { margin-left: auto; color: #77858d; font-size: 10px; }
+.incident-chat { display: grid; gap: 10px; padding: 12px 14px; background: #f5f8fc; border: 1px solid #dbe5ef; border-radius: 8px; }
+.chat-history { display: grid; gap: 8px; max-height: 260px; overflow-y: auto; }
+.chat-bubble { padding: 10px 13px; border-radius: 10px; font-size: 12px; line-height: 1.6; max-width: 90%; }
+.chat-bubble.user { justify-self: end; color: #1e2a3a; background: #e4ecfc; border: 1px solid #c8d8ed; }
+.chat-bubble.assistant { justify-self: start; color: #2b3a55; background: #f0f4f6; border: 1px solid #dce4e7; }
+.chat-bubble.assistant.loading { color: #8593a8; font-style: italic; }
+.chat-controls { display: flex; gap: 8px; }
+.chat-controls input { flex: 1; padding: 10px 12px; border: 1.5px solid #cad2de; border-radius: 10px; font-size: 13px; background: #ffffff; }
+.chat-controls input:focus { border-color: #2d6fb0; outline: none; }
+.chat-controls .primary-button { flex-shrink: 0; }
 .incident-evidence { display: grid; gap: 10px; }
 .evidence-card { padding: 12px 14px; background: #f0f4f6; border: 1px solid #dce4e7; border-radius: 8px; }
 .evidence-card-head { display: flex; align-items: center; gap: 8px; }

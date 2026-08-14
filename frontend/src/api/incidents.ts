@@ -1,7 +1,7 @@
 import { authorizedRequest } from './client'
 import { APIError } from './auth'
 import type { APIErrorBody } from '../types/auth'
-import type { Incident, IncidentBatchAssignResult, IncidentContextCockpit, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentMetrics, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentBatchAssignResult, IncidentChatResponse, IncidentContextCockpit, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentMetrics, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
 
 export function listIncidents(token: string, filters: { clusterID?: number; status?: IncidentStatus | ''; assigneeID?: number; followerID?: number; limit?: number } = {}): Promise<IncidentListResponse> {
   const query = new URLSearchParams({ limit: String(filters.limit ?? 50) })
@@ -40,6 +40,13 @@ export function getIncidentRunbook(token: string, incidentID: number): Promise<I
 
 export function getIncidentContext(token: string, incidentID: number): Promise<IncidentContextCockpit> {
   return authorizedRequest(`/api/v1/incidents/${incidentID}/context`, token)
+}
+
+export function sendIncidentChat(token: string, incidentID: number, messages: { role: string; content: string }[]): Promise<IncidentChatResponse> {
+  return authorizedRequest(`/api/v1/incidents/${incidentID}/chat`, token, {
+    method: 'POST',
+    body: JSON.stringify({ messages }),
+  })
 }
 
 export function createIncident(token: string, input: IncidentCreateInput): Promise<Incident> {

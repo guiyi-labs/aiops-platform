@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { exportIncidentPostmortem, getIncidentContext, getIncidentMetrics, getIncidentRunbook, listIncidentResponseCatalog } from './incidents'
+import { exportIncidentPostmortem, getIncidentContext, getIncidentMetrics, getIncidentRunbook, listIncidentResponseCatalog, sendIncidentChat } from './incidents'
+import type { IncidentChatResponse } from '../types/incident'
 
 describe('incident response catalog API', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -55,6 +56,30 @@ describe('incident runbook API', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(getIncidentRunbook('token', 8)).resolves.toMatchObject(response)
+  })
+})
+
+describe('incident chat API', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('posts the bounded messages array to the incident chat endpoint', async () => {
+    const response: IncidentChatResponse = {
+      incident_id: 7,
+      resource_context: { scope: { cluster_id: 3 }, observed_at: '2026-08-14T00:00:00Z', source: 'incident_ai_chat', freshness: { age_seconds: 0, as_of: '2026-08-14T00:00:00Z' }, empty_sample: { count: 0, bounded: true, semantic: 'fail_closed' } },
+      mode: 'deterministic',
+      answer: '基于证据',
+      citations: [{ evidence_id: 'incident:7', claim: 'incident exists' }],
+      provider: 'nop', model: 'nop-1.0', input_tokens: 0, output_tokens: 0, fail_closed: false,
+    }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await sendIncidentChat('token', 7, [{ role: 'user', content: '什么原因？' }])
+    expect(result.mode).toBe('deterministic')
+    expect(result.citations[0].evidence_id).toBe('incident:7')
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/incidents/7/chat', expect.any(Object))
+    const [, options] = fetchMock.mock.calls[0]
+    expect(options.method).toBe('POST')
   })
 })
 

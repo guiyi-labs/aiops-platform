@@ -30,6 +30,7 @@ import (
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/golden"
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/incidentchat"
 	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"
@@ -61,6 +62,10 @@ type Options struct {
 	// registered.
 	Incidents        *incident.Service
 	IncidentResolver incident.SourceResolver
+	// M112-2 incident AI chat service. When nil the chat route is not
+	// registered; the provider resolves deterministically when AI is
+	// disabled (AIFallbackChat=false also disables the route).
+	IncidentChat *incidentchat.Service
 	Audit            *audit.Service
 	AIExplanation    *aiexplain.Service
 	SecureCookies    bool
@@ -518,6 +523,10 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/evidence", AuthRequired: true, Handler: incidentAPI.evidence, AuditAction: "incident.evidence.get", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/context", AuthRequired: true, Handler: incidentAPI.context, AuditAction: "incident.context.get", AuditResource: "IncidentContext"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/runbook", AuthRequired: true, Handler: incidentAPI.runbook, AuditAction: "incident.runbook.get", AuditResource: "IncidentRunbook"})
+						if options.IncidentChat != nil {
+							chatAPI := incidentChatHandler{service: options.IncidentChat, adapter: incidentChatAdapter{service: options.Incidents}}
+							reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents/:incident_id/chat", AuthRequired: true, Handler: chatAPI.chat, AuditAction: "incident.chat.create", AuditResource: "IncidentChat"})
+						}
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/export", AuthRequired: true, Handler: incidentAPI.export, AuditAction: "incident.export", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/postmortem/export", AuthRequired: true, Handler: incidentAPI.exportPostmortem, AuditAction: "incident.postmortem.export", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.create, AuditAction: "incident.create", AuditResource: "Incident"})

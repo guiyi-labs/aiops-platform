@@ -2432,6 +2432,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** M112-2 incident-scoped AI chat (conversational investigation with citation validation) */
+        post: operations["incidentAIChat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/{incident_id}/runbook": {
         parameters: {
             query?: never;
@@ -5242,6 +5259,61 @@ export interface components {
                 dry_run_first?: boolean;
                 summary?: string;
             }[];
+        };
+        /** @description One conversational turn. The last message must be from the user. */
+        IncidentChatMessage: {
+            /** @enum {string} */
+            role: "user" | "assistant";
+            content: string;
+        };
+        /** @description M112-2 chat request. History is bounded (default 20 messages); the client holds the conversation. */
+        IncidentChatRequest: {
+            messages: components["schemas"]["IncidentChatMessage"][];
+        };
+        /** @description M112-2 chat response. Citations are validated against the authorized incident evidence set (fail-closed); deterministic fallback is used when AI is disabled or the provider fails. */
+        IncidentChatResponse: {
+            /** Format: int64 */
+            incident_id: number;
+            /** @description Resource-context contract block (same shape as IncidentContextCockpit.resource_context). */
+            resource_context: {
+                scope?: {
+                    /** Format: int64 */
+                    cluster_id?: number;
+                    namespace?: string;
+                    kind?: string;
+                    name?: string;
+                    source_type?: string;
+                };
+                /** Format: date-time */
+                observed_at?: string;
+                source?: string;
+                freshness?: {
+                    /** Format: int64 */
+                    age_seconds?: number;
+                    /** Format: date-time */
+                    as_of?: string;
+                };
+                empty_sample?: {
+                    count?: number;
+                    bounded?: boolean;
+                    /** @enum {string} */
+                    semantic?: "fail_closed" | "safe_absent";
+                };
+            };
+            /** @enum {string} */
+            mode: "ai" | "deterministic";
+            answer: string;
+            /** @description Bounded next-step checks (max 8). */
+            next_checks?: string[];
+            citations: {
+                evidence_id: string;
+                claim: string;
+            }[];
+            provider: string;
+            model: string;
+            input_tokens: number;
+            output_tokens: number;
+            fail_closed: boolean;
         };
         /** @description One normalized evidence item on the diagnosis timeline (M94 read-only projection) */
         DiagnosisTimelineEntry: {
@@ -10282,6 +10354,41 @@ export interface operations {
                 };
             };
             404: components["responses"]["Error"];
+        };
+    };
+    incidentAIChat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Chat response with cited answer and the resource-context contract block */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentChatResponse"];
+                };
+            };
+            400: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            /** @description AI chat concurrency limit reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     incidentRunbook: {

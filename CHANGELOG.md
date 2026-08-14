@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M112-2 会话式 AI 调查（事故上下文中引用校验的连续问答）
+
+- 新增 `POST /api/v1/incidents/{incident_id}/chat`，在事故上下文中连续提问；每个回答将事实断言与事故证据时间线一一对应（M44 同款引用校验：未授权 evidence_id → fail-closed；禁止 prompt injection；citations ≤ 64、next_checks ≤ 8）。
+- 无持久化设计（客户端持有 bounded 历史记录，每个请求独立），满足连续提问验收；若需服务端历史可后续迁移 `000049`。
+- 响应携带跨 M112–M114 资源上下文契约块（scope/observed_at/source/freshness/empty_sample=fail_closed），mode 字段区分 `ai` / `deterministic`。
+- AI 禁用或引用校验失败时确定性降级：引用真实 incident 记录，不伪造根因或集群状态；fail_closed=true 告知前端降级。
+- 同步 OpenAPI/typegen（`IncidentChatRequest` / `IncidentChatResponse`）、权限矩阵（`incident.chat.create`）、前端类型与客户端；事故详情抽屉新增「会话式 AI 调查」区块。
+- 无数据库迁移。See [change record](docs/changes/2026-08-14-m112-2-incident-chat.md)。
+
 ### Added - M112-1 事故上下文驾驶舱（资源上下文契约首次落地）
 
 - 新增只读 `GET /api/v1/incidents/{incident_id}/context`，聚合事故快照、SLA 状态、证据来源汇总、最近 10 条时间线、runbook 摘要与只读 dry-run 建议动作，供值班人员在事故详情首屏完成判断。

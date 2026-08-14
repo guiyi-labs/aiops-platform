@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/incidentchat"
 	"k8s-aiops.local/backend/internal/insight"
 )
 
@@ -521,6 +522,108 @@ func TestIncidentHandler_ContextCockpitFailClosedNoResolver(t *testing.T) {
 	}
 	if cockpit.Health.EvidenceAvailable == false {
 		t.Fatal("snapshot evidence fallback should keep evidence available")
+	}
+}
+
+func newIncidentChatTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	service := incident.NewService(repo)
+	chat := incidentchat.NewService(incidentchat.ServiceConfig{}, incidentChatAdapter{service: service}, nil)
+	h := incidentChatHandler{service: chat, adapter: incidentChatAdapter{service: service}}
+	r.POST("/api/v1/incidents/:incident_id/chat", h.chat)
+	return r
+}
+
+func performIncidentChat(t *testing.T, engine *gin.Engine, id int64, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/incidents/"+strconv.FormatInt(id, 10)+"/chat", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	return w
+}
+
+func TestIncidentChatHandler_DeterministicFallback(t *testing.T) {
+	repo := newIncidentRepoStub()
+	created := performIncidentRequest(newIncidentTestEngine(t, repo), http.MethodPost, "/api/v1/incidents", `{
+		"source_type": "finding", "source_ref": "finding:20:code:Deployment:default:api",
+		"cluster_id": 3, "title": "deployment unavailable", "severity": "critical",
+		"summary": "replicas unavailable", "resource": {"kind":"Deployment","namespace":"default","name":"api"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create code = %d, body %s", created.Code, created.Body.String())
+	}
+	var record incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &record); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	engine := newIncidentChatTestEngine(t, repo)
+	resp := performIncidentChat(t, engine, record.ID, `{"messages":[{"role":"user","content":"为什么副本不可用？"}]}`)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("chat code = %d, body %s", resp.Code, resp.Body.String())
+	}
+	var payload struct {
+		IncidentID      int64                        `json:"incident_id"`
+		Mode            string                       `json:"mode"`
+		Answer          string                       `json:"answer"`
+		Citations       []incidentchat.Citation      `json:"citations"`
+		ResourceContext incidentchat.ResourceContext `json:"resource_context"`
+		FailClosed      bool                         `json:"fail_closed"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode chat: %v", err)
+	}
+	if payload.IncidentID != record.ID {
+		t.Fatalf("incident_id = %d, want %d", payload.IncidentID, record.ID)
+	}
+	if payload.Mode != "deterministic" {
+		t.Fatalf("mode = %q, want deterministic (AI disabled)", payload.Mode)
+	}
+	if payload.Answer == "" {
+		t.Fatal("answer must not be empty")
+	}
+	if len(payload.Citations) == 0 {
+		t.Fatal("deterministic fallback must carry a citation")
+	}
+	if payload.ResourceContext.Scope.ClusterID != 3 || payload.ResourceContext.Scope.SourceType == "" {
+		t.Fatalf("resource context scope mismatch: %+v", payload.ResourceContext.Scope)
+	}
+}
+
+func TestIncidentChatHandler_ValidationErrors(t *testing.T) {
+	repo := newIncidentRepoStub()
+	created := performIncidentRequest(newIncidentTestEngine(t, repo), http.MethodPost, "/api/v1/incidents", `{
+		"source_type": "finding", "source_ref": "finding:21:code:Pod:default:web",
+		"cluster_id": 3, "title": "pod pending", "severity": "high",
+		"summary": "pending", "resource": {"kind":"Pod","namespace":"default","name":"web"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create code = %d, body %s", created.Code, created.Body.String())
+	}
+	var record incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &record); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	engine := newIncidentChatTestEngine(t, repo)
+
+	empty := performIncidentChat(t, engine, record.ID, `{"messages":[]}`)
+	if empty.Code != http.StatusBadRequest {
+		t.Fatalf("empty messages code = %d, want 400", empty.Code)
+	}
+
+	// Last message must be a user turn.
+	badLast := performIncidentChat(t, engine, record.ID, `{"messages":[{"role":"user","content":"hi"},{"role":"assistant","content":"reply"}]}`)
+	if badLast.Code != http.StatusBadRequest {
+		t.Fatalf("assistant-last code = %d, want 400", badLast.Code)
+	}
+
+	// Nonexistent incident → 404.
+	missing := performIncidentChat(t, engine, 99999, `{"messages":[{"role":"user","content":"hi"}]}`)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing incident code = %d, want 404", missing.Code)
 	}
 }
 

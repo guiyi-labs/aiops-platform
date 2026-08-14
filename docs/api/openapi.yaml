@@ -762,6 +762,8 @@ paths:
     get: { tags: [incidents], summary: Incident evidence timeline, operationId: incidentEvidence, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Evidence timeline, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/IncidentEvidenceItem' } } } } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}/context:
     get: { tags: [incidents], summary: Aggregated M112-1 incident context cockpit, operationId: incidentContextCockpit, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Deterministic incident context cockpit with the resource-context contract block, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentContextCockpit' } } } }, '404': { $ref: '#/components/responses/Error' } } }
+  /api/v1/incidents/{incident_id}/chat:
+    post: { tags: [incidents], summary: M112-2 incident-scoped AI chat (conversational investigation with citation validation), operationId: incidentAIChat, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentChatRequest' } } } }, responses: { '200': { description: Chat response with cited answer and the resource-context contract block, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentChatResponse' } } } }, '400': { $ref: '#/components/responses/Error' }, '404': { $ref: '#/components/responses/Error' }, '503': { description: AI chat concurrency limit reached } } }
   /api/v1/incidents/{incident_id}/runbook:
     get: { tags: [incidents], summary: Resolve an incident read-only runbook, operationId: incidentRunbook, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Runbook association status, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentRunbookResponse' } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}/export:
@@ -3189,6 +3191,76 @@ components:
               target_kind: { type: string }
               dry_run_first: { type: boolean }
               summary: { type: string }
+    IncidentChatMessage:
+      type: object
+      additionalProperties: false
+      required: [role, content]
+      description: One conversational turn. The last message must be from the user.
+      properties:
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+    IncidentChatRequest:
+      type: object
+      additionalProperties: false
+      required: [messages]
+      description: M112-2 chat request. History is bounded (default 20 messages); the client holds the conversation.
+      properties:
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: '#/components/schemas/IncidentChatMessage' }
+    IncidentChatResponse:
+      type: object
+      additionalProperties: false
+      description: M112-2 chat response. Citations are validated against the authorized incident evidence set (fail-closed); deterministic fallback is used when AI is disabled or the provider fails.
+      required: [incident_id, resource_context, mode, answer, citations, provider, model, input_tokens, output_tokens, fail_closed]
+      properties:
+        incident_id: { type: integer, format: int64 }
+        resource_context:
+          type: object
+          description: Resource-context contract block (same shape as IncidentContextCockpit.resource_context).
+          properties:
+            scope:
+              type: object
+              properties:
+                cluster_id: { type: integer, format: int64 }
+                namespace: { type: string }
+                kind: { type: string }
+                name: { type: string }
+                source_type: { type: string }
+            observed_at: { type: string, format: date-time }
+            source: { type: string }
+            freshness:
+              type: object
+              properties:
+                age_seconds: { type: integer, format: int64 }
+                as_of: { type: string, format: date-time }
+            empty_sample:
+              type: object
+              properties:
+                count: { type: integer }
+                bounded: { type: boolean }
+                semantic: { type: string, enum: [fail_closed, safe_absent] }
+        mode: { type: string, enum: [ai, deterministic] }
+        answer: { type: string }
+        next_checks:
+          type: array
+          description: Bounded next-step checks (max 8).
+          items: { type: string }
+        citations:
+          type: array
+          items:
+            type: object
+            required: [evidence_id, claim]
+            properties:
+              evidence_id: { type: string }
+              claim: { type: string }
+        provider: { type: string }
+        model: { type: string }
+        input_tokens: { type: integer }
+        output_tokens: { type: integer }
+        fail_closed: { type: boolean }
     DiagnosisTimelineEntry:
       type: object
       description: One normalized evidence item on the diagnosis timeline (M94 read-only projection)

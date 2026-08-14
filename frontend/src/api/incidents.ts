@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { Incident, IncidentBatchAssignResult, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentMetrics, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentBatchAssignResult, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentMetrics, IncidentRunbookResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
 
 export function listIncidents(token: string, filters: { clusterID?: number; status?: IncidentStatus | ''; assigneeID?: number; followerID?: number; limit?: number } = {}): Promise<IncidentListResponse> {
   const query = new URLSearchParams({ limit: String(filters.limit ?? 50) })
@@ -27,6 +27,10 @@ export function getIncidentMetrics(token: string, filters: { clusterID?: number;
   if (filters.days !== undefined) query.set('days', String(filters.days))
   const suffix = query.toString()
   return authorizedRequest(`/api/v1/incidents/metrics${suffix ? `?${suffix}` : ''}`, token)
+}
+
+export function getIncidentRunbook(token: string, incidentID: number): Promise<IncidentRunbookResponse> {
+  return authorizedRequest(`/api/v1/incidents/${incidentID}/runbook`, token)
 }
 
 export function createIncident(token: string, input: IncidentCreateInput): Promise<Incident> {

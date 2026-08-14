@@ -52,6 +52,7 @@ func resolverWithTypicalRecords() *incidentResolver {
 		diagnosisRecords: &fakeDiagnosisReader{records: map[int64]diagnosis.Record{
 			42: {
 				ID:         42,
+				ClusterID:  7,
 				RuleID:     "node.not_ready.v1",
 				Severity:   "critical",
 				Summary:    "node NotReady sustained",
@@ -76,6 +77,16 @@ func TestResolveAlert(t *testing.T) {
 	}
 	if info.Severity != "critical" || info.Resource.Name != "demo-node" {
 		t.Errorf("severity/resource wrong: %+v", info)
+	}
+	if info.Domain != "node" || info.FindingCode != "node.not_ready.v1" {
+		t.Errorf("runbook metadata wrong: %+v", info)
+	}
+}
+
+func TestResolveDiagnosisRejectsForeignCluster(t *testing.T) {
+	r := resolverWithTypicalRecords()
+	if _, err := r.Resolve(context.Background(), incident.SourceTypeDiagnosis, "diagnosis:42", 8); err != incident.ErrInvalidSource {
+		t.Errorf("foreign diagnosis cluster err = %v, want ErrInvalidSource", err)
 	}
 }
 
@@ -239,6 +250,9 @@ func TestResolveSignal(t *testing.T) {
 	if info.Severity != "critical" || info.Resource.Name != "demo-app" {
 		t.Errorf("severity/resource wrong: %+v", info)
 	}
+	if info.Domain != "slo" || info.FindingCode != "slo.burn.fast.v1" {
+		t.Errorf("runbook metadata wrong: %+v", info)
+	}
 }
 
 func TestResolveSignalRejectsForeignCluster(t *testing.T) {
@@ -304,7 +318,7 @@ func TestResolveCorrelation(t *testing.T) {
 					FirstObservedAt: now,
 					LastObservedAt:  now,
 				},
-				SignalLinks: []correlation.SignalLink{{ID: 1, CaseID: 11, SignalOccurrenceID: 3, Relation: correlation.SignalRelationTrigger}},
+				SignalLinks: []correlation.SignalLink{{ID: 1, CaseID: 11, SignalOccurrenceID: 3, SignalID: "diag.deployment.replicas_unavailable.v1", Relation: correlation.SignalRelationTrigger}},
 			},
 		}},
 	}
@@ -317,6 +331,9 @@ func TestResolveCorrelation(t *testing.T) {
 	}
 	if info.Resource.Name != "web" || info.Resource.UID != "dep-uid" {
 		t.Errorf("resource wrong: %+v", info.Resource)
+	}
+	if info.Domain != "workload" || info.FindingCode != "rollout.pod_failure.v1" {
+		t.Errorf("runbook metadata wrong: %+v", info)
 	}
 	if !strings.Contains(info.Summary, "abc123") {
 		t.Errorf("summary missing case_key: %q", info.Summary)

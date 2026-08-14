@@ -60,6 +60,7 @@ type Options struct {
 	// M98 incident workspace service. When nil the incident routes are not
 	// registered.
 	Incidents        *incident.Service
+	IncidentResolver incident.SourceResolver
 	Audit            *audit.Service
 	AIExplanation    *aiexplain.Service
 	SecureCookies    bool
@@ -508,12 +509,13 @@ func New(logger *zap.Logger, options Options) http.Handler {
 					// assignee, followers, timeline, status machine and a
 					// read-only postmortem view.
 					if options.Incidents != nil {
-						incidentAPI := incidentHandler{service: options.Incidents}
+						incidentAPI := incidentHandler{service: options.Incidents, sourceResolver: options.IncidentResolver}
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents", AuthRequired: true, Handler: incidentAPI.list})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/summary", AuthRequired: true, Handler: incidentAPI.summary})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/metrics", AuthRequired: true, Handler: incidentAPI.metrics})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id", AuthRequired: true, Handler: incidentAPI.get})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/evidence", AuthRequired: true, Handler: incidentAPI.evidence, AuditAction: "incident.evidence.get", AuditResource: "Incident"})
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/runbook", AuthRequired: true, Handler: incidentAPI.runbook, AuditAction: "incident.runbook.get", AuditResource: "IncidentRunbook"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/export", AuthRequired: true, Handler: incidentAPI.export, AuditAction: "incident.export", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.create, AuditAction: "incident.create", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents/batch-assign", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: incidentAPI.batchAssign, AuditAction: "incident.assignment.batch", AuditResource: "Incident"})

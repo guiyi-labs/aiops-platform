@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/insight"
 )
 
 // incidentRepoStub is a minimal in-memory Repository for handler tests. It
@@ -180,10 +182,23 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	api.GET("/incidents/metrics", h.metrics)
 	api.GET("/incidents/:incident_id", h.get)
 	api.GET("/incidents/:incident_id/evidence", h.evidence)
+	api.GET("/incidents/:incident_id/runbook", h.runbook)
 	api.POST("/incidents", h.create)
 	api.POST("/incidents/batch-assign", h.batchAssign)
 	api.PATCH("/incidents/:incident_id", h.transition)
 	return r
+}
+
+type incidentSourceResolverStub struct {
+	info incident.SourceInfo
+	err  error
+}
+
+func (r incidentSourceResolverStub) Resolve(context.Context, string, string, int64) (incident.SourceInfo, error) {
+	if r.err != nil {
+		return incident.SourceInfo{}, r.err
+	}
+	return r.info, nil
 }
 
 func performIncidentRequest(engine *gin.Engine, method, path, body string) *httptest.ResponseRecorder {
@@ -326,6 +341,54 @@ func TestIncidentHandler_Evidence(t *testing.T) {
 	missing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/99999/evidence", "")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing evidence code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentHandler_RunbookIsReadOnlyAndFailClosed(t *testing.T) {
+	repo := newIncidentRepoStub()
+	created := performIncidentRequest(newIncidentTestEngine(t, repo), http.MethodPost, "/api/v1/incidents", `{
+		"source_type": "finding", "source_ref": "finding:9:code:kind:default:pod-a",
+		"cluster_id": 3, "title": "manual pod issue", "severity": "high",
+		"summary": "manual report", "resource": {"kind":"Deployment","namespace":"default","name":"api"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create code = %d, body %s", created.Code, created.Body.String())
+	}
+	var record incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &record); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := incidentHandler{
+		service:        incident.NewService(repo),
+		sourceResolver: incidentSourceResolverStub{info: incident.SourceInfo{Domain: "network", FindingCode: "NET-EXPOSE"}},
+	}
+	r.GET("/api/v1/incidents/:incident_id/runbook", h.runbook)
+	path := "/api/v1/incidents/" + strconv.FormatInt(record.ID, 10) + "/runbook"
+	resp := performIncidentRequest(r, http.MethodGet, path, "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("runbook code = %d, body %s", resp.Code, resp.Body.String())
+	}
+	var payload struct {
+		IncidentID int64            `json:"incident_id"`
+		Available  bool             `json:"available"`
+		Runbook    *insight.Runbook `json:"runbook"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode runbook: %v", err)
+	}
+	if payload.IncidentID != record.ID || !payload.Available || payload.Runbook == nil || !payload.Runbook.ReadOnly {
+		t.Fatalf("unexpected runbook response: %+v", payload)
+	}
+
+	noResolver := incidentHandler{service: incident.NewService(repo)}
+	noResolverRouter := gin.New()
+	noResolverRouter.GET("/api/v1/incidents/:incident_id/runbook", noResolver.runbook)
+	closed := performIncidentRequest(noResolverRouter, http.MethodGet, path, "")
+	if closed.Code != http.StatusOK || !strings.Contains(closed.Body.String(), "source_resolver_unavailable") {
+		t.Fatalf("runbook must fail closed without resolver: %d %s", closed.Code, closed.Body.String())
 	}
 }
 

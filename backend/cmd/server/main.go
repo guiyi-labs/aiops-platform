@@ -503,6 +503,7 @@ func main() {
 			MetricsHistory:            metricsHistoryService,
 			Diagnosis:                 diagnosisService,
 			Incidents:                 incidentService,
+			IncidentResolver:          incidentSourceResolver,
 			AIExplanation:             aiExplanationService,
 			Audit:                     auditService,
 			Notifications:             notificationService,

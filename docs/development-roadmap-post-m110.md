@@ -92,13 +92,13 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 
 **目标**：incident 从"能协作"升级为"可运营、可度量、可交接"，全部复用既有领域组件。
 
-**执行进度（2026-08-14）**：已完成 KPI 基础层：新增真实时间戳派生的
-`GET /api/v1/incidents/metrics`，包含窗口/样本边界披露与 OpenAPI/typegen 契约；事故 KPI
-视图、runbook 关联、升级链和复盘导出仍按本节顺序推进。
+**执行进度（2026-08-14）**：已完成 KPI 基础层与事故详情 Runbook 关联：新增真实时间戳派生的
+`GET /api/v1/incidents/metrics`，以及复用 M81 Insight 的
+`GET /api/v1/incidents/{incident_id}/runbook`。两者均已同步 OpenAPI/typegen；升级链和复盘导出仍按本节顺序推进。
 
-- **Runbook 关联**：incident 详情页挂接可执行/建议 runbook（复用 M43/M44/M81 的
-  `insight` / `automation` / `aiinvestigator` runbook 目录，只读链接 + 当前步骤状态），
-  不新增任意操作，写路径仍走既有受控动作目录。
+- **Runbook 关联（已完成）**：incident 详情页挂接 M81 Insight 的诊断/巡检/AI 解释/dry-run
+  候选，只读展示且对人工来源、源记录缺失和跨域不确定性 fail-closed；不新增任意操作，写路径
+  仍走既有受控动作目录。M44 automation 与 AI investigator 的具体执行状态延后到后续协调查询阶段。
 - **MTTA/MTTR 事故 KPI**：由时间线时间戳派生（created → first_assigned → first_ack →
   resolved），新增事故 KPI 视图与聚合大盘；OpenAPI + typegen + 迁移。
 - **事故模板与严重级矩阵**：创建事故支持模板，severity → SLA 目标可配置。

@@ -2398,6 +2398,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/runbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve an incident read-only runbook */
+        get: operations["incidentRunbook"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/{incident_id}/export": {
         parameters: {
             query?: never;
@@ -5042,6 +5059,17 @@ export interface components {
             observed_at?: string;
             deep_link: string;
             fields?: components["schemas"]["IncidentEvidenceField"][];
+        };
+        /** @description Read-only association status. Unavailable sources fail closed and never receive guessed domain metadata. */
+        IncidentRunbookResponse: {
+            /** Format: int64 */
+            incident_id: number;
+            available: boolean;
+            /** @enum {string} */
+            reason?: "source_resolver_unavailable" | "source_unavailable" | "domain_unavailable";
+            domain?: string;
+            finding_code?: string;
+            runbook?: components["schemas"]["InsightRunbook"];
         };
         /** @description One normalized evidence item on the diagnosis timeline (M94 read-only projection) */
         DiagnosisTimelineEntry: {
@@ -10036,6 +10064,29 @@ export interface operations {
                     "application/json": {
                         items?: components["schemas"]["IncidentEvidenceItem"][];
                     };
+                };
+            };
+            404: components["responses"]["Error"];
+        };
+    };
+    incidentRunbook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Runbook association status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentRunbookResponse"];
                 };
             };
             404: components["responses"]["Error"];

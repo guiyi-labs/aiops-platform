@@ -56,6 +56,8 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-12-m94-openapi-typegen-sync.md`：M94 OpenAPI typegen 产物刷新，CI sync 门禁闭环。
 - `docs/changes/2026-08-12-m102-offline-bundle-self-contained.md`：离线包自包含化——迁移文件入包、compose 相对挂载，不依赖宿主机源码。
 - `docs/changes/2026-08-12-m102-offline-drill-published-bundle-install.md`：离线演练改用发布产物加载/安装，形成可复用离线包安装闭环。
+- `docs/changes/2026-08-14-m111-incident-kpi.md`：M111 事故响应 KPI 基础层，含有界样本与 OpenAPI/typegen 同步。
+- `docs/changes/2026-08-14-m111-incident-runbook.md`：M111 事故详情只读 Runbook 关联与 fail-closed 来源域解析。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

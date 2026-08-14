@@ -2,13 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { Download, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
 
-import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, getIncident, getIncidentEvidence, getIncidentSummary, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
+import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, getIncident, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { UserProfile } from '../types/auth'
-import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
 
 interface IncidentCreateForm extends Omit<IncidentCreateInput, 'resource'> {
   resource: IncidentResourceRef
@@ -31,6 +31,8 @@ const detail = ref<Incident | null>(null)
 const detailLoading = ref(false)
 const evidence = ref<IncidentEvidenceItem[]>([])
 const evidenceLoading = ref(false)
+const runbook = ref<IncidentRunbookResponse | null>(null)
+const runbookLoading = ref(false)
 const showCreate = ref(false)
 const saving = ref(false)
 
@@ -81,6 +83,7 @@ const resolutionDuration = computed(() => {
   const hours = Math.floor(minutes / 60)
   return hours > 0 ? `${hours}小时${minutes % 60}分` : `${minutes}分钟`
 })
+const linkedRunbook = computed(() => (runbook.value?.available ? runbook.value.runbook ?? null : null))
 
 function toggleSelect(id: number) {
   selected.value = selected.value.includes(id) ? selected.value.filter((item) => item !== id) : [...selected.value, id]
@@ -111,6 +114,14 @@ function severityTone(severity: IncidentSeverity): string {
 
 function sourceTypeLabel(sourceType: Incident['source_type']): string {
   return { diagnosis: '诊断记录', finding: '人工上报', alert: '告警实例', inspection: '巡检结果', signal: '信号实例', correlation: '关联案例' }[sourceType]
+}
+
+function runbookReasonLabel(reason?: IncidentRunbookResponse['reason']): string {
+  return {
+    source_resolver_unavailable: '当前环境未启用来源解析器',
+    source_unavailable: '原始来源已不可读取，已停止推断',
+    domain_unavailable: '原始来源没有可信的故障域信息',
+  }[reason ?? 'domain_unavailable']
 }
 
 function evidenceSourceLabel(sourceType: IncidentEvidenceItem['source_type']): string {
@@ -186,10 +197,12 @@ async function openDetail(incident: Incident) {
     transitionComment.value = ''
     noteContent.value = ''
     postmortemContent.value = detail.value.postmortem ?? ''
+    runbook.value = null
     if (canManage.value && assignableUsers.value.length === 0) {
       assignableUsers.value = (await listAssignableUsers(auth.accessToken)).items
     }
     void loadEvidence(detail.value.id)
+    void loadRunbook(detail.value.id)
   } catch (err) {
     errorMessage.value = err instanceof APIError ? err.message : '加载事故详情失败'
   } finally {
@@ -349,6 +362,18 @@ async function loadEvidence(incidentID: number) {
   }
 }
 
+async function loadRunbook(incidentID: number) {
+  runbookLoading.value = true
+  try {
+    const result = await getIncidentRunbook(auth.accessToken, incidentID)
+    if (detail.value?.id === incidentID) runbook.value = result
+  } catch {
+    if (detail.value?.id === incidentID) runbook.value = { incident_id: incidentID, available: false, reason: 'source_unavailable' }
+  } finally {
+    if (detail.value?.id === incidentID) runbookLoading.value = false
+  }
+}
+
 onMounted(() => { void loadAll() })
 </script>
 
@@ -478,6 +503,47 @@ onMounted(() => { void loadAll() })
           <div><dt>SLA 截止</dt><dd>{{ formatTime(detail.sla_due_at) }}</dd></div>
           <div><dt>创建时间</dt><dd>{{ formatTime(detail.created_at) }}</dd></div>
         </dl>
+
+        <h3>响应 Runbook</h3>
+        <p v-if="runbookLoading" class="muted">正在解析响应步骤…</p>
+        <div v-else-if="linkedRunbook" class="incident-runbook">
+          <div class="runbook-headline">
+            <span class="runbook-domain">{{ linkedRunbook.domain }}</span>
+            <span v-if="linkedRunbook.finding_code" class="runbook-code">{{ linkedRunbook.finding_code }}</span>
+            <span class="runbook-readonly">只读编排</span>
+          </div>
+          <div v-if="linkedRunbook.diagnoses.length" class="runbook-group">
+            <strong>诊断入口</strong>
+            <div v-for="route in linkedRunbook.diagnoses" :key="route.resource_kind" class="runbook-item">
+              <span>{{ route.resource_kind }}</span>
+              <p>{{ route.summary }}</p>
+              <small>{{ route.rule_ids.join(' · ') }}</small>
+            </div>
+          </div>
+          <div v-if="linkedRunbook.inspection.length" class="runbook-group">
+            <strong>巡检校验</strong>
+            <div v-for="rule in linkedRunbook.inspection" :key="rule.rule_code" class="runbook-item">
+              <span>{{ rule.rule_code }}</span>
+              <p>{{ rule.summary }}</p>
+              <small>{{ rule.signal_code }}</small>
+            </div>
+          </div>
+          <div v-if="linkedRunbook.ai_explanation" class="runbook-group">
+            <strong>AI 解释入口</strong>
+            <p class="runbook-note">{{ linkedRunbook.ai_explanation.summary }}</p>
+            <code>{{ linkedRunbook.ai_explanation.endpoint }}</code>
+          </div>
+          <div v-if="linkedRunbook.operations?.length" class="runbook-group">
+            <strong>Dry-run 候选</strong>
+            <div v-for="operation in linkedRunbook.operations" :key="operation.action" class="runbook-item">
+              <span>{{ operation.action }}</span>
+              <p>{{ operation.summary }}</p>
+              <small>{{ operation.dry_run_first ? '必须先预览' : '受控操作' }} · {{ operation.target_kind }}</small>
+            </div>
+          </div>
+          <p v-if="!linkedRunbook.diagnoses.length && !linkedRunbook.inspection.length && !linkedRunbook.ai_explanation && !linkedRunbook.operations?.length" class="muted">当前资源没有可用的只读响应步骤。</p>
+        </div>
+        <p v-else class="runbook-unavailable">{{ runbookReasonLabel(runbook?.reason) }}</p>
 
         <template v-if="evidenceLoading">
           <h3>证据时间线</h3>
@@ -718,6 +784,18 @@ onMounted(() => { void loadAll() })
 .incident-meta { margin: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
 .incident-meta div { display: flex; gap: 8px; font-size: 12px; }
 .incident-meta dt { color: #77858d; min-width: 68px; }
+.incident-runbook { display: grid; gap: 10px; padding: 12px 14px; background: #f1f6fb; border: 1px solid #d8e3ed; border-radius: 8px; }
+.runbook-headline { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.runbook-domain { color: #2f5f91; font-size: 12px; font-weight: 700; }
+.runbook-code { color: #5d6d78; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; overflow-wrap: anywhere; }
+.runbook-readonly { margin-left: auto; padding: 3px 7px; color: #2e7867; background: #e3f1ed; border-radius: 8px; font-size: 10px; font-weight: 650; }
+.runbook-group { display: grid; gap: 6px; }
+.runbook-group > strong { color: #39474e; font-size: 11px; }
+.runbook-item { display: grid; gap: 2px; padding: 8px 10px; background: #ffffff; border: 1px solid #e1e8ed; border-radius: 6px; }
+.runbook-item > span { color: #3b6ea5; font-size: 12px; font-weight: 650; }
+.runbook-item p, .runbook-note { margin: 0; color: #46545c; font-size: 11px; line-height: 1.5; }
+.runbook-item small, .incident-runbook code { color: #77858d; font-size: 10px; overflow-wrap: anywhere; }
+.runbook-unavailable { margin: 0; padding: 10px 12px; color: #7a5b25; background: #fff8e7; border: 1px solid #f0dfb5; border-radius: 6px; font-size: 12px; }
 .incident-evidence { display: grid; gap: 10px; }
 .evidence-card { padding: 12px 14px; background: #f0f4f6; border: 1px solid #dce4e7; border-radius: 8px; }
 .evidence-card-head { display: flex; align-items: center; gap: 8px; }

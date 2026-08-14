@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 283 |
+| 路由总数 | 284 |
 | 角色受限 | 84 |
-| 已审计 | 160 |
+| 已审计 | 161 |
 | scope=workspace | 13 |
 | scope=cluster | 82 |
 | scope=namespace | 32 |
-| scope=none | 156 |
+| scope=none | 157 |
 | 角色 operations_admin | 63 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 84 |
@@ -265,6 +265,7 @@
 | DELETE | `/api/v1/incidents/:incident_id/followers/:user_id` | `operations_admin`, `system_admin` | none | incident.follower.remove |
 | POST | `/api/v1/incidents/:incident_id/notes` | `operations_admin`, `system_admin` | none | incident.note.create |
 | PUT | `/api/v1/incidents/:incident_id/postmortem` | `operations_admin`, `system_admin` | none | incident.postmortem.update |
+| GET | `/api/v1/incidents/:incident_id/runbook` | any | none | incident.runbook.get |
 | POST | `/api/v1/incidents/batch-assign` | `operations_admin`, `system_admin` | none | incident.assignment.batch |
 | GET | `/api/v1/incidents/metrics` | any | none | - |
 | GET | `/api/v1/incidents/summary` | any | none | - |

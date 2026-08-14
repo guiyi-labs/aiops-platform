@@ -109,7 +109,7 @@ func NewIncidentResolver(records *diagnosis.GormRepository, alerts *alert.Servic
 func (r *incidentResolver) Resolve(ctx context.Context, sourceType, sourceRef string, clusterID int64) (incident.SourceInfo, error) {
 	switch sourceType {
 	case incident.SourceTypeDiagnosis:
-		return r.resolveDiagnosis(ctx, sourceRef)
+		return r.resolveDiagnosis(ctx, sourceRef, clusterID)
 	case incident.SourceTypeAlert:
 		return r.resolveAlert(ctx, clusterID, sourceRef)
 	case incident.SourceTypeInspection:
@@ -198,7 +198,9 @@ func (r *incidentResolver) resolveSignal(ctx context.Context, clusterID int64, s
 			Name:      occ.Resource.Name,
 			UID:       occ.Resource.UID,
 		},
-		ObservedAt: occ.ObservedAt,
+		ObservedAt:  occ.ObservedAt,
+		Domain:      signalDomain(occ.SignalCode),
+		FindingCode: occ.SignalCode,
 	}, nil
 }
 
@@ -243,7 +245,9 @@ func (r *incidentResolver) resolveCorrelation(ctx context.Context, clusterID int
 			Name:      resource.Name,
 			UID:       resource.UID,
 		},
-		ObservedAt: view.Case.FirstObservedAt,
+		ObservedAt:  view.Case.FirstObservedAt,
+		Domain:      correlationDomain(view.SignalLinks),
+		FindingCode: view.Case.RuleID,
 	}, nil
 }
 
@@ -284,7 +288,9 @@ func (r *incidentResolver) resolveInspection(ctx context.Context, clusterID int6
 			Name:      result.ResourceName,
 			UID:       result.ResourceUID,
 		},
-		ObservedAt: result.ObservedAt,
+		ObservedAt:  result.ObservedAt,
+		Domain:      inspectionDomain(result.RuleCode, result.SignalCode),
+		FindingCode: result.RuleCode,
 	}, nil
 }
 
@@ -301,7 +307,7 @@ func normalizeIncidentSeverity(severity string) string {
 	}
 }
 
-func (r *incidentResolver) resolveDiagnosis(ctx context.Context, sourceRef string) (incident.SourceInfo, error) {
+func (r *incidentResolver) resolveDiagnosis(ctx context.Context, sourceRef string, clusterID int64) (incident.SourceInfo, error) {
 	const prefix = "diagnosis:"
 	if !strings.HasPrefix(sourceRef, prefix) {
 		return incident.SourceInfo{}, incident.ErrInvalidSource
@@ -317,6 +323,9 @@ func (r *incidentResolver) resolveDiagnosis(ctx context.Context, sourceRef strin
 		}
 		return incident.SourceInfo{}, err
 	}
+	if record.ClusterID != clusterID {
+		return incident.SourceInfo{}, incident.ErrInvalidSource
+	}
 	return incident.SourceInfo{
 		Title:    record.Resource.Name + " " + record.RuleID,
 		Summary:  record.Summary,
@@ -327,7 +336,9 @@ func (r *incidentResolver) resolveDiagnosis(ctx context.Context, sourceRef strin
 			Name:      record.Resource.Name,
 			UID:       record.Resource.UID,
 		},
-		ObservedAt: record.ObservedAt,
+		ObservedAt:  record.ObservedAt,
+		Domain:      signalDomain("diag." + record.RuleID),
+		FindingCode: record.RuleID,
 	}, nil
 }
 
@@ -353,6 +364,9 @@ func (r *incidentResolver) resolveAlert(ctx context.Context, clusterID int64, so
 	if instance.DiagnosisID > 0 {
 		record, err := r.diagnosisRecords.Get(ctx, instance.DiagnosisID)
 		if err == nil {
+			if record.ClusterID != clusterID {
+				return incident.SourceInfo{}, incident.ErrInvalidSource
+			}
 			return incident.SourceInfo{
 				Title:    "Alert " + record.Resource.Name + " " + record.RuleID,
 				Summary:  record.Summary,
@@ -363,7 +377,9 @@ func (r *incidentResolver) resolveAlert(ctx context.Context, clusterID int64, so
 					Name:      record.Resource.Name,
 					UID:       record.Resource.UID,
 				},
-				ObservedAt: instance.FirstFiredAt,
+				ObservedAt:  instance.FirstFiredAt,
+				Domain:      signalDomain("diag." + record.RuleID),
+				FindingCode: record.RuleID,
 			}, nil
 		}
 		if !errors.Is(err, diagnosis.ErrRecordNotFound) {
@@ -371,4 +387,36 @@ func (r *incidentResolver) resolveAlert(ctx context.Context, clusterID int64, so
 		}
 	}
 	return incident.SourceInfo{}, incident.ErrInvalidSource
+}
+
+func signalDomain(code string) string {
+	descriptor, ok := signal.Lookup(code)
+	if !ok {
+		return ""
+	}
+	return descriptor.Domain
+}
+
+func inspectionDomain(ruleCode, signalCode string) string {
+	for _, descriptor := range inspection.DefaultCatalog() {
+		if descriptor.Code == ruleCode {
+			return descriptor.Domain
+		}
+	}
+	return signalDomain(signalCode)
+}
+
+func correlationDomain(links []correlation.SignalLink) string {
+	domain := ""
+	for _, link := range links {
+		if link.SignalID == "" {
+			return ""
+		}
+		current := signalDomain(link.SignalID)
+		if current == "" || (domain != "" && domain != current) {
+			return ""
+		}
+		domain = current
+	}
+	return domain
 }

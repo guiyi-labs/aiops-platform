@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { getIncidentMetrics } from './incidents'
+import { getIncidentMetrics, getIncidentRunbook } from './incidents'
 
 describe('incident metrics API', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -21,5 +21,26 @@ describe('incident metrics API', () => {
 
     await expect(getIncidentMetrics('token')).resolves.toMatchObject({ mtta_seconds: null, mttr_seconds: null })
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/incidents/metrics', expect.any(Object))
+  })
+})
+
+describe('incident runbook API', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reads the incident-scoped runbook without adding query guesses', async () => {
+    const response = { incident_id: 7, available: true, domain: 'network', finding_code: 'NET-EXPOSE', runbook: { read_only: true } }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getIncidentRunbook('token', 7)).resolves.toEqual(response)
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/incidents/7/runbook', expect.any(Object))
+  })
+
+  it('preserves fail-closed unavailable responses', async () => {
+    const response = { incident_id: 8, available: false, reason: 'domain_unavailable' }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getIncidentRunbook('token', 8)).resolves.toMatchObject(response)
   })
 })

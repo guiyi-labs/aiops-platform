@@ -3,6 +3,8 @@ export type IncidentSeverity = 'info' | 'warning' | 'high' | 'critical'
 export type IncidentSourceType = 'diagnosis' | 'finding' | 'alert' | 'inspection' | 'signal' | 'correlation'
 export type IncidentEventType = 'system' | 'note'
 
+export type IncidentRunbookUnavailableReason = 'source_resolver_unavailable' | 'source_unavailable' | 'domain_unavailable'
+
 export interface IncidentActor { id: number; name: string }
 export interface IncidentResourceRef { kind: string; namespace?: string; name: string; uid?: string }
 export interface IncidentTimelineEvent { id: number; event_type: IncidentEventType; actor: IncidentActor; content: string; created_at: string }
@@ -96,3 +98,12 @@ export interface IncidentCreateInput {
 }
 
 export interface IncidentListResponse { items: Incident[]; total: number; remaining: number }
+
+export interface IncidentRunbookResponse {
+  incident_id: number
+  available: boolean
+  reason?: IncidentRunbookUnavailableReason
+  domain?: string
+  finding_code?: string
+  runbook?: import('../api/insight').InsightRunbook
+}

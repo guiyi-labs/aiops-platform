@@ -12,11 +12,22 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/insight"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
 
 type incidentHandler struct {
-	service *incident.Service
+	service        *incident.Service
+	sourceResolver incident.SourceResolver
+}
+
+type incidentRunbookResponse struct {
+	IncidentID  int64            `json:"incident_id"`
+	Available   bool             `json:"available"`
+	Reason      string           `json:"reason,omitempty"`
+	Domain      string           `json:"domain,omitempty"`
+	FindingCode string           `json:"finding_code,omitempty"`
+	Runbook     *insight.Runbook `json:"runbook,omitempty"`
 }
 
 type createIncidentRequest struct {
@@ -156,6 +167,45 @@ func (h incidentHandler) evidence(c *gin.Context) {
 		return
 	}
 	writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to read incident evidence")
+}
+
+func (h incidentHandler) runbook(c *gin.Context) {
+	id, ok := incidentID(c)
+	if !ok {
+		return
+	}
+	record, err := h.service.Get(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, incident.ErrNotFound) {
+			writeError(c, http.StatusNotFound, "INCIDENT_NOT_FOUND", "incident does not exist")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to read incident runbook")
+		return
+	}
+	response := incidentRunbookResponse{IncidentID: record.ID, Available: false}
+	if h.sourceResolver == nil {
+		response.Reason = "source_resolver_unavailable"
+		c.JSON(http.StatusOK, response)
+		return
+	}
+	info, err := h.sourceResolver.Resolve(c.Request.Context(), record.SourceType, record.SourceRef, record.ClusterID)
+	if err != nil {
+		response.Reason = "source_unavailable"
+		c.JSON(http.StatusOK, response)
+		return
+	}
+	response.Domain = strings.TrimSpace(info.Domain)
+	response.FindingCode = strings.TrimSpace(info.FindingCode)
+	if response.Domain == "" {
+		response.Reason = "domain_unavailable"
+		c.JSON(http.StatusOK, response)
+		return
+	}
+	runbook := insight.Resolve(record.ClusterID, response.Domain, record.Resource.Kind, record.Resource.Namespace, record.Resource.Name, response.FindingCode)
+	response.Runbook = &runbook
+	response.Available = true
+	c.JSON(http.StatusOK, response)
 }
 
 func (h incidentHandler) list(c *gin.Context) {

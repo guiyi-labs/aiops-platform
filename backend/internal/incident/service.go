@@ -13,11 +13,13 @@ import (
 // SourceInfo is the source-derived data used to build an incident workspace
 // from a diagnosis or a client-observed finding.
 type SourceInfo struct {
-	Title      string
-	Summary    string
-	Severity   string
-	Resource   ResourceRef
-	ObservedAt time.Time
+	Title       string
+	Summary     string
+	Severity    string
+	Resource    ResourceRef
+	ObservedAt  time.Time
+	Domain      string
+	FindingCode string
 }
 
 // SourceResolver resolves a source reference into the data needed to build an

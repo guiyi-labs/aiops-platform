@@ -19,6 +19,15 @@ Detailed change records for each milestone live under `docs/changes/`.
   与 `pnpm ui:gate` 4/4 全绿。
 - See [change record](docs/changes/2026-08-14-m111-incident-kpi.md)。
 
+### Added - M111 事故详情只读 Runbook 关联
+
+- 新增 `GET /api/v1/incidents/{incident_id}/runbook`，复用现有 M81 Insight 映射，返回诊断、巡检、AI
+  解释与 dry-run 候选；该接口不执行集群操作，写路径仍由既有受控动作目录承载。
+- 来源解析补充可信 `domain` / `finding_code`，人工来源、源记录缺失或跨集群来源无法确认时返回
+  `available=false`，不猜测故障域；诊断来源同步增加集群归属校验。
+- 事故详情抽屉新增响应步骤区块，并同步 OpenAPI、typegen、权限矩阵与 API 客户端。
+- See [change record](docs/changes/2026-08-14-m111-incident-runbook.md)。
+
 ### Fixed - CI Backend lint：aiexplain 测试桩无效赋值（SA4005）
 
 - `golangci-lint` staticcheck 曾以 `SA4005` 报

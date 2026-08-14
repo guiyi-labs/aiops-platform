@@ -3,11 +3,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Bell, BoxIcon, Clock3, Info, RefreshCw, Search, TriangleAlert, X } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
-import { listEvents, listNamespaces } from '../api/kubernetes'
+import { getEventCockpit, listEvents, listNamespaces } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { KubernetesEvent, Namespace } from '../types/kubernetes'
+import type { EventCockpitResponse, KubernetesEvent, Namespace } from '../types/kubernetes'
 
 type EventTypeFilter = 'all' | 'Warning' | 'Normal'
 
@@ -26,17 +26,18 @@ const loading = ref(false)
 const errorMessage = ref('')
 const selectedEvent = ref<KubernetesEvent | null>(null)
 const lastSyncedAt = ref<Date | null>(null)
+const cockpit = ref<EventCockpitResponse | null>(null)
+const cockpitLoading = ref(false)
+const cockpitWindowMinutes = ref(1440)
 let loadSequence = 0
 
-const selectedCluster = computed(() => clusters.value.find((item) => item.id === selectedClusterID.value))
 const resourceKinds = computed(() => [...new Set(events.value.map((item) => item.involvedObject.kind).filter(Boolean))].sort())
 const filteredEvents = computed(() => events.value
   .filter((item) => eventType.value === 'all' || item.type === eventType.value)
   .filter((item) => !resourceKind.value || item.involvedObject.kind === resourceKind.value)
   .sort((left, right) => eventTimeValue(right) - eventTimeValue(left)))
-const warningCount = computed(() => events.value.filter((item) => item.type === 'Warning').length)
-const normalCount = computed(() => events.value.filter((item) => item.type !== 'Warning').length)
-const affectedResourceCount = computed(() => new Set(events.value.map((item) => `${item.involvedObject.kind}/${item.involvedObject.namespace ?? ''}/${item.involvedObject.name}`)).size)
+const cockpitWarningCount = computed(() => cockpit.value?.groups.filter((g) => g.severity === 'warning').length ?? 0)
+const cockpitNormalCount = computed(() => cockpit.value?.groups.filter((g) => g.severity === 'info').length ?? 0)
 const lastSyncedLabel = computed(() => lastSyncedAt.value
   ? new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(lastSyncedAt.value)
   : '--')
@@ -104,18 +105,46 @@ function applySearch() {
   void loadClusterContext()
 }
 
+async function loadCockpit() {
+  const clusterID = selectedClusterID.value
+  if (!clusterID) return
+  cockpitLoading.value = true
+  try {
+    cockpit.value = await getEventCockpit(auth.accessToken, clusterID, { window_minutes: cockpitWindowMinutes.value })
+  } catch {
+    cockpit.value = null
+  } finally {
+    cockpitLoading.value = false
+  }
+}
+
+function cockpitSeverityClass(sev: string): string {
+  return sev === 'warning' ? 'warning' : 'normal'
+}
+
+function trendBarHeight(events: number): string {
+  const max = cockpit.value?.trend.reduce((acc, p) => Math.max(acc, p.events), 0) ?? 1
+  const pct = max > 0 ? Math.max((events / max) * 100, 6) : 6
+  return `${pct}%`
+}
+
 watch(selectedClusterID, () => {
   namespace.value = ''
   resourceKind.value = ''
   appliedSearch.value = ''
   searchText.value = ''
   void loadClusterContext()
+  void loadCockpit()
 })
 watch(namespace, () => {
   resourceKind.value = ''
   void loadClusterContext()
 })
-onMounted(initialize)
+watch(cockpitWindowMinutes, () => void loadCockpit())
+onMounted(async () => {
+  await initialize()
+  void loadCockpit()
+})
 </script>
 
 <template>
@@ -134,9 +163,64 @@ onMounted(initialize)
     <template v-else>
       <section class="resource-summary-grid event-summary-grid" aria-label="事件摘要">
         <article><span>当前范围</span><strong>{{ total }}</strong><small>最多展示最近 100 条</small></article>
-        <article class="warning-summary"><span>Warning</span><strong>{{ warningCount }}</strong><small>需要优先检查</small></article>
-        <article><span>Normal</span><strong>{{ normalCount }}</strong><small>正常状态变化</small></article>
-        <article><span>涉及资源</span><strong>{{ affectedResourceCount }}</strong><small>{{ selectedCluster?.name || '--' }}</small></article>
+        <article class="warning-summary"><span>Warning 组</span><strong>{{ cockpitWarningCount }}</strong><small>重复事件聚合组</small></article>
+        <article><span>Normal 组</span><strong>{{ cockpitNormalCount }}</strong><small>重复事件聚合组</small></article>
+        <article><span>原始事件</span><strong>{{ cockpit?.total_events ?? 0 }}</strong><small>窗口内去重折叠前</small></article>
+      </section>
+
+      <section class="event-cockpit-panel" aria-label="事件驾驶舱">
+        <div class="section-heading cockpit-heading">
+          <div><p class="context-label">EVENT COCKPIT · {{ cockpit?.window_minutes ?? 1440 }} MIN</p><h2>事件驾驶舱</h2></div>
+          <div class="cockpit-controls">
+            <label class="window-select">
+              <span>窗口</span>
+              <select v-model.number="cockpitWindowMinutes" aria-label="聚合窗口">
+                <option :value="60">1 小时</option>
+                <option :value="360">6 小时</option>
+                <option :value="1440">24 小时</option>
+                <option :value="10080">7 天</option>
+              </select>
+            </label>
+            <button class="icon-button" type="button" title="刷新驾驶舱" aria-label="刷新驾驶舱" :disabled="cockpitLoading || !selectedClusterID" @click="loadCockpit"><RefreshCw :size="15" :class="{ spinning: cockpitLoading }" /></button>
+          </div>
+        </div>
+
+        <p v-if="cockpit?.fail_closed" class="cockpit-failclosed">{{ cockpit.empty_note }}</p>
+        <div v-if="cockpitLoading" class="empty-state event-loading"><RefreshCw class="spinning" :size="22" /><span>正在聚合事件</span></div>
+        <div v-else-if="cockpit && !cockpit.fail_closed">
+          <div class="cockpit-stats">
+            <article><span>聚合组</span><strong>{{ cockpit.groups_total }}</strong></article>
+            <article><span>原始事件</span><strong>{{ cockpit.total_events }}</strong></article>
+            <article><span>累计次数</span><strong>{{ cockpit.total_raw_count }}</strong></article>
+          </div>
+
+          <div class="cockpit-layout">
+            <div class="cockpit-groups">
+              <table>
+                <thead><tr><th>级别</th><th>原因</th><th>资源</th><th>时间窗</th><th>次数</th></tr></thead>
+                <tbody>
+                  <tr v-for="(group, index) in cockpit.groups" :key="`${group.namespace}-${group.kind}-${group.resource_name}-${group.reason}-${index}`">
+                    <td><span class="event-type-badge" :class="cockpitSeverityClass(group.severity)"><TriangleAlert v-if="group.severity === 'warning'" :size="13" /><Info v-else :size="13" />{{ group.severity }}</span></td>
+                    <td class="cockpit-reason"><strong>{{ group.reason }}</strong><small class="muted">{{ group.namespace || 'cluster-scoped' }}</small></td>
+                    <td class="cockpit-resource">{{ group.kind }}/{{ group.resource_name }}</td>
+                    <td class="mono">{{ formatTime(group.first_seen) }}<small class="muted">→ {{ formatTime(group.last_seen) }}</small></td>
+                    <td><span class="cockpit-count">×{{ group.raw_count }}</span><small class="muted">{{ group.event_count }} 条折叠</small></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="cockpit-trend">
+              <h3>按天趋势（事件数）</h3>
+              <div v-if="cockpit.trend.length === 0" class="empty-state event-loading"><Bell :size="22" /><span>窗口内无趋势数据</span></div>
+              <div v-else class="trend-bars">
+                <div v-for="point in cockpit.trend" :key="point.day" class="trend-bar-col">
+                  <div class="trend-bar-track"><div class="trend-bar" :style="{ height: trendBarHeight(point.events) }" :title="`${point.day}: ${point.events} 事件 / ${point.groups} 组`"></div></div>
+                  <span class="trend-bar-day">{{ point.day.slice(5) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="resource-panel event-center-panel">

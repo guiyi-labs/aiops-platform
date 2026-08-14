@@ -309,6 +309,10 @@ func New(logger *zap.Logger, options Options) http.Handler {
 				reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/pods/:namespace/:name/all_logs", Handler: resourcesAPI.allContainerLogs})
 				reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/pods/:namespace/:name/containers", Handler: resourcesAPI.containers})
 				reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/events", Handler: resourcesAPI.events})
+				// M114-2 event cockpit: read-only aggregation of repeated events
+				// (severity/reason/resource groups + trend + window). Bounded and
+				// fail-closed; no writes.
+				reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/events/cockpit", AuthRequired: true, Handler: resourcesAPI.eventCockpit, AuditAction: "kubernetes.events.cockpit.read", AuditResource: "EventCockpit"})
 				reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/deployments", Handler: resourcesAPI.deployments})
 				reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/deployments/:namespace/:name", Handler: resourcesAPI.deployment})
 				reg.register(resourceRoutes, RouteDescriptor{Method: "GET", Path: "/statefulsets", Handler: resourcesAPI.statefulSets})

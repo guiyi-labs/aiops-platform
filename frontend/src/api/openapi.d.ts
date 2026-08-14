@@ -985,6 +985,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/{cluster_id}/events/cockpit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * M114-2 event cockpit — bounded aggregation of repeated Kubernetes Events
+         * @description Read-only aggregation of Kubernetes Events grouped by severity, reason, namespace, kind and resource within a bounded time window. Returns deduplicated groups (event_count, raw_count, first_seen, last_seen, sample_message, resource deep-link UID), a per-day trend, and total counts. fail-closed: an empty window is reported with fail_closed=true and is never treated as healthy (M99-D visibility convention). All queries are bounded: window_minutes (1-10080, default 1440), max_groups (1-200, default 50) and page_limit (1-1000, default 500).
+         */
+        get: operations["eventCockpit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{cluster_id}/events/stream": {
         parameters: {
             query?: never;
@@ -6399,6 +6419,50 @@ export interface components {
             /** Format: date-time */
             observed_at: string;
         };
+        EventCockpitGroup: {
+            /** @enum {string} */
+            severity: "warning" | "info";
+            reason: string;
+            namespace: string;
+            kind: string;
+            resource_name: string;
+            resource_uid: string;
+            /**
+             * Format: int64
+             * @description Sum of k8s event.count across folded events
+             */
+            raw_count: number;
+            /** @description Number of distinct events folded into this group */
+            event_count: number;
+            /** Format: date-time */
+            first_seen: string;
+            /** Format: date-time */
+            last_seen: string;
+            sample_message: string;
+        };
+        EventCockpitTrendPoint: {
+            /** @description YYYY-MM-DD (UTC) */
+            day: string;
+            /** Format: int64 */
+            events: number;
+            groups: number;
+        };
+        EventCockpitResponse: {
+            scope: string;
+            /** Format: date-time */
+            observed_at?: string;
+            window_minutes: number;
+            groups_total: number;
+            groups: components["schemas"]["EventCockpitGroup"][];
+            trend: components["schemas"]["EventCockpitTrendPoint"][];
+            /** Format: int64 */
+            total_events: number;
+            /** Format: int64 */
+            total_raw_count: number;
+            /** @description True when the window has no events (never treated as healthy) */
+            fail_closed: boolean;
+            empty_note?: string;
+        };
         InspectionCoverageResponse: {
             /** @description Resource-context scope (what this aggregation covers) */
             scope: string;
@@ -9130,6 +9194,37 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Ok"];
+        };
+    };
+    eventCockpit: {
+        parameters: {
+            query?: {
+                /** @description Trailing minutes to aggregate */
+                window_minutes?: number;
+                /** @description Cap on returned groups */
+                max_groups?: number;
+                /** @description Events fetched per namespace */
+                page_limit?: number;
+            };
+            header?: never;
+            path: {
+                cluster_id: components["parameters"]["ClusterID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event cockpit aggregation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventCockpitResponse"];
+                };
+            };
+            400: components["responses"]["Error"];
+            503: components["responses"]["Error"];
         };
     };
     streamClusterEvents: {

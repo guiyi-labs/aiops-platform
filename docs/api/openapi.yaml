@@ -521,6 +521,26 @@ paths:
     get: { tags: [kubernetes], summary: List pods, operationId: listPods, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }, { name: namespace, in: query, schema: { type: string } }, { $ref: '#/components/parameters/WorkspaceIDQuery' }, { name: name, in: query, schema: { type: string } }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/clusters/{cluster_id}/events:
     get: { tags: [kubernetes], summary: List events, operationId: listEvents, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { name: namespace, in: query, schema: { type: string } }, { $ref: '#/components/parameters/WorkspaceIDQuery' }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/clusters/{cluster_id}/events/cockpit:
+    get:
+      tags: [kubernetes]
+      summary: M114-2 event cockpit — bounded aggregation of repeated Kubernetes Events
+      description: "Read-only aggregation of Kubernetes Events grouped by severity, reason, namespace, kind and resource within a bounded time window. Returns deduplicated groups (event_count, raw_count, first_seen, last_seen, sample_message, resource deep-link UID), a per-day trend, and total counts. fail-closed: an empty window is reported with fail_closed=true and is never treated as healthy (M99-D visibility convention). All queries are bounded: window_minutes (1-10080, default 1440), max_groups (1-200, default 50) and page_limit (1-1000, default 500)."
+      operationId: eventCockpit
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClusterID' }
+        - { name: window_minutes, in: query, schema: { type: integer, minimum: 1, maximum: 10080, default: 1440 }, description: Trailing minutes to aggregate }
+        - { name: max_groups, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 }, description: Cap on returned groups }
+        - { name: page_limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 500 }, description: Events fetched per namespace }
+      responses:
+        '200':
+          description: Event cockpit aggregation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventCockpitResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /api/v1/clusters/{cluster_id}/events/stream:
     get:
       tags: [kubernetes]
@@ -4220,6 +4240,47 @@ components:
         fingerprint: { type: string }
         evidence: { type: object, description: "Parsed JSON evidence snapshot" }
         observed_at: { type: string, format: date-time }
+    EventCockpitGroup:
+      type: object
+      required: [severity, reason, namespace, kind, resource_name, resource_uid, raw_count, event_count, first_seen, last_seen, sample_message]
+      properties:
+        severity: { type: string, enum: [warning, info] }
+        reason: { type: string }
+        namespace: { type: string }
+        kind: { type: string }
+        resource_name: { type: string }
+        resource_uid: { type: string }
+        raw_count: { type: integer, format: int64, description: Sum of k8s event.count across folded events }
+        event_count: { type: integer, description: Number of distinct events folded into this group }
+        first_seen: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time }
+        sample_message: { type: string }
+    EventCockpitTrendPoint:
+      type: object
+      required: [day, events, groups]
+      properties:
+        day: { type: string, description: YYYY-MM-DD (UTC) }
+        events: { type: integer, format: int64 }
+        groups: { type: integer }
+    EventCockpitResponse:
+      type: object
+      additionalProperties: false
+      required: [scope, window_minutes, groups_total, groups, trend, total_events, total_raw_count, fail_closed]
+      properties:
+        scope: { type: string }
+        observed_at: { type: string, format: date-time }
+        window_minutes: { type: integer }
+        groups_total: { type: integer }
+        groups:
+          type: array
+          items: { $ref: '#/components/schemas/EventCockpitGroup' }
+        trend:
+          type: array
+          items: { $ref: '#/components/schemas/EventCockpitTrendPoint' }
+        total_events: { type: integer, format: int64 }
+        total_raw_count: { type: integer, format: int64 }
+        fail_closed: { type: boolean, description: True when the window has no events (never treated as healthy) }
+        empty_note: { type: string }
     InspectionCoverageResponse:
       type: object
       additionalProperties: false

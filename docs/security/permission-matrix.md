@@ -17,11 +17,11 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 303 |
+| 路由总数 | 304 |
 | 角色受限 | 87 |
-| 已审计 | 179 |
+| 已审计 | 180 |
 | scope=workspace | 13 |
-| scope=cluster | 83 |
+| scope=cluster | 84 |
 | scope=namespace | 32 |
 | scope=none | 175 |
 | 角色 operations_admin | 66 |
@@ -166,6 +166,7 @@
 | POST | `/api/v1/clusters/:cluster_id/diagnoses/node_metrics` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/endpointslices` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/events` | any | cluster | - |
+| GET | `/api/v1/clusters/:cluster_id/events/cockpit` | any | cluster | kubernetes.events.cockpit.read |
 | GET | `/api/v1/clusters/:cluster_id/events/stream` | any | cluster | kubernetes.events.stream |
 | GET | `/api/v1/clusters/:cluster_id/gitops/applications` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/gitops/applications/:name` | any | cluster | - |

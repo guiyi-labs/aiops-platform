@@ -159,6 +159,39 @@ export interface KubernetesEvent {
 }
 export interface ListResponse<T> { items: T[]; total: number; remaining: number }
 
+export interface EventCockpitGroup {
+  severity: 'warning' | 'info'
+  reason: string
+  namespace: string
+  kind: string
+  resource_name: string
+  resource_uid: string
+  raw_count: number
+  event_count: number
+  first_seen: string
+  last_seen: string
+  sample_message: string
+}
+
+export interface EventCockpitTrendPoint {
+  day: string
+  events: number
+  groups: number
+}
+
+export interface EventCockpitResponse {
+  scope: string
+  observed_at?: string
+  window_minutes: number
+  groups_total: number
+  groups: EventCockpitGroup[]
+  trend: EventCockpitTrendPoint[]
+  total_events: number
+  total_raw_count: number
+  fail_closed: boolean
+  empty_note?: string
+}
+
 export interface VeleroCapability { installed: boolean; version?: string }
 
 export interface VeleroBackup {

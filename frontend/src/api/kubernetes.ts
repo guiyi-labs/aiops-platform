@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { BackupPlan, ConfigMapResource, CronJobResource, DaemonSetResource, Deployment, EndpointSliceResource, HorizontalPodAutoscalerResource, IngressResource, JobResource, KubernetesEvent, LimitRangeResource, ListResponse, MaintenanceAction, MaintenancePlan, Namespace, NamespacePosture, NodeMetric, NodeResource, PersistentVolume, PersistentVolumeClaim, Pod, PodContainerInfo, PodContainerLog, PodDisruptionBudgetResource, PodLogsResponse, PodMetric, NetworkPolicyResource, PostureListEntry, ReplicaSetResource, ResourceQuotaResource, RestorePlan, SecretResource, ServiceAccountResource, ServiceResource, StatefulSetResource, StorageClassResource, VeleroBackup, VeleroCapability } from '../types/kubernetes'
+import type { BackupPlan, ConfigMapResource, CronJobResource, DaemonSetResource, Deployment, EndpointSliceResource, EventCockpitResponse, HorizontalPodAutoscalerResource, IngressResource, JobResource, KubernetesEvent, LimitRangeResource, ListResponse, MaintenanceAction, MaintenancePlan, Namespace, NamespacePosture, NodeMetric, NodeResource, PersistentVolume, PersistentVolumeClaim, Pod, PodContainerInfo, PodContainerLog, PodDisruptionBudgetResource, PodLogsResponse, PodMetric, NetworkPolicyResource, PostureListEntry, ReplicaSetResource, ResourceQuotaResource, RestorePlan, SecretResource, ServiceAccountResource, ServiceResource, StatefulSetResource, StorageClassResource, VeleroBackup, VeleroCapability } from '../types/kubernetes'
 
 function queryString(values: Record<string, string | number | boolean | undefined>): string {
   const query = new URLSearchParams()
@@ -94,6 +94,10 @@ export function listPods(token: string, clusterID: number, namespace = '', name 
 
 export function listEvents(token: string, clusterID: number, namespace = '', name = ''): Promise<ListResponse<KubernetesEvent>> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/events${queryString({ namespace, name, limit: 100 })}`, token)
+}
+
+export function getEventCockpit(token: string, clusterID: number, params: { window_minutes?: number; max_groups?: number } = {}): Promise<EventCockpitResponse> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/events/cockpit${queryString(params)}`, token)
 }
 
 export function getNode(token: string, clusterID: number, name: string): Promise<NodeResource> {

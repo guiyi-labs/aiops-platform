@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M114-2 事件驾驶舱（重复事件按严重级/原因/资源聚合 + 趋势 + 深链）
+
+- 新增只读 `GET /api/v1/clusters/:cluster_id/events/cockpit?window_minutes=&max_groups=&page_limit=`：把 Kubernetes 原生事件按（严重级 warning/info、原因、命名空间、资源类型与名称）分组折叠，输出去重计数（event_count + raw_count 累计次数）、首次/最近发生时间、按天趋势与原始证据深链（resource_uid/kind/namespace/name + sample_message）。
+- 新增纯包 `internal/eventcockpit`（ADR 0004，无 cluster 访问、无写路径）：`Aggregate()` 窗口外事件过滤、严重级归一化、稳定排序后截断、按天趋势桶；fail-closed——窗口内无事件一律 `fail_closed=true` 且不视为健康（M99-D 契约）。
+- 全部查询有界：window_minutes（1–10080，默认 1440）、max_groups（1–200，默认 50）、page_limit（1–1000，默认 500）逐一校验（400 INVALID_*）。
+- 事件"事件中心"页新增"事件驾驶舱"面板：窗口切换（1h/6h/24h/7d）、fail-closed 黄色告警、三统计卡、聚合组表格（级别徽标/原因/资源/首末时间/折叠提示）、按天趋势柱形图（hover 显示日期/事件数/组数）；新增 `getEventCockpit` API + 客户端测试。
+- 授权复用 M35 命名空间粒度：AllNamespaces 查一次集群页；仅命名空间授权逐命名空间取页（失败跳过）；无写库路径（事件仍实时查 API Server）。
+- See [change record](docs/changes/2026-08-14-m114-2-event-cockpit.md)。
+
 ### Added - M113-3 巡检趋势与覆盖率度量（plan→findings 时间序列 + 规则命中覆盖率）
 
 - 新增只读 `GET /api/v1/aiops/inspection/coverage?window_days=7|30|90`：跨 `inspection_plans / inspection_tasks / inspection_results` 聚合，输出计划数/启用数、任务总数/完成/失败、定时 vs 手动触发分布、发现总数、去重命中规则码、严重级别分布、规则覆盖率（命中规则码 / 编译期目录大小）与每日趋势（任务数+发现数）。

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { getConfigMap, getCronJob, getDaemonSet, getDeployment, getHorizontalPodAutoscaler, getIngress, getJob, getLimitRange, getNode, getPersistentVolumeClaim, getPod, getPodLogs, getReplicaSet, getResourceQuota, getSecret, getService, getStatefulSet, getStorageClass, listConfigMaps, listCronJobs, listDaemonSets, listDeployments, listEndpointSlices, listEvents, listHorizontalPodAutoscalers, listIngresses, listJobs, listLimitRanges, listNodeMetrics, listNodes, listPersistentVolumeClaims, listPodMetrics, listPods, listReplicaSets, listResourceQuotas, listSecrets, listServices, listStatefulSets, listStorageClasses } from './kubernetes'
+import { getConfigMap, getCronJob, getDaemonSet, getDeployment, getEventCockpit, getHorizontalPodAutoscaler, getIngress, getJob, getLimitRange, getNode, getPersistentVolumeClaim, getPod, getPodLogs, getReplicaSet, getResourceQuota, getSecret, getService, getStatefulSet, getStorageClass, listConfigMaps, listCronJobs, listDaemonSets, listDeployments, listEndpointSlices, listEvents, listHorizontalPodAutoscalers, listIngresses, listJobs, listLimitRanges, listNodeMetrics, listNodes, listPersistentVolumeClaims, listPodMetrics, listPods, listReplicaSets, listResourceQuotas, listSecrets, listServices, listStatefulSets, listStorageClasses } from './kubernetes'
 
 describe('Kubernetes API client', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -143,5 +143,28 @@ describe('Kubernetes API client', () => {
       expect.stringContaining('/clusters/21/limitranges/team%20one/defaults%2Fv2'),
       expect.stringContaining('/clusters/21/secrets/team%20one/runtime%2Fv2'),
     ])
+  })
+
+  it('requests an event cockpit with correct params', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      scope: 'events:cockpit:window:1440m',
+      window_minutes: 1440,
+      groups_total: 0,
+      groups: [],
+      trend: [],
+      total_events: 0,
+      total_raw_count: 0,
+      fail_closed: true,
+      empty_note: 'no events found',
+    }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getEventCockpit('token', 9, { window_minutes: 60, max_groups: 30 })
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toContain('/clusters/9/events/cockpit')
+    expect(path).toContain('window_minutes=60')
+    expect(path).toContain('max_groups=30')
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token' })
   })
 })

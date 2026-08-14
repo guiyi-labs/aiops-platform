@@ -26,6 +26,7 @@ import * as clusterAPI from '../api/clusters'
 import * as optimizationAPI from '../api/optimization'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
+import FindingRunbookPanel from '../components/FindingRunbookPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type {
@@ -508,6 +509,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ rec.workload_name }}</div>
                       <div class="cell-sub muted">{{ rec.workload_kind }} · {{ rec.namespace }}</div>
                       <FindingEvidencePanel :finding="finopsFindingDetail(rec)" compact />
+                      <FindingRunbookPanel domain="finops" :code="rec.code" :kind="rec.workload_kind" :namespace="rec.namespace" :name="rec.workload_name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>{{ rec.container_name }}</td>
                     <td>{{ formatCPU(rec.suggested_requests.cpu_request) }}</td>
@@ -588,6 +590,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'cis')" compact />
+                      <FindingRunbookPanel domain="cis" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -691,6 +694,7 @@ onMounted(() => void loadClusters())
                     <td>
                       <div class="cell-main">{{ item.summary }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'deprecated_api')" compact />
+                      <FindingRunbookPanel domain="deprecated_api" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td><span :class="['phase-badge', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
                   </tr>
@@ -764,6 +768,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'network')" compact />
+                      <FindingRunbookPanel domain="network" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -842,6 +847,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'image')" compact />
+                      <FindingRunbookPanel domain="image" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -924,6 +930,7 @@ onMounted(() => void loadClusters())
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <div v-if="item.details?.field_count" class="cell-sub muted">{{ item.details.field_count }} 个字段不一致</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'gitops')" compact />
+                      <FindingRunbookPanel domain="gitops" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1009,6 +1016,7 @@ onMounted(() => void loadClusters())
                         <template v-if="item.details.days_to_saturation !== 'inf'"> · {{ item.details.days_to_saturation }} 天后耗尽</template>
                       </div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'capacity')" compact />
+                      <FindingRunbookPanel domain="capacity" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1087,6 +1095,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'policy')" compact />
+                      <FindingRunbookPanel domain="policy" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1167,6 +1176,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'hpa')" compact />
+                      <FindingRunbookPanel domain="hpa" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1248,6 +1258,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'pdb')" compact />
+                      <FindingRunbookPanel domain="pdb" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>
@@ -1328,6 +1339,7 @@ onMounted(() => void loadClusters())
                       <div class="cell-main">{{ item.summary }}</div>
                       <div v-if="item.details?.remediation" class="cell-sub muted">{{ item.details.remediation }}</div>
                       <FindingEvidencePanel :finding="findingDetail(item, 'ingress')" compact />
+                      <FindingRunbookPanel domain="ingress" :code="item.code" :kind="item.resource.kind" :namespace="item.resource.namespace" :name="item.resource.name" :cluster-id="selectedClusterID" />
                     </td>
                     <td>
                       <div class="cell-main">{{ item.resource.name }}</div>

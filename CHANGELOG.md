@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M113-1 Finding → Runbook 预览导航（优化中心闭环第一步）
+
+- 新增可复用只读组件 `FindingRunbookPanel.vue`：从任意 posture/optimization finding 一键跳转到对应 insight runbook（确定性诊断路由 → 巡检佐证 → AI 引用解释 deep-link → 受控操作 dry-run 预览），全程只读，零写操作。
+- 优化中心 11 个分析器 tab（FinOps/CIS/废弃API/网络/镜像/GitOps漂移/容量/策略/HPA/PDB/Ingress）的 finding 行全部接入"查看闭环"导航，复用既有 M81 `GET /api/v1/aiops/insight` 端点（无新增后端路由）。
+- 与 PostureView 既有闭环导航共享同一 M81 端点，行为一致；未选集群时按钮禁用不发请求，加载失败显示可重试错误。
+- See [change record](docs/changes/2026-08-14-m113-1-finding-runbook-nav.md)。
+
 ### Changed - 公开 README 基线与项目入口说明
 
 - 将旗舰仓库 README 首屏从 M93 更新至 M112，增加多集群运维、可观测诊断、事故响应、AI 辅助、

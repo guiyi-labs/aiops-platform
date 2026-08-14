@@ -56,6 +56,12 @@ PostgreSQL 默认映射到宿主机 `15432`，以避开 Windows/Hyper-V 常见�
 | `NOTIFICATION_RETRY_BASE` | 指数重试的基础延迟 | `10s` |
 | `NOTIFICATION_MAX_ATTEMPTS` | 进入 dead 状态前的最大尝试次数，1–20 | `5` |
 | `NOTIFICATION_BATCH_SIZE` | 每轮 claim 上限，1–100 | `10` |
+| `INCIDENT_SLA_MONITOR_ENABLED` | 是否启用事故 SLA 提醒与升级扫描 | `true` |
+| `INCIDENT_SLA_POLL_INTERVAL` | 事故 SLA 扫描间隔 | `30s` |
+| `INCIDENT_SLA_APPROACHING_WINDOW` | SLA 截止前的临近提醒窗口 | `15m` |
+| `INCIDENT_SLA_FIRST_ESCALATION_AFTER` | SLA 逾期后首次升级等待时间 | `30m` |
+| `INCIDENT_SLA_FINAL_ESCALATION_AFTER` | SLA 逾期后最终升级等待时间，必须大于首次升级 | `2h` |
+| `INCIDENT_SLA_BATCH_SIZE` | 每轮事故 SLA 扫描上限，1–100 | `20` |
 
 生产环境拒绝使用默认管理员口令。访问令牌只保存在前端内存中；刷新令牌由同源 HttpOnly、SameSite=Strict Cookie 保存。
 

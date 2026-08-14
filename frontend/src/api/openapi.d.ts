@@ -10254,7 +10254,8 @@ export interface operations {
             query?: {
                 diagnosis_id?: number;
                 incident_id?: number;
-                event_type?: "diagnosis.created" | "diagnosis.status_changed" | "diagnosis.assigned" | "incident.sla_approaching" | "incident.sla_breached";
+                event_type?: "diagnosis.created" | "diagnosis.status_changed" | "diagnosis.assigned" | "incident.sla_approaching" | "incident.sla_breached" | "incident.sla_escalated";
+                escalation_level?: number;
                 status?: "pending" | "delivering" | "delivered" | "dead";
                 limit?: components["parameters"]["Limit"];
             };

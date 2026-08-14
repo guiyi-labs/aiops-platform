@@ -10,11 +10,12 @@ import (
 // slaEnqueuer adapts the notification outbox to the incident SLA monitor.
 type slaEnqueuer struct{ service *notification.Service }
 
-func (e slaEnqueuer) EnqueueSLA(ctx context.Context, incidentID int64, eventType string, payload []byte) error {
+func (e slaEnqueuer) EnqueueSLA(ctx context.Context, incidentID int64, eventType string, escalationLevel int, payload []byte) error {
 	return e.service.Enqueue(ctx, notification.EnqueueInput{
-		IncidentID: incidentID,
-		EventType:  eventType,
-		Payload:    string(payload),
+		IncidentID:      incidentID,
+		EventType:       eventType,
+		EscalationLevel: escalationLevel,
+		Payload:         string(payload),
 	})
 }
 

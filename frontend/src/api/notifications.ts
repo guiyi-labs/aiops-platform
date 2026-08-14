@@ -5,6 +5,7 @@ export type NotificationFilters = {
   diagnosisID?: number
   incidentID?: number
   eventType?: NotificationEventType | ''
+  escalationLevel?: number
   status?: NotificationDeliveryStatus | ''
   limit?: number
 }
@@ -14,6 +15,7 @@ export function listNotificationDeliveries(token: string, filters: NotificationF
   if (filters.diagnosisID) query.set('diagnosis_id', String(filters.diagnosisID))
   if (filters.incidentID) query.set('incident_id', String(filters.incidentID))
   if (filters.eventType) query.set('event_type', filters.eventType)
+  if (filters.escalationLevel !== undefined) query.set('escalation_level', String(filters.escalationLevel))
   if (filters.status) query.set('status', filters.status)
   return authorizedRequest(`/api/v1/notification-deliveries?${query}`, token)
 }

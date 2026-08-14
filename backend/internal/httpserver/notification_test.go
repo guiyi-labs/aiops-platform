@@ -15,6 +15,7 @@ import (
 
 type notificationRepositoryStub struct {
 	response notification.ListResponse
+	filter   notification.ListFilter
 	retryID  int64
 	retryErr error
 }
@@ -32,7 +33,8 @@ func (s *notificationRepositoryStub) MarkDelivered(context.Context, int64, time.
 func (s *notificationRepositoryStub) MarkFailed(context.Context, int64, int, time.Time, string) error {
 	return nil
 }
-func (s *notificationRepositoryStub) List(context.Context, notification.ListFilter) (notification.ListResponse, error) {
+func (s *notificationRepositoryStub) List(_ context.Context, filter notification.ListFilter) (notification.ListResponse, error) {
+	s.filter = filter
 	return s.response, nil
 }
 func (s *notificationRepositoryStub) Retry(_ context.Context, id int64) error {
@@ -104,5 +106,21 @@ func TestNotificationListRejectsUnsupportedEventType(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/notification-deliveries?event_type=unknown.event", nil))
 	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "INVALID_QUERY") {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestNotificationListAcceptsEscalationLevel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repository := &notificationRepositoryStub{response: notification.ListResponse{Items: []notification.Delivery{{ID: 1, IncidentID: 10, EventType: notification.EventTypeIncidentSLAEscalated, EscalationLevel: 2}}, Total: 1}}
+	service := notification.NewService(notification.ServiceConfig{}, repository, nil)
+	router := gin.New()
+	router.GET("/api/v1/notification-deliveries", notificationHandler{service: service}.list)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/notification-deliveries?incident_id=10&event_type=incident.sla_escalated&escalation_level=2", nil))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"escalation_level":2`) {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if repository.filter.EscalationLevel == nil || *repository.filter.EscalationLevel != 2 || repository.filter.IncidentID != 10 || repository.filter.EventType != notification.EventTypeIncidentSLAEscalated {
+		t.Fatalf("filter = %#v", repository.filter)
 	}
 }

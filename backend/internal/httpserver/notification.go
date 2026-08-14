@@ -28,10 +28,19 @@ func (h notificationHandler) list(c *gin.Context) {
 	switch eventType {
 	case "", notification.EventTypeDiagnosisCreated, notification.EventTypeDiagnosisStatusChange,
 		notification.EventTypeDiagnosisAssigned, notification.EventTypeIncidentSLAApproach,
-		notification.EventTypeIncidentSLABreached:
+		notification.EventTypeIncidentSLABreached, notification.EventTypeIncidentSLAEscalated:
 	default:
 		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "event_type is not supported")
 		return
+	}
+	var escalationLevel *int
+	if value := strings.TrimSpace(c.Query("escalation_level")); value != "" {
+		parsed, parseErr := strconv.Atoi(value)
+		if parseErr != nil || parsed < 0 || parsed > 2 {
+			writeError(c, http.StatusBadRequest, "INVALID_QUERY", "escalation_level must be between 0 and 2")
+			return
+		}
+		escalationLevel = &parsed
 	}
 	status := strings.TrimSpace(c.Query("status"))
 	if status != "" && status != "pending" && status != "delivering" && status != "delivered" && status != "dead" {
@@ -43,7 +52,7 @@ func (h notificationHandler) list(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "limit must be between 1 and 100")
 		return
 	}
-	response, err := h.service.List(c.Request.Context(), notification.ListFilter{DiagnosisID: diagnosisID, IncidentID: incidentID, EventType: eventType, Status: status, Limit: limit})
+	response, err := h.service.List(c.Request.Context(), notification.ListFilter{DiagnosisID: diagnosisID, IncidentID: incidentID, EventType: eventType, EscalationLevel: escalationLevel, Status: status, Limit: limit})
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to list notification deliveries")
 		return

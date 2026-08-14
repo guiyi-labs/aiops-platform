@@ -28,6 +28,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 事故详情抽屉新增响应步骤区块，并同步 OpenAPI、typegen、权限矩阵与 API 客户端。
 - See [change record](docs/changes/2026-08-14-m111-incident-runbook.md)。
 
+### Added - M111 事故 SLA 有界升级链
+
+- 事故 SLA 监控在临近/逾期提醒之后增加首次、最终两级升级；默认在逾期 30 分钟和 2 小时触发，
+  仅针对仍处于 `open` / `confirmed` 的未解决事故，级别有界且可配置。
+- 通知 outbox 增加 `escalation_level` 与 `(incident_id, event_type, escalation_level)` 幂等键，
+  升级 payload 记录级别、阶段、原因；重复扫描不会重复投递，通知记录可作为升级审计。
+- 通知查询支持 `incident.sla_escalated` 与 `escalation_level` 过滤，前端通知中心展示升级级别；同步迁移
+  `000047`、OpenAPI/typegen、配置模板和部署清单。
+- See [change record](docs/changes/2026-08-14-m111-sla-escalation.md)。
+
 ### Fixed - CI Backend lint：aiexplain 测试桩无效赋值（SA4005）
 
 - `golangci-lint` staticcheck 曾以 `SA4005` 报

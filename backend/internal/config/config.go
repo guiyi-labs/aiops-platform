@@ -16,64 +16,66 @@ const (
 )
 
 type Config struct {
-	Environment                string
-	HTTPAddress                string
-	DatabaseURL                string
-	ShutdownTimeout            time.Duration
-	ReadHeaderTimeout          time.Duration
-	ReadTimeout                time.Duration
-	WriteTimeout               time.Duration
-	IdleTimeout                time.Duration
-	JWTSigningKey              string
-	AccessTokenTTL             time.Duration
-	RefreshTokenTTL            time.Duration
-	BootstrapUsername          string
-	BootstrapPassword          string
-	SecureCookies              bool
-	CredentialEncryptionKey    string
-	CredentialKeyVersion       string
-	CredentialDecryptionKeys   map[string]string
-	ClusterProbeTimeout        time.Duration
-	MetricsHistoryEnabled      bool
-	MetricsHistoryRetention    time.Duration
-	MetricsCollectionInterval  time.Duration
-	MetricsCollectionTimeout   time.Duration
-	MetricsCleanupInterval     time.Duration
-	MetricsMaxClusters         int
-	MetricsMaxConcurrency      int
-	CorrelationInterval        time.Duration
-	AIEnabled                  bool
-	AIBaseURL                  string
-	AIAPIKey                   string
-	AIModel                    string
-	AIRequestTimeout           time.Duration
-	AIDailyTokenBudget         int
-	AIMaxConcurrentRequests    int
-	AIMaxOutputTokens          int
-	NotificationEnabled        bool
-	NotificationWebhookURL     string
-	NotificationWebhookSecret  string
-	NotificationPollInterval   time.Duration
-	NotificationRequestTimeout time.Duration
-	NotificationRetryBase      time.Duration
-	NotificationMaxAttempts    int
-	NotificationBatchSize      int
-	IncidentSLAMonitorEnabled  bool
-	IncidentSLAPollInterval    time.Duration
-	IncidentSLAApproachingWin  time.Duration
-	IncidentSLABatchSize       int
-	AlertEnabled               bool
-	AlertPollInterval          time.Duration
-	AlertClaimBatch            int
-	AlertWorkerConcurrency     int
-	AlertEvaluationTimeout     time.Duration
-	AlertClaimLease            time.Duration
-	AlertMinEvaluationInterval time.Duration
-	AlertMaxRulesPerCluster    int
-	Capability                 CapabilityConfig
-	AlertRoute                 AlertRouteConfig
-	OIDC                       OIDCConfig
-	Signal                     SignalConfig
+	Environment                     string
+	HTTPAddress                     string
+	DatabaseURL                     string
+	ShutdownTimeout                 time.Duration
+	ReadHeaderTimeout               time.Duration
+	ReadTimeout                     time.Duration
+	WriteTimeout                    time.Duration
+	IdleTimeout                     time.Duration
+	JWTSigningKey                   string
+	AccessTokenTTL                  time.Duration
+	RefreshTokenTTL                 time.Duration
+	BootstrapUsername               string
+	BootstrapPassword               string
+	SecureCookies                   bool
+	CredentialEncryptionKey         string
+	CredentialKeyVersion            string
+	CredentialDecryptionKeys        map[string]string
+	ClusterProbeTimeout             time.Duration
+	MetricsHistoryEnabled           bool
+	MetricsHistoryRetention         time.Duration
+	MetricsCollectionInterval       time.Duration
+	MetricsCollectionTimeout        time.Duration
+	MetricsCleanupInterval          time.Duration
+	MetricsMaxClusters              int
+	MetricsMaxConcurrency           int
+	CorrelationInterval             time.Duration
+	AIEnabled                       bool
+	AIBaseURL                       string
+	AIAPIKey                        string
+	AIModel                         string
+	AIRequestTimeout                time.Duration
+	AIDailyTokenBudget              int
+	AIMaxConcurrentRequests         int
+	AIMaxOutputTokens               int
+	NotificationEnabled             bool
+	NotificationWebhookURL          string
+	NotificationWebhookSecret       string
+	NotificationPollInterval        time.Duration
+	NotificationRequestTimeout      time.Duration
+	NotificationRetryBase           time.Duration
+	NotificationMaxAttempts         int
+	NotificationBatchSize           int
+	IncidentSLAMonitorEnabled       bool
+	IncidentSLAPollInterval         time.Duration
+	IncidentSLAApproachingWin       time.Duration
+	IncidentSLAFirstEscalationAfter time.Duration
+	IncidentSLAFinalEscalationAfter time.Duration
+	IncidentSLABatchSize            int
+	AlertEnabled                    bool
+	AlertPollInterval               time.Duration
+	AlertClaimBatch                 int
+	AlertWorkerConcurrency          int
+	AlertEvaluationTimeout          time.Duration
+	AlertClaimLease                 time.Duration
+	AlertMinEvaluationInterval      time.Duration
+	AlertMaxRulesPerCluster         int
+	Capability                      CapabilityConfig
+	AlertRoute                      AlertRouteConfig
+	OIDC                            OIDCConfig
+	Signal                          SignalConfig
 }
 
 // allowedOIDCRoleCodes mirrors auth.SystemAdmin/OperationsAdmin/SecurityAuditor/
@@ -313,7 +315,15 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if incidentSLAPollInterval <= 0 || incidentSLAApproachingWindow <= 0 {
+	incidentSLAFirstEscalationAfter, err := durationFromEnv("INCIDENT_SLA_FIRST_ESCALATION_AFTER", 30*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+	incidentSLAFinalEscalationAfter, err := durationFromEnv("INCIDENT_SLA_FINAL_ESCALATION_AFTER", 2*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	if incidentSLAPollInterval <= 0 || incidentSLAApproachingWindow <= 0 || incidentSLAFirstEscalationAfter <= 0 || incidentSLAFinalEscalationAfter <= incidentSLAFirstEscalationAfter {
 		return Config{}, fmt.Errorf("incident SLA monitor intervals must be positive")
 	}
 	incidentSLABatchSize, err := intFromEnv("INCIDENT_SLA_BATCH_SIZE", 20, 1, 100)
@@ -439,64 +449,66 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		Environment:                environment,
-		HTTPAddress:                stringFromEnv("HTTP_ADDR", defaultHTTPAddress),
-		DatabaseURL:                stringFromEnv("DATABASE_URL", defaultDatabaseURL),
-		ShutdownTimeout:            shutdownTimeout,
-		ReadHeaderTimeout:          5 * time.Second,
-		ReadTimeout:                15 * time.Second,
-		WriteTimeout:               30 * time.Second,
-		IdleTimeout:                60 * time.Second,
-		JWTSigningKey:              jwtSigningKey,
-		AccessTokenTTL:             accessTokenTTL,
-		RefreshTokenTTL:            refreshTokenTTL,
-		BootstrapUsername:          stringFromEnv("BOOTSTRAP_ADMIN_USERNAME", "admin"),
-		BootstrapPassword:          bootstrapPassword,
-		SecureCookies:              environment == "production",
-		CredentialEncryptionKey:    credentialKey,
-		CredentialKeyVersion:       credentialKeyVersion,
-		CredentialDecryptionKeys:   credentialDecryptionKeys,
-		ClusterProbeTimeout:        clusterProbeTimeout,
-		MetricsHistoryEnabled:      metricsHistoryEnabled,
-		MetricsHistoryRetention:    metricsHistoryRetention,
-		MetricsCollectionInterval:  metricsCollectionInterval,
-		MetricsCollectionTimeout:   metricsCollectionTimeout,
-		MetricsCleanupInterval:     metricsCleanupInterval,
-		MetricsMaxClusters:         metricsMaxClusters,
-		MetricsMaxConcurrency:      metricsMaxConcurrency,
-		CorrelationInterval:        correlationInterval,
-		AIEnabled:                  aiEnabled,
-		AIBaseURL:                  aiBaseURL,
-		AIAPIKey:                   aiAPIKey,
-		AIModel:                    stringFromEnv("AI_MODEL", "gpt-5.4-mini"),
-		AIRequestTimeout:           aiRequestTimeout,
-		AIDailyTokenBudget:         aiDailyTokenBudget,
-		AIMaxConcurrentRequests:    aiMaxConcurrentRequests,
-		AIMaxOutputTokens:          aiMaxOutputTokens,
-		NotificationEnabled:        notificationEnabled,
-		NotificationWebhookURL:     notificationWebhookURL,
-		NotificationWebhookSecret:  notificationWebhookSecret,
-		NotificationPollInterval:   notificationPollInterval,
-		NotificationRequestTimeout: notificationRequestTimeout,
-		NotificationRetryBase:      notificationRetryBase,
-		NotificationMaxAttempts:    notificationMaxAttempts,
-		NotificationBatchSize:      notificationBatchSize,
-		IncidentSLAMonitorEnabled:  incidentSLAMonitorEnabled,
-		IncidentSLAPollInterval:    incidentSLAPollInterval,
-		IncidentSLAApproachingWin:  incidentSLAApproachingWindow,
-		IncidentSLABatchSize:       incidentSLABatchSize,
-		AlertEnabled:               alertEnabled,
-		AlertPollInterval:          alertPollInterval,
-		AlertClaimBatch:            alertClaimBatch,
-		AlertWorkerConcurrency:     alertWorkerConcurrency,
-		AlertEvaluationTimeout:     alertEvaluationTimeout,
-		AlertClaimLease:            alertClaimLease,
-		AlertMinEvaluationInterval: alertMinEvalInterval,
-		AlertMaxRulesPerCluster:    alertMaxRulesPerCluster,
-		Capability:                 capabilityCfg,
-		AlertRoute:                 alertRouteCfg,
-		OIDC:                       oidcCfg,
-		Signal:                     signalCfg,
+		Environment:                     environment,
+		HTTPAddress:                     stringFromEnv("HTTP_ADDR", defaultHTTPAddress),
+		DatabaseURL:                     stringFromEnv("DATABASE_URL", defaultDatabaseURL),
+		ShutdownTimeout:                 shutdownTimeout,
+		ReadHeaderTimeout:               5 * time.Second,
+		ReadTimeout:                     15 * time.Second,
+		WriteTimeout:                    30 * time.Second,
+		IdleTimeout:                     60 * time.Second,
+		JWTSigningKey:                   jwtSigningKey,
+		AccessTokenTTL:                  accessTokenTTL,
+		RefreshTokenTTL:                 refreshTokenTTL,
+		BootstrapUsername:               stringFromEnv("BOOTSTRAP_ADMIN_USERNAME", "admin"),
+		BootstrapPassword:               bootstrapPassword,
+		SecureCookies:                   environment == "production",
+		CredentialEncryptionKey:         credentialKey,
+		CredentialKeyVersion:            credentialKeyVersion,
+		CredentialDecryptionKeys:        credentialDecryptionKeys,
+		ClusterProbeTimeout:             clusterProbeTimeout,
+		MetricsHistoryEnabled:           metricsHistoryEnabled,
+		MetricsHistoryRetention:         metricsHistoryRetention,
+		MetricsCollectionInterval:       metricsCollectionInterval,
+		MetricsCollectionTimeout:        metricsCollectionTimeout,
+		MetricsCleanupInterval:          metricsCleanupInterval,
+		MetricsMaxClusters:              metricsMaxClusters,
+		MetricsMaxConcurrency:           metricsMaxConcurrency,
+		CorrelationInterval:             correlationInterval,
+		AIEnabled:                       aiEnabled,
+		AIBaseURL:                       aiBaseURL,
+		AIAPIKey:                        aiAPIKey,
+		AIModel:                         stringFromEnv("AI_MODEL", "gpt-5.4-mini"),
+		AIRequestTimeout:                aiRequestTimeout,
+		AIDailyTokenBudget:              aiDailyTokenBudget,
+		AIMaxConcurrentRequests:         aiMaxConcurrentRequests,
+		AIMaxOutputTokens:               aiMaxOutputTokens,
+		NotificationEnabled:             notificationEnabled,
+		NotificationWebhookURL:          notificationWebhookURL,
+		NotificationWebhookSecret:       notificationWebhookSecret,
+		NotificationPollInterval:        notificationPollInterval,
+		NotificationRequestTimeout:      notificationRequestTimeout,
+		NotificationRetryBase:           notificationRetryBase,
+		NotificationMaxAttempts:         notificationMaxAttempts,
+		NotificationBatchSize:           notificationBatchSize,
+		IncidentSLAMonitorEnabled:       incidentSLAMonitorEnabled,
+		IncidentSLAPollInterval:         incidentSLAPollInterval,
+		IncidentSLAApproachingWin:       incidentSLAApproachingWindow,
+		IncidentSLAFirstEscalationAfter: incidentSLAFirstEscalationAfter,
+		IncidentSLAFinalEscalationAfter: incidentSLAFinalEscalationAfter,
+		IncidentSLABatchSize:            incidentSLABatchSize,
+		AlertEnabled:                    alertEnabled,
+		AlertPollInterval:               alertPollInterval,
+		AlertClaimBatch:                 alertClaimBatch,
+		AlertWorkerConcurrency:          alertWorkerConcurrency,
+		AlertEvaluationTimeout:          alertEvaluationTimeout,
+		AlertClaimLease:                 alertClaimLease,
+		AlertMinEvaluationInterval:      alertMinEvalInterval,
+		AlertMaxRulesPerCluster:         alertMaxRulesPerCluster,
+		Capability:                      capabilityCfg,
+		AlertRoute:                      alertRouteCfg,
+		OIDC:                            oidcCfg,
+		Signal:                          signalCfg,
 	}, nil
 }
 

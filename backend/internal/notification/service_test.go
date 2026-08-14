@@ -149,7 +149,7 @@ func TestRetryDelayIsExponentiallyBounded(t *testing.T) {
 func TestServiceEnqueueForwardsToRepository(t *testing.T) {
 	repository := &repositoryStub{}
 	service := NewService(ServiceConfig{}, repository, nil)
-	input := EnqueueInput{IncidentID: 9, EventType: EventTypeIncidentSLABreached, Payload: `{"event":"incident.sla_breached"}`}
+	input := EnqueueInput{IncidentID: 9, EventType: EventTypeIncidentSLAEscalated, EscalationLevel: 2, Payload: `{"event":"incident.sla_escalated"}`}
 	if err := service.Enqueue(context.Background(), input); err != nil {
 		t.Fatalf("Enqueue() error = %v", err)
 	}

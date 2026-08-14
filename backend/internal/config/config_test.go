@@ -31,6 +31,9 @@ func TestLoadDefaults(t *testing.T) {
 		cfg.MetricsCleanupInterval != time.Hour || cfg.MetricsMaxClusters != 20 || cfg.MetricsMaxConcurrency != 4 {
 		t.Fatalf("unexpected metrics history defaults: %#v", cfg)
 	}
+	if cfg.IncidentSLAFirstEscalationAfter != 30*time.Minute || cfg.IncidentSLAFinalEscalationAfter != 2*time.Hour {
+		t.Fatalf("unexpected incident SLA escalation defaults: %#v", cfg)
+	}
 }
 
 func TestLoadParsesCredentialDecryptionKeys(t *testing.T) {
@@ -188,6 +191,14 @@ func TestLoadRejectsInsecureProductionNotificationWebhook(t *testing.T) {
 	t.Setenv("NOTIFICATION_WEBHOOK_SECRET", "0123456789abcdef0123456789abcdef")
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want HTTPS notification webhook error")
+	}
+}
+
+func TestLoadRejectsInvalidIncidentSLAEscalationOrder(t *testing.T) {
+	t.Setenv("INCIDENT_SLA_FIRST_ESCALATION_AFTER", "2h")
+	t.Setenv("INCIDENT_SLA_FINAL_ESCALATION_AFTER", "30m")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want invalid SLA escalation order")
 	}
 }
 

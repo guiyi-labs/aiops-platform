@@ -29,28 +29,29 @@ func (r *GormRepository) SetEnabled(ctx context.Context, enabled bool) error {
 }
 
 type storedDelivery struct {
-	ID            int64
-	DiagnosisID   sql.NullInt64
-	IncidentID    sql.NullInt64
-	EventType     string
-	Payload       string
-	Status        string
-	Attempts      int
-	NextAttemptAt time.Time
-	DeliveredAt   sql.NullTime
-	LastError     string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              int64
+	DiagnosisID     sql.NullInt64
+	IncidentID      sql.NullInt64
+	EventType       string
+	EscalationLevel int
+	Payload         string
+	Status          string
+	Attempts        int
+	NextAttemptAt   time.Time
+	DeliveredAt     sql.NullTime
+	LastError       string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 // Enqueue writes one delivery into the outbox. Incident SLA events are
-// deduplicated by the partial unique index on (incident_id, event_type), so a
-// re-run of the SLA monitor never duplicates reminders.
+// deduplicated by the partial unique index on (incident_id, event_type,
+// escalation_level), so a re-run of the SLA monitor never duplicates reminders.
 func (r *GormRepository) Enqueue(ctx context.Context, input EnqueueInput) error {
-	return r.db.WithContext(ctx).Exec(`INSERT INTO notification_deliveries (diagnosis_id, incident_id, event_type, payload)
-		VALUES (NULLIF(?, 0), NULLIF(?, 0), ?, ?::jsonb)
-		ON CONFLICT (incident_id, event_type) WHERE incident_id IS NOT NULL DO NOTHING`,
-		input.DiagnosisID, input.IncidentID, input.EventType, input.Payload).Error
+	return r.db.WithContext(ctx).Exec(`INSERT INTO notification_deliveries (diagnosis_id, incident_id, event_type, escalation_level, payload)
+		VALUES (NULLIF(?, 0), NULLIF(?, 0), ?, ?, ?::jsonb)
+		ON CONFLICT (incident_id, event_type, escalation_level) WHERE incident_id IS NOT NULL DO NOTHING`,
+		input.DiagnosisID, input.IncidentID, input.EventType, input.EscalationLevel, input.Payload).Error
 }
 
 func (r *GormRepository) Claim(ctx context.Context, limit int, staleBefore time.Time) ([]Delivery, error) {
@@ -67,7 +68,8 @@ func (r *GormRepository) Claim(ctx context.Context, limit int, staleBefore time.
 	SET status = 'delivering', locked_at = NOW(), updated_at = NOW()
 	FROM candidates
 	WHERE delivery.id = candidates.id
-	RETURNING delivery.id, delivery.diagnosis_id, delivery.event_type,
+		RETURNING delivery.id, delivery.diagnosis_id, delivery.incident_id, delivery.event_type,
+		delivery.escalation_level,
 		delivery.payload::text AS payload, delivery.status, delivery.attempts,
 		delivery.next_attempt_at, delivery.delivered_at, delivery.last_error,
 		delivery.created_at, delivery.updated_at`, staleBefore, limit).Scan(&stored).Error
@@ -120,6 +122,10 @@ func (r *GormRepository) List(ctx context.Context, filter ListFilter) (ListRespo
 		conditions = append(conditions, "event_type = ?")
 		args = append(args, filter.EventType)
 	}
+	if filter.EscalationLevel != nil {
+		conditions = append(conditions, "escalation_level = ?")
+		args = append(args, *filter.EscalationLevel)
+	}
 	if filter.Status != "" {
 		conditions = append(conditions, "status = ?")
 		args = append(args, filter.Status)
@@ -134,7 +140,7 @@ func (r *GormRepository) List(ctx context.Context, filter ListFilter) (ListRespo
 	}
 	queryArgs := append(append([]any(nil), args...), filter.Limit)
 	var stored []storedDelivery
-	if err := r.db.WithContext(ctx).Raw(`SELECT id, diagnosis_id, incident_id, event_type, payload::text AS payload,
+	if err := r.db.WithContext(ctx).Raw(`SELECT id, diagnosis_id, incident_id, event_type, escalation_level, payload::text AS payload,
 		status, attempts, next_attempt_at, delivered_at, last_error, created_at, updated_at
 		FROM notification_deliveries`+where+` ORDER BY created_at DESC, id DESC LIMIT ?`, queryArgs...).Scan(&stored).Error; err != nil {
 		return ListResponse{}, err
@@ -171,7 +177,7 @@ func decodeDeliveries(stored []storedDelivery) []Delivery {
 	items := make([]Delivery, 0, len(stored))
 	for _, item := range stored {
 		delivery := Delivery{ID: item.ID, DiagnosisID: item.DiagnosisID.Int64, IncidentID: item.IncidentID.Int64,
-			EventType: item.EventType, Status: item.Status, Attempts: item.Attempts,
+			EventType: item.EventType, EscalationLevel: item.EscalationLevel, Status: item.Status, Attempts: item.Attempts,
 			NextAttemptAt: item.NextAttemptAt, LastError: item.LastError,
 			CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt, Payload: []byte(item.Payload)}
 		if item.DeliveredAt.Valid {

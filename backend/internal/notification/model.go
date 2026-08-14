@@ -16,39 +16,43 @@ const (
 	EventTypeDiagnosisAssigned     = "diagnosis.assigned"
 	EventTypeIncidentSLAApproach   = "incident.sla_approaching"
 	EventTypeIncidentSLABreached   = "incident.sla_breached"
+	EventTypeIncidentSLAEscalated  = "incident.sla_escalated"
 )
 
 type Delivery struct {
-	ID            int64           `json:"id"`
-	DiagnosisID   int64           `json:"diagnosis_id,omitempty"`
-	IncidentID    int64           `json:"incident_id,omitempty"`
-	EventType     string          `json:"event_type"`
-	Status        string          `json:"status"`
-	Attempts      int             `json:"attempts"`
-	NextAttemptAt time.Time       `json:"next_attempt_at"`
-	DeliveredAt   *time.Time      `json:"delivered_at,omitempty"`
-	LastError     string          `json:"last_error,omitempty"`
-	CreatedAt     time.Time       `json:"created_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
-	Payload       json.RawMessage `json:"-"`
+	ID              int64           `json:"id"`
+	DiagnosisID     int64           `json:"diagnosis_id,omitempty"`
+	IncidentID      int64           `json:"incident_id,omitempty"`
+	EventType       string          `json:"event_type"`
+	EscalationLevel int             `json:"escalation_level,omitempty"`
+	Status          string          `json:"status"`
+	Attempts        int             `json:"attempts"`
+	NextAttemptAt   time.Time       `json:"next_attempt_at"`
+	DeliveredAt     *time.Time      `json:"delivered_at,omitempty"`
+	LastError       string          `json:"last_error,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	Payload         json.RawMessage `json:"-"`
 }
 
 // EnqueueInput is a single outbox delivery. Exactly one of DiagnosisID and
 // IncidentID should be set; incident events are deduplicated per
-// (incident_id, event_type) by a partial unique index.
+// (incident_id, event_type, escalation_level) by a partial unique index.
 type EnqueueInput struct {
-	DiagnosisID int64
-	IncidentID  int64
-	EventType   string
-	Payload     string
+	DiagnosisID     int64
+	IncidentID      int64
+	EventType       string
+	EscalationLevel int
+	Payload         string
 }
 
 type ListFilter struct {
-	DiagnosisID int64
-	IncidentID  int64
-	EventType   string
-	Status      string
-	Limit       int
+	DiagnosisID     int64
+	IncidentID      int64
+	EventType       string
+	EscalationLevel *int
+	Status          string
+	Limit           int
 }
 
 type ListResponse struct {

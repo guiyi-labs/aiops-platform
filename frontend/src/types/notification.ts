@@ -1,4 +1,4 @@
-export type NotificationEventType = 'diagnosis.created' | 'diagnosis.status_changed' | 'diagnosis.assigned'
+export type NotificationEventType = 'diagnosis.created' | 'diagnosis.status_changed' | 'diagnosis.assigned' | 'incident.sla_approaching' | 'incident.sla_breached' | 'incident.sla_escalated'
 export type NotificationDeliveryStatus = 'pending' | 'delivering' | 'delivered' | 'dead'
 
 export interface NotificationDelivery {
@@ -6,6 +6,7 @@ export interface NotificationDelivery {
   diagnosis_id?: number
   incident_id?: number
   event_type: NotificationEventType
+  escalation_level?: number
   status: NotificationDeliveryStatus
   attempts: number
   next_attempt_at: string

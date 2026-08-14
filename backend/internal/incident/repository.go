@@ -92,10 +92,10 @@ func (r *GormRepository) Create(ctx context.Context, record *Incident) error {
 }
 
 // ListSLAEligible returns open/confirmed incidents whose SLA deadline falls
-// within [dueAfter, dueBefore] and that have no notification delivery of the
-// given event type yet. Used by the SLA monitor; the caller decides whether a
-// deadline is approaching or breached.
-func (r *GormRepository) ListSLAEligible(ctx context.Context, eventType string, dueAfter, dueBefore time.Time, limit int) ([]SLACandidate, error) {
+// within [dueAfter, dueBefore] and that have no notification delivery for the
+// given event type and escalation level. Used by the SLA monitor; the caller
+// decides whether a deadline is approaching, breached, or escalated.
+func (r *GormRepository) ListSLAEligible(ctx context.Context, eventType string, escalationLevel int, dueAfter, dueBefore time.Time, limit int) ([]SLACandidate, error) {
 	if limit <= 0 {
 		limit = 50
 	}
@@ -123,11 +123,11 @@ func (r *GormRepository) ListSLAEligible(ctx context.Context, eventType string, 
 		  AND i.sla_due_at >= ?
 		  AND i.sla_due_at <= ?
 		  AND NOT EXISTS (
-		      SELECT 1 FROM notification_deliveries nd
-		      WHERE nd.incident_id = i.id AND nd.event_type = ?
+			  SELECT 1 FROM notification_deliveries nd
+		      WHERE nd.incident_id = i.id AND nd.event_type = ? AND nd.escalation_level = ?
 		  )
 		ORDER BY i.sla_due_at, i.id
-		LIMIT ?`, dueAfter, dueBefore, eventType, limit).Scan(&stored).Error
+		LIMIT ?`, dueAfter, dueBefore, eventType, escalationLevel, limit).Scan(&stored).Error
 	if err != nil {
 		return nil, err
 	}

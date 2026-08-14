@@ -446,10 +446,12 @@ func main() {
 	incidentSLAMonitor := incident.NewSLAMonitor(incident.SLAMonitorConfig{
 		// The SLA monitor feeds the notification webhook outbox, so it is only
 		// active when notifications are enabled (mirrors the diagnosis trigger).
-		Enabled:           cfg.IncidentSLAMonitorEnabled && cfg.NotificationEnabled,
-		PollInterval:      cfg.IncidentSLAPollInterval,
-		ApproachingWindow: cfg.IncidentSLAApproachingWin,
-		BatchSize:         cfg.IncidentSLABatchSize,
+		Enabled:              cfg.IncidentSLAMonitorEnabled && cfg.NotificationEnabled,
+		PollInterval:         cfg.IncidentSLAPollInterval,
+		ApproachingWindow:    cfg.IncidentSLAApproachingWin,
+		FirstEscalationAfter: cfg.IncidentSLAFirstEscalationAfter,
+		FinalEscalationAfter: cfg.IncidentSLAFinalEscalationAfter,
+		BatchSize:            cfg.IncidentSLABatchSize,
 	}, incidentRepository, slaEnqueuer{service: notificationService}, logger)
 	backgroundContext, stopBackground := context.WithCancel(context.Background())
 	defer stopBackground()

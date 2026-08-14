@@ -17,26 +17,27 @@
 经 dry-run、确认、幂等和审计，凭据加密存储且未授权资源返回 404 以避免
 信息泄漏。
 
-## 当前基线（2026-08-09）
+## 当前基线（M112 · 2026-08-14）
 
-> **安全重写说明**：本仓库 Git 历史已执行安全脱敏重写（清除历史提交中的个人邮箱），所有 commit hash 和 tag hash 均已变更。文档中引用的旧 commit hash（如 `2d46588`、`cf20c66`、`0baf858`、`b1f52e0` 等）仅供历史归档参考，无法通过 `git checkout` / `git reset` 直接访问。如需定位对应里程碑，请使用 tag 名称（如 `baseline-m60-20260801`、`baseline-polish-20260808`）或按提交信息搜索。此外，文档中的 `<repo-root>`、`<local-refs>`、`<docker-data>` 为路径占位符，部署时需替换为实际路径。
+当前公开基线已推进至 **M112**。仓库把 Kubernetes 平台运维拆成可验证的工作链路，
+重点展示“发现问题 → 保留证据 → 辅助判断 → 受控处置 → 事故复盘”的工程闭环。
 
-当前功能基线处于 **M1–M93-C + W10–W12** 的状态：全局覆盖率 60.03%、CI 覆盖率门禁 60%，
-OpenAPI/typegen、Playwright、axe、bundle、真实 kind E2E 与发布签名 fail-closed 门禁均已落地；
-M91 完成大表虚拟滚动，M92 完成交互式登录页粒子网络与多集群拓扑视觉系统，M93-A 移除
-未经证实的登录前“实时”数字，M93-B1 完成认证状态联动、粒子生命周期与 SVG 节点修复，
-M93-B1.1 将登录页收敛为全视口控制平面场景，M93-C 进一步统一科技主题、增加可收起侧栏，
-并以永久路由底板消除导航白屏；确定性双视口 Playwright/axe 回归提升到 42/42。post-M45 路线完成 15 个里程碑
-（M46-M60：三层控制台与工作区多租户、多集群联邦、CRD 发现与只读浏览、
-监控大盘与日志探索器、有界事件流与告警抑制、智能巡检与服务网格只读、
-黄金质量回放、Helm 应用目录与受控部署、DevOps 只读与跨集群复制、签名
-出处与 Provider Registry），随后完成优化中心（M61-M78：FinOps 右配、
-CIS 合规、废弃 API、网络策略、镜像供应链、GitOps 漂移、容量趋势、
-Policy-as-Code、HPA/PDB/Ingress 姿态等 18 个纯只读分析器与统一控制台）。
-CI 全量通过；完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，安全策略见
-[`SECURITY.md`](SECURITY.md)，里程碑归档见 [`docs/changes/`](docs/changes/)，
-M78 之后的打磨路线见 [`docs/long-term-roadmap.md`](docs/long-term-roadmap.md)，M93-B2–M102 的
-12–16 周下一阶段执行计划见 [`docs/next-long-term-plan.md`](docs/next-long-term-plan.md)。
+| 方向 | 当前可验证能力 |
+|---|---|
+| 多集群运维 | 集群 / Namespace 授权、资源工作台、跨集群态势、CRD 只读浏览与全局搜索 |
+| 可观测与诊断 | 指标、日志、事件、SLO、确定性规则诊断、多信号关联与证据时间线 |
+| 事故响应 | 事故工作区、SLA / MTTA / MTTR、升级通知、Runbook、复盘 Markdown 导出 |
+| AI 辅助 | 引用校验的调查、引用式事故摘要、解释覆盖率与质量反馈只读大盘 |
+| 受控运维 | dry-run、人工确认、幂等执行、结果校验、审计；AI 不直接执行集群变更 |
+| 工程交付 | Go / Vue 全栈测试、OpenAPI/typegen、axe、响应式截图基线、CI 与供应链门禁 |
+
+M109 已将 CI 全局覆盖率门禁提升至 65%；M112 的后端测试、前端类型检查、Lint、测试与构建均已通过。
+完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，阶段记录见 [`docs/changes/`](docs/changes/)，
+当前执行路线见 [`docs/development-roadmap-post-m110.md`](docs/development-roadmap-post-m110.md)，
+论文与答辩材料见 [`docs/thesis/README.md`](docs/thesis/README.md)。
+
+> **项目边界**：当前仓库保持 RC 口径。生产 OIDC/MFA、真实组织环境的 HA / PITR、发布授权与远端
+> 基础设施演练仍需外部条件，不在本地基线中宣称已完成。
 
 ## 核心能力
 
@@ -48,7 +49,7 @@ M78 之后的打磨路线见 [`docs/long-term-roadmap.md`](docs/long-term-roadma
 - **服务网格只读**：VirtualService/DestinationRule 只读浏览与固定 Prometheus 模板流量指标投影（M52）。
 - **质量与交付**：黄金数据集回放与质量报告（M56）；编译时 Provider Registry 统一生命周期/健康/角色选择（M60）；Cosign keyless 签名与 SLSA provenance 占位（M59）。
 - **安全与治理**：四类角色、加密集群凭据、会话管理、平台审计、安全 CSV 导出（M20）；OIDC/MFA 离线就绪准入（M32）；Namespace 治理态势（M29）；RBAC 只读盘点（M34）；签名审计归档（M31）；凭据密钥再加密（M30）。
-- **交付门禁**：Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和；CI 强制 race 检测、golangci-lint、ESLint、60% 覆盖率基线（核心包 ≥70%）和 OpenAPI 破坏性变更检查；发布产出多架构 OCI 镜像、SPDX SBOM 和 SHA256 清单；许可 allowlist 强制；提供官方 Helm 图表与 Kustomize 双路径部署。
+- **交付门禁**：Go/Vitest、Docker Compose、Kustomize、真实 kind E2E、版本化打包与校验和；CI 强制 race 检测、golangci-lint、ESLint、65% 覆盖率门禁（核心包 ≥70%）和 OpenAPI 破坏性变更检查；发布产出多架构 OCI 镜像、SPDX SBOM 和 SHA256 清单；许可 allowlist 强制；提供官方 Helm 图表与 Kustomize 双路径部署。
 
 ## 技术栈
 
@@ -57,11 +58,9 @@ M78 之后的打磨路线见 [`docs/long-term-roadmap.md`](docs/long-term-roadma
 - Runtime：Docker Compose、Kustomize、Helm 3、kind、NGINX
 - Delivery：GitHub Actions、Dependabot、actionlint、golangci-lint、ESLint、oasdiff、syft SBOM、Cosign、多架构 OCI 归档
 
-功能型 MVP 主链路已闭环并完成生产安全加固与 post-M45 全栈能力扩展。完整
-架构、设计决策、测试矩阵和阶段归档见 [`docs/`](docs/README.md)。
-
-生产 OIDC/MFA、物理/WAL PITR、HA 切换和远端 release 仍需组织授权与基础设施，
-不属于本地基线的完成声明。Windows 主机缺少 `gcc`，race 检测由 CI (Linux) 覆盖。
+完整架构、设计决策、测试矩阵和阶段归档见 [`docs/`](docs/README.md)。Windows 主机缺少
+`gcc`，race 检测由 CI (Linux) 覆盖；生产环境能力边界以 [`SECURITY.md`](SECURITY.md)
+和 [`docs/testing/known-limitations.md`](docs/testing/known-limitations.md) 为准。
 
 ## Quick Start
 
@@ -182,13 +181,19 @@ CHANGELOG.md         Keep a Changelog 1.1.0 / SemVer 2.0.0 history
 - 所有高风险操作必须经过权限校验、人工确认并写入审计日志。
 - kubeconfig 和其他凭据不得提交到 Git。
 
+## Repository Notes
+
+- Git 历史已完成安全脱敏重写，清除了历史提交中的个人邮箱；历史文档中的旧 commit hash
+  仅用于归档参考，定位里程碑请优先使用 tag 名称和提交信息。
+- 文档中的 `<repo-root>`、`<local-refs>`、`<docker-data>` 是路径占位符，部署时需替换为实际路径。
+
 ## Reference Projects
 
 KRM 和 Ratel 仅用于需求、交互及部署思路参考。本仓库独立实现，不包含参考项目的应用源码或容器镜像内容。
 
-## Delivery Status（历史记录）
+## 早期里程碑索引（M1-M32）
 
-以下保留早期路线（M1-M32）决策摘要与证据链入口；当前状态以文首 2026-08-08 基线为准。
+以下仅保留早期路线的决策摘要；当前状态以文首 M112 基线和 [`CHANGELOG.md`](CHANGELOG.md) 为准。
 
 - **M1-M19**：核心资源只读链路、证据型诊断、受控操作目录（Deployment scale/restart、CronJob suspend/resume），全部经 dry-run、幂等和审计。
 - **M20-M26**：有界多集群健康 fan-out、全局搜索、用户私有筛选器、分层 CI/发布流水线、依赖治理、PostgreSQL 备份恢复、凭据再加密、签名审计归档、OIDC/MFA 就绪准入、恢复策略准入。

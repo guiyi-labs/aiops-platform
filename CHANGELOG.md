@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 公开 README 基线与项目入口说明
+
+- 将旗舰仓库 README 首屏从 M93 更新至 M112，增加多集群运维、可观测诊断、事故响应、AI 辅助、
+  受控运维和工程交付能力摘要。
+- 修正 CI 覆盖率门禁的过时表述（60% → 65%），并明确当前 RC 边界、生产条件限制及论文答辩材料入口。
+- 将历史安全脱敏说明和 M1-M32 早期路线下移，减少首屏维护信息对项目能力的干扰。
+- See [change record](docs/changes/2026-08-14-public-readme-baseline.md)。
+
 ### Added - M112-4 解释覆盖率大盘（AI 解释可用率 / 引用率 / 降级率只读展示）
 
 - 新增只读 `GET /api/v1/ai/coverage`，聚合 ai_explanations + ai_explanation_feedback 基线：解释可用率（有解释的 distinct 诊断）、引用率（带引用解释占比）、降级率（确定性 nop provider 占比）、质量反馈基线（好评率/贡献者/按模型）。

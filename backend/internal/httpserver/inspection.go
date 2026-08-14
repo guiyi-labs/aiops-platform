@@ -345,6 +345,28 @@ func (h inspectionHandler) getResult(c *gin.Context) {
 
 // --- helpers ---
 
+// coverage (M113-3) returns the read-only plan → findings coverage &
+// trend aggregation. The optional window_days query parameter bounds the
+// trailing window (default 30). Fail-closed: an empty window is reported as
+// such, never treated as healthy.
+func (h inspectionHandler) coverage(c *gin.Context) {
+	windowDays := 30
+	if raw := strings.TrimSpace(c.Query("window_days")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 365 {
+			writeError(c, http.StatusBadRequest, "INVALID_WINDOW", "window_days must be an integer between 1 and 365")
+			return
+		}
+		windowDays = parsed
+	}
+	summary, err := h.service.Coverage(c.Request.Context(), windowDays)
+	if err != nil {
+		writeInspectionError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, summary)
+}
+
 func writeInspectionError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, inspection.ErrPlanNotFound),

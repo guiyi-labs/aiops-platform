@@ -17,16 +17,16 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 291 |
-| 角色受限 | 84 |
-| 已审计 | 167 |
+| 路由总数 | 303 |
+| 角色受限 | 87 |
+| 已审计 | 179 |
 | scope=workspace | 13 |
-| scope=cluster | 82 |
+| scope=cluster | 83 |
 | scope=namespace | 32 |
-| scope=none | 164 |
-| 角色 operations_admin | 63 |
+| scope=none | 175 |
+| 角色 operations_admin | 66 |
 | 角色 security_auditor | 4 |
-| 角色 system_admin | 84 |
+| 角色 system_admin | 87 |
 
 ## 路由明细（按路径排序）
 
@@ -53,6 +53,17 @@
 | GET | `/api/v1/aiops/correlation/cases/timeline` | any | none | aiops.correlation.timeline.list |
 | GET | `/api/v1/aiops/correlation/rules` | any | none | aiops.correlation.rules.list |
 | GET | `/api/v1/aiops/insight` | any | none | aiops.insight.runbook.read |
+| GET | `/api/v1/aiops/inspection/coverage` | any | none | aiops.inspection.coverage.read |
+| GET | `/api/v1/aiops/inspection/plans` | any | none | aiops.inspection.plans.list |
+| POST | `/api/v1/aiops/inspection/plans` | `operations_admin`, `system_admin` | none | aiops.inspection.plans.create |
+| DELETE | `/api/v1/aiops/inspection/plans/:id` | `operations_admin`, `system_admin` | none | aiops.inspection.plans.delete |
+| GET | `/api/v1/aiops/inspection/plans/:id` | any | none | aiops.inspection.plans.read |
+| GET | `/api/v1/aiops/inspection/results` | any | none | aiops.inspection.results.list |
+| GET | `/api/v1/aiops/inspection/results/:id` | any | none | aiops.inspection.results.read |
+| GET | `/api/v1/aiops/inspection/rules/catalog` | any | none | aiops.inspection.rules_catalog.read |
+| POST | `/api/v1/aiops/inspection/run` | `operations_admin`, `system_admin` | none | aiops.inspection.run_once |
+| GET | `/api/v1/aiops/inspection/tasks` | any | none | aiops.inspection.tasks.list |
+| GET | `/api/v1/aiops/inspection/tasks/:id` | any | none | aiops.inspection.tasks.read |
 | GET | `/api/v1/aiops/investigator/cases/:case_id/investigations` | any | none | aiops.investigator.investigations.list |
 | POST | `/api/v1/aiops/investigator/cases/:case_id/investigations` | any | none | aiops.investigator.investigations.generate |
 | GET | `/api/v1/aiops/investigator/investigations/:id` | any | none | aiops.investigator.investigations.read |
@@ -163,6 +174,7 @@
 | GET | `/api/v1/clusters/:cluster_id/horizontalpodautoscalers/:namespace/:name` | any | namespace | - |
 | GET | `/api/v1/clusters/:cluster_id/ingresses` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/ingresses/:namespace/:name` | any | namespace | - |
+| GET | `/api/v1/clusters/:cluster_id/inspection/rules` | any | cluster | aiops.inspection.rules_effective.list |
 | GET | `/api/v1/clusters/:cluster_id/jobs` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/jobs/:namespace/:name` | any | namespace | - |
 | GET | `/api/v1/clusters/:cluster_id/limitranges` | any | cluster | - |

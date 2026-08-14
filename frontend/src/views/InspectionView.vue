@@ -9,12 +9,14 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  TrendingUp,
   X,
 } from 'lucide-vue-next'
 
 import {
   createInspectionPlan,
   deleteInspectionPlan,
+  getInspectionCoverage,
   listInspectionPlans,
   listInspectionResults,
   listInspectionRulesCatalog,
@@ -28,7 +30,7 @@ import ConsoleLayout from '../components/ConsoleLayout.vue'
 import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { CreateInspectionPlanRequest } from '../types/inspection'
-import type { InspectionPlanView, InspectionResultView, InspectionRule, InspectionTaskView } from '../types/inspection'
+import type { InspectionCoverageSummary, InspectionPlanView, InspectionResultView, InspectionRule, InspectionTaskView } from '../types/inspection'
 import type { Cluster } from '../types/cluster'
 import { fromInspectionResult } from '../utils/finding-detail'
 
@@ -54,6 +56,11 @@ const tasksLoading = ref(false)
 const tasksError = ref('')
 const resultsLoading = ref(false)
 const resultsError = ref('')
+
+const coverage = ref<InspectionCoverageSummary | null>(null)
+const coverageLoading = ref(false)
+const coverageError = ref('')
+const coverageWindowDays = ref(30)
 
 const selectedTaskId = ref<number | null>(null)
 const runningPlanId = ref<number | null>(null)
@@ -267,12 +274,32 @@ async function handleRunNow(plan: InspectionPlanView) {
   }
 }
 
+async function loadCoverage() {
+  coverageError.value = ''
+  coverageLoading.value = true
+  try {
+    coverage.value = await getInspectionCoverage(auth.accessToken, { window_days: coverageWindowDays.value })
+  } catch (err) {
+    coverageError.value = err instanceof APIError ? err.message : '加载覆盖率失败'
+  } finally {
+    coverageLoading.value = false
+  }
+}
+
+function trendBarHeight(point: { findings: number; tasks: number }): string {
+  // Scale the tallest bar to 100% of its track; a lone task with zero
+  // findings still renders a short stub so the day remains visible.
+  const max = Math.max(...coverage.value?.trend.map((p) => p.findings) ?? [1], 1)
+  const pct = max > 0 ? Math.max((point.findings / max) * 100, 6) : 6
+  return `${pct}%`
+}
+
 async function refreshAll() {
-  await Promise.all([loadPlans(), loadTasks()])
+  await Promise.all([loadPlans(), loadTasks(), loadCoverage()])
 }
 
 onMounted(async () => {
-  await Promise.all([loadClusters(), loadRules(), loadPlans(), loadTasks()])
+  await Promise.all([loadClusters(), loadRules(), loadPlans(), loadTasks(), loadCoverage()])
 })
 </script>
 
@@ -557,6 +584,95 @@ onMounted(async () => {
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- M113-3 巡检覆盖率与趋势 -->
+    <section class="section-block">
+      <header class="section-head">
+        <div class="section-head-title">
+          <TrendingUp :size="18" />
+          <h2>覆盖率与趋势</h2>
+          <span class="muted">近 {{ coverage?.window_days ?? 30 }} 天</span>
+        </div>
+        <div class="coverage-actions">
+          <label class="window-select">
+            <span class="muted">窗口</span>
+            <select v-model.number="coverageWindowDays" @change="loadCoverage">
+              <option :value="7">7 天</option>
+              <option :value="30">30 天</option>
+              <option :value="90">90 天</option>
+            </select>
+          </label>
+          <button type="button" class="icon-button" title="刷新覆盖率" aria-label="刷新覆盖率" :disabled="coverageLoading" @click="loadCoverage">
+            <RefreshCw :size="16" :class="{ spinning: coverageLoading }" />
+          </button>
+        </div>
+      </header>
+
+      <p v-if="coverageError" class="error-message">{{ coverageError }}</p>
+      <p v-else-if="coverage?.fail_closed" class="warn-message">
+        {{ coverage.empty_note }}——指标不健康，需先执行巡检产生数据。
+      </p>
+
+      <div v-if="coverage" class="coverage-grid">
+        <div class="coverage-card">
+          <span class="coverage-card-label">计划</span>
+          <strong class="coverage-card-value">{{ coverage.plan_total }}</strong>
+          <small class="muted">{{ coverage.plan_enabled }} 已启用</small>
+        </div>
+        <div class="coverage-card">
+          <span class="coverage-card-label">任务</span>
+          <strong class="coverage-card-value">{{ coverage.task_total }}</strong>
+          <small class="muted">{{ coverage.task_completed }} 完成 · {{ coverage.task_failed }} 失败</small>
+        </div>
+        <div class="coverage-card">
+          <span class="coverage-card-label">发现</span>
+          <strong class="coverage-card-value">{{ coverage.finding_total }}</strong>
+          <small class="muted">{{ coverage.task_scheduled }} 定时 / {{ coverage.task_manual }} 手动触发</small>
+        </div>
+        <div class="coverage-card">
+          <span class="coverage-card-label">规则覆盖率</span>
+          <strong class="coverage-card-value">{{ coverage.rule_coverage > 0 ? `${Math.round(coverage.rule_coverage * 100)}%` : '—' }}</strong>
+          <small class="muted">{{ coverage.distinct_rule_codes }} / {{ rules.length }} 规则命中</small>
+        </div>
+      </div>
+
+      <div v-if="coverage && !coverage.fail_closed" class="coverage-detail">
+        <div class="coverage-detail-col">
+          <h3>严重级别分布</h3>
+          <div v-if="Object.keys(coverage.by_severity).length === 0" class="panel-empty">暂无发现</div>
+          <table v-else class="compact-table severity-table">
+            <thead>
+              <tr>
+                <th>级别</th>
+                <th>数量</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(count, sev) in coverage.by_severity" :key="sev">
+                <td><span class="sev-badge" :class="severityClass(sev)">{{ sev }}</span></td>
+                <td class="mono">{{ count }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="coverage-detail-col">
+          <h3>每日趋势（发现数）</h3>
+          <div v-if="coverage.trend.length === 0" class="panel-empty">窗口内无任务</div>
+          <div v-else class="trend-bars">
+            <div v-for="point in coverage.trend" :key="point.day" class="trend-bar-col">
+              <div class="trend-bar-track">
+                <div
+                  class="trend-bar"
+                  :style="{ height: trendBarHeight(point) }"
+                  :title="`${point.day}: ${point.findings} 发现 / ${point.tasks} 任务`"
+                ></div>
+              </div>
+              <span class="trend-bar-day">{{ point.day.slice(8) }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -953,5 +1069,110 @@ onMounted(async () => {
   .multi-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+  .coverage-grid,
+  .coverage-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* M113-3 coverage panel */
+.coverage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.window-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.window-select select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.warn-message {
+  margin: 10px 0;
+  color: var(--status-warning);
+  background: var(--warning-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.coverage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.coverage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.coverage-card-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.coverage-card-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.coverage-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 18px;
+}
+.coverage-detail-col h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.severity-table {
+  min-width: 0;
+}
+.trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  padding: 10px 8px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow-x: auto;
+}
+.trend-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 22px;
+}
+.trend-bar-track {
+  display: flex;
+  align-items: flex-end;
+  height: 108px;
+  width: 18px;
+}
+.trend-bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: var(--accent-primary);
+  transition: height 0.3s ease;
+}
+.trend-bar-day {
+  font-size: 10px;
+  color: var(--text-secondary);
 }
 </style>

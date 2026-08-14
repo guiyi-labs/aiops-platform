@@ -3302,6 +3302,181 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/aiops/inspection/rules/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the global inspection rule catalog */
+        get: operations["inspectionRulesCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List inspection plans */
+        get: operations["listInspectionPlans"];
+        put?: never;
+        /** Create an inspection plan */
+        post: operations["createInspectionPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/plans/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one inspection plan */
+        get: operations["getInspectionPlan"];
+        put?: never;
+        post?: never;
+        /** Delete an inspection plan */
+        delete: operations["deleteInspectionPlan"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger a one-off inspection run */
+        post: operations["runInspectionOnce"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List inspection execution tasks */
+        get: operations["listInspectionTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one inspection task */
+        get: operations["getInspectionTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List inspection findings (results) */
+        get: operations["listInspectionResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/results/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one inspection finding */
+        get: operations["getInspectionResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/clusters/{cluster_id}/inspection/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-cluster effective inspection rules (defaults merged with overrides) */
+        get: operations["perClusterInspectionRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/inspection/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * M113-3 plan → findings coverage trend & rule-hit rate
+         * @description Read-only aggregation of inspection plan→findings over a trailing time window: task counts (completed/failed/manual/scheduled), findings total, distinct rule codes hit, severity rollup, per-day trend. fail-closed: empty window is never treated as healthy.
+         */
+        get: operations["inspectionCoverage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/aiops/overview": {
         parameters: {
             query?: never;
@@ -6154,6 +6329,108 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             updated_at: string;
+        };
+        InspectionPlanView: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            /** Format: int64 */
+            creator_id: number;
+            /** @description empty means all reachable clusters */
+            cluster_ids: number[];
+            /** @description empty means all enabled rules */
+            rule_codes: string[];
+            /** @description empty means manual only */
+            cron_spec: string;
+            enabled: boolean;
+            /** Format: date-time */
+            last_run_at?: string | null;
+            /** Format: date-time */
+            next_run_at?: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        InspectionTaskView: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            plan_id?: number | null;
+            plan_name_snapshot: string;
+            /** Format: int64 */
+            triggered_by?: number | null;
+            /** @enum {string} */
+            trigger_reason: "manual" | "schedule";
+            cluster_ids: number[];
+            rule_codes: string[];
+            /** @enum {string} */
+            status: "pending" | "running" | "completed" | "failed" | "cancelled";
+            /** Format: date-time */
+            started_at?: string | null;
+            /** Format: date-time */
+            finished_at?: string | null;
+            total_clusters: number;
+            completed_clusters: number;
+            finding_count: number;
+            error_summary?: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        InspectionResultView: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            task_id: number;
+            /** Format: int64 */
+            cluster_id: number;
+            rule_code: string;
+            signal_code: string;
+            /** @enum {string} */
+            severity: "info" | "warning" | "high" | "critical";
+            state: string;
+            namespace?: string;
+            resource_kind?: string;
+            resource_name?: string;
+            resource_uid?: string;
+            fingerprint: string;
+            /** @description Parsed JSON evidence snapshot */
+            evidence?: Record<string, never>;
+            /** Format: date-time */
+            observed_at: string;
+        };
+        InspectionCoverageResponse: {
+            /** @description Resource-context scope (what this aggregation covers) */
+            scope: string;
+            /** Format: date-time */
+            observed_at?: string;
+            window_days: number;
+            plan_total: number;
+            plan_enabled: number;
+            task_total: number;
+            task_completed: number;
+            task_failed: number;
+            task_scheduled: number;
+            task_manual: number;
+            finding_total: number;
+            distinct_rule_codes: number;
+            by_severity: {
+                [key: string]: number;
+            };
+            /**
+             * Format: double
+             * @description Distinct rules with findings / catalog size
+             */
+            rule_coverage: number;
+            trend: {
+                /** @description YYYY-MM-DD (UTC) */
+                day: string;
+                tasks: number;
+                findings: number;
+            }[];
+            /** @description True when the window has no usable findings (never treated as healthy) */
+            fail_closed: boolean;
+            empty_note?: string;
         };
         AIOpsOverview: {
             /** @description Per-producer coverage map */
@@ -11937,6 +12214,317 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    inspectionRulesCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compile-time rule catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown[];
+                };
+            };
+            500: components["responses"]["Error"];
+        };
+    };
+    listInspectionPlans: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paged plan list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            500: components["responses"]["Error"];
+        };
+    };
+    createInspectionPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Created plan */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionPlanView"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    getInspectionPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Plan detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionPlanView"];
+                };
+            };
+            404: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    deleteInspectionPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    runInspectionOnce: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Accepted, background run started */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionTaskView"];
+                };
+            };
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    listInspectionTasks: {
+        parameters: {
+            query?: {
+                plan_id?: number;
+                status?: "pending" | "running" | "completed" | "failed" | "cancelled";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paged task list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["InspectionTaskView"][];
+                        total?: number;
+                    };
+                };
+            };
+            500: components["responses"]["Error"];
+        };
+    };
+    getInspectionTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Task detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionTaskView"];
+                };
+            };
+            404: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    listInspectionResults: {
+        parameters: {
+            query?: {
+                cluster_id?: number;
+                rule_code?: string;
+                signal_code?: string;
+                severity?: "info" | "warning" | "high" | "critical";
+                state?: string;
+                task_id?: number;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paged findings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items?: components["schemas"]["InspectionResultView"][];
+                        total?: number;
+                    };
+                };
+            };
+            400: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    getInspectionResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Finding detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionResultView"];
+                };
+            };
+            404: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    perClusterInspectionRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                cluster_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective rule descriptors */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown[];
+                };
+            };
+            400: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    inspectionCoverage: {
+        parameters: {
+            query?: {
+                /** @description Trailing calendar days to aggregate */
+                window_days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Coverage trend and rule-hit rate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InspectionCoverageResponse"];
+                };
+            };
+            400: components["responses"]["Error"];
             500: components["responses"]["Error"];
         };
     };

@@ -97,6 +97,38 @@ func NewService(
 // Catalog returns the compile-time catalog. Callers MUST NOT mutate the returned slice.
 func (s *Service) Catalog() []RuleDescriptor { return s.catalogList }
 
+// Coverage aggregates inspection plan → findings coverage over the trailing
+// windowDays, then folds the per-rule hit rate against the compile-time
+// catalog (rules with ≥1 finding in the window / catalog size). It is read-only
+// and fail-closed: an empty window is reported as such and never treated as
+// healthy (repos set FailClosed when there are no findings).
+func (s *Service) Coverage(ctx context.Context, windowDays int) (CoverageSummary, error) {
+	now := s.now().UTC()
+	summary, err := s.repo.Coverage(ctx, windowDays, now)
+	if err != nil {
+		return summary, err
+	}
+	catalogSize := len(s.catalogList)
+	if summary.DistinctRules > 0 && catalogSize > 0 {
+		summary.RuleCoverage = float64(summary.DistinctRules) / float64(catalogSize)
+	} else if catalogSize == 0 {
+		summary.FailClosed = true
+		if summary.EmptyNote == "" {
+			summary.EmptyNote = "inspection rule catalog is empty (fail-closed)"
+		}
+	}
+	// Defense-in-depth: even if a repository implementation forgets to flag
+	// it, a window with no findings and no completed tasks is never a healthy
+	// state (fail-closed, M99-D visibility convention).
+	if summary.FindingTotal == 0 && summary.TaskTotal == 0 {
+		summary.FailClosed = true
+		if summary.EmptyNote == "" {
+			summary.EmptyNote = "inspection window has no tasks or findings (fail-closed)"
+		}
+	}
+	return summary, nil
+}
+
 // EffectiveRules returns the effective rule set for a cluster: compiled-in defaults
 // merged with any per-cluster overrides from inspection_rules.
 func (s *Service) EffectiveRules(ctx context.Context, clusterID int64) ([]RuleDescriptor, error) {

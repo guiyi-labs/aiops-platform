@@ -227,6 +227,49 @@ type ListFilter struct {
 	Offset     int
 }
 
+// CoverageTrendPoint is one day of the plan → findings time series: how many
+// tasks ran and how many findings they produced that day (UTC calendar day).
+type CoverageTrendPoint struct {
+	Day      string `json:"day"` // YYYY-MM-DD (UTC)
+	Tasks    int    `json:"tasks"`
+	Findings int    `json:"findings"`
+}
+
+// CoverageSummary is the M113-3 read-only coverage & trend aggregation over
+// inspection plans, tasks and results (findings). It follows the shared
+// resource-context contract: scope + observed_at, and FailClosed is true when
+// the window carries no usable samples — an empty result is never treated as
+// healthy (fail-closed, M99-D visibility convention).
+type CoverageSummary struct {
+	Scope      string `json:"scope"`
+	ObservedAt string `json:"observed_at,omitempty"`
+	WindowDays int    `json:"window_days"`
+
+	// Planning plane
+	PlanTotal   int `json:"plan_total"`
+	PlanEnabled int `json:"plan_enabled"`
+
+	// Execution plane
+	TaskTotal     int `json:"task_total"`
+	TaskCompleted int `json:"task_completed"`
+	TaskFailed    int `json:"task_failed"`
+	TaskScheduled int `json:"task_scheduled"` // triggered by schedule
+	TaskManual    int `json:"task_manual"`    // triggered manually
+
+	// Findings plane
+	FindingTotal  int            `json:"finding_total"`
+	DistinctRules int            `json:"distinct_rule_codes"` // rule codes that produced ≥1 finding in window
+	BySeverity    map[string]int `json:"by_severity"`
+
+	// Rule coverage: distinct rules with findings / catalog rules the platform
+	// carries. Catalog size comes from DefaultCatalog; 0 when it is empty.
+	RuleCoverage float64 `json:"rule_coverage"`
+
+	Trend     []CoverageTrendPoint `json:"trend"`
+	FailClosed bool                `json:"fail_closed"`
+	EmptyNote string               `json:"empty_note,omitempty"`
+}
+
 // ListResponse is the generic paginated list response.
 type ListResponse[T any] struct {
 	Items []T `json:"items"`

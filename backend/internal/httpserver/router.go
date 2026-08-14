@@ -739,6 +739,8 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		// Results (findings normalized to M39 signal shape): list + detail
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/results", AuthRequired: true, Handler: inspAPI.listResults, AuditAction: "aiops.inspection.results.list", AuditResource: "InspectionResult"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/results/:id", AuthRequired: true, Handler: inspAPI.getResult, AuditAction: "aiops.inspection.results.read", AuditResource: "InspectionResult"})
+		// M113-3: coverage trend and rule-hit rate dashboard (read-only, any authenticated user)
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/inspection/coverage", AuthRequired: true, Handler: inspAPI.coverage, AuditAction: "aiops.inspection.coverage.read", AuditResource: "InspectionCoverage"})
 	}
 
 	// M56 golden quality-report. GET reads the latest report (any-auth);

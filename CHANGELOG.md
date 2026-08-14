@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M113-3 巡检趋势与覆盖率度量（plan→findings 时间序列 + 规则命中覆盖率）
+
+- 新增只读 `GET /api/v1/aiops/inspection/coverage?window_days=7|30|90`：跨 `inspection_plans / inspection_tasks / inspection_results` 聚合，输出计划数/启用数、任务总数/完成/失败、定时 vs 手动触发分布、发现总数、去重命中规则码、严重级别分布、规则覆盖率（命中规则码 / 编译期目录大小）与每日趋势（任务数+发现数）。
+- 新增纯包 `internal/inspection` 的 `CoverageSummary`/`CoverageTrendPoint` 与 `Repository.Coverage + Service.Coverage`（ADR 0004，纯读 SQL 聚合、无写路径）；fail-closed：空窗口/无任务/无发现一律 `fail_closed=true`，空样本不视为健康（M99-D 显式覆盖度约定）。
+- 前端"智能巡检"页新增"覆盖率与趋势"面板：窗口切换（7/30/90 天）、四指标卡片、严重级别分布表、纯 CSS 每日趋势柱形图（hover 显示日期/任务/发现数）；fail-closed 时显示黄色告警横幅。新增 `getInspectionCoverage` API + 客户端测试。
+- 修复既有 M52 技术债：所有巡检路由（rules/catalog、plans CRUD、run、tasks、results、per-cluster rules）首次纳入 OpenAPI 文档与路由合约双向校验（`router_harness_test.go` 现注册 `InspectionService`），补齐 11 条路由 + 3 个 schema + 权限矩阵。
+- See [change record](docs/changes/2026-08-14-m113-3-coverage-trend.md)。
+
 ### Changed - 明确基础设施项目的 Day 0/1/2 生命周期边界
 
 - README 新增 `kubernetes-cluster-bootstrap`、`devops-automation` 与 `aiops-platform` 的职责矩阵，

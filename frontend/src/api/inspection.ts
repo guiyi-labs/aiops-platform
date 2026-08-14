@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { InspectionRule, InspectionPlanView, InspectionTaskView, InspectionResultView, CreateInspectionPlanRequest, RunInspectionRequest } from '../types/inspection'
+import type { InspectionRule, InspectionPlanView, InspectionTaskView, InspectionResultView, CreateInspectionPlanRequest, RunInspectionRequest, InspectionCoverageSummary } from '../types/inspection'
 
 export function listInspectionRulesCatalog(token: string): Promise<{ items: InspectionRule[] }> {
   return authorizedRequest('/api/v1/aiops/inspection/rules/catalog', token)
@@ -53,4 +53,11 @@ export function listInspectionResults(token: string, params?: { task_id?: number
 
 export function getInspectionResult(token: string, id: number): Promise<InspectionResultView> {
   return authorizedRequest(`/api/v1/aiops/inspection/results/${id}`, token)
+}
+
+export function getInspectionCoverage(token: string, params?: { window_days?: number }): Promise<InspectionCoverageSummary> {
+  const sp = new URLSearchParams()
+  if (params?.window_days) sp.set('window_days', String(params.window_days))
+  const q = sp.toString()
+  return authorizedRequest(`/api/v1/aiops/inspection/coverage${q ? `?${q}` : ''}`, token)
 }

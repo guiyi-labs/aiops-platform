@@ -3,6 +3,7 @@ package inspection
 import (
 	"context"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -223,6 +224,96 @@ func TestResultEvidenceRoundsTrip(t *testing.T) {
 	}
 }
 
+func TestServiceCoverage_AggregatesWindow(t *testing.T) {
+	repo := newInMemRepo()
+	now := time.Date(2026, 8, 14, 10, 0, 0, 0, time.UTC)
+
+	// Two plans, one enabled.
+	if err := repo.CreatePlan(context.Background(), &Plan{Name: "daily", Enabled: true, CreatedAt: now.Add(-5 * 24 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreatePlan(context.Background(), &Plan{Name: "weekly", Enabled: false, CreatedAt: now.Add(-5 * 24 * time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two scheduled tasks + one manual, one failed.
+	for _, tr := range []struct {
+		reason string
+		status string
+	}{{reason: "schedule", status: TaskStatusCompleted}, {reason: "schedule", status: TaskStatusCompleted}, {reason: "manual", status: TaskStatusFailed}} {
+		if err := repo.CreateTask(context.Background(), &Task{
+			PlanNameSnapshot: "daily", TriggerReason: tr.reason, Status: tr.status,
+			CreatedAt: now.Add(-2 * 24 * time.Hour),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Findings: 3 in window across 2 distinct rules + 1 outside the window.
+	if err := repo.CreateResults(context.Background(), []Result{
+		{TaskID: 1, ClusterID: 1, RuleCode: "pod.restart.v1", Severity: SeverityCritical, ObservedAt: now.Add(-24 * time.Hour)},
+		{TaskID: 1, ClusterID: 1, RuleCode: "pod.restart.v1", Severity: SeverityCritical, ObservedAt: now.Add(-24 * time.Hour)},
+		{TaskID: 2, ClusterID: 1, RuleCode: "node.pressure.v1", Severity: SeverityWarning, ObservedAt: now.Add(-3 * 24 * time.Hour)},
+		{TaskID: 3, ClusterID: 1, RuleCode: "old.rule.v1", Severity: SeverityInfo, ObservedAt: now.Add(-40 * 24 * time.Hour)}, // outside window
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	svc, err := NewService(Config{}, repo, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Note: NewService builds the catalog internally; the coverage ratio uses
+	// it as the denominator.
+	got, err := svc.Coverage(context.Background(), 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.PlanTotal != 2 || got.PlanEnabled != 1 {
+		t.Fatalf("plans: total=%d enabled=%d, want 2/1", got.PlanTotal, got.PlanEnabled)
+	}
+	if got.TaskTotal != 3 || got.TaskCompleted != 2 || got.TaskFailed != 1 {
+		t.Fatalf("tasks: total=%d completed=%d failed=%d, want 3/2/1", got.TaskTotal, got.TaskCompleted, got.TaskFailed)
+	}
+	if got.TaskScheduled != 2 || got.TaskManual != 1 {
+		t.Fatalf("triggers: scheduled=%d manual=%d, want 2/1", got.TaskScheduled, got.TaskManual)
+	}
+	if got.FindingTotal != 3 {
+		t.Fatalf("finding total=%d, want 3 window findings only", got.FindingTotal)
+	}
+	if got.DistinctRules != 2 {
+		t.Fatalf("distinct rules=%d, want 2", got.DistinctRules)
+	}
+	if got.BySeverity[SeverityCritical] != 2 || got.BySeverity[SeverityWarning] != 1 {
+		t.Fatalf("severity rollup wrong: %+v", got.BySeverity)
+	}
+	if got.FailClosed {
+		t.Fatalf("window has findings; fail_closed must be false")
+	}
+	// Trend must include the two in-window days.
+	if len(got.Trend) == 0 {
+		t.Fatalf("expected non-empty trend")
+	}
+}
+
+func TestServiceCoverage_FailClosedEmpty(t *testing.T) {
+	repo := newInMemRepo()
+	svc, err := NewService(Config{}, repo, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Coverage(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.FailClosed {
+		t.Fatalf("empty window must be fail-closed, got %+v", got)
+	}
+	if got.FindingTotal != 0 || got.DistinctRules != 0 {
+		t.Fatalf("empty window must have zero findings/rules: %+v", got)
+	}
+}
+
 // --- in-memory repository for isolated service tests ---
 
 type inMemRepo struct {
@@ -401,6 +492,81 @@ func (m *inMemRepo) GetResult(_ context.Context, id int64) (Result, error) {
 		}
 	}
 	return Result{}, ErrResultNotFound
+}
+
+func (m *inMemRepo) Coverage(_ context.Context, windowDays int, now time.Time) (CoverageSummary, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	since := now.UTC().AddDate(0, 0, -windowDays)
+	summary := CoverageSummary{
+		Scope:      "inspection:plans+tasks+results:" + itoa(int64(windowDays)) + "d",
+		ObservedAt: now.UTC().Format(time.RFC3339),
+		WindowDays: windowDays,
+		BySeverity: map[string]int{},
+	}
+	summary.PlanTotal = len(m.plans)
+	for _, p := range m.plans {
+		if p.Enabled {
+			summary.PlanEnabled++
+		}
+	}
+	dayTasks := map[string]int{}
+	dayFindings := map[string]int{}
+	for _, t := range m.tasks {
+		if !t.CreatedAt.After(since) && !t.CreatedAt.Equal(since) {
+			continue
+		}
+		summary.TaskTotal++
+		switch t.Status {
+		case TaskStatusCompleted:
+			summary.TaskCompleted++
+		case TaskStatusFailed:
+			summary.TaskFailed++
+		}
+		switch t.TriggerReason {
+		case "schedule":
+			summary.TaskScheduled++
+		case "manual":
+			summary.TaskManual++
+		}
+		dayTasks[t.CreatedAt.UTC().Format("2006-01-02")]++
+	}
+	for _, r := range m.results {
+		if !r.ObservedAt.After(since) && !r.ObservedAt.Equal(since) {
+			continue
+		}
+		summary.FindingTotal++
+		summary.BySeverity[r.Severity]++
+		dayFindings[r.ObservedAt.UTC().Format("2006-01-02")]++
+	}
+	seenRules := map[string]struct{}{}
+	for _, r := range m.results {
+		if !r.ObservedAt.After(since) && !r.ObservedAt.Equal(since) {
+			continue
+		}
+		seenRules[r.RuleCode] = struct{}{}
+	}
+	summary.DistinctRules = len(seenRules)
+	allDays := map[string]struct{}{}
+	for d := range dayTasks {
+		allDays[d] = struct{}{}
+	}
+	for d := range dayFindings {
+		allDays[d] = struct{}{}
+	}
+	days := make([]string, 0, len(allDays))
+	for d := range allDays {
+		days = append(days, d)
+	}
+	sort.Strings(days)
+	for _, d := range days {
+		summary.Trend = append(summary.Trend, CoverageTrendPoint{Day: d, Tasks: dayTasks[d], Findings: dayFindings[d]})
+	}
+	if summary.FindingTotal == 0 {
+		summary.FailClosed = true
+		summary.EmptyNote = "window contains no inspection findings (fail-closed)"
+	}
+	return summary, nil
 }
 
 func itoa(i int64) string { return strconv.FormatInt(i, 10) }

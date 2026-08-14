@@ -70,3 +70,29 @@ export interface RunInspectionRequest {
   cluster_ids: number[]
   rule_codes: string[]
 }
+
+export interface InspectionCoverageTrendPoint {
+  day: string
+  tasks: number
+  findings: number
+}
+
+export interface InspectionCoverageSummary {
+  scope: string
+  observed_at?: string
+  window_days: number
+  plan_total: number
+  plan_enabled: number
+  task_total: number
+  task_completed: number
+  task_failed: number
+  task_scheduled: number
+  task_manual: number
+  finding_total: number
+  distinct_rule_codes: number
+  by_severity: Record<string, number>
+  rule_coverage: number
+  trend: InspectionCoverageTrendPoint[]
+  fail_closed: boolean
+  empty_note?: string
+}

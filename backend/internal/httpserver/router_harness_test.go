@@ -28,6 +28,7 @@ import (
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/golden"
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/monitoring"
@@ -160,10 +161,26 @@ func buildFullEngine(t *testing.T) *gin.Engine {
 		// only inspects route presence, not behavior, so a nil-collector
 		// evaluator is enough.
 		Posture: posture.New(nil),
-		Version: "route-contract-test",
+		// M52 inspection service: non-nil so the inspection routes (incl.
+		// M113-3 coverage) are registered and covered by the route contract
+		// test. The noop repository/executor avoid DB and cluster access
+		// during route registration.
+		InspectionService: mustInspectionService(t),
+		Version:           "route-contract-test",
 	}).(*gin.Engine)
 	if !ok {
 		t.Fatal("http server is not a gin engine")
 	}
 	return engine
+}
+
+// mustInspectionService builds a real inspection.Service with noop
+// dependencies for route-contract testing.
+func mustInspectionService(t *testing.T) *inspection.Service {
+	t.Helper()
+	svc, err := inspection.NewService(inspection.Config{}, inspectionRepoNoop{}, inspectionExecutorNoop{}, inspectionClusterListerNoop{}, zaptest.NewLogger(t))
+	if err != nil {
+		t.Fatalf("inspection.NewService: %v", err)
+	}
+	return svc
 }

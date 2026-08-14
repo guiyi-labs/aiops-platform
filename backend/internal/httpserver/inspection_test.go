@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -64,6 +65,19 @@ func (inspectionRepoNoop) GetResult(_ context.Context, id int64) (inspection.Res
 	return inspection.Result{}, inspection.ErrResultNotFound
 }
 
+func (inspectionRepoNoop) Coverage(_ context.Context, windowDays int, now time.Time) (inspection.CoverageSummary, error) {
+	summary := inspection.CoverageSummary{
+		Scope:      "inspection:plans+tasks+results:" + strconv.Itoa(windowDays) + "d",
+		ObservedAt: now.UTC().Format(time.RFC3339),
+		WindowDays: windowDays,
+		BySeverity: map[string]int{},
+	}
+	// An empty window is never a healthy state (fail-closed).
+	summary.FailClosed = true
+	summary.EmptyNote = "window contains no inspection findings (fail-closed)"
+	return summary, nil
+}
+
 type inspectionExecutorNoop struct{}
 
 func (inspectionExecutorNoop) Execute(_ context.Context, _ int64, _ inspection.RuleDescriptor) ([]inspection.Finding, error) {
@@ -106,6 +120,7 @@ func newInspectionTestEngine(t *testing.T, svc *inspection.Service) *gin.Engine 
 		inspectionRoutes.GET("/tasks/:id", h.getTask)
 		inspectionRoutes.GET("/results", h.listResults)
 		inspectionRoutes.GET("/results/:id", h.getResult)
+		inspectionRoutes.GET("/coverage", h.coverage)
 	}
 	perCluster := r.Group("/api/v1/clusters/:cluster_id/aiops/inspection")
 	{
@@ -210,5 +225,41 @@ func TestInspection_ListResultsInvalidLimit(t *testing.T) {
 	r.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for invalid limit, got %d", w.Code)
+	}
+}
+
+func TestInspection_CoverageReturnsValidJSON(t *testing.T) {
+	r := newInspectionTestEngine(t, mustNewInspectionService(t))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/coverage", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var result struct {
+		Scope        string  `json:"scope"`
+		PlanTotal    int     `json:"plan_total"`
+		FailClosed   bool    `json:"fail_closed"`
+		RuleCoverage float64 `json:"rule_coverage"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("bad JSON: %v", err)
+	}
+	// The noop repo returns empty data; coverage must report fail-closed.
+	if !result.FailClosed {
+		t.Fatalf("fail_closed should be true with empty repo: %+v", result)
+	}
+	if result.Scope == "" {
+		t.Fatalf("scope should not be empty")
+	}
+}
+
+func TestInspection_CoverageBadWindow(t *testing.T) {
+	r := newInspectionTestEngine(t, mustNewInspectionService(t))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/coverage?window_days=0", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "INVALID_WINDOW") {
+		t.Fatalf("expected 400 for window_days=0, got %d: %s", w.Code, w.Body.String())
 	}
 }

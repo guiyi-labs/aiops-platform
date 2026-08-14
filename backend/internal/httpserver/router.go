@@ -526,6 +526,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						if options.IncidentChat != nil {
 							chatAPI := incidentChatHandler{service: options.IncidentChat, adapter: incidentChatAdapter{service: options.Incidents}}
 							reg.register(v1, RouteDescriptor{Method: "POST", Path: "/incidents/:incident_id/chat", AuthRequired: true, Handler: chatAPI.chat, AuditAction: "incident.chat.create", AuditResource: "IncidentChat"})
+							reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/summary", AuthRequired: true, Handler: chatAPI.summary, AuditAction: "incident.summary.read", AuditResource: "IncidentSummary"})
 						}
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/export", AuthRequired: true, Handler: incidentAPI.export, AuditAction: "incident.export", AuditResource: "Incident"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/incidents/:incident_id/postmortem/export", AuthRequired: true, Handler: incidentAPI.exportPostmortem, AuditAction: "incident.postmortem.export", AuditResource: "Incident"})

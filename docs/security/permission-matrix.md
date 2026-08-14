@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 288 |
+| 路由总数 | 289 |
 | 角色受限 | 84 |
-| 已审计 | 164 |
+| 已审计 | 165 |
 | scope=workspace | 13 |
 | scope=cluster | 82 |
 | scope=namespace | 32 |
-| scope=none | 161 |
+| scope=none | 162 |
 | 角色 operations_admin | 63 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 84 |
@@ -269,6 +269,7 @@
 | PUT | `/api/v1/incidents/:incident_id/postmortem` | `operations_admin`, `system_admin` | none | incident.postmortem.update |
 | GET | `/api/v1/incidents/:incident_id/postmortem/export` | any | none | incident.postmortem.export |
 | GET | `/api/v1/incidents/:incident_id/runbook` | any | none | incident.runbook.get |
+| GET | `/api/v1/incidents/:incident_id/summary` | any | none | incident.summary.read |
 | POST | `/api/v1/incidents/batch-assign` | `operations_admin`, `system_admin` | none | incident.assignment.batch |
 | GET | `/api/v1/incidents/metrics` | any | none | - |
 | GET | `/api/v1/incidents/summary` | any | none | - |

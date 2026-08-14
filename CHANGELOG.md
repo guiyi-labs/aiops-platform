@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M112-3 引用式 AI 事故摘要（确定性阶段门 + 引用校验的自动摘要）
+
+- 新增 `GET /api/v1/incidents/{incident_id}/summary`，一次性生成引用式事故摘要（root_cause_candidate / impact / evidence_summary / next_steps），所有事实断言引用事故证据时间线（同 M112-2 引用校验纪律）。
+- 确定性阶段门：无证据或 AI 禁用时直接返回确定性摘要（StageGatePassed=false），不调用 provider；provider 故障或引用校验失败 → fail-closed 降级（fail_closed=true）。
+- AI 可用且引用校验通过时 mode=ai；根因只能写候选，不允许声称已确认根因。
+- 响应携带资源上下文契约块（scope/observed_at/source/freshness/empty_sample=fail_closed）。
+- 同步 OpenAPI/typegen（`IncidentSummaryResponse`）、权限矩阵（`incident.summary.read`）、前端类型与客户端；事故详情抽屉新增「AI 事故摘要」区块（阶段门状态、引用列表、fail-closed 提示）。
+- 无数据库迁移。See [change record](docs/changes/2026-08-14-m112-3-incident-summary.md)。
+
 ### Added - M112-2 会话式 AI 调查（事故上下文中引用校验的连续问答）
 
 - 新增 `POST /api/v1/incidents/{incident_id}/chat`，在事故上下文中连续提问；每个回答将事实断言与事故证据时间线一一对应（M44 同款引用校验：未授权 evidence_id → fail-closed；禁止 prompt injection；citations ≤ 64、next_checks ≤ 8）。

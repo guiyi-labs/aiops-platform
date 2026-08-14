@@ -191,15 +191,24 @@ func containsPromptInjection(result ProviderResult) bool {
 		texts = append(texts, c.Claim)
 	}
 	for _, value := range texts {
-		lower := strings.ToLower(value)
-		for _, marker := range []string{
-			"ignore previous instructions", "ignore all previous instructions",
-			"reveal the system prompt", "system prompt has been overridden",
-			"developer message", "disregard previous instructions",
-		} {
-			if strings.Contains(lower, marker) {
-				return true
-			}
+		if containsPromptInjectionString(value) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsPromptInjectionString reports whether a single text value carries
+// a prompt-injection or instruction-override marker.
+func containsPromptInjectionString(value string) bool {
+	lower := strings.ToLower(value)
+	for _, marker := range []string{
+		"ignore previous instructions", "ignore all previous instructions",
+		"reveal the system prompt", "system prompt has been overridden",
+		"developer message", "disregard previous instructions",
+	} {
+		if strings.Contains(lower, marker) {
+			return true
 		}
 	}
 	return false

@@ -240,3 +240,23 @@ export interface IncidentChatResponse {
   output_tokens: number
   fail_closed: boolean
 }
+
+// --- M112-3 cited incident summary ---
+
+export interface IncidentSummaryResponse {
+  incident_id: number
+  resource_context: IncidentResourceContext
+  mode: 'ai' | 'deterministic'
+  root_cause_candidate: string
+  impact: string
+  evidence_summary: string
+  next_steps: string[]
+  citations: IncidentChatCitation[]
+  provider: string
+  model: string
+  input_tokens: number
+  output_tokens: number
+  fail_closed: boolean
+  stage_gate_passed: boolean
+  stage_gate_reason?: string
+}

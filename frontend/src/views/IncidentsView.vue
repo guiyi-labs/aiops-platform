@@ -2,13 +2,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { Download, FileText, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
 
-import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, exportIncidentPostmortem, getIncident, getIncidentContext, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidentResponseCatalog, listIncidents, removeIncidentFollower, sendIncidentChat, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
+import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, exportIncidentPostmortem, getIncident, getIncidentAISummary, getIncidentContext, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidentResponseCatalog, listIncidents, removeIncidentFollower, sendIncidentChat, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { UserProfile } from '../types/auth'
-import type { Incident, IncidentChatResponse, IncidentContextCockpit, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentChatResponse, IncidentContextCockpit, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary, IncidentSummaryResponse } from '../types/incident'
 
 interface IncidentCreateForm extends Omit<IncidentCreateInput, 'resource'> {
   resource: IncidentResourceRef
@@ -35,6 +35,8 @@ const runbook = ref<IncidentRunbookResponse | null>(null)
 const runbookLoading = ref(false)
 const cockpit = ref<IncidentContextCockpit | null>(null)
 const cockpitLoading = ref(false)
+const incidentSummary = ref<IncidentSummaryResponse | null>(null)
+const incidentSummaryLoading = ref(false)
 const chatMessages = ref<{ role: 'user' | 'assistant'; content: string }[]>([])
 const chatInput = ref('')
 const chatLoading = ref(false)
@@ -248,6 +250,7 @@ async function openDetail(incident: Incident) {
     postmortemContent.value = detail.value.postmortem ?? ''
     runbook.value = null
     cockpit.value = null
+    incidentSummary.value = null
     chatMessages.value = []
     chatInput.value = ''
     chatError.value = ''
@@ -257,6 +260,7 @@ async function openDetail(incident: Incident) {
     void loadEvidence(detail.value.id)
     void loadRunbook(detail.value.id)
     void loadCockpit(detail.value.id)
+    void loadIncidentSummary(detail.value.id)
   } catch (err) {
     errorMessage.value = err instanceof APIError ? err.message : '加载事故详情失败'
   } finally {
@@ -456,6 +460,18 @@ async function loadCockpit(incidentID: number) {
   }
 }
 
+async function loadIncidentSummary(incidentID: number) {
+  incidentSummaryLoading.value = true
+  try {
+    const result = await getIncidentAISummary(auth.accessToken, incidentID)
+    if (detail.value?.id === incidentID) incidentSummary.value = result
+  } catch {
+    if (detail.value?.id === incidentID) incidentSummary.value = null
+  } finally {
+    if (detail.value?.id === incidentID) incidentSummaryLoading.value = false
+  }
+}
+
 async function sendChat() {
   if (!detail.value || chatLoading.value) return
   const question = chatInput.value.trim()
@@ -637,6 +653,49 @@ onMounted(() => { void loadAll(); void loadResponseCatalog() })
           <p v-if="!cockpit.health.runbook_available" class="muted">当前事故暂无可信的只读 runbook（来源域缺失或解析器未启用）。</p>
         </div>
         <p v-else class="muted">上下文驾驶舱加载失败（不影响其余区块）。</p>
+
+        <h3>AI 事故摘要</h3>
+        <div v-if="incidentSummaryLoading" class="incident-cockpit">
+          <p class="muted">正在生成引用式 AI 摘要…</p>
+        </div>
+        <div v-else-if="incidentSummary" class="incident-cockpit">
+          <div class="cockpit-row">
+            <span class="cockpit-tag" :style="{ color: incidentSummary.mode === 'ai' ? '#1e7b3d' : '#8593a8' }">
+              {{ incidentSummary.mode === 'ai' ? 'AI 摘要' : '确定性摘要' }}
+            </span>
+            <span v-if="incidentSummary.fail_closed" class="cockpit-tag" style="color:#b34a4a;">fail-closed 降级</span>
+            <span class="cockpit-tag">阶段门：{{ incidentSummary.stage_gate_passed ? '通过' : '未通过' }}{{ incidentSummary.stage_gate_reason ? ' (' + incidentSummary.stage_gate_reason + ')' : '' }}</span>
+          </div>
+          <div class="cockpit-block">
+            <span class="cockpit-label">根因候选</span>
+            <div class="cockpit-value">{{ incidentSummary.root_cause_candidate }}</div>
+          </div>
+          <div class="cockpit-block">
+            <span class="cockpit-label">影响范围</span>
+            <div class="cockpit-value">{{ incidentSummary.impact }}</div>
+          </div>
+          <div class="cockpit-block">
+            <span class="cockpit-label">证据摘要</span>
+            <div class="cockpit-value">{{ incidentSummary.evidence_summary }}</div>
+          </div>
+          <div v-if="incidentSummary.next_steps.length" class="cockpit-block">
+            <span class="cockpit-label">下一步</span>
+            <ul class="cockpit-list">
+              <li v-for="(step, idx) in incidentSummary.next_steps" :key="idx">{{ step }}</li>
+            </ul>
+          </div>
+          <div v-if="incidentSummary.citations.length" class="cockpit-block">
+            <span class="cockpit-label">引用证据</span>
+            <div class="cockpit-sources">
+              <div v-for="(cit, idx) in incidentSummary.citations" :key="idx" class="cockpit-source-item">
+                <span class="cockpit-tag" style="background:#d0e4f7;">{{ cit.evidence_id }}</span>
+                <span class="cockpit-value" style="font-size:11px;">{{ cit.claim }}</span>
+              </div>
+            </div>
+          </div>
+          <p class="cockpit-meta">{{ incidentSummary.model }} · {{ incidentSummary.input_tokens }} → {{ incidentSummary.output_tokens }} tokens</p>
+        </div>
+        <p v-else class="muted">AI 事故摘要加载失败（不影响其余区块）。</p>
 
         <h3>会话式 AI 调查</h3>
         <div class="incident-chat">

@@ -2449,6 +2449,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/{incident_id}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** M112-3 cited incident summary with deterministic stage gate */
+        get: operations["incidentSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/{incident_id}/runbook": {
         parameters: {
             query?: never;
@@ -5314,6 +5331,55 @@ export interface components {
             input_tokens: number;
             output_tokens: number;
             fail_closed: boolean;
+        };
+        /** @description M112-3 cited incident summary. The deterministic stage gate decides whether AI is engaged; when AI is blocked or fails, mode is deterministic and fail_closed indicates a provider/validation fallback. */
+        IncidentSummaryResponse: {
+            /** Format: int64 */
+            incident_id: number;
+            /** @description Resource-context contract block (same shape as IncidentContextCockpit.resource_context). */
+            resource_context: {
+                scope?: {
+                    /** Format: int64 */
+                    cluster_id?: number;
+                    namespace?: string;
+                    kind?: string;
+                    name?: string;
+                    source_type?: string;
+                };
+                /** Format: date-time */
+                observed_at?: string;
+                source?: string;
+                freshness?: {
+                    /** Format: int64 */
+                    age_seconds?: number;
+                    /** Format: date-time */
+                    as_of?: string;
+                };
+                empty_sample?: {
+                    count?: number;
+                    bounded?: boolean;
+                    /** @enum {string} */
+                    semantic?: "fail_closed" | "safe_absent";
+                };
+            };
+            /** @enum {string} */
+            mode: "ai" | "deterministic";
+            /** @description Root cause candidate only; never a confirmed root cause (operators confirm). */
+            root_cause_candidate: string;
+            impact: string;
+            evidence_summary: string;
+            next_steps: string[];
+            citations: {
+                evidence_id: string;
+                claim: string;
+            }[];
+            provider: string;
+            model: string;
+            input_tokens: number;
+            output_tokens: number;
+            fail_closed: boolean;
+            stage_gate_passed: boolean;
+            stage_gate_reason?: string;
         };
         /** @description One normalized evidence item on the diagnosis timeline (M94 read-only projection) */
         DiagnosisTimelineEntry: {
@@ -10383,6 +10449,36 @@ export interface operations {
             400: components["responses"]["Error"];
             404: components["responses"]["Error"];
             /** @description AI chat concurrency limit reached */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    incidentSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cited summary (root cause candidate / impact / evidence / next steps) with the resource-context contract block; deterministic when the stage gate blocks AI or the provider fails */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentSummaryResponse"];
+                };
+            };
+            404: components["responses"]["Error"];
+            /** @description AI summary concurrency limit reached */
             503: {
                 headers: {
                     [name: string]: unknown;

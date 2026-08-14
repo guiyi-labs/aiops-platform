@@ -764,6 +764,8 @@ paths:
     get: { tags: [incidents], summary: Aggregated M112-1 incident context cockpit, operationId: incidentContextCockpit, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Deterministic incident context cockpit with the resource-context contract block, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentContextCockpit' } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}/chat:
     post: { tags: [incidents], summary: M112-2 incident-scoped AI chat (conversational investigation with citation validation), operationId: incidentAIChat, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentChatRequest' } } } }, responses: { '200': { description: Chat response with cited answer and the resource-context contract block, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentChatResponse' } } } }, '400': { $ref: '#/components/responses/Error' }, '404': { $ref: '#/components/responses/Error' }, '503': { description: AI chat concurrency limit reached } } }
+  /api/v1/incidents/{incident_id}/summary:
+    get: { tags: [incidents], summary: M112-3 cited incident summary with deterministic stage gate, operationId: incidentSummary, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Cited summary (root cause candidate / impact / evidence / next steps) with the resource-context contract block; deterministic when the stage gate blocks AI or the provider fails, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentSummaryResponse' } } } }, '404': { $ref: '#/components/responses/Error' }, '503': { description: AI summary concurrency limit reached } } }
   /api/v1/incidents/{incident_id}/runbook:
     get: { tags: [incidents], summary: Resolve an incident read-only runbook, operationId: incidentRunbook, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/IncidentID' }], responses: { '200': { description: Runbook association status, content: { application/json: { schema: { $ref: '#/components/schemas/IncidentRunbookResponse' } } } }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/incidents/{incident_id}/export:
@@ -3261,6 +3263,62 @@ components:
         input_tokens: { type: integer }
         output_tokens: { type: integer }
         fail_closed: { type: boolean }
+    IncidentSummaryResponse:
+      type: object
+      additionalProperties: false
+      description: M112-3 cited incident summary. The deterministic stage gate decides whether AI is engaged; when AI is blocked or fails, mode is deterministic and fail_closed indicates a provider/validation fallback.
+      required: [incident_id, resource_context, mode, root_cause_candidate, impact, evidence_summary, next_steps, citations, provider, model, input_tokens, output_tokens, fail_closed, stage_gate_passed]
+      properties:
+        incident_id: { type: integer, format: int64 }
+        resource_context:
+          type: object
+          description: Resource-context contract block (same shape as IncidentContextCockpit.resource_context).
+          properties:
+            scope:
+              type: object
+              properties:
+                cluster_id: { type: integer, format: int64 }
+                namespace: { type: string }
+                kind: { type: string }
+                name: { type: string }
+                source_type: { type: string }
+            observed_at: { type: string, format: date-time }
+            source: { type: string }
+            freshness:
+              type: object
+              properties:
+                age_seconds: { type: integer, format: int64 }
+                as_of: { type: string, format: date-time }
+            empty_sample:
+              type: object
+              properties:
+                count: { type: integer }
+                bounded: { type: boolean }
+                semantic: { type: string, enum: [fail_closed, safe_absent] }
+        mode: { type: string, enum: [ai, deterministic] }
+        root_cause_candidate:
+          type: string
+          description: Root cause candidate only; never a confirmed root cause (operators confirm).
+        impact: { type: string }
+        evidence_summary: { type: string }
+        next_steps:
+          type: array
+          items: { type: string }
+        citations:
+          type: array
+          items:
+            type: object
+            required: [evidence_id, claim]
+            properties:
+              evidence_id: { type: string }
+              claim: { type: string }
+        provider: { type: string }
+        model: { type: string }
+        input_tokens: { type: integer }
+        output_tokens: { type: integer }
+        fail_closed: { type: boolean }
+        stage_gate_passed: { type: boolean }
+        stage_gate_reason: { type: string }
     DiagnosisTimelineEntry:
       type: object
       description: One normalized evidence item on the diagnosis timeline (M94 read-only projection)

@@ -111,7 +111,7 @@ func buildFullEngine(t *testing.T) *gin.Engine {
 		// M112-2 incident AI chat service: non-nil so the chat route is
 		// registered and covered by the route contract test. Deterministic
 		// NopProvider is used when AI is disabled.
-		IncidentChat: incidentchat.NewService(incidentchat.ServiceConfig{}, incidentChatAdapter{service: incident.NewService(nil)}, nil),
+		IncidentChat: incidentchat.NewService(incidentchat.ServiceConfig{}, incidentChatAdapter{service: incident.NewService(nil)}, nil, nil),
 		// M44 policy-constrained automation service: non-nil so the automation
 		// routes are registered and covered by the route contract test.
 		// NopRepository avoids a database dependency during route registration.

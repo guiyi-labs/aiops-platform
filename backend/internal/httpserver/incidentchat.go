@@ -111,8 +111,26 @@ func (h incidentChatHandler) chat(c *gin.Context) {
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", err.Error())
 	case errors.Is(err, incidentchat.ErrBusy):
 		writeError(c, http.StatusServiceUnavailable, "AI_CHAT_BUSY", "incident AI chat concurrency limit reached")
+	default:
+		c.JSON(http.StatusOK, response)
+	}
+}
+
+func (h incidentChatHandler) summary(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("incident_id"), 10, 64)
+	if err != nil || id < 1 {
+		writeError(c, http.StatusBadRequest, "INVALID_INCIDENT_ID", "incident_id must be a positive integer")
+		return
+	}
+	setAuditTarget(c, "Incident", "", strconv.FormatInt(id, 10))
+	response, err := h.service.Summarize(c.Request.Context(), id, time.Now().UTC())
+	switch {
+	case errors.Is(err, incident.ErrNotFound):
+		writeError(c, http.StatusNotFound, "INCIDENT_NOT_FOUND", "incident does not exist")
+	case errors.Is(err, incidentchat.ErrBusy):
+		writeError(c, http.StatusServiceUnavailable, "AI_CHAT_BUSY", "incident AI summary concurrency limit reached")
 	case err != nil:
-		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to process incident chat")
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to generate incident summary")
 	default:
 		c.JSON(http.StatusOK, response)
 	}

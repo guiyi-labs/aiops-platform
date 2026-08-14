@@ -530,9 +530,10 @@ func newIncidentChatTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	service := incident.NewService(repo)
-	chat := incidentchat.NewService(incidentchat.ServiceConfig{}, incidentChatAdapter{service: service}, nil)
+	chat := incidentchat.NewService(incidentchat.ServiceConfig{}, incidentChatAdapter{service: service}, nil, nil)
 	h := incidentChatHandler{service: chat, adapter: incidentChatAdapter{service: service}}
 	r.POST("/api/v1/incidents/:incident_id/chat", h.chat)
+	r.GET("/api/v1/incidents/:incident_id/summary", h.summary)
 	return r
 }
 
@@ -624,6 +625,62 @@ func TestIncidentChatHandler_ValidationErrors(t *testing.T) {
 	missing := performIncidentChat(t, engine, 99999, `{"messages":[{"role":"user","content":"hi"}]}`)
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing incident code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentSummaryHandler_DeterministicStageGate(t *testing.T) {
+	repo := newIncidentRepoStub()
+	created := performIncidentRequest(newIncidentTestEngine(t, repo), http.MethodPost, "/api/v1/incidents", `{
+		"source_type": "finding", "source_ref": "finding:30:code:Pod:default:web",
+		"cluster_id": 4, "title": "pod crash loop", "severity": "high",
+		"summary": "crash loop backoff", "resource": {"kind":"Pod","namespace":"default","name":"web"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create code = %d, body %s", created.Code, created.Body.String())
+	}
+	var record incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &record); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	engine := newIncidentChatTestEngine(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents/"+strconv.FormatInt(record.ID, 10)+"/summary", nil)
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("summary code = %d, body %s", w.Code, w.Body.String())
+	}
+	var payload struct {
+		IncidentID      int64                   `json:"incident_id"`
+		Mode            string                  `json:"mode"`
+		StageGatePassed bool                    `json:"stage_gate_passed"`
+		StageGateReason string                  `json:"stage_gate_reason"`
+		Citations       []incidentchat.Citation `json:"citations"`
+		FailClosed      bool                    `json:"fail_closed"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode summary: %v", err)
+	}
+	if payload.IncidentID != record.ID {
+		t.Fatalf("incident_id = %d, want %d", payload.IncidentID, record.ID)
+	}
+	// Fresh incident without timeline evidence → stage gate blocks AI.
+	if payload.StageGatePassed {
+		t.Fatalf("stage gate must fail without evidence: %s", payload.StageGateReason)
+	}
+	if payload.Mode != "deterministic" {
+		t.Fatalf("mode = %q, want deterministic", payload.Mode)
+	}
+}
+
+func TestIncidentSummaryHandler_NonExistentIncident404(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentChatTestEngine(t, repo)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/incidents/98765/summary", nil)
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("summary code = %d, want 404", w.Code)
 	}
 }
 

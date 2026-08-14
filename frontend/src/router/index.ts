@@ -160,6 +160,12 @@ const router = createRouter({
       name: 'aiops-quality',
       component: () => import('../views/QualityDashboardView.vue'),
     },
+    // M112-4: 解释覆盖率大盘（只读）
+    {
+      path: '/aiops/ai-coverage',
+      name: 'aiops-ai-coverage',
+      component: () => import('../views/AICoverageView.vue'),
+    },
     // M50: 监控大盘
     {
       path: '/monitoring',

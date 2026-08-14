@@ -93,6 +93,20 @@ type QualitySummary struct {
 	ByModel                  []ModelQualitySummary `json:"by_model"`
 }
 
+// CoverageSummary is the M112-4 explanation coverage dashboard snapshot.
+// All fields are derived from the ai_explanations table (no join with
+// external tables required). The endpoint is read-only and idempotent.
+type CoverageSummary struct {
+	TotalExplanations       int            `json:"total_explanations"`
+	ExplainedDiagnoses      int            `json:"explained_diagnoses"`
+	WithCitations           int            `json:"with_citations"`
+	CitationRate            float64        `json:"citation_rate"`
+	DeterministicCount      int            `json:"deterministic_count"`
+	DeterministicRate       float64        `json:"deterministic_rate"`
+	Quality                 QualitySummary `json:"quality"`
+	WindowNote              string         `json:"window_note"`
+}
+
 type Prompt struct {
 	System      string
 	Input       string

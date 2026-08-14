@@ -14,6 +14,7 @@ type Repository interface {
 	List(context.Context, int64, int64) ([]Explanation, error)
 	AddFeedback(context.Context, int64, ActorRef, string, string) (FeedbackResult, error)
 	Quality(context.Context) (QualitySummary, error)
+	Coverage(context.Context) (CoverageSummary, error)
 	Usage(context.Context) (Usage, error)
 	Reserve(context.Context, Reservation, int) error
 	Release(context.Context, string) error
@@ -215,6 +216,44 @@ func helpfulRate(total, helpful int) float64 {
 		return 0
 	}
 	return float64(helpful) / float64(total)
+}
+
+// Coverage aggregates the M112-4 explanation coverage dashboard snapshot.
+// All metrics derive from ai_explanations (no external join); the quality
+// baseline is fetched from the existing Quality method.
+func (r *GormRepository) Coverage(ctx context.Context) (CoverageSummary, error) {
+	type coverageStats struct {
+		TotalExplanations  int
+		ExplainedDiagnoses int
+		WithCitations      int
+		DeterministicCount int
+	}
+	var stats coverageStats
+	if err := r.db.WithContext(ctx).Raw(`SELECT
+		COUNT(*)::int AS total_explanations,
+		COUNT(DISTINCT diagnosis_id)::int AS explained_diagnoses,
+		COUNT(*) FILTER (WHERE citations::text != '[]' AND citations::text != 'null')::int AS with_citations,
+		COUNT(*) FILTER (WHERE provider = 'nop')::int AS deterministic_count
+		FROM ai_explanations`).Scan(&stats).Error; err != nil {
+		return CoverageSummary{}, err
+	}
+	quality, err := r.Quality(ctx)
+	if err != nil {
+		return CoverageSummary{}, err
+	}
+	total := stats.TotalExplanations
+	citationRate := helpfulRate(total, stats.WithCitations)
+	deterministicRate := helpfulRate(total, stats.DeterministicCount)
+	return CoverageSummary{
+		TotalExplanations:  total,
+		ExplainedDiagnoses: stats.ExplainedDiagnoses,
+		WithCitations:      stats.WithCitations,
+		CitationRate:       citationRate,
+		DeterministicCount: stats.DeterministicCount,
+		DeterministicRate:  deterministicRate,
+		Quality:            quality,
+		WindowNote:         "all-time aggregate; coverage rate = distinct diagnoses with at least one explanation",
+	}, nil
 }
 
 func nullableID(id int64) any {

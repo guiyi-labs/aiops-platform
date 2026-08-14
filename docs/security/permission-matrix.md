@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 289 |
+| 路由总数 | 290 |
 | 角色受限 | 84 |
-| 已审计 | 165 |
+| 已审计 | 166 |
 | scope=workspace | 13 |
 | scope=cluster | 82 |
 | scope=namespace | 32 |
-| scope=none | 162 |
+| scope=none | 163 |
 | 角色 operations_admin | 63 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 84 |
@@ -32,6 +32,7 @@
 
 | 方法 | 路径 | 角色 | 维度 | 审计动作 |
 |---|---|---|---|---|
+| GET | `/api/v1/ai/coverage` | any | none | ai_explanation.coverage.read |
 | POST | `/api/v1/ai/explanations/:explanation_id/feedback` | any | none | ai_explanation.feedback.create |
 | GET | `/api/v1/ai/quality` | any | none | - |
 | GET | `/api/v1/ai/status` | any | none | - |

@@ -505,6 +505,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 						aiAPI := aiExplanationHandler{service: options.AIExplanation}
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/ai/status", AuthRequired: true, Handler: aiAPI.status})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/ai/quality", AuthRequired: true, Handler: aiAPI.quality})
+						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/ai/coverage", AuthRequired: true, Handler: aiAPI.coverage, AuditAction: "ai_explanation.coverage.read", AuditResource: "AIExplanationCoverage"})
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/ai/explanations/:explanation_id/feedback", AuthRequired: true, Handler: aiAPI.feedback, AuditAction: "ai_explanation.feedback.create", AuditResource: "AIExplanationFeedback"})
 						reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/:diagnosis_id/explanations", AuthRequired: true, Handler: aiAPI.list})
 						reg.register(v1, RouteDescriptor{Method: "POST", Path: "/diagnoses/:diagnosis_id/explanations", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: aiAPI.generate, AuditAction: "diagnosis.ai_explanation.create", AuditResource: "DiagnosisAIExplanation"})

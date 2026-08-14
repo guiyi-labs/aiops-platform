@@ -61,6 +61,9 @@ func (s *repositoryStub) AddFeedback(context.Context, int64, ActorRef, string, s
 	return s.feedbackResult, s.feedbackErr
 }
 func (s *repositoryStub) Quality(context.Context) (QualitySummary, error) { return s.quality, nil }
+func (s *repositoryStub) Coverage(context.Context) (CoverageSummary, error) {
+	return CoverageSummary{TotalExplanations: 10, ExplainedDiagnoses: 8, WithCitations: 7, CitationRate: 0.7, Quality: s.quality}, nil
+}
 func (s *repositoryStub) Usage(context.Context) (Usage, error)            { return s.usage, nil }
 func (s *repositoryStub) Reserve(context.Context, Reservation, int) error {
 	s.reservations++
@@ -158,5 +161,20 @@ func TestServiceListsPersonalFeedbackAndQuality(t *testing.T) {
 	quality, err := service.Quality(context.Background())
 	if err != nil || quality.TotalFeedback != 3 || quality.HelpfulRate <= 0 {
 		t.Fatalf("Quality()=%#v err=%v", quality, err)
+	}
+}
+
+func TestServiceCoverage(t *testing.T) {
+	repository := &repositoryStub{quality: QualitySummary{TotalFeedback: 3, Helpful: 2, HelpfulRate: 2.0 / 3.0}}
+	service := NewService(testServiceConfig(), diagnosisStub{record: testDiagnosis()}, &providerStub{}, repository)
+	coverage, err := service.Coverage(context.Background())
+	if err != nil {
+		t.Fatalf("Coverage() err=%v", err)
+	}
+	if coverage.TotalExplanations != 10 || coverage.ExplainedDiagnoses != 8 || coverage.WithCitations != 7 || coverage.CitationRate != 0.7 {
+		t.Fatalf("Coverage()=%#v", coverage)
+	}
+	if coverage.Quality.TotalFeedback != 3 {
+		t.Fatalf("Coverage() quality baseline missing: %#v", coverage.Quality)
 	}
 }

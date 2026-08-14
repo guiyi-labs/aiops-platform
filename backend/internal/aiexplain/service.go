@@ -135,6 +135,11 @@ func (s *Service) Quality(ctx context.Context) (QualitySummary, error) {
 	return s.repository.Quality(ctx)
 }
 
+// Coverage returns the M112-4 explanation coverage dashboard snapshot.
+func (s *Service) Coverage(ctx context.Context) (CoverageSummary, error) {
+	return s.repository.Coverage(ctx)
+}
+
 func validFeedbackVerdict(verdict string) bool {
 	return verdict == "helpful" || verdict == "partially_helpful" || verdict == "not_helpful"
 }

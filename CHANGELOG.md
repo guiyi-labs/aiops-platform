@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M112-4 解释覆盖率大盘（AI 解释可用率 / 引用率 / 降级率只读展示）
+
+- 新增只读 `GET /api/v1/ai/coverage`，聚合 ai_explanations + ai_explanation_feedback 基线：解释可用率（有解释的 distinct 诊断）、引用率（带引用解释占比）、降级率（确定性 nop provider 占比）、质量反馈基线（好评率/贡献者/按模型）。
+- 纯只读编排：零写操作、零 AI 调用、零数据库迁移；`window_note` 说明聚合口径（全量窗口）。
+- 同步 OpenAPI/typegen（`AICoverage` schema）、权限矩阵（`ai_explanation.coverage.read`）、前端类型与客户端；新增只读大盘页 `/aiops/ai-coverage` 与侧栏「解释覆盖率」入口。
+- 至此 M112 全部完成（1 上下文驾驶舱 / 2 会话式调查 / 3 引用式事故摘要 / 4 解释覆盖率大盘）。See [change record](docs/changes/2026-08-14-m112-4-ai-coverage.md)。
+
 ### Added - M112-3 引用式 AI 事故摘要（确定性阶段门 + 引用校验的自动摘要）
 
 - 新增 `GET /api/v1/incidents/{incident_id}/summary`，一次性生成引用式事故摘要（root_cause_candidate / impact / evidence_summary / next_steps），所有事实断言引用事故证据时间线（同 M112-2 引用校验纪律）。

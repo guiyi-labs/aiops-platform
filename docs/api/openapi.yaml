@@ -786,6 +786,8 @@ paths:
     get: { tags: [ai], summary: AI runtime status, operationId: aiStatus, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/ai/quality:
     get: { tags: [ai], summary: AI feedback quality summary, operationId: aiQuality, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+  /api/v1/ai/coverage:
+    get: { tags: [ai], summary: M112-4 explanation coverage dashboard (availability, citation rate, degradation rate, quality baseline), operationId: aiCoverage, security: [{ bearerAuth: [] }], responses: { '200': { description: Read-only coverage snapshot over ai_explanations plus the quality feedback baseline, content: { application/json: { schema: { $ref: '#/components/schemas/AICoverage' } } } }, '500': { $ref: '#/components/responses/Error' } } }
   /api/v1/ai/explanations/{explanation_id}/feedback:
     post: { tags: [ai], summary: Rate one AI explanation, operationId: aiFeedback, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ExplanationID' }], responses: { '204': { description: Recorded }, '409': { $ref: '#/components/responses/Error' } } }
   /api/v1/notification-deliveries:
@@ -4979,6 +4981,41 @@ components:
         task_id: { type: string, description: Async replay task ID (e.g. qr-<hex>) }
         status: { type: string, enum: [running, succeeded, failed] }
         message: { type: string, description: Human-readable status message }
+    AICoverage:
+      type: object
+      additionalProperties: false
+      description: M112-4 explanation coverage dashboard. Read-only, all-time aggregate over ai_explanations plus the aiexplain quality feedback baseline. availability = distinct diagnoses with at least one explanation.
+      required: [total_explanations, explained_diagnoses, with_citations, citation_rate, deterministic_count, deterministic_rate, window_note]
+      properties:
+        total_explanations: { type: integer, minimum: 0, description: Explanations persisted in ai_explanations }
+        explained_diagnoses: { type: integer, minimum: 0, description: Distinct diagnosis_id with at least one explanation (availability baseline) }
+        with_citations: { type: integer, minimum: 0, description: Explanations carrying at least one citation }
+        citation_rate: { type: number, minimum: 0, maximum: 1, description: with_citations / total_explanations }
+        deterministic_count: { type: integer, minimum: 0, description: Explanations produced by the deterministic nop provider (degradation) }
+        deterministic_rate: { type: number, minimum: 0, maximum: 1, description: deterministic_count / total_explanations }
+        quality:
+          type: object
+          description: aiexplain quality feedback baseline.
+          properties:
+            total_feedback: { type: integer, minimum: 0 }
+            helpful: { type: integer, minimum: 0 }
+            partially_helpful: { type: integer, minimum: 0 }
+            not_helpful: { type: integer, minimum: 0 }
+            helpful_rate: { type: number, minimum: 0, maximum: 1 }
+            explanations_with_feedback: { type: integer, minimum: 0 }
+            contributors: { type: integer, minimum: 0 }
+            by_model:
+              type: array
+              items:
+                type: object
+                properties:
+                  model: { type: string }
+                  total_feedback: { type: integer, minimum: 0 }
+                  helpful: { type: integer, minimum: 0 }
+                  partially_helpful: { type: integer, minimum: 0 }
+                  not_helpful: { type: integer, minimum: 0 }
+                  helpful_rate: { type: number, minimum: 0, maximum: 1 }
+        window_note: { type: string }
     InsightRunbook:
       type: object
       additionalProperties: false

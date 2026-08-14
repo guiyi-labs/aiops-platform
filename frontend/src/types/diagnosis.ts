@@ -16,6 +16,16 @@ export interface AIQualitySummary extends Omit<AIExplanationFeedbackSummary, 'to
   contributors: number
   by_model: AIModelQualitySummary[]
 }
+export interface AICoverage {
+  total_explanations: number
+  explained_diagnoses: number
+  with_citations: number
+  citation_rate: number
+  deterministic_count: number
+  deterministic_rate: number
+  quality: AIQualitySummary
+  window_note: string
+}
 export interface DiagnosisAIExplanation {
   id: number
   diagnosis_id: number

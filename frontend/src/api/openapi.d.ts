@@ -2636,6 +2636,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** M112-4 explanation coverage dashboard (availability */
+        get: operations["aiCoverage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/explanations/{explanation_id}/feedback": {
         parameters: {
             query?: never;
@@ -7128,6 +7145,40 @@ export interface components {
             /** @description Human-readable status message */
             message: string;
         };
+        /** @description M112-4 explanation coverage dashboard. Read-only, all-time aggregate over ai_explanations plus the aiexplain quality feedback baseline. availability = distinct diagnoses with at least one explanation. */
+        AICoverage: {
+            /** @description Explanations persisted in ai_explanations */
+            total_explanations: number;
+            /** @description Distinct diagnosis_id with at least one explanation (availability baseline) */
+            explained_diagnoses: number;
+            /** @description Explanations carrying at least one citation */
+            with_citations: number;
+            /** @description with_citations / total_explanations */
+            citation_rate: number;
+            /** @description Explanations produced by the deterministic nop provider (degradation) */
+            deterministic_count: number;
+            /** @description deterministic_count / total_explanations */
+            deterministic_rate: number;
+            /** @description aiexplain quality feedback baseline. */
+            quality?: {
+                total_feedback?: number;
+                helpful?: number;
+                partially_helpful?: number;
+                not_helpful?: number;
+                helpful_rate?: number;
+                explanations_with_feedback?: number;
+                contributors?: number;
+                by_model?: {
+                    model?: string;
+                    total_feedback?: number;
+                    helpful?: number;
+                    partially_helpful?: number;
+                    not_helpful?: number;
+                    helpful_rate?: number;
+                }[];
+            };
+            window_note: string;
+        };
         /** @description M81 closed-loop runbook resolving one posture finding to diagnosis, inspection, AI explanation and dry-run operation candidates. */
         InsightRunbook: {
             /** Format: int64 */
@@ -10667,6 +10718,27 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Ok"];
+        };
+    };
+    aiCoverage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Read-only coverage snapshot over ai_explanations plus the quality feedback baseline */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AICoverage"];
+                };
+            };
+            500: components["responses"]["Error"];
         };
     };
     aiFeedback: {

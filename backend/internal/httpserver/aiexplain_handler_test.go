@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -38,12 +39,14 @@ type aiexplainRepoStub struct {
 	feedback    aiexplain.FeedbackResult
 	usage       aiexplain.Usage
 	quality     aiexplain.QualitySummary
+	coverage    aiexplain.CoverageSummary
 	reserveErr  error
 	saveErr     error
 	listErr     error
 	feedbackErr error
 	usageErr    error
 	qualityErr  error
+	coverageErr error
 }
 
 func (s aiexplainRepoStub) Save(_ context.Context, item *aiexplain.Explanation) error {
@@ -57,6 +60,9 @@ func (s aiexplainRepoStub) AddFeedback(context.Context, int64, aiexplain.ActorRe
 }
 func (s aiexplainRepoStub) Quality(context.Context) (aiexplain.QualitySummary, error) {
 	return s.quality, s.qualityErr
+}
+func (s aiexplainRepoStub) Coverage(context.Context) (aiexplain.CoverageSummary, error) {
+	return s.coverage, s.coverageErr
 }
 func (s aiexplainRepoStub) Usage(context.Context) (aiexplain.Usage, error) {
 	return s.usage, s.usageErr
@@ -72,6 +78,7 @@ func newAIExplanationRouter(service *aiexplain.Service) *gin.Engine {
 	router := gin.New()
 	router.GET("/api/v1/ai/status", h.status)
 	router.GET("/api/v1/ai/quality", h.quality)
+	router.GET("/api/v1/ai/coverage", h.coverage)
 	router.POST("/api/v1/ai/explanations/:explanation_id/feedback", h.feedback)
 	router.GET("/api/v1/diagnoses/:diagnosis_id/explanations", h.list)
 	router.POST("/api/v1/diagnoses/:diagnosis_id/explanations", h.generate)
@@ -272,5 +279,38 @@ func TestAIExplanationList(t *testing.T) {
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/diagnoses/0/explanations", nil))
 	if rec.Code != http.StatusBadRequest || !contains(rec.Body.String(), "INVALID_DIAGNOSIS_ID") {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAIExplanationCoverage(t *testing.T) {
+	coverage := aiexplain.CoverageSummary{
+		TotalExplanations:  10,
+		ExplainedDiagnoses: 8,
+		WithCitations:      7,
+		CitationRate:       0.7,
+		DeterministicCount: 2,
+		DeterministicRate:  0.2,
+		Quality: aiexplain.QualitySummary{
+			TotalFeedback: 4, Helpful: 3, HelpfulRate: 0.75,
+			ExplanationsWithFeedback: 3, Contributors: 2,
+		},
+		WindowNote: "all-time aggregate",
+	}
+	service := aiExplanationService(aiexplainDiagnosisStub{}, aiexplainProviderStub{}, aiexplainRepoStub{coverage: coverage})
+	router := newAIExplanationRouter(service)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/ai/coverage", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var decoded aiexplain.CoverageSummary
+	if err := json.Unmarshal(rec.Body.Bytes(), &decoded); err != nil {
+		t.Fatalf("decode coverage: %v", err)
+	}
+	if decoded.TotalExplanations != 10 || decoded.CitationRate != 0.7 || decoded.DeterministicRate != 0.2 {
+		t.Fatalf("coverage fields mismatch: %+v", decoded)
+	}
+	if decoded.Quality.Helpful != 3 {
+		t.Fatalf("quality baseline missing: %+v", decoded.Quality)
 	}
 }

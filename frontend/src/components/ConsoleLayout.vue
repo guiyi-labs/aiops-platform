@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   Activity,
+  BarChart2,
   Bell,
   BellRing,
   Boxes,
@@ -92,6 +93,7 @@ const navigationGroups = computed(() => [
       { label: '自动化控制台', icon: Workflow, route: '/aiops/automation', adminOnly: true },
       { label: '智能巡检', icon: Radar, route: '/inspection' },
       { label: '质量仪表盘', icon: FlaskConical, route: '/aiops/quality' },
+      { label: '解释覆盖率', icon: BarChart2, route: '/aiops/ai-coverage' },
     ],
   },
   {

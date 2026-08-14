@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService, executeRemediation, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisSummary, getRolloutHistory, getRolloutStatus, listControlledOperations, listDiagnosisExplanations, listRemediationPlans, previewControlledOperation, previewRemediation, transitionDiagnosis } from './diagnosis'
+import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService, executeRemediation, generateDiagnosisExplanation, getAICoverage, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisSummary, getRolloutHistory, getRolloutStatus, listControlledOperations, listDiagnosisExplanations, listRemediationPlans, previewControlledOperation, previewRemediation, transitionDiagnosis } from './diagnosis'
 
 describe('diagnosis API', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -106,6 +106,14 @@ describe('diagnosis API', () => {
     await getAIQualitySummary('token')
     expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/v1/ai/explanations/4/feedback', expect.objectContaining({ method: 'POST', body: JSON.stringify({ verdict: 'helpful', comment: 'evidence was clear' }) }))
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/v1/ai/quality', expect.any(Object))
+  })
+
+  it('reads the explanation coverage dashboard snapshot', async () => {
+    const coverage = { total_explanations: 10, explained_diagnoses: 8, with_citations: 7, citation_rate: 0.7, deterministic_count: 2, deterministic_rate: 0.2, quality: { total_feedback: 3, helpful: 2, helpful_rate: 2 / 3, by_model: [] }, window_note: 'all-time aggregate' }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(coverage), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(getAICoverage('token')).resolves.toMatchObject({ citation_rate: 0.7, deterministic_rate: 0.2 })
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/ai/coverage', expect.any(Object))
   })
 
   it('previews, lists and explicitly executes a remediation plan', async () => {

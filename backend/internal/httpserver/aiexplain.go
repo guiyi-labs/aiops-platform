@@ -70,6 +70,18 @@ func (h aiExplanationHandler) quality(c *gin.Context) {
 	c.JSON(http.StatusOK, summary)
 }
 
+// coverage handles GET /api/v1/ai/coverage — the M112-4 explanation
+// coverage dashboard. Read-only aggregation over ai_explanations plus the
+// quality feedback baseline.
+func (h aiExplanationHandler) coverage(c *gin.Context) {
+	summary, err := h.service.Coverage(c.Request.Context())
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to aggregate AI explanation coverage")
+		return
+	}
+	c.JSON(http.StatusOK, summary)
+}
+
 func (h aiExplanationHandler) feedback(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("explanation_id"), 10, 64)
 	if err != nil || id < 1 {

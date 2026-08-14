@@ -1,5 +1,5 @@
 import { authorizedRequest } from './client'
-import type { AIExplanationFeedbackResult, AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, ControlledOperationRequest, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisReplayView, DiagnosisStatus, DiagnosisSummary, DiagnoseNodeMetricsRequest, FeedbackVerdict, RemediationAction, RemediationPlan, RolloutHistory, RolloutStatus } from '../types/diagnosis'
+import type { AIExplanationFeedbackResult, AIExplanationFeedbackVerdict, AICoverage, AIQualitySummary, AIRuntimeStatus, ControlledOperationRequest, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisReplayView, DiagnosisStatus, DiagnosisSummary, DiagnoseNodeMetricsRequest, FeedbackVerdict, RemediationAction, RemediationPlan, RolloutHistory, RolloutStatus } from '../types/diagnosis'
 
 export function diagnosePod(token: string, clusterID: number, namespace: string, name: string): Promise<DiagnosisRecord> {
   return authorizedRequest(`/api/v1/clusters/${clusterID}/diagnoses`, token, {
@@ -132,6 +132,10 @@ export function getAIRuntimeStatus(token: string): Promise<AIRuntimeStatus> {
 
 export function getAIQualitySummary(token: string): Promise<AIQualitySummary> {
   return authorizedRequest('/api/v1/ai/quality', token)
+}
+
+export function getAICoverage(token: string): Promise<AICoverage> {
+  return authorizedRequest('/api/v1/ai/coverage', token)
 }
 
 export function addAIExplanationFeedback(token: string, explanationID: number, verdict: AIExplanationFeedbackVerdict, comment: string): Promise<AIExplanationFeedbackResult> {

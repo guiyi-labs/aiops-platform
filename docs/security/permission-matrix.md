@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 290 |
+| 路由总数 | 291 |
 | 角色受限 | 84 |
-| 已审计 | 166 |
+| 已审计 | 167 |
 | scope=workspace | 13 |
 | scope=cluster | 82 |
 | scope=namespace | 32 |
-| scope=none | 163 |
+| scope=none | 164 |
 | 角色 operations_admin | 63 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 84 |
@@ -279,6 +279,7 @@
 | GET | `/api/v1/notification-deliveries` | `security_auditor`, `system_admin` | none | - |
 | POST | `/api/v1/notification-deliveries/:delivery_id/retry` | `system_admin` | none | notification.delivery.retry |
 | POST | `/api/v1/optimization/capacity/analyze` | any | none | optimization.capacity.analyze |
+| POST | `/api/v1/optimization/capacity/preview` | any | none | optimization.capacity.preview |
 | POST | `/api/v1/optimization/cis/analyze` | any | none | optimization.cis.analyze |
 | POST | `/api/v1/optimization/deprecated-api/analyze` | any | none | optimization.deprecated_api.analyze |
 | POST | `/api/v1/optimization/finops/analyze` | any | none | optimization.finops.analyze |

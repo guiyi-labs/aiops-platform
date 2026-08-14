@@ -30,6 +30,7 @@ import FindingRunbookPanel from '../components/FindingRunbookPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type {
+  CapacityPreview,
   CapacityStatus,
   CISStatus,
   DeprecatedAPIStatus,
@@ -247,6 +248,52 @@ const memSaturationDays = computed(() => {
   if (days == null || days < 0) return '—'
   return Math.round(days).toString()
 })
+
+// ---- M113-2 capacity-aware preview ----------------------------------------
+// A read-only "where can this workload fit" preview: the user inputs a
+// candidate workload's resource requests and the ranked node rows explain
+// per-node why it fits or why not (remaining CPU/mem/GPU/storage headroom).
+// The endpoint never schedules anything or writes to the cluster.
+
+const previewRequest = ref({ cpuRequestsCores: 1, memRequestsGiB: 2, gpuRequests: 0, storageRequestsGiB: 0 })
+const capacityPreview = ref<CapacityPreview | null>(null)
+const previewLoading = ref(false)
+const previewError = ref('')
+
+async function runCapacityPreview() {
+  if (selectedClusterID.value === null) return
+  previewLoading.value = true
+  previewError.value = ''
+  capacityPreview.value = null
+  try {
+    capacityPreview.value = await optimizationAPI.getCapacityPreview(auth.accessToken ?? '', {
+      cluster_id: selectedClusterID.value,
+      cpu_request_nanocores: Math.round((previewRequest.value.cpuRequestsCores || 0) * 1e9),
+      mem_request_bytes: Math.round((previewRequest.value.memRequestsGiB || 0) * 1024 ** 3),
+      gpu_request: previewRequest.value.gpuRequests || 0,
+      storage_request_bytes: Math.round((previewRequest.value.storageRequestsGiB || 0) * 1024 ** 3),
+    })
+  } catch {
+    previewError.value = '容量预览加载失败，请稍后重试'
+  } finally {
+    previewLoading.value = false
+  }
+}
+
+/** Human formatting for CPU headroom (nanocores → cores). */
+function formatCPUNanocores(nanocores: number | undefined): string {
+  if (nanocores == null) return '—'
+  return `${(nanocores / 1e9).toFixed(2)} 核`
+}
+
+/** Human formatting for byte quantities (bytes → GiB). */
+function formatBytes(bytes: number | undefined): string {
+  if (bytes == null) return '—'
+  return `${(bytes / 1024 ** 3).toFixed(1)} GiB`
+}
+
+const constraintLabels: Record<string, string> = { cpu: 'CPU', memory: '内存', gpu: 'GPU', storage: '存储' }
+const constraintStatusLabels: Record<string, string> = { satisfied: '满足', violated: '不足', unknown: '无法评估' }
 
 /** Utilization ratio rendered as a percentage with one decimal place. */
 function pct(value: number | string | undefined): string {
@@ -1028,6 +1075,99 @@ onMounted(() => void loadClusters())
               </table>
             </div>
           </section>
+
+          <section class="panel">
+            <header class="panel-header">
+              <div class="panel-title">
+                <Gauge :size="18" />
+                <strong>容量感知预览</strong>
+                <span class="muted">M113-2 · 只读 · 不创建任何资源</span>
+              </div>
+            </header>
+            <div class="capacity-preview-form">
+              <label>
+                <span>CPU 请求（核）</span>
+                <input v-model.number="previewRequest.cpuRequestsCores" class="form-input" type="number" min="0" step="0.1" aria-label="CPU 请求核数" />
+              </label>
+              <label>
+                <span>内存请求（GiB）</span>
+                <input v-model.number="previewRequest.memRequestsGiB" class="form-input" type="number" min="0" step="0.5" aria-label="内存请求 GiB" />
+              </label>
+              <label>
+                <span>GPU 请求（卡）</span>
+                <input v-model.number="previewRequest.gpuRequests" class="form-input" type="number" min="0" step="1" aria-label="GPU 请求数量" />
+              </label>
+              <label>
+                <span>存储请求（GiB）</span>
+                <input v-model.number="previewRequest.storageRequestsGiB" class="form-input" type="number" min="0" step="1" aria-label="存储请求 GiB" />
+              </label>
+              <button type="button" class="button primary" :disabled="previewLoading || selectedClusterID === null" @click="runCapacityPreview">
+                {{ previewLoading ? '评估中…' : '评估适配节点' }}
+              </button>
+            </div>
+
+            <p v-if="previewError" class="notice error capacity-preview-error">{{ previewError }}</p>
+            <div v-else-if="capacityPreview" class="capacity-preview-result">
+              <div class="capacity-preview-summary">
+                <article class="metric-card">
+                  <p class="metric-heading"><Gauge :size="16" />适配节点</p>
+                  <strong>{{ capacityPreview.fit_count }}</strong>
+                  <span>共 {{ capacityPreview.nodes_total }} 个节点 · 可调度 {{ capacityPreview.nodes_schedulable }}</span>
+                </article>
+                <article class="metric-card">
+                  <p class="metric-heading"><History :size="16" />数据观测时间</p>
+                  <strong>{{ formatTimestamp(capacityPreview.observed_at) }}</strong>
+                  <span>{{ capacityPreview.fail_closed ? '存在缺样本节点（fail-closed，不计为适配）' : '全部节点均有可用样本' }}</span>
+                </article>
+              </div>
+              <div class="table-scroll">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>节点</th>
+                      <th>状态</th>
+                      <th>判定</th>
+                      <th>约束明细</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="node in capacityPreview.nodes" :key="node.name">
+                      <td>
+                        <div class="cell-main">{{ node.name }}</div>
+                        <div class="cell-sub muted">{{ node.freshness ? `观测于 ${formatTimestamp(node.freshness)}` : '无用量样本' }}</div>
+                      </td>
+                      <td>
+                        <div class="cell-sub muted">{{ node.schedulable ? '可调度' : '已封调度' }} · {{ node.ready ? 'Ready' : 'NotReady' }}</div>
+                      </td>
+                      <td>
+                        <span v-if="node.fits" class="phase-badge pass">适配</span>
+                        <span v-else-if="node.unknown_count > 0" class="phase-badge warn">数据不足</span>
+                        <span v-else class="phase-badge warn">不适配</span>
+                      </td>
+                      <td>
+                        <ul v-if="node.constraints.length" class="capacity-constraint-list">
+                          <li v-for="con in node.constraints" :key="con.resource" :class="`constraint-${con.status}`">
+                            <code>{{ constraintLabels[con.resource] ?? con.resource }}</code>
+                            <span>{{ constraintStatusLabels[con.status] ?? con.status }}</span>
+                            <span v-if="con.status === 'satisfied'">（余 {{ con.resource === 'cpu' ? formatCPUNanocores(con.remaining) : con.resource === 'gpu' ? `${con.remaining} 卡` : formatBytes(con.remaining) }}）</span>
+                            <span v-if="con.status === 'violated'" class="muted">（需 {{ con.resource === 'cpu' ? formatCPUNanocores(con.required) : con.resource === 'gpu' ? `${con.required} 卡` : formatBytes(con.required) }}，不足）</span>
+                            <span v-if="con.status === 'unknown'" class="muted">（{{ (con.missing_names ?? []).join(' / ') || '缺数据' }}）</span>
+                          </li>
+                        </ul>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="capacity-preview-footnote muted">
+                预览仅基于节点 <code>status.allocatable</code> 与用量指标估算剩余容量，不执行调度、不创建 Deployment、不修改 YAML。
+                节点被判定为适配仅说明资源约束可满足，实际调度仍受亲和性/污点等约束影响。
+              </p>
+            </div>
+            <div v-else class="panel-empty muted">
+              输入候选工作负载的资源请求后评估哪些节点可以承载（仅预览，不产生任何写操作）
+            </div>
+          </section>
         </template>
         <div v-else class="panel-empty muted">选择集群后开始分析</div>
       </section>
@@ -1495,4 +1635,31 @@ onMounted(() => void loadClusters())
     transform: rotate(360deg);
   }
 }
+
+.capacity-preview-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 0 0 12px;
+}
+.capacity-preview-form label {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.capacity-preview-form .form-input { width: 100%; }
+.capacity-preview-form .button { white-space: nowrap; }
+.capacity-preview-error { margin-top: 4px; }
+.capacity-preview-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.capacity-constraint-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 11px; }
+.capacity-constraint-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.capacity-constraint-list code { color: var(--text-secondary); }
+.capacity-constraint-list .constraint-satisfied { color: var(--status-ok); }
+.capacity-constraint-list .constraint-violated { color: var(--status-danger); }
+.capacity-constraint-list .constraint-unknown { color: var(--status-warning); }
+.capacity-preview-footnote { margin: 10px 0 0; font-size: 11px; }
+@media (max-width: 900px) { .capacity-preview-form { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .capacity-preview-form { grid-template-columns: 1fr; } }
 </style>

@@ -24,6 +24,49 @@ export interface ResourceCitation {
   resource_version?: string
 }
 
+// ── M113-2 capacity-aware preview ───────────────────────────────────────────
+
+export interface CapacityPreviewRequest {
+  cluster_id: number
+  cpu_request_nanocores?: number
+  mem_request_bytes?: number
+  gpu_request?: number
+  storage_request_bytes?: number
+}
+
+export interface CapacityConstraint {
+  resource: 'cpu' | 'memory' | 'gpu' | 'storage'
+  status: 'satisfied' | 'violated' | 'unknown'
+  remaining?: number
+  required?: number
+  missing_names?: string[]
+  note?: string
+}
+
+export interface CapacityPreviewNode {
+  name: string
+  schedulable: boolean
+  ready: boolean
+  fits: boolean
+  unknown_count: number
+  score: number
+  freshness?: string
+  constraints: CapacityConstraint[]
+}
+
+export interface CapacityPreview {
+  cluster_id: number
+  evaluated_at: string
+  request: CapacityPreviewRequest
+  scope?: string
+  observed_at?: string
+  nodes_total: number
+  nodes_schedulable: number
+  fit_count: number
+  fail_closed: boolean
+  nodes: CapacityPreviewNode[]
+}
+
 /**
  * A single read-only observation. Shared verbatim by the CIS and
  * deprecated-API analyzers (both alias `finding.Finding` server-side), so the

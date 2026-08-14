@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeHPA, analyzeImage, analyzeIngress, analyzeNetwork, analyzePDB, analyzePolicy } from './optimization'
+import { analyzeCapacity, analyzeCIS, analyzeDeprecatedAPI, analyzeFinOps, analyzeGitOps, analyzeHPA, analyzeImage, analyzeIngress, analyzeNetwork, analyzePDB, analyzePolicy, getCapacityPreview } from './optimization'
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
@@ -340,5 +340,27 @@ describe('optimization API client', () => {
     await expect(analyzeIngress('token', 31)).rejects.toMatchObject({
       status: 502, code: 'COLLECT_FAILED', message: 'cluster 31 is unreachable',
     })
+  })
+
+  it('requests a capacity preview and normalises a null nodes list', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      cluster_id: 32, evaluated_at: '2026-08-14T10:00:00Z',
+      request: { cluster_id: 32, cpu_request_nanocores: 1000000000 },
+      scope: 'cluster:32:nodes:allocatable+usage', observed_at: '2026-08-14T09:59:30Z',
+      nodes_total: 2, nodes_schedulable: 2, fit_count: 1, fail_closed: false, nodes: null,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const preview = await getCapacityPreview('token', { cluster_id: 32, cpu_request_nanocores: 1000000000 })
+
+    const [path, init] = fetchMock.mock.calls[0] ?? []
+    expect(path).toBe('/api/v1/optimization/capacity/preview')
+    expect(init).toMatchObject({ method: 'POST' })
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ cluster_id: 32, cpu_request_nanocores: 1000000000 })
+    expect((init as RequestInit).headers).toMatchObject({ Authorization: 'Bearer token', 'Content-Type': 'application/json' })
+    // A nil nodes slice server-side arrives as null and must not leak.
+    expect(preview.nodes).toEqual([])
+    expect(preview.fit_count).toBe(1)
+    expect(preview.fail_closed).toBe(false)
   })
 })

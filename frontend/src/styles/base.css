@@ -662,6 +662,8 @@ button:not(:disabled):active,
 .phase-badge.failed { color: var(--status-danger); background: var(--danger-bg); }
 .phase-badge.pending { color: var(--status-warning); background: var(--warning-bg); }
 .phase-badge.unknown { color: #69578a; background: #f0ecfa; }
+.phase-badge.pass { color: var(--status-success); background: var(--success-bg); }
+.phase-badge.warn { color: var(--status-warning); background: var(--warning-bg); }
 
 .resource-summary-grid {
   display: grid;

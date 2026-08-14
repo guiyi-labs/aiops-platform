@@ -48,6 +48,26 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/optimization/capacity/preview:
+    post:
+      tags: [optimization]
+      summary: M113-2 capacity-aware preview — rank nodes by remaining headroom
+      operationId: capacityPreview
+      description: 'Reads live node allocatable capacity + usage via the read-only kubernetes gateway, evaluates a candidate workload request against every node, and returns nodes ranked best-fit first with per-constraint "why fits / why not" explanations and data freshness. Read-only remediation preview; never writes.'
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CapacityPreviewRequest' }
+      responses:
+        '200':
+          description: Ranked capacity preview
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CapacityPreview' }
+        '400': { $ref: '#/components/responses/Error' }
+        '502': { $ref: '#/components/responses/Error' }
   /api/v1/optimization/finops/analyze:
     post:
       tags: [optimization]
@@ -2594,6 +2614,58 @@ components:
     Login: { description: Login or refresh response, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
     Error: { description: Structured error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   schemas:
+    # -------- M113-2 Capacity-aware preview --------
+    CapacityPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [cluster_id]
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        cpu_request_nanocores: { type: integer, format: int64, description: CPU request in nanocores }
+        mem_request_bytes: { type: integer, format: int64, description: Memory request in bytes }
+        gpu_request: { type: integer, format: int64, description: GPU device count }
+        storage_request_bytes: { type: integer, format: int64, description: Ephemeral-storage request in bytes }
+    CapacityPreview:
+      type: object
+      additionalProperties: false
+      required: [cluster_id, evaluated_at, request, nodes_total, nodes_schedulable, fit_count, fail_closed, nodes]
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        evaluated_at: { type: string, format: date-time }
+        request: { $ref: '#/components/schemas/CapacityPreviewRequest' }
+        scope: { type: string, description: Resource-context scope (what this preview covers) }
+        observed_at: { type: string, format: date-time, description: Newest underlying observation time }
+        nodes_total: { type: integer }
+        nodes_schedulable: { type: integer }
+        fit_count: { type: integer }
+        fail_closed: { type: boolean, description: True when any node lacked data and was excluded from fit_count }
+        nodes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, schedulable, ready, fits, unknown_count, score, constraints]
+            properties:
+              name: { type: string }
+              schedulable: { type: boolean }
+              ready: { type: boolean }
+              fits: { type: boolean }
+              unknown_count: { type: integer }
+              score: { type: number, format: double }
+              freshness: { type: string, format: date-time }
+              constraints:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [resource, status]
+                  properties:
+                    resource: { type: string, enum: [cpu, memory, gpu, storage] }
+                    status: { type: string, enum: [satisfied, violated, unknown] }
+                    remaining: { type: integer, format: int64 }
+                    required: { type: integer, format: int64 }
+                    missing_names: { type: array, items: { type: string } }
+                    note: { type: string }
     # -------- M80 Aggregated governance posture --------
     PostureReport:
       type: object

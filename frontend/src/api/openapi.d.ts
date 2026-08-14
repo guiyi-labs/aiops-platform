@@ -21,6 +21,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/optimization/capacity/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * M113-2 capacity-aware preview — rank nodes by remaining headroom
+         * @description Reads live node allocatable capacity + usage via the read-only kubernetes gateway, evaluates a candidate workload request against every node, and returns nodes ranked best-fit first with per-constraint "why fits / why not" explanations and data freshness. Read-only remediation preview; never writes.
+         */
+        post: operations["capacityPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/optimization/finops/analyze": {
         parameters: {
             query?: never;
@@ -4581,6 +4601,72 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CapacityPreviewRequest: {
+            /** Format: int64 */
+            cluster_id: number;
+            /**
+             * Format: int64
+             * @description CPU request in nanocores
+             */
+            cpu_request_nanocores?: number;
+            /**
+             * Format: int64
+             * @description Memory request in bytes
+             */
+            mem_request_bytes?: number;
+            /**
+             * Format: int64
+             * @description GPU device count
+             */
+            gpu_request?: number;
+            /**
+             * Format: int64
+             * @description Ephemeral-storage request in bytes
+             */
+            storage_request_bytes?: number;
+        };
+        CapacityPreview: {
+            /** Format: int64 */
+            cluster_id: number;
+            /** Format: date-time */
+            evaluated_at: string;
+            request: components["schemas"]["CapacityPreviewRequest"];
+            /** @description Resource-context scope (what this preview covers) */
+            scope?: string;
+            /**
+             * Format: date-time
+             * @description Newest underlying observation time
+             */
+            observed_at?: string;
+            nodes_total: number;
+            nodes_schedulable: number;
+            fit_count: number;
+            /** @description True when any node lacked data and was excluded from fit_count */
+            fail_closed: boolean;
+            nodes: {
+                name: string;
+                schedulable: boolean;
+                ready: boolean;
+                fits: boolean;
+                unknown_count: number;
+                /** Format: double */
+                score: number;
+                /** Format: date-time */
+                freshness?: string;
+                constraints: {
+                    /** @enum {string} */
+                    resource: "cpu" | "memory" | "gpu" | "storage";
+                    /** @enum {string} */
+                    status: "satisfied" | "violated" | "unknown";
+                    /** Format: int64 */
+                    remaining?: number;
+                    /** Format: int64 */
+                    required?: number;
+                    missing_names?: string[];
+                    note?: string;
+                }[];
+            }[];
+        };
         PostureReport: {
             cluster_id: number;
             /** Format: date-time */
@@ -7527,6 +7613,32 @@ export interface operations {
             200: components["responses"]["Ok"];
             400: components["responses"]["Error"];
             500: components["responses"]["Error"];
+        };
+    };
+    capacityPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Ranked capacity preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapacityPreview"];
+                };
+            };
+            400: components["responses"]["Error"];
+            502: components["responses"]["Error"];
         };
     };
     analyzeFinOps: {

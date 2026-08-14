@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M113-2 容量感知预览（节点按剩余资源排序的只读适配评估）
+
+- 新增只读 `POST /api/v1/optimization/capacity/preview`：输入候选工作负载资源请求（CPU/内存/GPU/存储），实时读取集群节点的 `status.allocatable` 与用量指标，评估每节点的剩余头寸并按适配度排序；逐约束输出"为什么适配/为什么不适配"（satisfied/violated/unknown）与数据更新时间。
+- 新增纯包 `internal/capacitypreview`（ADR 0004，无 cluster 访问、无写路径）；缺样本约束为 `unknown` 且 fail-closed（带未知约束的节点不计为适配，空样本不视为健康）；返回 `scope`/`observed_at`/`freshness` 沿 M112 资源上下文契约。
+- 前端优化中心容量 tab 新增"容量感知预览"面板（表单 + 适配结果表 + 数据观测时间），只读不创建任何资源。
+- 同步 OpenAPI/typegen（`CapacityPreview` schema）、权限矩阵（`optimization.capacity.preview`）。
+- See [change record](docs/changes/2026-08-14-m113-2-capacity-preview.md)。
+
 ### Added - M113-1 Finding → Runbook 预览导航（优化中心闭环第一步）
 
 - 新增可复用只读组件 `FindingRunbookPanel.vue`：从任意 posture/optimization finding 一键跳转到对应 insight runbook（确定性诊断路由 → 巡检佐证 → AI 引用解释 deep-link → 受控操作 dry-run 预览），全程只读，零写操作。

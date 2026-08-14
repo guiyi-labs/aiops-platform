@@ -1,5 +1,7 @@
 import { authorizedRequest } from './client'
 import type {
+  CapacityPreview,
+  CapacityPreviewRequest,
   CapacityStatus,
   CISStatus,
   CostRate,
@@ -126,4 +128,17 @@ export async function getPostureReport(token: string, clusterId: number, targetV
     domains: report.domains ?? [],
     by_severity: report.by_severity ?? {},
   }
+}
+
+// M113-2 capacity-aware preview: rank nodes by remaining headroom for a
+// candidate workload. Read-only remediation preview, no writes.
+export async function getCapacityPreview(
+  token: string,
+  request: CapacityPreviewRequest,
+): Promise<CapacityPreview> {
+  const preview = await authorizedRequest<CapacityPreview>('/api/v1/optimization/capacity/preview', token, {
+    method: 'POST',
+    body: JSON.stringify(request),
+  })
+  return { ...preview, nodes: preview.nodes ?? [] }
 }

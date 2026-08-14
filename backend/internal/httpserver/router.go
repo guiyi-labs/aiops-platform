@@ -595,6 +595,14 @@ func New(logger *zap.Logger, options Options) http.Handler {
 			postureRoutes := optRoutes.Group("/posture")
 			reg.register(postureRoutes, RouteDescriptor{Method: "GET", Path: "/cluster", AuthRequired: true, Handler: optAPI.postureReport, AuditAction: "posture.cluster.report", AuditResource: "Cluster"})
 		}
+		// M113-2 capacity-aware preview: reads live node allocatable + usage
+		// via the read-only kubernetes gateway and returns a ranked
+		// best-fit preview (remediation preview only, no writes). Registered
+		// only when the kubernetes gateway is configured.
+		if options.Kubernetes != nil {
+			capacityPreviewAPI := capacityPreviewHandler{kubernetes: options.Kubernetes}
+			reg.register(optRoutes, RouteDescriptor{Method: "POST", Path: "/capacity/preview", AuthRequired: true, Handler: capacityPreviewAPI.preview, AuditAction: "optimization.capacity.preview", AuditResource: "Cluster"})
+		}
 	}
 
 	// M37B alert routes: webhook receivers, exact-match routes, bounded

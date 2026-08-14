@@ -1,25 +1,26 @@
 # 后续开发路线：M110 收口 + M111–M115（含并行前端轨收口与授权轨）
 
 - Status: Active（执行基线）
-- Updated: 2026-08-13
-- Baseline: M109 封口 + M110 RC-6 发布预检完成（`docs/m110-release-preflight.md` 15 项全过），
-  RC tag 推送待用户授权；本地 main 领先 origin 6 个提交（登录页 #login-ambience 第 9–13 轮）
+- Updated: 2026-08-14
+- Baseline: M111 已完成并推送，CI 全绿，阶段基线为 `baseline-m111-20260814`；M110 RC-6
+  发布仍待用户授权，不影响 M112 研发启动
 - 上位路线：[`docs/long-term-roadmap.md`](long-term-roadmap.md)（原则不变）
 - 打磨合同：[`docs/polish-plan.md`](polish-plan.md)（P0–P3 优先级不变）
 - 授权轨准备：[`docs/authorization-gate-prep.md`](authorization-gate-prep.md)
 - 已知限制：[`docs/testing/known-limitations.md`](testing/known-limitations.md)
-- 本文件取代 `docs/development-roadmap-post-m106.md` 的 M107–M110 执行序（M107–M109 已封口、
-  M110 待发布），规划 M110 之后的并行轨与主线里程碑。
+- 本文件取代 `docs/development-roadmap-post-m106.md` 的 M107–M110 执行序（M107–M111 已封口、
+  M110 RC 发布待授权），规划 M112 之后的并行轨与主线里程碑。
 
 ## 0. 定位
 
-项目功能基线已过 M109，M110（v0.3.0-rc.6 刷新）本地预检全部通过，剩余动作是**用户授权的
-发布动作**而非开发工作。事故协作闭环（M98 工作空间 + M103–M105 三类联动 + M107 协作 +
-M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数量，而是三条线并行：
+项目功能基线已过 M111，M110（v0.3.0-rc.6 刷新）剩余动作是**用户授权的发布动作**，不阻塞
+研发。事故协作闭环（M98 工作空间 + M103–M105 三类联动 + M107 协作 + M108 关联归一 +
+M109 收口 + M111 响应深化）已经可用。下一阶段不再堆功能数量，而是围绕上下文、容量和
+证据三条线并行：
 
-1. **M110 收口**：把已就绪的发布与前端轨成果推出去（用户决策项），完成 rc.6 全链路证据。
-2. **产品线（M111–M114）**：把 incident 从"闭环可用"推进到"可运营、可度量、可解释"，
-   并把已有能力（runbook 目录、AI 引用、受控动作、SLO/信号）织成更深的闭环。
+1. **M110 收口**：把已就绪的 RC 资产推出去（用户决策项），完成 rc.6 全链路证据。
+2. **产品线（M112–M114）**：把 incident、优化中心和可观测性组织成统一上下文工作面，
+   复用 runbook 目录、AI 引用、受控动作、SLO/信号和真实资源数据。
 3. **工程线（M115 + 常续）**：覆盖率 65% → 70%、性能基准入 CI fail-closed、fuzz 扩展；
    M89/M90 授权轨保持 Deferred，材料已备，放行即执行并冲刺 GA Gate D。
 
@@ -27,13 +28,25 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 未授权资源返回 404、所有写路径 dry-run + 确认 + 幂等 + 审计。未完成 M89/M90 前保持 RC，
 不宣称 GA。
 
-## 1. Track 0：M110 收口（用户决策项，1–2 天）
+### 0.1 借鉴后的产品原则
+
+- **统一入口，任务分组**：导航按观察、诊断、响应、优化、交付组织；外部工具只作为带状态和权限
+  的链接入口，不默认嵌入 iframe，也不复制一套外部工具的权限模型。
+- **上下文优先**：事故、资源、Finding、Runbook、SLO、事件和容量信息通过同一集群/命名空间
+  范围串联，用户在当前工作面回答“哪里异常、影响谁、证据是什么、下一步是什么”。
+- **容量感知但不越权**：展示 CPU、内存、GPU、存储和网络约束下的资源适配建议；只提供预览和
+  dry-run，不把直接部署、终端、删除或任意 YAML 编辑带入主链路。
+- **状态可见且有界**：异步工作流显示总量、运行中、等待中、失败和最近更新时间；事件和指标查询
+  必须有时间窗、样本上限、缺样本语义与刷新控制。
+- **保持平台质量基线**：所有新增页面继续满足 OpenAPI/typegen、权限过滤、axe、响应式、截图基线、
+  console error=0、归档和 CI 门禁。
+
+## 1. Track 0：M110 发布收口（用户决策项，1–2 天）
 
 > 本轨唯一阻塞点是用户授权 push RC tag 触发远端 Release；其余均为本地可执行项。
 
-- [ ] **推送本地提交**：main 领先 origin 6 个提交（登录页 #login-ambience 第 9–13 轮），
-  先复验前端门禁（`pnpm typecheck` / `pnpm lint` / `pnpm test` / `pnpm build` + Playwright
-  双视口回归）后 `git push origin main`。
+- [x] **主干提交已推送**：M111 事故响应深化已提交到 `main`，远端 CI 全绿，并已打
+  `baseline-m111-20260814`。
 - [ ] **用户授权后发布**：`git tag v0.3.0-rc.6 && git push origin v0.3.0-rc.6`，触发
   `.github/workflows/release.yml`（validate → quality 复用 ci.yml → package：双架构 OCI、
   SBOM、Helm/Kustomize、离线包、keyless Cosign、GitHub prerelease）。发布前按
@@ -88,14 +101,16 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 时先出 OpenAPI/typegen 变更并登记，由主线合入后端；按 `docs/ARCHIVING.md` 归档
 （change-record + CHANGELOG + 基线 tag + 工作树干净）。
 
-## 3. 主线 Track B：M111 事故响应深化（5–8 天）
+## 3. 主线 Track B：M111 事故响应深化（已完成）
 
 **目标**：incident 从"能协作"升级为"可运营、可度量、可交接"，全部复用既有领域组件。
 
-**执行进度（2026-08-14）**：M111 已完成 KPI 基础层、事故详情 Runbook 关联、模板与严重级矩阵、SLA 升级链和复盘导出：新增真实时间戳派生的
+**执行进度（2026-08-14）**：M111 已完成 KPI 基础层、事故详情 Runbook 关联、模板与严重级矩阵、SLA 升级链和复盘导出；提交 `4b1a862`、阶段 tag
+`baseline-m111-20260814`、CI `31771782276` 均已完成。新增真实时间戳派生的
 `GET /api/v1/incidents/metrics`，以及复用 M81 Insight 的
 `GET /api/v1/incidents/{incident_id}/runbook`；新增 `GET /api/v1/incidents/templates` 和
-`GET /api/v1/incidents/{incident_id}/postmortem/export`。全部契约已同步 OpenAPI/typegen，待全量门禁和阶段 tag 封口。
+`GET /api/v1/incidents/{incident_id}/postmortem/export`。全部契约已同步 OpenAPI/typegen，全量门禁和阶段 tag
+均已完成封口。
 
 - **Runbook 关联（已完成）**：incident 详情页挂接 M81 Insight 的诊断/巡检/AI 解释/dry-run
   候选，只读展示且对人工来源、源记录缺失和跨域不确定性 fail-closed；不新增任意操作，写路径
@@ -108,23 +123,29 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 - **复盘导出（已完成）**：postmortem Markdown 导出包含证据时间线、决策、动作、结果叙事，是 M107
   复盘视图的可携带版本。
 
-**验收**：三条黄金场景（Node NotReady / Deployment unavailable / OOMKilled）带第二来源
+**验收结果**：三条黄金场景（Node NotReady / Deployment unavailable / OOMKilled）带第二来源
 联动仍成立；runbook 关联只读且引用校验通过；KPI 由真实时间戳派生（无伪造）；升级链
-通知 + 审计齐全；Playwright 关键旅程 Desktop/Mobile 双通过。
+通知 + 审计齐全；Playwright 关键旅程 Desktop/Mobile 双通过。后续只在 M112 消费这些只读
+上下文，不回写或绕过既有事故边界。
 
 ## 4. 主线 Track C：M112 AI 协调查询与解释深化（5–7 天）
 
-**目标**：把 AI 从"单次调查请求"升级为"事故上下文中的可追问解释"，严守引用纪律。
+**目标**：把 AI 从"单次调查请求"升级为"事故上下文中的可追问解释"，严守引用纪律，并形成
+一个值班人员可在单页完成判断的事故上下文驾驶舱。
 
-- **会话式调查**：incident 上下文中连续提问，输出经 M44 同款 provider/citation/runbook
+- **M112-1 上下文驾驶舱**：在事故详情首屏汇总严重级/SLA、影响资源、实时健康、证据来源、最近
+  事件、关联 Runbook 和当前动作建议；所有数据复用现有 API 与权限范围，外部系统用深链而非
+  iframe。
+- **M112-2 会话式调查**：incident 上下文中连续提问，输出经 M44 同款 provider/citation/runbook
   校验（引用缺失/不一致 fail-closed；`AI_ENABLED=false` 时降级为确定性摘要）。
-- **AI 事故摘要**：确定性阶段门 + 引用校验的自动摘要（根因/影响/证据/下一步），不伪造、
+- **M112-3 AI 事故摘要**：确定性阶段门 + 引用校验的自动摘要（根因/影响/证据/下一步），不伪造、
   无来源不生成结论。
-- **解释覆盖率大盘**：基于 `aiexplain` quality feedback 基线，展示解释可用率/引用率/
+- **M112-4 解释覆盖率大盘**：基于 `aiexplain` quality feedback 基线，展示解释可用率/引用率/
   降级率（只读，纯展示）。
 
-**验收**：引用校验 0 泄漏（不生成无来源结论）；Provider 故障/关闭时确定性降级路径可用；
-黄金 fixture 回放一致；门禁全绿。
+**验收**：值班人员在一个工作面内能回答“哪里异常、影响谁、证据是什么、下一步是什么”；
+引用校验 0 泄漏；Provider 故障/关闭时确定性降级路径可用；黄金 fixture 回放一致；
+上下文所有资源均经过 cluster/namespace scope 校验；门禁全绿。
 
 ## 5. 主线 Track D：M113 优化中心闭环与巡检深化（5–7 天）
 
@@ -132,24 +153,28 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 
 - **finding → runbook 预览导航**：posture/optimization finding 一键跳转对应
   `insight` runbook（dry-run 预览 + 可执行 runbook 入口），全程只读导航，不新增写路径。
+- **容量感知预览**：对候选资源按剩余 CPU、内存、GPU、存储和网络约束排序，展示“为什么适配/为什么
+  不适配”和数据更新时间；只生成 remediation 预览，不直接创建 Deployment、修改 YAML 或打开终端。
 - **巡检趋势与覆盖率度量**：plan → findings 时间序列、规则命中覆盖率、计划调度改进
   （M52 巡检深化）；数据可见性沿用 M99-D 的显式覆盖度展示约定。
 - **（可选，需契约评审）** 受控操作目录扩展提案：如 PDB/HPA 创建建议 → dry-run 预览 →
   人工确认执行；涉及 `remediation` 目录与 ADR 变更，需单独评审，不默认纳入。
 
-**验收**：预览与实际 dry-run 结果一致；无任何绕过审计/确认的新写路径；巡检度量有真实
-数据且 fail-closed 无样本不视为健康。
+**验收**：预览与实际 dry-run 结果一致；资源适配解释可追溯到节点/资源指标；无任何绕过审计/
+确认的新写路径；巡检度量有真实数据且 fail-closed 无样本不视为健康。
 
 ## 6. 主线 Track E：M114 可观测性深化（5–7 天）
 
 - **SLO burn 扩展与告警降噪**：更多 SLO 来源信号化（M99-A 管道扩展）、关联驱动的告警
   去重/聚合展示（复用 correlation 引擎）。
+- **事件驾驶舱**：按严重级、原因、集群、命名空间和资源聚合重复事件，提供时间窗口、去重计数、
+  首次/最近发生时间、异常趋势和深链；不只展示固定数量的原始事件。
 - **指标历史下采样**：metricshistory 现有 7 天精确序列，扩展 30 天下采样归档
   （有界查询 + 前端渲染预算内，沿用 M96 预算机制）。
 - **事件流/日志探索增强**：时间有界、筛选、深链（M50/M51 基础上的收口）。
 
-**验收**：所有查询有界（时间窗/条数上限）；前端 50k Pod DOM 预算不回退；无新增全量
-写入平台数据库的路径（资源仍实时查 API Server）。
+**验收**：所有查询有界（时间窗/条数上限）；事件聚合不丢失原始证据深链；前端 50k Pod DOM
+预算不回退；无新增全量写入平台数据库的路径（资源仍实时查 API Server）。
 
 ## 7. 主线 Track F：M115 工程卓越冲刺（5–7 天 + 常续）
 
@@ -177,13 +202,13 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 
 | 轨 | 优先级 | 开始条件 | 完成门禁 |
 |---|---|---|---|
-| 0 M110 收口 | P0 | 现在（push rc.6 需用户授权） | Release 全绿 + 全新环境/升级回滚/备份恢复演练 + digest 签名可校验 + `baseline-m110-rc6` |
-| A 前端优化（并行） | P0 | 现在 | typecheck/lint/test/build + 双视口回归 + axe + console error=0 + 归档 |
-| B M111 事故响应深化 | P0 | Track 0 后（避开 A 的 IncidentsView 冲突面） | runbook 关联 + KPI + 升级链 + 复盘导出 + 旅程 E2E |
-| C M112 AI 协调查询 | P1 | M111 后 | 引用校验 0 泄漏 + 确定性降级 + 黄金 fixture 一致 |
+| 0 M110 收口 | P0 | 用户授权后执行，可与 M112 并行 | Release 全绿 + 全新环境/升级回滚/备份恢复演练 + digest 签名可校验 + `baseline-m110-rc6` |
+| A 前端优化（维护） | P1 | 持续 | typecheck/lint/test/build + 双视口回归 + axe + console error=0 + 归档 |
+| B M111 事故响应深化 | 已完成 | 已封口 | 提交 `4b1a862` + CI `31771782276` + `baseline-m111-20260814` |
+| C M112 AI 协调查询 | P0 | M111 已完成，可立即启动 | 上下文驾驶舱 + 引用校验 0 泄漏 + 确定性降级 + 黄金 fixture 一致 |
 | D M113 优化中心闭环 | P1 | M112 后 | finding→预览闭环 + 巡检度量 + 无新写路径 |
-| E M114 可观测性深化 | P1 | M113 后 | 有界查询 + 渲染预算不回退 |
-| F M115 工程卓越 | P1 | 与 B–E 并行可推进 | 覆盖率 70% + 性能基准 fail-closed + fuzz/race 全绿 |
+| E M114 可观测性深化 | P1 | M113 后，可提前建设查询契约 | 事件聚合 + 有界查询 + 渲染预算不回退 |
+| F M115 工程卓越 | P1 | 与 C–E 并行可推进 | 覆盖率 70% + 性能基准 fail-closed + fuzz/race 全绿 |
 | G M89/M90 授权轨 | P3 | 组织授权 | authorization-gate-prep.md 验收清单全过 → GA |
 
 - 每个里程碑独立归档：change-record + CHANGELOG + `baseline-m1XX-YYYYMMDD` tag +
@@ -192,6 +217,8 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
   不可达时沿用 M106/M109 的离线重建路径（宿主机交叉编译 / 复用既有 nginx 层）。
 - 发布/授权类动作（push rc tag、触发远端 Release、M89/M90 接入）均为用户决策项，
   本路线只提供清单与顺序，不自动执行。
+- M112–M114 共用一份“资源上下文契约”：每个聚合结果必须带 scope、observed_at、数据来源、
+  freshness 和空样本语义；前端优先展示可解释的预览状态，写操作仍只能进入既有受控目录。
 
 ## 10. 非目标（沿用既有边界）
 
@@ -200,5 +227,6 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 - 动态 OPA/Rego 规则引擎、KubeEdge、GPU 调度、自定义 PromQL/LogQL 编辑、Grafana 导入。
 - AI 不直接执行集群变更；受控操作目录不因本路线扩大执行面（新增写路径必须走
   remediation 目录 + ADR 评审）。
+- 外部工具整合仅提供权限校验后的深链/状态卡，不以 iframe 复制外部系统，也不共享默认凭据。
 - 集群实时资源通过 API Server 查询，不全量写入平台数据库。
 - 本路线不为"功能数量"突破这些边界；只提升"可运营、可度量、可解释、可持续"四层。

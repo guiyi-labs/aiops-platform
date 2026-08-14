@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - 后续路线吸收资源上下文与容量感知能力
+
+- 基于外部 K8s 运维平台调研，更新 M112–M114 执行路线：M112 增加事故上下文驾驶舱，
+  M113 增加容量感知的 dry-run 预览，M114 增加事件聚合驾驶舱。
+- 新增跨里程碑资源上下文契约，要求显式返回 scope、observed_at、来源、freshness 和空样本语义；
+  外部工具仅使用权限校验后的深链/状态卡，不复制 iframe、默认凭据或越权操作模式。
+- See [change record](docs/changes/2026-08-14-roadmap-resource-context-integration.md)。
+
 ### Fixed - 开源许可识别（NOASSERTION → Apache-2.0）
 
 - 将 `LICENSE` 替换为规范 Apache License 2.0 全文并保留 `Copyright 2025-2026 Guiyi Labs` 声明，修复 GitHub 将许可证识别为 NOASSERTION 的问题（原文件被截断改写，缺 4.4/4.6/4.7 条款与 APPENDIX 段）。

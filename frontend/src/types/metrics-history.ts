@@ -1,7 +1,7 @@
 export type MetricResourceKind = 'Node' | 'Pod'
 export type MetricName = 'cpu' | 'memory'
 export type MetricUnit = 'nanocores' | 'bytes'
-export type MetricHistoryRangeHours = 1 | 6 | 24
+export type MetricHistoryRangeHours = 1 | 6 | 24 | 168 | 720
 
 export interface MetricHistoryQuery {
   resourceKind: MetricResourceKind
@@ -43,7 +43,7 @@ export interface MetricHistoryCoverage {
 }
 
 export interface MetricHistoryLimits {
-  max_window_seconds: 86400
+  max_window_seconds: 86400 | 2592000
   max_points: 1440
 }
 

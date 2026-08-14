@@ -281,6 +281,8 @@ func New(logger *zap.Logger, options Options) http.Handler {
 				metricsHistoryRoutes := v1.Group("/clusters/:cluster_id", withAuthentication(options.Auth), withClusterContext(), requireClusterAccess(options.Authz))
 				reg.register(metricsHistoryRoutes, RouteDescriptor{Method: "GET", Path: "/metrics/history", AuthRequired: true, Handler: historyAPI.series})
 				reg.register(metricsHistoryRoutes, RouteDescriptor{Method: "GET", Path: "/metrics/history/evaluate", AuthRequired: true, Handler: historyAPI.evaluate})
+				// M114-3 downsampled 30-day archive tier (hourly aggregates).
+				reg.register(metricsHistoryRoutes, RouteDescriptor{Method: "GET", Path: "/metrics/history/archive", AuthRequired: true, Handler: historyAPI.archiveSeries, AuditAction: "metrics.history.archive.read", AuditResource: "MetricHistoryArchive"})
 			}
 			if options.Kubernetes != nil {
 				resourcesAPI := kubernetesHandler{service: options.Kubernetes}

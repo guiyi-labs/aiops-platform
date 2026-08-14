@@ -23,6 +23,15 @@ func (f *fakeMetricsRepo) QuerySeries(_ context.Context, q metricshistory.Series
 	pts := append([]metricshistory.Point(nil), f.points[q.MetricName]...)
 	return metricshistory.RepositorySeriesResult{Points: pts, Total: len(pts)}, nil
 }
+func (f *fakeMetricsRepo) QueryArchiveSeries(context.Context, metricshistory.SeriesQuery) (metricshistory.RepositorySeriesResult, error) {
+	return metricshistory.RepositorySeriesResult{}, nil
+}
+func (f *fakeMetricsRepo) SaveDownsampledBatch(context.Context, []metricshistory.DownsampledSample) error {
+	return nil
+}
+func (f *fakeMetricsRepo) ListExpiringSamples(context.Context, time.Time, int) ([]metricshistory.Sample, error) {
+	return nil, nil
+}
 
 func readinessDef() *Definition {
 	return &Definition{

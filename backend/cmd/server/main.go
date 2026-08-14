@@ -104,7 +104,7 @@ func main() {
 	clusterRegistry := cluster.NewClientProvider(cfg.ClusterProbeTimeout)
 	clusterService := cluster.NewService(cluster.NewGormRepository(database.GORM()), credentialEncryptor, clusterRegistry)
 	kubernetesService := k8sgateway.NewService(clusterService, clusterRegistry, clusterRegistry)
-	metricsHistoryService, err := metricshistory.NewService(metricshistory.Config{Retention: cfg.MetricsHistoryRetention}, metricshistory.NewGormRepository(database.GORM()))
+	metricsHistoryService, err := metricshistory.NewService(metricshistory.Config{Retention: cfg.MetricsHistoryRetention, DownsampleRetention: 30 * 24 * time.Hour, MaxArchiveQueryWindow: 30 * 24 * time.Hour}, metricshistory.NewGormRepository(database.GORM()))
 	if err != nil {
 		logger.Fatal("configure metrics history", zap.Error(err))
 	}

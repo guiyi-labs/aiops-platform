@@ -515,6 +515,29 @@ paths:
         '401': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/clusters/{cluster_id}/metrics/history/archive:
+    get:
+      tags: [metrics-history]
+      summary: Query one downsampled 30-day metric series (M114-3)
+      description: "Read-only hourly aggregated metric series for a window up to 30 days. Precise samples older than the retention are archived into one-hour buckets (avg, max, sample_count) before deletion; this endpoint returns those coarse-grained points. The response is bounded; the window is bounded to 30 days and the point count to 1440 (render budget). Read-only; never creates or mutates data."
+      operationId: getMetricHistoryArchive
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/ClusterID' }
+        - { name: resource_kind, in: query, required: true, schema: { type: string, enum: [Node, Pod] } }
+        - { name: namespace, in: query, description: Required for Pod and forbidden for Node, schema: { type: string, maxLength: 63 } }
+        - { name: name, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 253 } }
+        - { name: container, in: query, description: Required for Pod and forbidden for Node, schema: { type: string, maxLength: 253 } }
+        - { name: metric, in: query, required: true, schema: { type: string, enum: [cpu, memory] } }
+        - { name: from, in: query, required: true, description: Inclusive RFC3339 bucket timestamp, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, description: Exclusive RFC3339 bucket timestamp; at most 30 days after from, schema: { type: string, format: date-time } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1440, default: 1440 } }
+      responses:
+        '200': { description: Downsampled hourly metric series with coverage, content: { application/json: { schema: { $ref: '#/components/schemas/MetricHistoryResponse' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/clusters/{cluster_id}/nodes/{name}:
     get: { tags: [kubernetes], summary: Node detail, operationId: getNode, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/ClusterID' }, { $ref: '#/components/parameters/Name' }], responses: { '200': { $ref: '#/components/responses/Ok' }, '404': { $ref: '#/components/responses/Error' } } }
   /api/v1/clusters/{cluster_id}/pods:

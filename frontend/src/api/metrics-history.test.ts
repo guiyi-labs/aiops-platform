@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { evaluateMetricHistory, getMetricHistory } from './metrics-history'
+import { evaluateMetricHistory, getMetricHistory, getMetricHistoryArchive } from './metrics-history'
 
 describe('metrics history API client', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -37,6 +37,24 @@ describe('metrics history API client', () => {
     expect(target.searchParams.get('container')).toBeNull()
     expect(target.searchParams.get('limit')).toBe('61')
     await expect(getMetricHistory('token', 9, query)).rejects.toMatchObject({ status: 500, code: 'METRICS_HISTORY_QUERY_FAILED', message: 'unable to query metric history' })
+  })
+
+  it('routes 7d/30d windows to the downsampled archive endpoint (M114-3)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ points: [] }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getMetricHistoryArchive('token', 17, {
+      resourceKind: 'Node', name: 'worker-1', metric: 'cpu',
+      from: '2026-07-15T00:00:00.000Z', to: '2026-08-14T00:00:00.000Z',
+    })
+
+    const target = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://console.test')
+    expect(target.pathname).toBe('/api/v1/clusters/17/metrics/history/archive')
+    expect(Object.fromEntries(target.searchParams)).toEqual({
+      resource_kind: 'Node', name: 'worker-1', metric: 'cpu', from: '2026-07-15T00:00:00.000Z',
+      to: '2026-08-14T00:00:00.000Z', limit: '1440',
+    })
+    expect(fetchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer token' }) }))
   })
 
   it('sends one fixed sustained-window evaluation without a query language', async () => {

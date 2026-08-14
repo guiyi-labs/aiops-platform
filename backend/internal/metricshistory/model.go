@@ -36,8 +36,10 @@ const (
 
 type Config struct {
 	Retention               time.Duration
+	DownsampleRetention     time.Duration // separate archive retention (default 30d)
 	MaxSamplesPerCollection int
 	MaxQueryWindow          time.Duration
+	MaxArchiveQueryWindow   time.Duration // M114-3 archive tier max window (default 30d)
 	MaxQueryPoints          int
 	CleanupBatchSize        int
 }
@@ -164,4 +166,38 @@ type RepositorySeriesResult struct {
 	Points   []Point
 	Coverage QueryCoverage
 	Total    int
+}
+
+// DownsampledSample is one hourly aggregated sample in the 30-day archive.
+// It replaces up to 60 precise samples of the same series with avg/max/sample
+// count.  BucketHour is the truncated hour (UTC), WindowMilliseconds is
+// always 3600000 (one hour).
+type DownsampledSample struct {
+	ClusterID          int64
+	ResourceKind       string
+	ResourceNamespace  string
+	ResourceName       string
+	ResourceUID        string
+	ContainerName      string
+	MetricName         string
+	Unit               string
+	BucketHour         time.Time
+	ValueAvg           int64
+	ValueMax           int64
+	SampleCount        int
+	WindowMilliseconds int
+}
+
+// ArchiveSeriesQuery mirrors SeriesQuery for the archive tier. All bounds
+// from Config apply.
+type ArchiveSeriesQuery struct {
+	ClusterID         int64
+	ResourceKind      string
+	ResourceNamespace string
+	ResourceName      string
+	ContainerName     string
+	MetricName        string
+	From              time.Time
+	To                time.Time
+	Limit             int
 }

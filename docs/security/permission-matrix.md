@@ -17,11 +17,11 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 306 |
+| 路由总数 | 307 |
 | 角色受限 | 87 |
-| 已审计 | 182 |
+| 已审计 | 183 |
 | scope=workspace | 13 |
-| scope=cluster | 85 |
+| scope=cluster | 86 |
 | scope=namespace | 32 |
 | scope=none | 176 |
 | 角色 operations_admin | 66 |
@@ -186,6 +186,7 @@
 | GET | `/api/v1/clusters/:cluster_id/maintenance-plans` | any | cluster | - |
 | POST | `/api/v1/clusters/:cluster_id/maintenance-plans/preview` | `operations_admin`, `system_admin` | cluster | maintenance.preview |
 | GET | `/api/v1/clusters/:cluster_id/metrics/history` | any | cluster | - |
+| GET | `/api/v1/clusters/:cluster_id/metrics/history/archive` | any | cluster | metrics.history.archive.read |
 | GET | `/api/v1/clusters/:cluster_id/metrics/history/evaluate` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/metrics/nodes` | any | cluster | - |
 | GET | `/api/v1/clusters/:cluster_id/metrics/pods` | any | cluster | - |

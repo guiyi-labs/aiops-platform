@@ -13,6 +13,7 @@ type repositoryStub struct {
 	query       SeriesQuery
 	deletedAt   time.Time
 	deleteLimit int
+	downsampled []DownsampledSample
 	err         error
 }
 
@@ -29,6 +30,20 @@ func (r *repositoryStub) QuerySeries(_ context.Context, query SeriesQuery) (Repo
 func (r *repositoryStub) DeleteExpired(_ context.Context, before time.Time, limit int) (int64, error) {
 	r.deletedAt, r.deleteLimit = before, limit
 	return 7, r.err
+}
+
+func (r *repositoryStub) QueryArchiveSeries(_ context.Context, query SeriesQuery) (RepositorySeriesResult, error) {
+	return r.result, r.err
+}
+
+func (r *repositoryStub) SaveDownsampledBatch(_ context.Context, batch []DownsampledSample) error {
+	r.downsampled = append(r.downsampled, batch...)
+	return r.err
+}
+
+func (r *repositoryStub) ListExpiringSamples(_ context.Context, before time.Time, limit int) ([]Sample, error) {
+	r.deletedAt, r.deleteLimit = before, limit
+	return nil, r.err
 }
 
 func TestRecordNormalizesBoundedSuccessfulCollection(t *testing.T) {
@@ -190,5 +205,92 @@ func TestNewServiceRejectsCapsOutsideReviewedEnvelope(t *testing.T) {
 	}
 	if _, err := NewService(Config{}, nil); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("nil repository error = %v", err)
+	}
+}
+
+func TestDownsampleAndArchiveAggregatesHourlyBuckets(t *testing.T) {
+	repository := &repositoryStub{}
+	service, _ := NewService(Config{}, repository)
+	hour := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	precise := []Sample{
+		{ClusterID: 3, ResourceKind: ResourcePod, ResourceNamespace: "ops", ResourceName: "api-0", ContainerName: "api", MetricName: MetricCPU, Unit: UnitNanocores, Value: 100, SourceTimestamp: hour.Add(10 * time.Minute)},
+		{ClusterID: 3, ResourceKind: ResourcePod, ResourceNamespace: "ops", ResourceName: "api-0", ContainerName: "api", MetricName: MetricCPU, Unit: UnitNanocores, Value: 300, SourceTimestamp: hour.Add(20 * time.Minute)},
+		{ClusterID: 3, ResourceKind: ResourcePod, ResourceNamespace: "ops", ResourceName: "api-0", ContainerName: "api", MetricName: MetricCPU, Unit: UnitNanocores, Value: 500, SourceTimestamp: hour.Add(40 * time.Minute)},
+		{ClusterID: 3, ResourceKind: ResourcePod, ResourceNamespace: "ops", ResourceName: "api-1", ContainerName: "api", MetricName: MetricCPU, Unit: UnitNanocores, Value: 900, SourceTimestamp: hour.Add(5 * time.Minute)},
+	}
+	written, err := service.DownsampleAndArchive(context.Background(), precise)
+	if err != nil {
+		t.Fatalf("DownsampleAndArchive() error = %v", err)
+	}
+	if written != 2 {
+		t.Fatalf("written = %d, want 2 (one row per series-hour)", written)
+	}
+	if len(repository.downsampled) != 2 {
+		t.Fatalf("saved rows = %d, want 2", len(repository.downsampled))
+	}
+	first := repository.downsampled[0]
+	if first.ValueAvg != 300 || first.ValueMax != 500 || first.SampleCount != 3 ||
+		first.WindowMilliseconds != 3600000 || !first.BucketHour.Equal(hour) {
+		t.Fatalf("first bucket = %#v", first)
+	}
+}
+
+func TestDownsampleAndArchiveEmptyInput(t *testing.T) {
+	repository := &repositoryStub{}
+	service, _ := NewService(Config{}, repository)
+	written, err := service.DownsampleAndArchive(context.Background(), nil)
+	if err != nil || written != 0 {
+		t.Fatalf("DownsampleAndArchive() = %d, %v; want 0, nil", written, err)
+	}
+}
+
+func TestQueryArchiveValidatesBoundsAndReturnsSeries(t *testing.T) {
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	repository := &repositoryStub{result: RepositorySeriesResult{
+		Points: []Point{{Value: 300, SourceTimestamp: now.Add(-2 * time.Hour), WindowMilliseconds: 3600000, CollectedAt: now.Add(-2 * time.Hour)}},
+		Total:  1,
+	}}
+	service, _ := NewService(Config{}, repository)
+	response, err := service.QueryArchive(context.Background(), ArchiveSeriesQuery{
+		ClusterID: 3, ResourceKind: ResourcePod, ResourceNamespace: "ops", ResourceName: "api-0",
+		ContainerName: "api", MetricName: MetricCPU, From: now.Add(-24 * time.Hour), To: now,
+	})
+	if err != nil {
+		t.Fatalf("QueryArchive() error = %v", err)
+	}
+	if response.Series.Unit != UnitNanocores || len(response.Points) != 1 || response.Limits.MaxWindowSeconds != int((30*24*time.Hour)/time.Second) {
+		t.Fatalf("response = %#v", response)
+	}
+	if response.Truncated {
+		t.Fatalf("Truncated = true, want false")
+	}
+}
+
+func TestQueryArchiveRejectsInvalidShapeWindowAndMetric(t *testing.T) {
+	service, _ := NewService(Config{}, &repositoryStub{})
+	now := time.Now().UTC()
+	valid := ArchiveSeriesQuery{ClusterID: 1, ResourceKind: ResourceNode, ResourceName: "worker", MetricName: MetricCPU, From: now.Add(-time.Hour), To: now}
+	tests := []ArchiveSeriesQuery{
+		{ClusterID: 0, ResourceKind: ResourceNode, ResourceName: "worker", MetricName: MetricCPU, From: valid.From, To: valid.To},
+		{ClusterID: 1, ResourceKind: ResourceNode, ResourceNamespace: "default", ResourceName: "worker", MetricName: MetricCPU, From: valid.From, To: valid.To},
+		{ClusterID: 1, ResourceKind: ResourceNode, ResourceName: "worker", MetricName: "temperature", From: valid.From, To: valid.To},
+		{ClusterID: 1, ResourceKind: ResourceNode, ResourceName: "worker", MetricName: MetricCPU, From: now.Add(-31 * 24 * time.Hour), To: now},
+		{ClusterID: 1, ResourceKind: ResourceNode, ResourceName: "worker", MetricName: MetricCPU, From: now, To: now},
+		{ClusterID: 1, ResourceKind: ResourceNode, ResourceName: "worker", MetricName: MetricCPU, From: valid.From, To: valid.To, Limit: 1441},
+	}
+	for index, query := range tests {
+		if _, err := service.QueryArchive(context.Background(), query); !errors.Is(err, ErrInvalidQuery) {
+			t.Fatalf("case %d error = %v, want ErrInvalidQuery", index, err)
+		}
+	}
+}
+
+func TestCleanupArchivesExpiringSamplesBeforeDelete(t *testing.T) {
+	repository := &repositoryStub{}
+	service, _ := NewService(Config{}, repository)
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.FixedZone("test", 8*60*60))
+	deleted, err := service.Cleanup(context.Background(), now)
+	if err != nil || deleted != 7 || !repository.deletedAt.Equal(now.UTC()) {
+		t.Fatalf("Cleanup() deleted=%d error=%v before=%s", deleted, err, repository.deletedAt)
 	}
 }

@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M114-3 指标历史下采样归档（7天精确 → 30天下采样小时档，有界查询）
+
+- 新增迁移 `000049_metric_samples_downsampled`：30 天下采样归档表（每系列每小时一条 avg/max/count，幂等 upsert；表约束有意不重演精确表 Node/Pod 的历史不一致）。
+- `internal/metricshistory` 扩展：`Service.QueryArchive`（只读，窗口 ≤30d、点 ≤1440）、`DownsampleAndArchive`（清理前把过期精确样本聚合进归档）、`Cleanup` 先归档再删除精确行；`Repository` 新增 `QueryArchiveSeries`/`SaveDownsampledBatch`/`ListExpiringSamples`。全部有界，无全量写入路径。
+- 新增只读 `GET /api/v1/clusters/:cluster_id/metrics/history/archive?resource_kind=&name=&metric=&from=&to=&limit=`（AuditAction `metrics.history.archive.read`）；OpenAPI + 权限矩阵同步。
+- 前端"指标历史"面板时间范围扩展为 1h/6h/24h/7d/30d：≥7d 自动走归档端点，并标注 `下采样(小时档)`；新增 `getMetricHistoryArchive` API + 客户端测试。
+- See [change record](docs/changes/2026-08-14-m114-3-metric-history-downsampled-archive.md)。M114-4（事件流/日志探索增强）按路线调整归入后续增强，不在本次 M114 基线内。
+
 ### Added - M114-1 SLO Burn 总览与告警降噪聚合（两个只读聚合端点，复用 correlation 引擎）
 
 - 新增只读 `GET /api/v1/aiops/slos/burn-summary?cluster_id=&namespace=&template=&state=&limit=`：纯读 SLO 定义 + 最新评估，计算每定义 burn posture（burning / healthy / unavailable / no_data）、burn rate、coverage、错误预算剩余；排序燃烧优先，limit ≤ 200，无写路径。
@@ -18,7 +26,6 @@ Detailed change records for each milestone live under `docs/changes/`.
 - See [change record](docs/changes/2026-08-14-m114-1-slo-burn-and-alert-noise-reduction.md)。
 
 ### Added - M114-2 事件驾驶舱（重复事件按严重级/原因/资源聚合 + 趋势 + 深链）
-（重复事件按严重级/原因/资源聚合 + 趋势 + 深链）
 
 - 新增只读 `GET /api/v1/clusters/:cluster_id/events/cockpit?window_minutes=&max_groups=&page_limit=`：把 Kubernetes 原生事件按（严重级 warning/info、原因、命名空间、资源类型与名称）分组折叠，输出去重计数（event_count + raw_count 累计次数）、首次/最近发生时间、按天趋势与原始证据深链（resource_uid/kind/namespace/name + sample_message）。
 - 新增纯包 `internal/eventcockpit`（ADR 0004，无 cluster 访问、无写路径）：`Aggregate()` 窗口外事件过滤、严重级归一化、稳定排序后截断、按天趋势桶；fail-closed——窗口内无事件一律 `fail_closed=true` 且不视为健康（M99-D 契约）。

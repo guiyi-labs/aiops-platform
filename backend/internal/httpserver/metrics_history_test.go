@@ -35,10 +35,23 @@ func (r *metricsHistoryRepositoryStub) DeleteExpired(context.Context, time.Time,
 	return 0, r.err
 }
 
+func (r *metricsHistoryRepositoryStub) QueryArchiveSeries(_ context.Context, query metricshistory.SeriesQuery) (metricshistory.RepositorySeriesResult, error) {
+	return r.result, r.err
+}
+
+func (r *metricsHistoryRepositoryStub) SaveDownsampledBatch(context.Context, []metricshistory.DownsampledSample) error {
+	return r.err
+}
+
+func (r *metricsHistoryRepositoryStub) ListExpiringSamples(context.Context, time.Time, int) ([]metricshistory.Sample, error) {
+	return nil, r.err
+}
+
 func metricsHistoryTestRouter(repository metricshistory.Repository) *gin.Engine {
 	service, _ := metricshistory.NewService(metricshistory.Config{}, repository)
 	router := gin.New()
 	router.GET("/:cluster_id/metrics/history", withClusterContext(), metricsHistoryHandler{service: service}.series)
+	router.GET("/:cluster_id/metrics/history/archive", withClusterContext(), metricsHistoryHandler{service: service}.archiveSeries)
 	return router
 }
 
@@ -134,5 +147,46 @@ func TestMetricsHistoryRouteRequiresAuthentication(t *testing.T) {
 	}
 	if response.Code != "ACCESS_TOKEN_REQUIRED" {
 		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestMetricsHistoryHandlerParsesArchiveSeriesQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	from := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	repository := &metricsHistoryRepositoryStub{result: metricshistory.RepositorySeriesResult{
+		Points: []metricshistory.Point{{Value: 300, SourceTimestamp: from, WindowMilliseconds: 3600000, CollectedAt: from}},
+		Total:  1,
+	}}
+	// Window extends 48h into the precise tier — allowed by the archive
+	// endpoint (bounded to 30 days), even though precise is capped at 24h.
+	path := "/7/metrics/history/archive?resource_kind=Pod&namespace=prod&name=api-0&container=api&metric=memory&from=2026-08-01T00:00:00Z&to=2026-08-03T00:00:00Z&limit=50"
+	recorder := httptest.NewRecorder()
+	metricsHistoryTestRouter(repository).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var response metricshistory.SeriesResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Series.Unit != metricshistory.UnitBytes || len(response.Points) != 1 || response.Limits.MaxWindowSeconds != int((30*24*time.Hour)/time.Second) {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
+func TestMetricsHistoryHandlerRejectsInvalidArchiveQueryShapes(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []string{
+		// >30d window rejected by archive tier even with precise tolerance
+		"/7/metrics/history/archive?resource_kind=Node&name=worker-a&metric=cpu&from=2026-07-01T00:00:00Z&to=2026-08-01T00:00:00Z",
+		"/7/metrics/history/archive?resource_kind=Node&name=worker-a&metric=cpu&from=not-a-time&to=2026-08-03T00:00:00Z",
+		"/7/metrics/history/archive?resource_kind=Node&name=worker-a&metric=cpu&from=2026-08-01T00:00:00Z&to=2026-08-03T00:00:00Z&limit=1441",
+	}
+	for _, path := range tests {
+		recorder := httptest.NewRecorder()
+		metricsHistoryTestRouter(&metricsHistoryRepositoryStub{}).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+		}
 	}
 }

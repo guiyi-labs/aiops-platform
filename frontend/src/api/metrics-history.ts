@@ -19,6 +19,12 @@ export function getMetricHistory(token: string, clusterID: number, input: Metric
   return authorizedRequest(`/api/v1/clusters/${clusterID}/metrics/history?${historyQueryString(input)}`, token)
 }
 
+// M114-3: downsampled 30-day archive tier. Hourly-aggregated points bounded
+// to 1440 (render budget). Prefer this for windows beyond the precise 24h cap.
+export function getMetricHistoryArchive(token: string, clusterID: number, input: MetricHistoryQuery): Promise<MetricHistoryResponse> {
+  return authorizedRequest(`/api/v1/clusters/${clusterID}/metrics/history/archive?${historyQueryString(input)}`, token)
+}
+
 export function evaluateMetricHistory(token: string, clusterID: number, input: MetricHistoryEvaluationQuery): Promise<MetricHistoryEvaluationResponse> {
   const query = new URLSearchParams(historyQueryString(input))
   query.delete('limit')

@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { AlertTriangle, RefreshCw } from 'lucide-vue-next'
 
-import { evaluateMetricHistory, getMetricHistory } from '../api/metrics-history'
+import { evaluateMetricHistory, getMetricHistory, getMetricHistoryArchive } from '../api/metrics-history'
 import type { MetricHistoryEvaluationResponse, MetricHistoryRangeHours, MetricHistoryResponse, MetricName, MetricResourceKind } from '../types/metrics-history'
 import { buildMetricChart, formatMetricValue, METRIC_CHART, metricCoverageIssues, metricCoveragePercent, metricDisplayUnit, metricHistoryWindow } from '../utils/metrics-history'
 
@@ -40,7 +40,11 @@ const chart = computed(() => response.value ? buildMetricChart(
 const coveragePercent = computed(() => response.value ? metricCoveragePercent(response.value.coverage) : null)
 const coverageIssues = computed(() => response.value ? metricCoverageIssues(response.value.coverage) : [])
 const displayUnit = computed(() => response.value ? metricDisplayUnit(response.value.series.unit) : metric.value === 'cpu' ? 'mCPU' : 'MiB')
-const periodLabel = computed(() => response.value ? `${formatTimestamp(response.value.from)} — ${formatTimestamp(response.value.to)}` : '')
+const periodLabel = computed(() => {
+  if (!response.value) return ''
+  const suffix = rangeHours.value >= 168 ? ' · 下采样(小时档)' : ''
+  return `${formatTimestamp(response.value.from)} — ${formatTimestamp(response.value.to)}${suffix}`
+})
 const canQuery = computed(() => props.resourceKind === 'Node' || Boolean(container.value))
 const thresholdUnit = computed(() => metric.value === 'cpu' ? 'mCPU' : 'MiB')
 
@@ -56,16 +60,21 @@ async function loadHistory(): Promise<void> {
   if (!canQuery.value) return
   loading.value = true
   const window = metricHistoryWindow(new Date(), rangeHours.value)
+  const query = {
+    resourceKind: props.resourceKind,
+    namespace: props.resourceKind === 'Pod' ? props.namespace : undefined,
+    name: props.name,
+    container: props.resourceKind === 'Pod' ? container.value : undefined,
+    metric: metric.value,
+    ...window,
+    limit: 1440,
+  }
   try {
-    const result = await getMetricHistory(props.accessToken, props.clusterId, {
-      resourceKind: props.resourceKind,
-      namespace: props.resourceKind === 'Pod' ? props.namespace : undefined,
-      name: props.name,
-      container: props.resourceKind === 'Pod' ? container.value : undefined,
-      metric: metric.value,
-      ...window,
-      limit: 1440,
-    })
+    // M114-3: 7d/30d ranges read the downsampled hourly archive tier
+    // (bounded to 1440 points); shorter ranges read precise samples.
+    const result = rangeHours.value >= 168
+      ? await getMetricHistoryArchive(props.accessToken, props.clusterId, query)
+      : await getMetricHistory(props.accessToken, props.clusterId, query)
     if (sequence === requestSequence) response.value = result
   } catch (error) {
     if (sequence === requestSequence) errorMessage.value = error instanceof Error ? error.message : '历史指标暂时不可用'
@@ -152,7 +161,7 @@ watch(() => [props.accessToken, props.clusterId, props.resourceKind, props.names
         </select>
       </label>
       <div class="segmented-control range-control" aria-label="时间范围">
-        <button v-for="hours in ([1, 6, 24] as const)" :key="hours" type="button" :class="{ active: rangeHours === hours }" @click="rangeHours = hours">{{ hours }}h</button>
+        <button v-for="option in ([{ h: 1, label: '1h' }, { h: 6, label: '6h' }, { h: 24, label: '24h' }, { h: 168, label: '7d' }, { h: 720, label: '30d' }] as const)" :key="option.h" type="button" :class="{ active: rangeHours === option.h }" @click="rangeHours = option.h">{{ option.label }}</button>
       </div>
     </div>
 

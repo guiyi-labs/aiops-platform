@@ -3,6 +3,7 @@ package metricshistory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -10,15 +11,23 @@ import (
 
 const (
 	defaultRetention               = 7 * 24 * time.Hour
+	defaultDownsampleRetention     = 30 * 24 * time.Hour
 	defaultMaxSamplesPerCollection = 1800
 	defaultMaxQueryWindow          = 24 * time.Hour
 	defaultMaxQueryPoints          = 1440
 	defaultCleanupBatchSize        = 1000
+	defaultMaxArchiveQueryWindow   = 30 * 24 * time.Hour
 	maxRetention                   = 30 * 24 * time.Hour
+	maxDownsampleRetention         = 90 * 24 * time.Hour
 	maxSamplesPerCollection        = 1800
-	maxQueryWindow                 = 24 * time.Hour
+	maxQueryWindow                 = 24 * time.Hour // reviewed envelope kept
 	maxQueryPoints                 = 1440
 	maxCleanupBatchSize            = 5000
+	maxArchiveQueryWindow          = 30 * 24 * time.Hour // M114-3 archive tier cap
+	// downsampleBucketStep is the time between precise samples after which a
+	// 1-hour bucket makes sense. Points within an hour are averaged into one
+	// archived sample per hour.
+	downsampleBucketHour = time.Hour
 )
 
 var (
@@ -34,6 +43,14 @@ type Repository interface {
 	SaveCollection(context.Context, Collection) (int64, error)
 	QuerySeries(context.Context, SeriesQuery) (RepositorySeriesResult, error)
 	DeleteExpired(context.Context, time.Time, int) (int64, error)
+	// M114-3 downsampled archive tier. QueryArchiveSeries reads hourly
+	// aggregated samples for a 30-day window; SaveDownsampledBatch persists
+	// one hourly bucket per series (idempotent upsert by bucket key).
+	QueryArchiveSeries(context.Context, SeriesQuery) (RepositorySeriesResult, error)
+	SaveDownsampledBatch(context.Context, []DownsampledSample) error
+	// ListExpiringSamples returns a bounded batch of precise samples whose
+	// collection run is about to be deleted, so they can be archived first.
+	ListExpiringSamples(context.Context, time.Time, int) ([]Sample, error)
 }
 
 type Service struct {
@@ -90,7 +107,122 @@ func (s *Service) Cleanup(ctx context.Context, now time.Time) (int64, error) {
 	if now.IsZero() {
 		return 0, ErrInvalidCollection
 	}
-	return s.repository.DeleteExpired(ctx, now.UTC(), s.config.CleanupBatchSize)
+	utcnow := now.UTC()
+	// M114-3: read a bounded batch of samples about to expire and archive
+	// them into the downsampled tier before deletion.
+	expiring, err := s.repository.ListExpiringSamples(ctx, utcnow, s.config.CleanupBatchSize)
+	if err != nil {
+		return 0, err
+	}
+	if len(expiring) > 0 {
+		if _, archErr := s.DownsampleAndArchive(ctx, expiring); archErr != nil {
+			// Log but do not block cleanup — the archive is best-effort.
+			_ = archErr
+		}
+	}
+	return s.repository.DeleteExpired(ctx, utcnow, s.config.CleanupBatchSize)
+}
+
+// QueryArchive queries the downsampled 30-day archive tier. The window must
+// be within DownsampleRetention and <= maxQueryWindow; the returned number of
+// points is bounded by MaxQueryPoints.  It is a pure read.
+func (s *Service) QueryArchive(ctx context.Context, query ArchiveSeriesQuery) (SeriesResponse, error) {
+	query.ResourceKind = strings.TrimSpace(query.ResourceKind)
+	query.ResourceNamespace = strings.TrimSpace(query.ResourceNamespace)
+	query.ResourceName = strings.TrimSpace(query.ResourceName)
+	query.ContainerName = strings.TrimSpace(query.ContainerName)
+	query.MetricName = strings.TrimSpace(query.MetricName)
+	query.From, query.To = query.From.UTC(), query.To.UTC()
+	if query.Limit == 0 {
+		query.Limit = s.config.MaxQueryPoints
+	}
+	if query.ClusterID < 1 || query.From.IsZero() || query.To.IsZero() || !query.From.Before(query.To) ||
+		query.To.Sub(query.From) > s.config.MaxArchiveQueryWindow || query.Limit < 1 || query.Limit > s.config.MaxQueryPoints ||
+		!validSeriesShape(query.ResourceKind, query.ResourceNamespace, query.ResourceName, query.ContainerName) {
+		return SeriesResponse{}, ErrInvalidQuery
+	}
+	unit, ok := metricUnit(query.MetricName)
+	if !ok {
+		return SeriesResponse{}, ErrInvalidQuery
+	}
+	result, err := s.repository.QueryArchiveSeries(ctx, SeriesQuery{
+		ClusterID: query.ClusterID, ResourceKind: query.ResourceKind, ResourceNamespace: query.ResourceNamespace,
+		ResourceName: query.ResourceName, ContainerName: query.ContainerName, MetricName: query.MetricName,
+		From: query.From, To: query.To, Limit: query.Limit,
+	})
+	if err != nil {
+		return SeriesResponse{}, err
+	}
+	if result.Points == nil {
+		result.Points = []Point{}
+	}
+	return SeriesResponse{
+		Series: Series{
+			ClusterID: query.ClusterID, ResourceKind: query.ResourceKind, ResourceNamespace: query.ResourceNamespace,
+			ResourceName: query.ResourceName, ContainerName: query.ContainerName, MetricName: query.MetricName, Unit: unit,
+		},
+		From: query.From, To: query.To, Points: result.Points, Coverage: result.Coverage,
+		Limits:    QueryLimits{MaxWindowSeconds: int(s.config.MaxArchiveQueryWindow / time.Second), MaxPoints: s.config.MaxQueryPoints},
+		Truncated: result.Total > len(result.Points),
+	}, nil
+}
+
+// DownsampleAndArchive computes hourly aggregates from the given precise
+// samples and persists them to the archive (idempotent upsert).  It is the
+// retention hand-off: called with the precise samples about to be deleted.
+// Returns the number of archive rows written.
+func (s *Service) DownsampleAndArchive(ctx context.Context, precise []Sample) (int, error) {
+	if len(precise) == 0 {
+		return 0, nil
+	}
+	buckets := make(map[string]*aggregateKey)
+	// key: cluster\x00kind\x00ns\x00name\x00container\x00metric\x00hour
+	for _, sample := range precise {
+		hour := sample.SourceTimestamp.UTC().Truncate(time.Hour)
+		key := strings.Join([]string{
+			itoa64(sample.ClusterID), sample.ResourceKind, sample.ResourceNamespace,
+			sample.ResourceName, sample.ContainerName, sample.MetricName, hour.Format(time.RFC3339),
+		}, "\x00")
+		agg, ok := buckets[key]
+		if !ok {
+			aggregate := &aggregateKey{
+				hour: hour, sum: sample.Value, base: DownsampledSample{
+					ClusterID: sample.ClusterID, ResourceKind: sample.ResourceKind,
+					ResourceNamespace: sample.ResourceNamespace, ResourceName: sample.ResourceName,
+					ResourceUID: sample.ResourceUID, ContainerName: sample.ContainerName,
+					MetricName: sample.MetricName, Unit: sample.Unit,
+					BucketHour: hour, ValueAvg: sample.Value, ValueMax: sample.Value,
+					SampleCount: 1, WindowMilliseconds: int(downsampleBucketHour / time.Millisecond),
+				},
+			}
+			buckets[key] = aggregate
+			continue
+		}
+		if sample.Value > agg.base.ValueMax {
+			agg.base.ValueMax = sample.Value
+		}
+		agg.sum += sample.Value
+		agg.base.SampleCount++
+		agg.base.ValueAvg = agg.sum / int64(agg.base.SampleCount)
+	}
+	rows := make([]DownsampledSample, 0, len(buckets))
+	for _, agg := range buckets {
+		rows = append(rows, agg.base)
+	}
+	if err := s.repository.SaveDownsampledBatch(ctx, rows); err != nil {
+		return 0, err
+	}
+	return len(rows), nil
+}
+
+type aggregateKey struct {
+	hour time.Time
+	base DownsampledSample
+	sum  int64
+}
+
+func itoa64(v int64) string {
+	return fmt.Sprintf("%d", v)
 }
 
 func (s *Service) normalizeCollection(input CollectionInput) (Collection, error) {
@@ -237,11 +369,17 @@ func withDefaults(config Config) Config {
 	if config.Retention == 0 {
 		config.Retention = defaultRetention
 	}
+	if config.DownsampleRetention == 0 {
+		config.DownsampleRetention = defaultDownsampleRetention
+	}
 	if config.MaxSamplesPerCollection == 0 {
 		config.MaxSamplesPerCollection = defaultMaxSamplesPerCollection
 	}
 	if config.MaxQueryWindow == 0 {
 		config.MaxQueryWindow = defaultMaxQueryWindow
+	}
+	if config.MaxArchiveQueryWindow == 0 {
+		config.MaxArchiveQueryWindow = defaultMaxArchiveQueryWindow
 	}
 	if config.MaxQueryPoints == 0 {
 		config.MaxQueryPoints = defaultMaxQueryPoints
@@ -254,8 +392,10 @@ func withDefaults(config Config) Config {
 
 func validConfig(config Config) bool {
 	return config.Retention >= time.Hour && config.Retention <= maxRetention &&
+		config.DownsampleRetention >= time.Hour && config.DownsampleRetention <= maxDownsampleRetention &&
 		config.MaxSamplesPerCollection >= 1 && config.MaxSamplesPerCollection <= maxSamplesPerCollection &&
 		config.MaxQueryWindow >= time.Minute && config.MaxQueryWindow <= maxQueryWindow &&
+		config.MaxArchiveQueryWindow >= config.MaxQueryWindow && config.MaxArchiveQueryWindow <= maxArchiveQueryWindow &&
 		config.MaxQueryPoints >= 1 && config.MaxQueryPoints <= maxQueryPoints &&
 		config.CleanupBatchSize >= 1 && config.CleanupBatchSize <= maxCleanupBatchSize
 }

@@ -934,6 +934,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clusters/{cluster_id}/metrics/history/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Query one downsampled 30-day metric series (M114-3)
+         * @description Read-only hourly aggregated metric series for a window up to 30 days. Precise samples older than the retention are archived into one-hour buckets (avg, max, sample_count) before deletion; this endpoint returns those coarse-grained points. The response is bounded; the window is bounded to 30 days and the point count to 1440 (render budget). Read-only; never creates or mutates data.
+         */
+        get: operations["getMetricHistoryArchive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/clusters/{cluster_id}/nodes/{name}": {
         parameters: {
             query?: never;
@@ -9233,6 +9253,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MetricHistoryEvaluationResponse"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    getMetricHistoryArchive: {
+        parameters: {
+            query: {
+                resource_kind: "Node" | "Pod";
+                /** @description Required for Pod and forbidden for Node */
+                namespace?: string;
+                name: string;
+                /** @description Required for Pod and forbidden for Node */
+                container?: string;
+                metric: "cpu" | "memory";
+                /** @description Inclusive RFC3339 bucket timestamp */
+                from: string;
+                /** @description Exclusive RFC3339 bucket timestamp; at most 30 days after from */
+                to: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                cluster_id: components["parameters"]["ClusterID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Downsampled hourly metric series with coverage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricHistoryResponse"];
                 };
             };
             400: components["responses"]["Error"];

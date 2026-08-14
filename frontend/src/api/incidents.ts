@@ -1,5 +1,7 @@
 import { authorizedRequest } from './client'
-import type { Incident, IncidentBatchAssignResult, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentMetrics, IncidentRunbookResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
+import { APIError } from './auth'
+import type { APIErrorBody } from '../types/auth'
+import type { Incident, IncidentBatchAssignResult, IncidentCreateInput, IncidentEvidenceItem, IncidentListResponse, IncidentMetrics, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentStatus, IncidentSummary } from '../types/incident'
 
 export function listIncidents(token: string, filters: { clusterID?: number; status?: IncidentStatus | ''; assigneeID?: number; followerID?: number; limit?: number } = {}): Promise<IncidentListResponse> {
   const query = new URLSearchParams({ limit: String(filters.limit ?? 50) })
@@ -12,6 +14,9 @@ export function listIncidents(token: string, filters: { clusterID?: number; stat
 
 export function getIncident(token: string, incidentID: number): Promise<Incident> {
   return authorizedRequest(`/api/v1/incidents/${incidentID}`, token)
+}
+export function listIncidentResponseCatalog(token: string): Promise<IncidentResponseCatalog> {
+  return authorizedRequest('/api/v1/incidents/templates', token)
 }
 export function getIncidentEvidence(token: string, incidentID: number): Promise<{ items: IncidentEvidenceItem[] }> {
   return authorizedRequest(`/api/v1/incidents/${incidentID}/evidence`, token)
@@ -77,6 +82,19 @@ export function setIncidentPostmortem(token: string, incidentID: number, expecte
   return authorizedRequest(`/api/v1/incidents/${incidentID}/postmortem`, token, {
     method: 'PUT', body: JSON.stringify({ expected_version: expectedVersion, content }),
   })
+}
+
+export async function exportIncidentPostmortem(token: string, incidentID: number): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(`/api/v1/incidents/${incidentID}/postmortem/export`, {
+    headers: { Accept: 'text/markdown', Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => undefined) as APIErrorBody | undefined
+    throw new APIError(response.status, body?.code ?? 'REQUEST_FAILED', body?.message ?? `Request failed with status ${response.status}`, body?.request_id)
+  }
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] || `incident-${incidentID}-postmortem.md`
+  return { blob: await response.blob(), filename }
 }
 
 export const severityLabels: Record<IncidentSeverity, string> = {

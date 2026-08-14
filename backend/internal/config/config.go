@@ -64,6 +64,7 @@ type Config struct {
 	IncidentSLAFirstEscalationAfter time.Duration
 	IncidentSLAFinalEscalationAfter time.Duration
 	IncidentSLABatchSize            int
+	IncidentSLATargets              map[string]time.Duration
 	AlertEnabled                    bool
 	AlertPollInterval               time.Duration
 	AlertClaimBatch                 int
@@ -334,6 +335,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	incidentSLATargets, err := incidentSLATargetsFromEnv()
+	if err != nil {
+		return Config{}, err
+	}
 
 	environment := stringFromEnv("APP_ENV", "development")
 	jwtSigningKey := stringFromEnv("JWT_SIGNING_KEY", "dev-only-signing-key-change-before-production")
@@ -497,6 +502,7 @@ func Load() (Config, error) {
 		IncidentSLAFirstEscalationAfter: incidentSLAFirstEscalationAfter,
 		IncidentSLAFinalEscalationAfter: incidentSLAFinalEscalationAfter,
 		IncidentSLABatchSize:            incidentSLABatchSize,
+		IncidentSLATargets:              incidentSLATargets,
 		AlertEnabled:                    alertEnabled,
 		AlertPollInterval:               alertPollInterval,
 		AlertClaimBatch:                 alertClaimBatch,
@@ -517,6 +523,34 @@ func stringFromEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func incidentSLATargetsFromEnv() (map[string]time.Duration, error) {
+	targets := map[string]time.Duration{
+		"critical": time.Hour,
+		"high":     4 * time.Hour,
+		"warning":  24 * time.Hour,
+		"info":     72 * time.Hour,
+	}
+	raw := strings.TrimSpace(os.Getenv("INCIDENT_SLA_TARGETS"))
+	if raw == "" {
+		return targets, nil
+	}
+	var configured map[string]string
+	if err := json.Unmarshal([]byte(raw), &configured); err != nil {
+		return nil, fmt.Errorf("INCIDENT_SLA_TARGETS must be a JSON object of duration strings: %w", err)
+	}
+	for severity, rawDuration := range configured {
+		if _, ok := targets[severity]; !ok {
+			return nil, fmt.Errorf("INCIDENT_SLA_TARGETS contains unknown severity %q", severity)
+		}
+		duration, err := time.ParseDuration(rawDuration)
+		if err != nil || duration < time.Minute || duration > 30*24*time.Hour {
+			return nil, fmt.Errorf("INCIDENT_SLA_TARGETS[%s] must be between 1m and 720h", severity)
+		}
+		targets[severity] = duration
+	}
+	return targets, nil
 }
 
 func stringMapFromEnv(key string, maximumEntries int) (map[string]string, error) {

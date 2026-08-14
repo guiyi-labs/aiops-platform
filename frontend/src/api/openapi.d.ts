@@ -2309,6 +2309,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/incidents/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List incident response templates and severity targets */
+        get: operations["listIncidentResponseCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/incidents/summary": {
         parameters: {
             query?: never;
@@ -2424,6 +2441,23 @@ export interface paths {
         };
         /** Export one incident as CSV */
         get: operations["exportIncident"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/incidents/{incident_id}/postmortem/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export incident postmortem as Markdown */
+        get: operations["exportIncidentPostmortem"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4958,6 +4992,8 @@ export interface components {
             source_type: "diagnosis" | "finding" | "alert" | "inspection" | "signal" | "correlation";
             /** @description diagnosis:<id> for diagnosis sources */
             source_ref: string;
+            /** @description Optional response template identifier */
+            template_id?: string;
             /** Format: int64 */
             cluster_id: number;
             title?: string;
@@ -4967,6 +5003,26 @@ export interface components {
             /** Format: date-time */
             observed_at?: string;
             resource?: components["schemas"]["IncidentResource"];
+        };
+        IncidentSeverityTarget: {
+            /** @enum {string} */
+            severity: "info" | "warning" | "high" | "critical";
+            target_minutes: number;
+        };
+        IncidentResponseTemplate: {
+            id: string;
+            name: string;
+            description: string;
+            source_types: ("diagnosis" | "finding" | "alert" | "inspection" | "signal" | "correlation")[];
+            default_title: string;
+            /** @enum {string} */
+            default_severity: "info" | "warning" | "high" | "critical";
+            default_summary: string;
+            steps: string[];
+        };
+        IncidentResponseCatalog: {
+            templates: components["schemas"]["IncidentResponseTemplate"][];
+            severity_matrix: components["schemas"]["IncidentSeverityTarget"][];
         };
         IncidentMetrics: {
             window_days: number;
@@ -9946,6 +10002,26 @@ export interface operations {
             409: components["responses"]["Error"];
         };
     };
+    listIncidentResponseCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Incident response catalog */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentResponseCatalog"];
+                };
+            };
+        };
+    };
     incidentSummary: {
         parameters: {
             query?: never;
@@ -10110,6 +10186,29 @@ export interface operations {
                 };
                 content?: never;
             };
+        };
+    };
+    exportIncidentPostmortem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: components["parameters"]["IncidentID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Markdown postmortem snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
+                };
+            };
+            404: components["responses"]["Error"];
         };
     };
     assignIncident: {

@@ -33,6 +33,7 @@ type incidentRunbookResponse struct {
 type createIncidentRequest struct {
 	SourceType string               `json:"source_type" binding:"required"`
 	SourceRef  string               `json:"source_ref" binding:"required"`
+	TemplateID string               `json:"template_id"`
 	ClusterID  int64                `json:"cluster_id" binding:"required"`
 	Title      string               `json:"title"`
 	Severity   string               `json:"severity"`
@@ -95,8 +96,8 @@ func (h incidentHandler) create(c *gin.Context) {
 	}
 	request.SourceType = strings.TrimSpace(request.SourceType)
 	request.SourceRef = strings.TrimSpace(request.SourceRef)
-	if len(request.Summary) > 4000 || len(request.Title) > 500 {
-		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "title must not exceed 500 and summary must not exceed 4000 characters")
+	if len(request.Summary) > 4000 || len(request.Title) > 500 || len(request.TemplateID) > 64 {
+		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "template_id must not exceed 64, title must not exceed 500 and summary must not exceed 4000 characters")
 		return
 	}
 	if request.Resource.Kind != "" {
@@ -114,6 +115,7 @@ func (h incidentHandler) create(c *gin.Context) {
 	record, err := h.service.Create(c.Request.Context(), incident.CreateInput{
 		SourceType: request.SourceType,
 		SourceRef:  request.SourceRef,
+		TemplateID: request.TemplateID,
 		ClusterID:  request.ClusterID,
 		Title:      request.Title,
 		Severity:   request.Severity,
@@ -128,7 +130,7 @@ func (h incidentHandler) create(c *gin.Context) {
 	switch {
 	case errors.Is(err, incident.ErrSourceAlreadyUsed):
 		writeError(c, http.StatusConflict, "SOURCE_ALREADY_USED", "this source already has an incident workspace")
-	case errors.Is(err, incident.ErrInvalidSource), errors.Is(err, incident.ErrInvalidTitle):
+	case errors.Is(err, incident.ErrInvalidSource), errors.Is(err, incident.ErrInvalidTitle), errors.Is(err, incident.ErrInvalidTemplate):
 		writeError(c, http.StatusBadRequest, "INVALID_REQUEST", "source_type, source_ref, cluster_id, severity and resource identity are required")
 	default:
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to create incident")
@@ -150,6 +152,10 @@ func (h incidentHandler) get(c *gin.Context) {
 		return
 	}
 	writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to read incident")
+}
+
+func (h incidentHandler) templates(c *gin.Context) {
+	c.JSON(http.StatusOK, h.service.ResponseCatalog())
 }
 
 func (h incidentHandler) evidence(c *gin.Context) {
@@ -501,4 +507,36 @@ func (h incidentHandler) export(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	c.Header("X-Incident-Export-Rows", strconv.Itoa(result.Rows))
 	c.Data(http.StatusOK, "text/csv; charset=utf-8", buffer.Bytes())
+}
+
+func (h incidentHandler) exportPostmortem(c *gin.Context) {
+	id, ok := incidentID(c)
+	if !ok {
+		return
+	}
+	record, err := h.service.Get(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, incident.ErrNotFound) {
+			writeError(c, http.StatusNotFound, "INCIDENT_NOT_FOUND", "incident does not exist")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to read incident")
+		return
+	}
+	setAuditTarget(c, "IncidentPostmortemExport", "", strconv.FormatInt(id, 10))
+	var buffer bytes.Buffer
+	if err := h.service.ExportMarkdown(c.Request.Context(), id, &buffer); err != nil {
+		if errors.Is(err, incident.ErrNotFound) {
+			writeError(c, http.StatusNotFound, "INCIDENT_NOT_FOUND", "incident does not exist")
+			return
+		}
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to export incident postmortem")
+		return
+	}
+	filename := "incident-" + record.Number + "-postmortem-" + time.Now().UTC().Format("20060102-150405Z") + ".md"
+	c.Header("Content-Type", "text/markdown; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Incident-Export-Bytes", strconv.Itoa(buffer.Len()))
+	c.Data(http.StatusOK, "text/markdown; charset=utf-8", buffer.Bytes())
 }

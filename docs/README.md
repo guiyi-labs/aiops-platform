@@ -59,6 +59,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-08-14-m111-incident-kpi.md`：M111 事故响应 KPI 基础层，含有界样本与 OpenAPI/typegen 同步。
 - `docs/changes/2026-08-14-m111-incident-runbook.md`：M111 事故详情只读 Runbook 关联与 fail-closed 来源域解析。
 - `docs/changes/2026-08-14-m111-sla-escalation.md`：M111 事故 SLA 临近/逾期后的两级有界升级、幂等投递和审计筛选。
+- `docs/changes/2026-08-14-m111-incident-templates-postmortem-export.md`：M111 事故响应模板、可配置严重级 SLA 矩阵和复盘 Markdown 导出。
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`：M32 最终本地基线、
   M27-M31 真实环境证据、响应式验收、完整门禁、清理不变量和外部门禁边界。

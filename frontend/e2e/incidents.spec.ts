@@ -72,6 +72,16 @@ test.beforeEach(async ({ page }) => {
       await fulfillJSON(route, summary)
       return
     }
+    if (method === 'GET' && path === '/api/v1/incidents/templates') {
+      await fulfillJSON(route, {
+        templates: [
+          { id: 'generic', name: '通用事故', description: '通用响应模板', source_types: ['finding', 'diagnosis', 'alert', 'inspection', 'signal', 'correlation'], default_title: '待确认的运营事故', default_severity: 'warning', default_summary: '记录影响范围、当前症状与初步判断。', steps: ['确认影响范围', '指定负责人'] },
+          { id: 'node-not-ready', name: 'Node NotReady', description: '节点不可用响应模板', source_types: ['finding'], default_title: 'Node NotReady 事故', default_severity: 'high', default_summary: '节点失联或 Ready 状态异常。', steps: ['确认节点状态', '检查节点事件'] },
+        ],
+        severity_matrix: [{ severity: 'critical', target_minutes: 60 }, { severity: 'high', target_minutes: 240 }, { severity: 'warning', target_minutes: 1440 }, { severity: 'info', target_minutes: 4320 }],
+      })
+      return
+    }
     if (method === 'POST' && path === '/api/v1/incidents') {
       await fulfillJSON(route, { ...incident, title: 'Pod pending', severity: 'warning' }, 201)
       return
@@ -112,6 +122,10 @@ test.beforeEach(async ({ page }) => {
     }
     if (route.request().method() === 'PUT' && path === '/api/v1/incidents/7/postmortem') {
       await fulfillJSON(route, resolvedIncident())
+      return
+    }
+    if (route.request().method() === 'GET' && path === '/api/v1/incidents/7/postmortem/export') {
+      await route.fulfill({ status: 200, contentType: 'text/markdown', headers: { 'Content-Disposition': 'attachment; filename="incident-INC-000007-postmortem.md"' }, body: '# INC-000007\n\n## Outcome\n' })
       return
     }
     await fulfillJSON(route, { items: [], total: 0, remaining: 0 })
@@ -171,6 +185,9 @@ test('Incident workflow: confirm, handoff, note, resolve, postmortem and reopen'
   await expect(drawer.locator('.postmortem-metrics')).toContainText('SLA 达标')
   await expect(drawer.locator('.postmortem-metrics')).toContainText('解决耗时')
   await expect(drawer.locator('.postmortem-metrics')).toContainText('人工备注')
+  const downloadPromise = page.waitForEvent('download')
+  await drawer.getByRole('button', { name: '导出 Markdown' }).click()
+  await expect((await downloadPromise).suggestedFilename()).toContain('postmortem')
 
   // narrative: timeline filter by type (resolved timeline has 3 system + 1 note)
   const timelineFilter = drawer.locator('.filter-tabs').nth(1)
@@ -203,6 +220,10 @@ test('Incident create dialog validates source identity', async ({ page }) => {
   await page.getByRole('button', { name: /新建事故/ }).click()
   const form = page.locator('.incident-form')
   await expect(form).toBeVisible()
+  await form.locator('select[aria-label="响应模板"]').selectOption('node-not-ready')
+  await expect(form.getByLabel('标题')).toHaveValue('Node NotReady 事故')
+  await expect(form.locator('select[aria-label="严重级别"]')).toHaveValue('high')
+  await expect(form.getByLabel('摘要')).toHaveValue('节点失联或 Ready 状态异常。')
   const createButton = form.getByRole('button', { name: '创建' })
   await expect(createButton).toBeDisabled()
   await form.locator('input[placeholder^="finding:"]').fill('finding:1:pod.pending.v1:Pod:default:web-2')

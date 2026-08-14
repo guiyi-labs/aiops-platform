@@ -177,6 +177,7 @@ func main() {
 	incidentSourceResolver := NewIncidentResolver(diagnosis.NewGormRepository(database.GORM()), alertService, inspectionService, signalService, correlationService)
 	incidentRepository := incident.NewGormRepository(database.GORM())
 	incidentService := incident.NewService(incidentRepository).
+		WithSLADurations(cfg.IncidentSLATargets).
 		WithResolver(incidentSourceResolver).
 		WithEvidenceResolver(incidentSourceResolver)
 	promotionService := promotion.NewService(kubernetesService, promotion.NewGormRepository(database.GORM()))

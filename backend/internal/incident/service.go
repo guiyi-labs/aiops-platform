@@ -36,9 +36,19 @@ type Service struct {
 	repo             Repository
 	resolver         SourceResolver
 	evidenceResolver EvidenceResolver
+	catalog          ResponseCatalog
 }
 
-func NewService(repo Repository) *Service { return &Service{repo: repo} }
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo, catalog: DefaultResponseCatalog()}
+}
+
+func (s *Service) WithSLADurations(durations map[string]time.Duration) *Service {
+	s.catalog = s.catalog.WithSLADurations(durations)
+	return s
+}
+
+func (s *Service) ResponseCatalog() ResponseCatalog { return s.catalog.clone() }
 
 // WithResolver attaches a source resolver. Returns the receiver for chaining.
 func (s *Service) WithResolver(resolver SourceResolver) *Service {
@@ -57,6 +67,7 @@ func (s *Service) WithEvidenceResolver(resolver EvidenceResolver) *Service {
 type CreateInput struct {
 	SourceType string
 	SourceRef  string
+	TemplateID string
 	ClusterID  int64
 	Title      string
 	Severity   string
@@ -71,6 +82,7 @@ type CreateInput struct {
 func (s *Service) Create(ctx context.Context, input CreateInput) (Incident, error) {
 	input.SourceType = strings.TrimSpace(input.SourceType)
 	input.SourceRef = strings.TrimSpace(input.SourceRef)
+	input.TemplateID = strings.TrimSpace(input.TemplateID)
 	input.Title = strings.TrimSpace(input.Title)
 	input.Severity = strings.TrimSpace(input.Severity)
 	input.Summary = strings.TrimSpace(input.Summary)
@@ -87,6 +99,21 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (Incident, erro
 	}
 	if input.ClusterID <= 0 {
 		return Incident{}, ErrInvalidSource
+	}
+	if input.TemplateID != "" {
+		template, ok := s.catalog.Template(input.TemplateID)
+		if !ok || !template.SupportsSource(input.SourceType) {
+			return Incident{}, ErrInvalidTemplate
+		}
+		if input.Title == "" {
+			input.Title = template.DefaultTitle
+		}
+		if input.Severity == "" {
+			input.Severity = template.DefaultSeverity
+		}
+		if input.Summary == "" {
+			input.Summary = template.DefaultSummary
+		}
 	}
 
 	if s.resolver != nil {
@@ -118,13 +145,14 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (Incident, erro
 		Title:      input.Title,
 		SourceType: input.SourceType,
 		SourceRef:  input.SourceRef,
+		TemplateID: input.TemplateID,
 		ClusterID:  input.ClusterID,
 		Resource:   input.Resource,
 		Severity:   input.Severity,
 		Status:     StatusOpen,
 		Summary:    input.Summary,
 		ObservedAt: input.ObservedAt,
-		SLADueAt:   SLADeadline(input.Severity, input.ObservedAt),
+		SLADueAt:   s.catalog.SLADeadline(input.Severity, input.ObservedAt),
 	}
 	if err := s.repo.Create(ctx, &record); err != nil {
 		return Incident{}, err
@@ -284,6 +312,18 @@ func (s *Service) SetPostmortem(ctx context.Context, id, expectedVersion int64, 
 	return s.repo.SetPostmortem(ctx, id, expectedVersion, actor, strings.TrimSpace(content))
 }
 
+func (s *Service) ExportMarkdown(ctx context.Context, id int64, destination io.Writer) error {
+	record, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	evidence, err := s.Evidence(ctx, id)
+	if err != nil {
+		return err
+	}
+	return writeIncidentMarkdown(destination, record, evidence)
+}
+
 // ExportCSV writes a redacted, formula-safe CSV snapshot of the incidents
 // matching the filter. Free-text cells are protected against CSV injection,
 // mirroring the audit-log export contract.
@@ -317,7 +357,7 @@ func writeIncidentCSV(destination io.Writer, incidents []Incident) error {
 	writer := csv.NewWriter(destination)
 	writer.UseCRLF = true
 	header := []string{"number", "title", "source_type", "source_ref", "cluster_id",
-		"resource_kind", "resource_namespace", "resource_name", "resource_uid",
+		"template_id", "resource_kind", "resource_namespace", "resource_name", "resource_uid",
 		"severity", "status", "summary", "assignee_id", "assignee_name",
 		"observed_at", "sla_due_at", "resolved_at", "postmortem", "version", "created_at", "updated_at"}
 	if err := writer.Write(header); err != nil {
@@ -335,7 +375,7 @@ func writeIncidentCSV(destination io.Writer, incidents []Incident) error {
 		}
 		row := []string{
 			safeCSVCell(item.Number), safeCSVCell(item.Title), safeCSVCell(item.SourceType), safeCSVCell(item.SourceRef),
-			strconv.FormatInt(item.ClusterID, 10), safeCSVCell(item.Resource.Kind), safeCSVCell(item.Resource.Namespace),
+			strconv.FormatInt(item.ClusterID, 10), safeCSVCell(item.TemplateID), safeCSVCell(item.Resource.Kind), safeCSVCell(item.Resource.Namespace),
 			safeCSVCell(item.Resource.Name), safeCSVCell(item.Resource.UID), safeCSVCell(item.Severity), safeCSVCell(item.Status),
 			safeCSVCell(item.Summary), assigneeID, assigneeName, item.ObservedAt.UTC().Format(time.RFC3339Nano),
 			item.SLADueAt.UTC().Format(time.RFC3339Nano), resolvedAt, safeCSVCell(item.Postmortem),

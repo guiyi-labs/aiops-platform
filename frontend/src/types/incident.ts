@@ -16,6 +16,7 @@ export interface Incident {
   title: string
   source_type: IncidentSourceType
   source_ref: string
+  template_id?: string
   cluster_id: number
   resource: IncidentResourceRef
   severity: IncidentSeverity
@@ -89,6 +90,7 @@ export interface IncidentEvidenceItem {
 export interface IncidentCreateInput {
   source_type: IncidentSourceType
   source_ref: string
+  template_id?: string
   cluster_id: number
   title?: string
   severity?: IncidentSeverity
@@ -106,4 +108,20 @@ export interface IncidentRunbookResponse {
   domain?: string
   finding_code?: string
   runbook?: import('../api/insight').InsightRunbook
+}
+
+export interface IncidentSeverityTarget { severity: IncidentSeverity; target_minutes: number }
+export interface IncidentResponseTemplate {
+  id: string
+  name: string
+  description: string
+  source_types: IncidentSourceType[]
+  default_title: string
+  default_severity: IncidentSeverity
+  default_summary: string
+  steps: string[]
+}
+export interface IncidentResponseCatalog {
+  templates: IncidentResponseTemplate[]
+  severity_matrix: IncidentSeverityTarget[]
 }

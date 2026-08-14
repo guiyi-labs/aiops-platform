@@ -41,6 +41,7 @@ var (
 	ErrInvalidTransition = errors.New("invalid incident status transition")
 	ErrSourceAlreadyUsed = errors.New("source already has an incident")
 	ErrInvalidSource     = errors.New("invalid incident source")
+	ErrInvalidTemplate   = errors.New("invalid incident response template")
 	ErrInvalidNote       = errors.New("incident note content is required")
 	ErrInvalidTitle      = errors.New("incident title is required")
 	ErrFollowerDuplicate = errors.New("user already follows this incident")
@@ -90,6 +91,7 @@ type Incident struct {
 	Title      string          `json:"title"`
 	SourceType string          `json:"source_type"`
 	SourceRef  string          `json:"source_ref"`
+	TemplateID string          `json:"template_id,omitempty"`
 	ClusterID  int64           `json:"cluster_id"`
 	Resource   ResourceRef     `json:"resource"`
 	Severity   string          `json:"severity"`

@@ -34,6 +34,35 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.IncidentSLAFirstEscalationAfter != 30*time.Minute || cfg.IncidentSLAFinalEscalationAfter != 2*time.Hour {
 		t.Fatalf("unexpected incident SLA escalation defaults: %#v", cfg)
 	}
+	if cfg.IncidentSLATargets["critical"] != time.Hour || cfg.IncidentSLATargets["info"] != 72*time.Hour {
+		t.Fatalf("unexpected incident SLA targets: %#v", cfg.IncidentSLATargets)
+	}
+}
+
+func TestLoadParsesIncidentSLATargets(t *testing.T) {
+	t.Setenv("INCIDENT_SLA_TARGETS", `{"critical":"30m","high":"2h"}`)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.IncidentSLATargets["critical"] != 30*time.Minute || cfg.IncidentSLATargets["high"] != 2*time.Hour {
+		t.Fatalf("IncidentSLATargets = %#v", cfg.IncidentSLATargets)
+	}
+}
+
+func TestLoadRejectsInvalidIncidentSLATargets(t *testing.T) {
+	for name, value := range map[string]string{
+		"invalid-json":     `{"critical":`,
+		"unknown-severity": `{"urgent":"1h"}`,
+		"too-short":        `{"critical":"30s"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Setenv("INCIDENT_SLA_TARGETS", value)
+			if _, err := Load(); err == nil {
+				t.Fatal("Load() error = nil, want invalid incident SLA target error")
+			}
+		})
+	}
 }
 
 func TestLoadParsesCredentialDecryptionKeys(t *testing.T) {

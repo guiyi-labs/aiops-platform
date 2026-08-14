@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 284 |
+| 路由总数 | 286 |
 | 角色受限 | 84 |
-| 已审计 | 161 |
+| 已审计 | 162 |
 | scope=workspace | 13 |
 | scope=cluster | 82 |
 | scope=namespace | 32 |
-| scope=none | 157 |
+| scope=none | 159 |
 | 角色 operations_admin | 63 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 84 |
@@ -265,10 +265,12 @@
 | DELETE | `/api/v1/incidents/:incident_id/followers/:user_id` | `operations_admin`, `system_admin` | none | incident.follower.remove |
 | POST | `/api/v1/incidents/:incident_id/notes` | `operations_admin`, `system_admin` | none | incident.note.create |
 | PUT | `/api/v1/incidents/:incident_id/postmortem` | `operations_admin`, `system_admin` | none | incident.postmortem.update |
+| GET | `/api/v1/incidents/:incident_id/postmortem/export` | any | none | incident.postmortem.export |
 | GET | `/api/v1/incidents/:incident_id/runbook` | any | none | incident.runbook.get |
 | POST | `/api/v1/incidents/batch-assign` | `operations_admin`, `system_admin` | none | incident.assignment.batch |
 | GET | `/api/v1/incidents/metrics` | any | none | - |
 | GET | `/api/v1/incidents/summary` | any | none | - |
+| GET | `/api/v1/incidents/templates` | any | none | - |
 | POST | `/api/v1/maintenance-plans/:plan_id/execute` | `operations_admin`, `system_admin` | none | maintenance.execute |
 | GET | `/api/v1/notification-deliveries` | `security_auditor`, `system_admin` | none | - |
 | POST | `/api/v1/notification-deliveries/:delivery_id/retry` | `system_admin` | none | notification.delivery.retry |

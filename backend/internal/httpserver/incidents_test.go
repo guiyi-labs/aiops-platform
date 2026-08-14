@@ -178,6 +178,7 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	h := incidentHandler{service: incident.NewService(repo)}
 	api := r.Group("/api/v1", withTestActor())
 	api.GET("/incidents", h.list)
+	api.GET("/incidents/templates", h.templates)
 	api.GET("/incidents/summary", h.summary)
 	api.GET("/incidents/metrics", h.metrics)
 	api.GET("/incidents/:incident_id", h.get)
@@ -186,6 +187,7 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	api.POST("/incidents", h.create)
 	api.POST("/incidents/batch-assign", h.batchAssign)
 	api.PATCH("/incidents/:incident_id", h.transition)
+	api.GET("/incidents/:incident_id/postmortem/export", h.exportPostmortem)
 	return r
 }
 
@@ -277,6 +279,28 @@ func TestIncidentHandler_CreateAndList(t *testing.T) {
 	missing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/999", "")
 	if missing.Code != http.StatusNotFound {
 		t.Fatalf("missing code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentHandler_ResponseCatalogAndPostmortemExport(t *testing.T) {
+	engine := newIncidentTestEngine(t, newIncidentRepoStub())
+	catalog := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/templates", "")
+	if catalog.Code != http.StatusOK || !strings.Contains(catalog.Body.String(), "severity_matrix") || !strings.Contains(catalog.Body.String(), "generic") {
+		t.Fatalf("catalog response = %d %s", catalog.Code, catalog.Body.String())
+	}
+	created := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents", `{
+		"source_type":"finding", "source_ref":"finding:7:template", "template_id":"generic", "cluster_id":7,
+		"resource":{"kind":"Pod","name":"web-0"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create with template code = %d, body %s", created.Code, created.Body.String())
+	}
+	export := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/1/postmortem/export", "")
+	if export.Code != http.StatusOK || export.Header().Get("Content-Type") != "text/markdown; charset=utf-8" {
+		t.Fatalf("postmortem export = %d %s", export.Code, export.Body.String())
+	}
+	if !strings.Contains(export.Body.String(), "# INC-000001") || !strings.Contains(export.Body.String(), "## Evidence timeline") {
+		t.Fatalf("postmortem export body = %s", export.Body.String())
 	}
 }
 

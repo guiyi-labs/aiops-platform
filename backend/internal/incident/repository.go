@@ -35,6 +35,7 @@ type storedIncident struct {
 	Title             string
 	SourceType        string
 	SourceRef         string
+	TemplateID        string
 	ClusterID         int64
 	ResourceKind      string
 	ResourceNamespace string
@@ -55,7 +56,7 @@ type storedIncident struct {
 	UpdatedAt         time.Time
 }
 
-const incidentSelect = `SELECT i.id, i.number, i.title, i.source_type, i.source_ref, i.cluster_id,
+const incidentSelect = `SELECT i.id, i.number, i.title, i.source_type, i.source_ref, i.template_id, i.cluster_id,
 	i.resource_kind, i.resource_namespace, i.resource_name, i.resource_uid, i.severity, i.status,
 	i.summary, i.postmortem, i.assigned_to_user_id AS assignee_id, u.display_name AS assignee_name,
 	i.version, i.observed_at, i.sla_due_at, i.resolved_at,
@@ -66,11 +67,11 @@ const incidentSelect = `SELECT i.id, i.number, i.title, i.source_type, i.source_
 func (r *GormRepository) Create(ctx context.Context, record *Incident) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		row := tx.Raw(`INSERT INTO incidents
-			(title, source_type, source_ref, cluster_id, resource_kind, resource_namespace,
+			(title, source_type, source_ref, template_id, cluster_id, resource_kind, resource_namespace,
 			 resource_name, resource_uid, severity, status, summary, observed_at, sla_due_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
 			RETURNING id, number, version, created_at, updated_at`,
-			record.Title, record.SourceType, record.SourceRef, record.ClusterID,
+			record.Title, record.SourceType, record.SourceRef, record.TemplateID, record.ClusterID,
 			record.Resource.Kind, record.Resource.Namespace, record.Resource.Name, record.Resource.UID,
 			record.Severity, record.Summary, record.ObservedAt, record.SLADueAt).Row()
 		if err := row.Scan(&record.ID, &record.Number, &record.Version, &record.CreatedAt, &record.UpdatedAt); err != nil {
@@ -469,6 +470,7 @@ func (r *GormRepository) assemble(ctx context.Context, stored storedIncident) (I
 		Title:      stored.Title,
 		SourceType: stored.SourceType,
 		SourceRef:  stored.SourceRef,
+		TemplateID: stored.TemplateID,
 		ClusterID:  stored.ClusterID,
 		Resource: ResourceRef{
 			Kind:      stored.ResourceKind,

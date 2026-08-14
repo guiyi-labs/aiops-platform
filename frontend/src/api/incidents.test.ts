@@ -1,6 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { getIncidentMetrics, getIncidentRunbook } from './incidents'
+import { exportIncidentPostmortem, getIncidentMetrics, getIncidentRunbook, listIncidentResponseCatalog } from './incidents'
+
+describe('incident response catalog API', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('loads templates and the configured severity matrix', async () => {
+    const catalog = { templates: [{ id: 'generic' }], severity_matrix: [{ severity: 'critical', target_minutes: 60 }] }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(catalog), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(listIncidentResponseCatalog('token')).resolves.toEqual(catalog)
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/incidents/templates', expect.any(Object))
+  })
+})
 
 describe('incident metrics API', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -42,5 +55,22 @@ describe('incident runbook API', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(getIncidentRunbook('token', 8)).resolves.toMatchObject(response)
+  })
+})
+
+describe('incident postmortem export API', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('downloads the Markdown filename provided by the API', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('# INC-000007\n', {
+      status: 200,
+      headers: { 'Content-Type': 'text/markdown', 'Content-Disposition': 'attachment; filename="incident-INC-000007-postmortem.md"' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await exportIncidentPostmortem('token', 7)
+    expect(result.filename).toBe('incident-INC-000007-postmortem.md')
+    await expect(result.blob.text()).resolves.toContain('INC-000007')
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/incidents/7/postmortem/export', expect.objectContaining({ headers: expect.objectContaining({ Accept: 'text/markdown' }) }))
   })
 })

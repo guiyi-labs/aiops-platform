@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Download, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
+import { Download, FileText, MessageSquareText, Plus, RefreshCw, UserCheck, UserPlus, X } from 'lucide-vue-next'
 
-import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, getIncident, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
+import { addIncidentFollower, addIncidentNote, assignIncident, batchAssignIncidents, createIncident, exportIncidentPostmortem, getIncident, getIncidentEvidence, getIncidentRunbook, getIncidentSummary, listIncidentResponseCatalog, listIncidents, removeIncidentFollower, setIncidentPostmortem, severityLabels, statusLabels, transitionIncident } from '../api/incidents'
 import { APIError } from '../api/auth'
 import { listAssignableUsers } from '../api/users'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { UserProfile } from '../types/auth'
-import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
+import type { Incident, IncidentCreateInput, IncidentEvidenceItem, IncidentResourceRef, IncidentResponseCatalog, IncidentRunbookResponse, IncidentSeverity, IncidentSourceType, IncidentStatus, IncidentSummary } from '../types/incident'
 
 interface IncidentCreateForm extends Omit<IncidentCreateInput, 'resource'> {
   resource: IncidentResourceRef
@@ -35,10 +35,12 @@ const runbook = ref<IncidentRunbookResponse | null>(null)
 const runbookLoading = ref(false)
 const showCreate = ref(false)
 const saving = ref(false)
+const responseCatalog = ref<IncidentResponseCatalog | null>(null)
 
 const newIncident = ref<IncidentCreateForm>({
   source_type: 'finding',
   source_ref: '',
+  template_id: 'generic',
   cluster_id: 0,
   title: '',
   severity: 'warning',
@@ -84,6 +86,9 @@ const resolutionDuration = computed(() => {
   return hours > 0 ? `${hours}小时${minutes % 60}分` : `${minutes}分钟`
 })
 const linkedRunbook = computed(() => (runbook.value?.available ? runbook.value.runbook ?? null : null))
+const compatibleTemplates = computed(() => responseCatalog.value?.templates.filter((template) => template.source_types.includes(newIncident.value.source_type)) ?? [])
+const selectedTemplate = computed(() => compatibleTemplates.value.find((template) => template.id === newIncident.value.template_id) ?? compatibleTemplates.value[0])
+const selectedSlaTarget = computed(() => responseCatalog.value?.severity_matrix.find((target) => target.severity === newIncident.value.severity)?.target_minutes ?? null)
 
 function toggleSelect(id: number) {
   selected.value = selected.value.includes(id) ? selected.value.filter((item) => item !== id) : [...selected.value, id]
@@ -97,6 +102,27 @@ function clearSelection() {
   selected.value = []
   batchAssigneeID.value = 0
   batchComment.value = ''
+}
+
+function openCreate() {
+  showCreate.value = true
+  if (!newIncident.value.template_id && compatibleTemplates.value.length > 0) {
+    newIncident.value.template_id = compatibleTemplates.value[0].id
+  }
+}
+
+function applyTemplateDefaults() {
+  const template = selectedTemplate.value
+  if (!template) return
+  newIncident.value.template_id = template.id
+  newIncident.value.title = template.default_title
+  newIncident.value.summary = template.default_summary
+  newIncident.value.severity = template.default_severity
+}
+
+function ensureTemplateForSource() {
+  if (compatibleTemplates.value.some((template) => template.id === newIncident.value.template_id)) return
+  newIncident.value.template_id = compatibleTemplates.value[0]?.id ?? ''
 }
 const sourceRefPlaceholder = computed(() => {
   switch (newIncident.value.source_type) {
@@ -186,6 +212,15 @@ async function loadAll() {
   }
 }
 
+async function loadResponseCatalog() {
+  try {
+    responseCatalog.value = await listIncidentResponseCatalog(auth.accessToken)
+    applyTemplateDefaults()
+  } catch {
+    responseCatalog.value = null
+  }
+}
+
 async function openDetail(incident: Incident) {
   detailLoading.value = true
   errorMessage.value = ''
@@ -216,7 +251,7 @@ async function handleCreate() {
   try {
     await createIncident(auth.accessToken, newIncident.value)
     showCreate.value = false
-    newIncident.value = { source_type: 'finding', source_ref: '', cluster_id: 0, title: '', severity: 'warning', summary: '', resource: { kind: '', namespace: '', name: '' } }
+    newIncident.value = { source_type: 'finding', source_ref: '', template_id: 'generic', cluster_id: 0, title: '', severity: 'warning', summary: '', resource: { kind: '', namespace: '', name: '' } }
     await loadAll()
   } catch (err) {
     errorMessage.value = err instanceof APIError ? err.message : '创建事故失败'
@@ -331,6 +366,22 @@ async function handlePostmortem() {
   }
 }
 
+async function handlePostmortemExport() {
+  if (!detail.value) return
+  try {
+    const exported = await exportIncidentPostmortem(auth.accessToken, detail.value.id)
+    const url = URL.createObjectURL(exported.blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = exported.filename
+    anchor.click()
+    URL.revokeObjectURL(url)
+    successMessage.value = `已导出 ${detail.value.number} 复盘 Markdown。`
+  } catch {
+    errorMessage.value = '复盘导出失败'
+  }
+}
+
 async function handleExport(incident: Incident) {
   try {
     const response = await fetch(`/api/v1/incidents/${incident.id}/export`, { headers: { Authorization: `Bearer ${auth.accessToken}` } })
@@ -374,7 +425,7 @@ async function loadRunbook(incidentID: number) {
   }
 }
 
-onMounted(() => { void loadAll() })
+onMounted(() => { void loadAll(); void loadResponseCatalog() })
 </script>
 
 <template>
@@ -398,7 +449,7 @@ onMounted(() => { void loadAll() })
           <option value="resolved">已解决</option>
           <option value="dismissed">已驳回</option>
         </select>
-        <button v-if="canManage" class="primary-button" type="button" :disabled="saving" @click="showCreate = true">
+        <button v-if="canManage" class="primary-button" type="button" :disabled="saving" @click="openCreate">
           <Plus :size="15" />新建事故
         </button>
       </div>
@@ -651,8 +702,9 @@ onMounted(() => { void loadAll() })
             <span class="metric"><strong>{{ evidenceSourceCount }}</strong><small>证据来源</small></span>
           </div>
           <textarea v-model="postmortemContent" rows="6" maxlength="10000" placeholder="记录根因、处理过程与后续改进…" />
-          <div v-if="canManage" class="action-row">
-            <button class="secondary-button" type="button" :disabled="saving" @click="handlePostmortem">保存复盘</button>
+          <div class="action-row">
+            <button v-if="canManage" class="secondary-button" type="button" :disabled="saving" @click="handlePostmortem">保存复盘</button>
+            <button class="secondary-button" type="button" :disabled="saving" @click="handlePostmortemExport"><FileText :size="14" />导出 Markdown</button>
           </div>
         </template>
       </section>
@@ -669,7 +721,7 @@ onMounted(() => { void loadAll() })
         </header>
         <label class="form-field">
           <span>来源类型</span>
-          <select v-model="newIncident.source_type" aria-label="来源类型">
+          <select v-model="newIncident.source_type" aria-label="来源类型" @change="ensureTemplateForSource">
           <option value="finding">人工上报</option>
           <option value="diagnosis">诊断记录</option>
           <option value="alert">告警实例</option>
@@ -680,6 +732,13 @@ onMounted(() => { void loadAll() })
         <label class="form-field">
           <span>来源标识</span>
           <input v-model="newIncident.source_ref" :placeholder="sourceRefPlaceholder" />
+        </label>
+        <label v-if="compatibleTemplates.length" class="form-field">
+          <span>响应模板</span>
+          <select v-model="newIncident.template_id" aria-label="响应模板" @change="applyTemplateDefaults">
+            <option v-for="template in compatibleTemplates" :key="template.id" :value="template.id">{{ template.name }}</option>
+          </select>
+          <small v-if="selectedTemplate" class="form-hint">{{ selectedTemplate.description }} · {{ selectedTemplate.steps.join(' · ') }}</small>
         </label>
         <label class="form-field">
           <span>集群 ID</span>
@@ -697,6 +756,7 @@ onMounted(() => { void loadAll() })
             <option value="high">高</option>
             <option value="critical">严重</option>
           </select>
+          <small v-if="selectedSlaTarget" class="form-hint">当前矩阵目标：{{ selectedSlaTarget >= 1440 ? `${Math.round(selectedSlaTarget / 1440)} 天` : `${selectedSlaTarget} 分钟` }}</small>
         </label>
         <label class="form-field">
           <span>摘要</span>
@@ -840,6 +900,7 @@ onMounted(() => { void loadAll() })
 .incident-form h2 { margin: 0; font-size: 18px; color: #2f3d45; }
 .form-field { display: grid; gap: 5px; margin-top: 12px; }
 .form-field > span { color: #5a6672; font-size: 11px; font-weight: 650; }
+.form-hint { color: #77858d; font-size: 10px; line-height: 1.5; }
 .form-field input, .form-field select, .form-field textarea { padding: 8px 10px; color: #43515a; background: #ffffff; border: 1px solid #cfd8dc; border-radius: 5px; font: inherit; }
 .form-field textarea { resize: vertical; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }

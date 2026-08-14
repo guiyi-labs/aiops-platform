@@ -35,6 +35,58 @@ func newFakeRepository() *fakeRepository {
 	}
 }
 
+func TestResponseTemplateAppliesConfiguredSeverityTarget(t *testing.T) {
+	repository := newFakeRepository()
+	observedAt := time.Date(2026, 8, 14, 8, 0, 0, 0, time.UTC)
+	service := NewService(repository).WithSLADurations(map[string]time.Duration{SeverityWarning: 2 * time.Hour})
+	record, err := service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeFinding, SourceRef: "finding:7:generic", TemplateID: "generic", ClusterID: 7,
+		ObservedAt: observedAt, Resource: ResourceRef{Kind: "Pod", Name: "web-0"},
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if record.TemplateID != "generic" || record.Title != "待确认的运营事故" || record.Severity != SeverityWarning {
+		t.Fatalf("template defaults = %#v", record)
+	}
+	if !record.SLADueAt.Equal(observedAt.Add(2 * time.Hour)) {
+		t.Fatalf("SLA due at = %s, want %s", record.SLADueAt, observedAt.Add(2*time.Hour))
+	}
+}
+
+func TestExportMarkdownIncludesNarrativeEvidenceAndTimeline(t *testing.T) {
+	repository := newFakeRepository()
+	service := NewService(repository).WithEvidenceResolver(evidenceResolverStub{})
+	record, err := service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeFinding, SourceRef: "finding:7:pod:Pod:default:web-0", ClusterID: 7,
+		Title: "Pod unavailable", Severity: SeverityHigh, Summary: "pod is not ready",
+		ObservedAt: time.Date(2026, 8, 14, 8, 0, 0, 0, time.UTC), Resource: ResourceRef{Kind: "Pod", Namespace: "default", Name: "web-0"},
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	record, err = service.AddNote(context.Background(), record.ID, record.Version, ActorRef{ID: 1, Name: "admin"}, "restart was approved")
+	if err != nil {
+		t.Fatalf("AddNote() error = %v", err)
+	}
+	var buffer bytes.Buffer
+	if err := service.ExportMarkdown(context.Background(), record.ID, &buffer); err != nil {
+		t.Fatalf("ExportMarkdown() error = %v", err)
+	}
+	content := buffer.String()
+	for _, expected := range []string{"# INC-000001 Pod unavailable", "## Narrative", "pod is not ready", "## Evidence timeline", "container restart", "## Decisions and actions", "restart was approved", "## Outcome"} {
+		if !strings.Contains(content, expected) {
+			t.Errorf("markdown missing %q:\n%s", expected, content)
+		}
+	}
+}
+
+type evidenceResolverStub struct{}
+
+func (evidenceResolverStub) ResolveEvidence(context.Context, string, string, int64) (EvidenceItem, error) {
+	return EvidenceItem{SourceType: SourceTypeFinding, SourceRef: "finding:7:pod:Pod:default:web-0", Title: "container restart", Summary: "restart evidence", Resource: ResourceRef{Kind: "Pod", Namespace: "default", Name: "web-0"}, ObservedAt: "2026-08-14T08:00:00Z", DeepLink: "/diagnoses"}, nil
+}
+
 func sourceKey(sourceType, sourceRef string) string { return sourceType + ":" + sourceRef }
 
 func cloneIncident(incident Incident) Incident {

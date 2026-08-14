@@ -92,20 +92,21 @@ M108 关联归一 + M109 收口）已经可用。下一阶段不再堆功能数�
 
 **目标**：incident 从"能协作"升级为"可运营、可度量、可交接"，全部复用既有领域组件。
 
-**执行进度（2026-08-14）**：已完成 KPI 基础层与事故详情 Runbook 关联：新增真实时间戳派生的
+**执行进度（2026-08-14）**：M111 已完成 KPI 基础层、事故详情 Runbook 关联、模板与严重级矩阵、SLA 升级链和复盘导出：新增真实时间戳派生的
 `GET /api/v1/incidents/metrics`，以及复用 M81 Insight 的
-`GET /api/v1/incidents/{incident_id}/runbook`。两者均已同步 OpenAPI/typegen；升级链和复盘导出仍按本节顺序推进。
+`GET /api/v1/incidents/{incident_id}/runbook`；新增 `GET /api/v1/incidents/templates` 和
+`GET /api/v1/incidents/{incident_id}/postmortem/export`。全部契约已同步 OpenAPI/typegen，待全量门禁和阶段 tag 封口。
 
 - **Runbook 关联（已完成）**：incident 详情页挂接 M81 Insight 的诊断/巡检/AI 解释/dry-run
   候选，只读展示且对人工来源、源记录缺失和跨域不确定性 fail-closed；不新增任意操作，写路径
   仍走既有受控动作目录。M44 automation 与 AI investigator 的具体执行状态延后到后续协调查询阶段。
 - **MTTA/MTTR 事故 KPI**：由时间线时间戳派生（created → first_assigned → first_ack →
   resolved），新增事故 KPI 视图与聚合大盘；OpenAPI + typegen + 迁移。
-- **事故模板与严重级矩阵**：创建事故支持模板，severity → SLA 目标可配置。
+- **事故模板与严重级矩阵（已完成）**：创建事故支持版本化模板，severity → SLA 目标通过 `INCIDENT_SLA_TARGETS` 可配置并落到事故快照。
 - **SLA 升级链**：超时未响应/未解决 → 经现有 notification webhook 逐级升级（M107 SLA
   提醒的深化），升级事件落审计。
-- **复盘导出**：postmortem Markdown 导出（证据时间线、决策、动作、结果叙事，M107 复盘
-  视图的可携带版本）。
+- **复盘导出（已完成）**：postmortem Markdown 导出包含证据时间线、决策、动作、结果叙事，是 M107
+  复盘视图的可携带版本。
 
 **验收**：三条黄金场景（Node NotReady / Deployment unavailable / OOMKilled）带第二来源
 联动仍成立；runbook 关联只读且引用校验通过；KPI 由真实时间戳派生（无伪造）；升级链

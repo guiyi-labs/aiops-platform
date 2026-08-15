@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	ErrDisabled = errors.New("incident AI chat is disabled")
-	ErrBusy     = errors.New("incident AI chat concurrency limit reached")
-	ErrNoMessages = errors.New("at least one user message is required")
-	ErrHistoryTooLong = errors.New("message history exceeds maximum length")
+	ErrDisabled           = errors.New("incident AI chat is disabled")
+	ErrBusy               = errors.New("incident AI chat concurrency limit reached")
+	ErrNoMessages         = errors.New("at least one user message is required")
+	ErrHistoryTooLong     = errors.New("message history exceeds maximum length")
 	ErrLastMessageNotUser = errors.New("the last message must be from the user")
-	ErrCitationRejected = errors.New("citation references unauthorized evidence")
+	ErrCitationRejected   = errors.New("citation references unauthorized evidence")
 )
 
 // ChatMessage is one turn in the conversation history.
@@ -43,40 +43,40 @@ type Citation struct {
 
 // ProviderResult is the raw provider output before validation.
 type ProviderResult struct {
-	Provider      string
-	Model         string
-	Answer        string
-	NextChecks    []string
-	Citations     []Citation
-	InputTokens   int
-	OutputTokens  int
+	Provider     string
+	Model        string
+	Answer       string
+	NextChecks   []string
+	Citations    []Citation
+	InputTokens  int
+	OutputTokens int
 }
 
 // ChatResponse is the M112-2 chat response. It always carries the
 // resource-context contract block (scope/observed_at/source/freshness/
 // empty_sample) so the client knows what was observed.
 type ChatResponse struct {
-	IncidentID      int64                 `json:"incident_id"`
-	ResourceContext ResourceContext       `json:"resource_context"`
-	Mode            string                `json:"mode"` // "ai" or "deterministic"
-	Answer          string                `json:"answer"`
-	NextChecks      []string              `json:"next_checks,omitempty"`
-	Citations       []Citation            `json:"citations"`
-	Provider        string                `json:"provider"`
-	Model           string                `json:"model"`
-	InputTokens     int                   `json:"input_tokens"`
-	OutputTokens    int                   `json:"output_tokens"`
-	FailClosed      bool                  `json:"fail_closed"`
+	IncidentID      int64           `json:"incident_id"`
+	ResourceContext ResourceContext `json:"resource_context"`
+	Mode            string          `json:"mode"` // "ai" or "deterministic"
+	Answer          string          `json:"answer"`
+	NextChecks      []string        `json:"next_checks,omitempty"`
+	Citations       []Citation      `json:"citations"`
+	Provider        string          `json:"provider"`
+	Model           string          `json:"model"`
+	InputTokens     int             `json:"input_tokens"`
+	OutputTokens    int             `json:"output_tokens"`
+	FailClosed      bool            `json:"fail_closed"`
 }
 
 // ResourceContext is a local copy of the incident.ResourceContext contract
 // to avoid importing the incident package from here. The handler populates
 // this from the incident context cockpit builder in incident.ResourceContext.
 type ResourceContext struct {
-	Scope       ScopeInfo  `json:"scope"`
-	ObservedAt  time.Time  `json:"observed_at"`
-	Source      string     `json:"source"`
-	Freshness   FreshnessInfo `json:"freshness"`
+	Scope       ScopeInfo       `json:"scope"`
+	ObservedAt  time.Time       `json:"observed_at"`
+	Source      string          `json:"source"`
+	Freshness   FreshnessInfo   `json:"freshness"`
 	EmptySample EmptySampleInfo `json:"empty_sample"`
 }
 

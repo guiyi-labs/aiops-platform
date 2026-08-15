@@ -45,7 +45,7 @@ func TestBuildPrompt_IncludesHistoryAndQuestion(t *testing.T) {
 func TestValidateResult_CitationRejectedIfNotAuthorized(t *testing.T) {
 	authorized := map[string]struct{}{"incident:7": {}, "evidence:diag:42": {}}
 	result := ProviderResult{
-		Answer: "test",
+		Answer:    "test",
 		Citations: []Citation{{EvidenceID: "evidence:diag:42", Claim: "diag exists"}, {EvidenceID: "evidence:unknown:1", Claim: "hack"}},
 	}
 	if err := ValidateResult(result, authorized); err != ErrCitationRejected {
@@ -118,7 +118,7 @@ func TestNopProvider_FallbackToAnyEvidenceIfNoIncident(t *testing.T) {
 // --- Service deterministic fallback ---
 
 type testIncidentReader struct {
-	snap IncidentSnapshot
+	snap  IncidentSnapshot
 	items []EvidenceItem
 }
 
@@ -128,7 +128,7 @@ func (r *testIncidentReader) Get(_ context.Context, _ int64) (IncidentSnapshot, 
 
 func TestChat_DeterministicFallbackWhenDisabled(t *testing.T) {
 	reader := &testIncidentReader{
-		snap: IncidentSnapshot{ID: 1, Number: "INC-000001", Title: "OOM", Severity: "critical", Status: "open", ClusterID: 5, Kind: "Pod"},
+		snap:  IncidentSnapshot{ID: 1, Number: "INC-000001", Title: "OOM", Severity: "critical", Status: "open", ClusterID: 5, Kind: "Pod"},
 		items: []EvidenceItem{{SourceType: "diagnosis", SourceRef: "diag:42", Title: "oom_killed"}},
 	}
 	svc := NewService(ServiceConfig{Enabled: false}, reader, nil, nil)

@@ -65,7 +65,7 @@ type Options struct {
 	// M112-2 incident AI chat service. When nil the chat route is not
 	// registered; the provider resolves deterministically when AI is
 	// disabled (AIFallbackChat=false also disables the route).
-	IncidentChat *incidentchat.Service
+	IncidentChat     *incidentchat.Service
 	Audit            *audit.Service
 	AIExplanation    *aiexplain.Service
 	SecureCookies    bool

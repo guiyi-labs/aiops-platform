@@ -64,7 +64,7 @@ func (s *repositoryStub) Quality(context.Context) (QualitySummary, error) { retu
 func (s *repositoryStub) Coverage(context.Context) (CoverageSummary, error) {
 	return CoverageSummary{TotalExplanations: 10, ExplainedDiagnoses: 8, WithCitations: 7, CitationRate: 0.7, Quality: s.quality}, nil
 }
-func (s *repositoryStub) Usage(context.Context) (Usage, error)            { return s.usage, nil }
+func (s *repositoryStub) Usage(context.Context) (Usage, error) { return s.usage, nil }
 func (s *repositoryStub) Reserve(context.Context, Reservation, int) error {
 	s.reservations++
 	return s.reserveErr

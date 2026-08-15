@@ -83,14 +83,14 @@ type RecommendedAction struct {
 // mapping. Real-time cluster health is reached via each evidence block's
 // deep link.
 type ContextCockpit struct {
-	ResourceContext ResourceContext        `json:"resource_context"`
-	Incident        IncidentSnapshot       `json:"incident"`
-	SLA             SLASummary             `json:"sla"`
-	Health          HealthSummary          `json:"health"`
-	EvidenceSources []EvidenceSourceSummary `json:"evidence_sources"`
-	RecentEvents    []TimelineEvent        `json:"recent_events"`
-	RunbookBrief    *RunbookBrief          `json:"runbook_brief,omitempty"`
-	RecommendedActions []RecommendedAction `json:"recommended_actions"`
+	ResourceContext    ResourceContext         `json:"resource_context"`
+	Incident           IncidentSnapshot        `json:"incident"`
+	SLA                SLASummary              `json:"sla"`
+	Health             HealthSummary           `json:"health"`
+	EvidenceSources    []EvidenceSourceSummary `json:"evidence_sources"`
+	RecentEvents       []TimelineEvent         `json:"recent_events"`
+	RunbookBrief       *RunbookBrief           `json:"runbook_brief,omitempty"`
+	RecommendedActions []RecommendedAction     `json:"recommended_actions"`
 }
 
 // IncidentSnapshot is a condensed view of the incident for the cockpit.
@@ -191,10 +191,10 @@ func BuildContextCockpit(input ContextCockpitInput, observedAt time.Time) Contex
 			NoteCount:         noteCount,
 			SystemEventCount:  systemCount,
 		},
-		EvidenceSources:      buildEvidenceSources(input.Evidence),
-		RecentEvents:         recentTimeline(inc.Timeline, maxRecentEvents),
-		RunbookBrief:         input.RunbookBrief,
-		RecommendedActions:   input.RecommendedActions,
+		EvidenceSources:    buildEvidenceSources(input.Evidence),
+		RecentEvents:       recentTimeline(inc.Timeline, maxRecentEvents),
+		RunbookBrief:       input.RunbookBrief,
+		RecommendedActions: input.RecommendedActions,
 	}
 }
 

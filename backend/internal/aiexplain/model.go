@@ -97,14 +97,14 @@ type QualitySummary struct {
 // All fields are derived from the ai_explanations table (no join with
 // external tables required). The endpoint is read-only and idempotent.
 type CoverageSummary struct {
-	TotalExplanations       int            `json:"total_explanations"`
-	ExplainedDiagnoses      int            `json:"explained_diagnoses"`
-	WithCitations           int            `json:"with_citations"`
-	CitationRate            float64        `json:"citation_rate"`
-	DeterministicCount      int            `json:"deterministic_count"`
-	DeterministicRate       float64        `json:"deterministic_rate"`
-	Quality                 QualitySummary `json:"quality"`
-	WindowNote              string         `json:"window_note"`
+	TotalExplanations  int            `json:"total_explanations"`
+	ExplainedDiagnoses int            `json:"explained_diagnoses"`
+	WithCitations      int            `json:"with_citations"`
+	CitationRate       float64        `json:"citation_rate"`
+	DeterministicCount int            `json:"deterministic_count"`
+	DeterministicRate  float64        `json:"deterministic_rate"`
+	Quality            QualitySummary `json:"quality"`
+	WindowNote         string         `json:"window_note"`
 }
 
 type Prompt struct {

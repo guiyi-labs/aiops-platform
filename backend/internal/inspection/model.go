@@ -265,9 +265,9 @@ type CoverageSummary struct {
 	// carries. Catalog size comes from DefaultCatalog; 0 when it is empty.
 	RuleCoverage float64 `json:"rule_coverage"`
 
-	Trend     []CoverageTrendPoint `json:"trend"`
-	FailClosed bool                `json:"fail_closed"`
-	EmptyNote string               `json:"empty_note,omitempty"`
+	Trend      []CoverageTrendPoint `json:"trend"`
+	FailClosed bool                 `json:"fail_closed"`
+	EmptyNote  string               `json:"empty_note,omitempty"`
 }
 
 // ListResponse is the generic paginated list response.

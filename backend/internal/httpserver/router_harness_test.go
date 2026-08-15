@@ -8,7 +8,6 @@ import (
 
 	"k8s-aiops.local/backend/internal/aiexplain"
 	"k8s-aiops.local/backend/internal/aiinvestigator"
-	"k8s-aiops.local/backend/internal/incidentchat"
 	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/appcatalog"
 	"k8s-aiops.local/backend/internal/audit"
@@ -28,6 +27,7 @@ import (
 	"k8s-aiops.local/backend/internal/globalsearch"
 	"k8s-aiops.local/backend/internal/golden"
 	"k8s-aiops.local/backend/internal/incident"
+	"k8s-aiops.local/backend/internal/incidentchat"
 	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"

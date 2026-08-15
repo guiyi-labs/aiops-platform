@@ -84,13 +84,13 @@ type responsesFormat struct {
 
 func chatSchema() map[string]any {
 	return map[string]any{
-		"type": "object",
+		"type":                 "object",
 		"additionalProperties": false,
-		"required": []any{"answer", "next_checks", "citations"},
+		"required":             []any{"answer", "next_checks", "citations"},
 		"properties": map[string]any{
 			"answer": map[string]any{"type": "string"},
 			"next_checks": map[string]any{
-				"type": "array",
+				"type":     "array",
 				"maxItems": 8,
 				"items":    map[string]any{"type": "string"},
 			},

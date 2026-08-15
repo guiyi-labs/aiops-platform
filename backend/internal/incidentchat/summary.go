@@ -15,21 +15,21 @@ import (
 // claim cites an authorized evidence ID; the root_cause field is always
 // labelled as a candidate (the AI cannot declare a confirmed root cause).
 type SummaryResponse struct {
-	IncidentID        int64                `json:"incident_id"`
-	ResourceContext   ResourceContext      `json:"resource_context"`
-	Mode              string               `json:"mode"` // "ai" or "deterministic"
-	RootCauseCandidate string              `json:"root_cause_candidate"`
-	Impact            string               `json:"impact"`
-	EvidenceSummary   string               `json:"evidence_summary"`
-	NextSteps         []string             `json:"next_steps"`
-	Citations         []Citation           `json:"citations"`
-	Provider          string               `json:"provider"`
-	Model             string               `json:"model"`
-	InputTokens       int                  `json:"input_tokens"`
-	OutputTokens      int                  `json:"output_tokens"`
-	FailClosed        bool                 `json:"fail_closed"`
-	StageGatePassed   bool                 `json:"stage_gate_passed"`
-	StageGateReason   string               `json:"stage_gate_reason,omitempty"`
+	IncidentID         int64           `json:"incident_id"`
+	ResourceContext    ResourceContext `json:"resource_context"`
+	Mode               string          `json:"mode"` // "ai" or "deterministic"
+	RootCauseCandidate string          `json:"root_cause_candidate"`
+	Impact             string          `json:"impact"`
+	EvidenceSummary    string          `json:"evidence_summary"`
+	NextSteps          []string        `json:"next_steps"`
+	Citations          []Citation      `json:"citations"`
+	Provider           string          `json:"provider"`
+	Model              string          `json:"model"`
+	InputTokens        int             `json:"input_tokens"`
+	OutputTokens       int             `json:"output_tokens"`
+	FailClosed         bool            `json:"fail_closed"`
+	StageGatePassed    bool            `json:"stage_gate_passed"`
+	StageGateReason    string          `json:"stage_gate_reason,omitempty"`
 }
 
 // summaryProviderResult is the raw provider output for a summary request.
@@ -240,9 +240,9 @@ func NewResponsesSummaryProvider(baseURL, apiKey, model string, timeout time.Dur
 
 func summarySchema() map[string]any {
 	return map[string]any{
-		"type": "object",
+		"type":                 "object",
 		"additionalProperties": false,
-		"required": []any{"root_cause_candidate", "impact", "evidence_summary", "next_steps", "citations"},
+		"required":             []any{"root_cause_candidate", "impact", "evidence_summary", "next_steps", "citations"},
 		"properties": map[string]any{
 			"root_cause_candidate": map[string]any{"type": "string"},
 			"impact":               map[string]any{"type": "string"},

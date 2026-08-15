@@ -33,8 +33,8 @@ func TestBuildContextCockpit_ResourceContextContract(t *testing.T) {
 		{SourceType: SourceTypeAlert, SourceRef: "alert:9", Title: "NodeNotReady Alert", ObservedAt: observedAt.Add(-50 * time.Minute).Format(time.RFC3339), DeepLink: "/alerts"},
 	}
 	cockpit := BuildContextCockpit(ContextCockpitInput{
-		Incident: inc,
-		Evidence: evidence,
+		Incident:     inc,
+		Evidence:     evidence,
 		RunbookBrief: BuildRunbookBriefFromResolved("node", "node.not_ready.v1", 2, 1, 1),
 		RecommendedActions: []RecommendedAction{
 			{Action: "cordon", TargetKind: "Node", DryRunFirst: true, Summary: "Preview cordoning the node"},
@@ -69,14 +69,14 @@ func TestBuildContextCockpit_ResourceContextContract(t *testing.T) {
 func TestBuildContextCockpit_Aggregates(t *testing.T) {
 	observedAt := time.Now().UTC()
 	inc := Incident{
-		ID:         2,
-		Number:     "INC-000002",
-		Severity:   SeverityHigh,
-		Status:     StatusOpen,
-		Overdue:    true,
-		ClusterID:  1,
-		SLADueAt:   observedAt.Add(-30 * time.Minute),
-		Timeline:   []TimelineEvent{{ID: 1, EventType: EventTypeNote, Content: "note"}, {ID: 2, EventType: EventTypeSystem, Content: "sys"}},
+		ID:        2,
+		Number:    "INC-000002",
+		Severity:  SeverityHigh,
+		Status:    StatusOpen,
+		Overdue:   true,
+		ClusterID: 1,
+		SLADueAt:  observedAt.Add(-30 * time.Minute),
+		Timeline:  []TimelineEvent{{ID: 1, EventType: EventTypeNote, Content: "note"}, {ID: 2, EventType: EventTypeSystem, Content: "sys"}},
 	}
 	evidence := []EvidenceItem{
 		{SourceType: SourceTypeInspection, DeepLink: "/inspection", ObservedAt: observedAt.Format(time.RFC3339)},

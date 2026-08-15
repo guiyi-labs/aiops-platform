@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - gofmt 全量格式化修复（CI Check formatting 阻塞）
+
+- 14 个 Go 文件对齐空白修复（Go 1.26 gofmt struct 字段对齐规则变更）；
+  纯空白调整，零语义变化。
+- See [change record](docs/changes/2026-08-15-gofmt-backend-full.md)。
+
 ### Added - Operator/CRD 增强（Commit 4）：README 一节 + 示例清单
 
 - `README.md`：新增「ControlledOperation Operator（K8s Controller 深度实践）」章节

@@ -4,9 +4,9 @@ description: Multi-cluster AIOps and controlled operations platform for Kubernet
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
-home: https://github.com/aiops/aiops-platform
+home: https://github.com/guiyi-labs/aiops-platform
 maintainers:
-  - name: aiops-team
+  - name: Guiyi Labs
 keywords:
   - kubernetes
   - aiops

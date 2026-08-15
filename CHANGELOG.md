@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - P2 Release Notes（v0.3.0-rc.6）与 Helm Chart 元数据修正
+
+- `docs/releases/RELEASE-NOTES.md`：发布说明（RC 边界、兼容矩阵、升级/回滚、已知限制），关联 Issue #16/#17/#18。
+- `deploy/helm/aiops-platform/Chart.yaml`：修正 `home` 仓库 URL 与 maintainer 名称（`aiops/aiops-platform` → `guiyi-labs/aiops-platform`）。
+- See [change record](docs/changes/2026-08-15-p2-release-notes-chart-fix.md)。
+
 ### Added - M115 论文实验摘要
 
 - `docs/thesis/experiment-summary.md`：诊断覆盖/准确率、API P95 延迟（本地实测）、受控操作幂等性（同 key 重放无二次变更）、资源成本（约 92 MiB）四节实验摘要，附方法论与诚实边界。

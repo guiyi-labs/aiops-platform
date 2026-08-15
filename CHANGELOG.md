@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115 论文实验摘要
+
+- `docs/thesis/experiment-summary.md`：诊断覆盖/准确率、API P95 延迟（本地实测）、受控操作幂等性（同 key 重放无二次变更）、资源成本（约 92 MiB）四节实验摘要，附方法论与诚实边界。
+- See [change record](docs/changes/2026-08-15-m115-thesis-experiment-summary.md)。
+
 ### Changed - M115 答辩截图基线刷新
 
 - `scripts/capture-thesis-screenshots.mjs`：页面预期文案与 4 个旧文案对齐当前 UI，并新增 Incidents/Alerts/Events/SLO 4 页，共 8 页覆盖三条答辩演示链路。

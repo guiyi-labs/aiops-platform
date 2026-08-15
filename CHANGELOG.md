@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1r automation approve 处理器成功路径 + 未预览 409 分支
+
+- 扩展 `internal/httpserver/automation_test.go`：approveRepoStub（内嵌 NopRepository）+ ApproveSuccess（single 审批 200 含 audit 分支）+ ApproveNotPreviewed（409）。
+- See [change record](docs/changes/2026-08-14-m115-1r-automation-approve-handler.md)。
+
 ### Added - M115-1q appcatalog Get/List repo、GetPlan、validRepoURL、extractCredentials、构造器（4 个 0% 函数清零）
 
 - 扩展 `internal/appcatalog/service_test.go`：GetRepository/ListRepositories/GetPlan（含 not-found）、validRepoURL 边界、extractCredentials 三分支、NewService/NewTestService/NewHTTPIndexSource 构造器。

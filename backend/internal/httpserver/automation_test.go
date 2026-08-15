@@ -7,7 +7,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -460,3 +462,62 @@ func TestAutomationHandler_BuildChangePreview(t *testing.T) {
 		t.Errorf("unknown: expected nil change, got %+v", change)
 	}
 }
+
+// --- M115-1r: approve/execute success paths via stateful repo stub ---
+
+type approveRepoStub struct {
+	automation.NopRepository
+	plan automation.ActionPlan
+}
+
+func (r approveRepoStub) GetPlan(context.Context, string) (automation.ActionPlan, error) {
+	return r.plan, nil
+}
+
+func (r approveRepoStub) Approve(_ context.Context, id string, approver automation.ActorRef, now time.Time) (automation.ActionPlan, error) {
+	p := r.plan
+	p.Status = automation.StatusApproved
+	p.ApproverUserID = &approver.ID
+	p.ApprovedAt = &now
+	return p, nil
+}
+
+func TestAutomationHandler_ApproveSuccess(t *testing.T) {
+	requested := int64(1)
+	plan := automation.ActionPlan{
+		ID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Status: automation.StatusPreviewed,
+		ApprovalType: automation.ApprovalSingle, RequestedByUserID: &requested,
+		ClusterID: 7, TargetNamespace: "prod",
+		ActionCode: "deployment.scale", BeforeReplicas: int32Ptr(2), DesiredReplicas: int32Ptr(3),
+	}
+	svc := automation.NewService(approveRepoStub{plan: plan}, nil, nil)
+	r := newAutomationTestEngine(t, svc)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/aiops/automation/plans/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/approve", nil)
+	req = withAutomationActor(req, 9, "approver")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("approve = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"status":"approved"`) {
+		t.Fatalf("body missing approved: %s", w.Body.String())
+	}
+}
+
+func TestAutomationHandler_ApproveNotPreviewed(t *testing.T) {
+	plan := automation.ActionPlan{
+		ID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Status: automation.StatusDraft,
+		ApprovalType: automation.ApprovalSingle,
+	}
+	svc := automation.NewService(approveRepoStub{plan: plan}, nil, nil)
+	r := newAutomationTestEngine(t, svc)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/aiops/automation/plans/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/approve", nil)
+	req = withAutomationActor(req, 9, "approver")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("draft approve = %d, want 409; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func int32Ptr(v int32) *int32 { return &v }

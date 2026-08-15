@@ -1443,3 +1443,114 @@ func TestMatchAndDeliverNotBlockedWhenSourceNotFiring(t *testing.T) {
 		t.Fatalf("deliveries = %d, want 1 (not inhibited)", len(resp.Items))
 	}
 }
+
+// --- M115-1f: configuration & error branches ---
+
+func TestWithCipher(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	stub := secretCipherStub{}
+	result := svc.WithCipher(stub)
+	if result != svc {
+		t.Fatal("WithCipher should return the receiver")
+	}
+}
+
+type secretCipherStub struct{}
+
+func (secretCipherStub) Encrypt([]byte) ([]byte, string, error) { return nil, "", nil }
+func (secretCipherStub) Decrypt([]byte, string) ([]byte, error) { return nil, nil }
+
+func TestConfigureDeliveryAppliesPositiveValues(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	svc.ConfigureDelivery(3*time.Second, 500*time.Millisecond, 3, 20)
+	if svc.requestTimeout != 3*time.Second || svc.client.Timeout != 3*time.Second {
+		t.Fatalf("requestTimeout=%v client.Timeout=%v", svc.requestTimeout, svc.client.Timeout)
+	}
+	if svc.retryBase != 500*time.Millisecond || svc.maxAttempts != 3 || svc.batchSize != 20 {
+		t.Fatalf("retryBase=%v maxAttempts=%d batchSize=%d", svc.retryBase, svc.maxAttempts, svc.batchSize)
+	}
+}
+
+func TestConfigureDeliveryIgnoresZeroValues(t *testing.T) {
+	original := NewService(newMockRepository(), nil)
+	before := *original
+	original.ConfigureDelivery(0, 0, 0, 0)
+	if original.requestTimeout != before.requestTimeout || original.retryBase != before.retryBase ||
+		original.maxAttempts != before.maxAttempts || original.batchSize != before.batchSize {
+		t.Fatalf("zero config should be a no-op: %+v", original)
+	}
+}
+
+func TestDeleteReceiverPropagatesRepoError(t *testing.T) {
+	repo := newMockRepository()
+	svc := newTestService(repo)
+	err := svc.DeleteReceiver(context.Background(), 9999, 42)
+	if err == nil {
+		t.Fatal("expected error for missing receiver")
+	}
+}
+
+func TestUpdateRouteRejectsPriorityAboveRange(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	bad := int(101)
+	_, err := svc.UpdateRoute(context.Background(), 1, 42, PatchRouteInput{Priority: &bad})
+	if err != ErrInvalidRoute {
+		t.Fatalf("err=%v, want ErrInvalidRoute", err)
+	}
+}
+
+func TestUpdateRouteRejectsInvalidGroupInterval(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	bad := time.Second
+	_, err := svc.UpdateRoute(context.Background(), 1, 42, PatchRouteInput{GroupInterval: &bad})
+	if err != ErrInvalidRoute {
+		t.Fatalf("err=%v, want ErrInvalidRoute", err)
+	}
+}
+
+func TestUpdateRouteRejectsInvalidRepeatInterval(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	bad := time.Second
+	_, err := svc.UpdateRoute(context.Background(), 1, 42, PatchRouteInput{RepeatInterval: &bad})
+	if err != ErrInvalidRoute {
+		t.Fatalf("err=%v, want ErrInvalidRoute", err)
+	}
+}
+
+func TestUpdateRoutePropagatesRepoError(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	prio := 5
+	_, err := svc.UpdateRoute(context.Background(), 9999, 42, PatchRouteInput{Priority: &prio})
+	if err == nil {
+		t.Fatal("expected repo error for missing route")
+	}
+}
+
+func TestDeleteRoutePropagatesRepoError(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	err := svc.DeleteRoute(context.Background(), 9999, 42)
+	if err == nil {
+		t.Fatal("expected repo error for missing route")
+	}
+}
+
+func TestUpdateRouteRejectsInvalidPriorityBelowRange(t *testing.T) {
+	svc := newTestService(newMockRepository())
+	low := int(0)
+	_, err := svc.UpdateRoute(context.Background(), 1, 42, PatchRouteInput{Priority: &low})
+	if err != ErrInvalidRoute {
+		t.Fatalf("err=%v, want ErrInvalidRoute", err)
+	}
+}
+
+func TestCreateReceiverMaskingSecret(t *testing.T) {
+	repo := newMockRepository()
+	svc := newTestService(repo)
+	rec, err := svc.CreateReceiver(context.Background(), 42, "webhook", "https://example.com/hook", validSecret())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.Secret == validSecret() {
+		t.Fatal("raw secret should not be stored on the receiver")
+	}
+}

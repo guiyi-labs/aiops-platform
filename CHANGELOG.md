@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1f alertroute 配置/错误分支测试（WithCipher/ConfigureDelivery/UpdateRoute 校验/repo 错误传播）
+
+- 扩展 `internal/alertroute/service_test.go`：WithCipher 返回 receiver、ConfigureDelivery 正值应用与 0 值 no-op、CreateReceiver 不泄露明文 secret、DeleteReceiver/DeleteRoute repo 错误传播、UpdateRoute 三组越界校验（priority 上下界/groupInterval/repeatInterval）+ 缺失元素错误。
+- See [change record](docs/changes/2026-08-14-m115-1f-alertroute-config-error-branches.md)。
+
 ### Added - M115-1e namespaceposture 覆盖率 ~54% → 90.2%（workload 五种 fetcher 全分支）
 
 - 扩展 `internal/namespaceposture/service_test.go`：新增 sts/ds/job/cronjob 构造器；Get 全 workload 聚合（deployment+sts+ds+job+cronjob 同时复数据）、workload fetcher 部分失败 → PartialSections best-effort、List/collectPods/collectNodeCapacity 错误分支、全部 fetcher 失败 → errPartial + SourcePartial、单 section 失败聚合。

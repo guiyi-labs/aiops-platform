@@ -263,3 +263,192 @@ func TestInspection_CoverageBadWindow(t *testing.T) {
 		t.Fatalf("expected 400 for window_days=0, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+func TestInspection_GetPlanNotFound(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/plans/999", nil))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("get plan missing = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestInspection_GetPlanInvalidID(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/plans/abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("get plan invalid = %d", w.Code)
+	}
+}
+
+func TestInspection_DeletePlanReturns204(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/v1/aiops/inspection/plans/7", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("delete plan = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestInspection_DeletePlanInvalidID(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodDelete, "/api/v1/aiops/inspection/plans/abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("delete plan invalid = %d", w.Code)
+	}
+}
+
+func TestInspection_ListTasksReturns200(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/tasks", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("list tasks = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestInspection_ListTasksBadPlanID(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/tasks?plan_id=abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("list tasks bad plan_id = %d", w.Code)
+	}
+}
+
+func TestInspection_ListTasksBadLimit(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/tasks?limit=0", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("list tasks bad limit = %d", w.Code)
+	}
+}
+
+func TestInspection_GetTaskNotFound(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/tasks/999", nil))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("get task missing = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestInspection_GetTaskInvalidID(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/tasks/abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("get task invalid = %d", w.Code)
+	}
+}
+
+func TestInspection_NilServiceReturns503(t *testing.T) {
+	h := inspectionHandler{service: nil}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("user_id", int64(1))
+		c.Next()
+	})
+	r.GET("/api/v1/aiops/inspection/rules", h.listRules)
+	r.GET("/api/v1/aiops/inspection/plans", h.listPlans)
+	r.POST("/api/v1/aiops/inspection/plans", h.createPlan)
+	r.GET("/api/v1/aiops/inspection/plans/:id", h.getPlan)
+	r.DELETE("/api/v1/aiops/inspection/plans/:id", h.deletePlan)
+	r.POST("/api/v1/aiops/inspection/run-once", h.runOnce)
+	r.GET("/api/v1/aiops/inspection/tasks", h.listTasks)
+	r.GET("/api/v1/aiops/inspection/tasks/:id", h.getTask)
+	r.GET("/api/v1/aiops/inspection/results", h.listResults)
+	r.GET("/api/v1/aiops/inspection/results/:id", h.getResult)
+	r.GET("/api/v1/aiops/inspection/coverage", h.coverage)
+	for _, path := range []string{
+		"/api/v1/aiops/inspection/rules",
+		"/api/v1/aiops/inspection/plans",
+		"/api/v1/aiops/inspection/plans/1",
+		"/api/v1/aiops/inspection/tasks",
+		"/api/v1/aiops/inspection/tasks/1",
+		"/api/v1/aiops/inspection/results",
+		"/api/v1/aiops/inspection/results/1",
+	} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("nil service GET %s = %d, want 503", path, w.Code)
+		}
+	}
+	// POST/DELETE also need 503 for nil service.
+	for _, tt := range []struct {
+		method, path string
+	}{
+		{http.MethodPost, "/api/v1/aiops/inspection/plans"},
+		{http.MethodDelete, "/api/v1/aiops/inspection/plans/1"},
+		{http.MethodPost, "/api/v1/aiops/inspection/run-once"},
+	} {
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, httptest.NewRequest(tt.method, tt.path, nil))
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("nil service %s %s = %d, want 503", tt.method, tt.path, w.Code)
+		}
+	}
+}
+
+func TestInspection_ListResultsReturns200(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/results", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("list results = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestInspection_GetResultNotFound(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/results/999", nil))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("get result missing = %d", w.Code)
+	}
+}
+
+func TestInspection_GetResultInvalidID(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	r := newInspectionTestEngine(t, svc)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/inspection/results/abc", nil))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("get result invalid = %d", w.Code)
+	}
+}
+
+func TestInspection_EffectiveRulesHappyPath(t *testing.T) {
+	svc := mustNewInspectionService(t)
+	h := inspectionHandler{service: svc}
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("user_id", int64(1))
+		c.Set("workspace_id", int64(1))
+		c.Set("workspace_roles", map[int64][]string{1: {"admin"}})
+		c.Next()
+	})
+	r.GET("/api/v1/clusters/:cluster_id/aiops/inspection/rules", h.effectiveRules)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/clusters/1/aiops/inspection/rules", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("effective rules = %d, body=%s", w.Code, w.Body.String())
+	}
+}

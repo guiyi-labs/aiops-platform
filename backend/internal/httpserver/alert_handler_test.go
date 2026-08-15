@@ -320,3 +320,31 @@ func TestAlertInstances(t *testing.T) {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestAlertDeleteRuleErrorBranches(t *testing.T) {
+	cases := []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{name: "not found", err: alert.ErrRuleNotFound, status: http.StatusNotFound, code: "NOT_FOUND"},
+		{name: "deleted", err: alert.ErrRuleDeleted, status: http.StatusNotFound, code: "NOT_FOUND"},
+		{name: "generic", err: errors.New("db down"), status: http.StatusInternalServerError, code: "INTERNAL_ERROR"},
+	}
+	for _, tt := range cases {
+		router := newAlertRouter(alertRepoStub{rule: alertRule(), deleteErr: tt.err})
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/v1/clusters/1/alert-rules/5", nil))
+		if rec.Code != tt.status || !contains(rec.Body.String(), tt.code) {
+			t.Fatalf("%s: status=%d want=%d body=%s", tt.name, rec.Code, tt.status, rec.Body.String())
+		}
+	}
+	// invalid rule_id
+	router := newAlertRouter(alertRepoStub{})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodDelete, "/api/v1/clusters/1/alert-rules/abc", nil))
+	if rec.Code != http.StatusBadRequest || !contains(rec.Body.String(), "INVALID_RULE_ID") {
+		t.Fatalf("invalid delete id status=%d", rec.Code)
+	}
+}

@@ -472,3 +472,143 @@ func (r *handlerFakeRepo) CreateRequestSeededWorkspace(ownerID int64, name strin
 	r.workspaces[ws.ID] = ws
 	return ws, nil
 }
+
+func TestWorkspaceHandler_ListWorkspacesReturns200(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("GET", "/api/v1/workspaces", nil)
+	req = withWorkspaceActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list status = %d, body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestWorkspaceHandler_UpdateWorkspaceReturns200(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	// Create first.
+	req := httptest.NewRequest("POST", "/api/v1/workspaces", bytes.NewReader(workspaceCreateRequest(t, "ws-update", "Update Me")))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", w.Code, w.Body)
+	}
+	var created workspace.Workspace
+	json.Unmarshal(w.Body.Bytes(), &created)
+	body, _ := json.Marshal(map[string]string{"display_name": "Updated Name"})
+	req2 := httptest.NewRequest("PATCH", "/api/v1/workspaces/"+strconv.FormatInt(created.ID, 10), bytes.NewReader(body))
+	req2.Header.Set("Content-Type", "application/json")
+	req2 = withWorkspaceActor(req2, 1, []string{"system_admin"})
+	w2 := httptest.NewRecorder()
+	engine.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("update status = %d, body=%s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestWorkspaceHandler_DeleteWorkspaceReturns204(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("POST", "/api/v1/workspaces", bytes.NewReader(workspaceCreateRequest(t, "ws-delete", "Delete Me")))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	var created workspace.Workspace
+	json.Unmarshal(w.Body.Bytes(), &created)
+	req2 := httptest.NewRequest("DELETE", "/api/v1/workspaces/"+strconv.FormatInt(created.ID, 10), nil)
+	req2 = withWorkspaceActor(req2, 1, []string{"system_admin"})
+	w2 := httptest.NewRecorder()
+	engine.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d", w2.Code)
+	}
+}
+
+func TestWorkspaceHandler_ListMembershipsReturns200(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("POST", "/api/v1/workspaces", bytes.NewReader(workspaceCreateRequest(t, "ws-mem", "Members")))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	var created workspace.Workspace
+	json.Unmarshal(w.Body.Bytes(), &created)
+	req2 := httptest.NewRequest("GET", "/api/v1/workspaces/"+strconv.FormatInt(created.ID, 10)+"/memberships", nil)
+	req2 = withWorkspaceActor(req2, 1, []string{"system_admin"})
+	w2 := httptest.NewRecorder()
+	engine.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("list memberships status = %d", w2.Code)
+	}
+}
+
+func TestWorkspaceHandler_GetQuotaReturns200(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("POST", "/api/v1/workspaces", bytes.NewReader(workspaceCreateRequest(t, "ws-quota", "Quota")))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	var created workspace.Workspace
+	json.Unmarshal(w.Body.Bytes(), &created)
+	req2 := httptest.NewRequest("GET", "/api/v1/workspaces/"+strconv.FormatInt(created.ID, 10)+"/quota", nil)
+	req2 = withWorkspaceActor(req2, 1, []string{"system_admin"})
+	w2 := httptest.NewRecorder()
+	engine.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("get quota status = %d", w2.Code)
+	}
+}
+
+func TestWorkspaceHandler_ListRoleBindingsReturns200(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("POST", "/api/v1/workspaces", bytes.NewReader(workspaceCreateRequest(t, "ws-rb", "RB")))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	var created workspace.Workspace
+	json.Unmarshal(w.Body.Bytes(), &created)
+	req2 := httptest.NewRequest("GET", "/api/v1/workspaces/"+strconv.FormatInt(created.ID, 10)+"/role-bindings", nil)
+	req2 = withWorkspaceActor(req2, 1, []string{"system_admin"})
+	w2 := httptest.NewRecorder()
+	engine.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("list role bindings status = %d", w2.Code)
+	}
+}
+
+func TestWorkspaceHandler_RevokeRoleReturns204(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("POST", "/api/v1/workspaces", bytes.NewReader(workspaceCreateRequest(t, "ws-revoke", "Revoke")))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	var created workspace.Workspace
+	json.Unmarshal(w.Body.Bytes(), &created)
+	req2 := httptest.NewRequest("DELETE", "/api/v1/workspaces/"+strconv.FormatInt(created.ID, 10)+"/role-bindings/2", nil)
+	req2 = withWorkspaceActor(req2, 1, []string{"system_admin"})
+	w2 := httptest.NewRecorder()
+	engine.ServeHTTP(w2, req2)
+	// Might be 204 or 404 depending on whether the grant exists.
+	if w2.Code != http.StatusNoContent && w2.Code != http.StatusNotFound {
+		t.Fatalf("revoke role status = %d", w2.Code)
+	}
+}

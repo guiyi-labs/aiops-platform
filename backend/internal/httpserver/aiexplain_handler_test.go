@@ -314,3 +314,21 @@ func TestAIExplanationCoverage(t *testing.T) {
 		t.Fatalf("quality baseline missing: %+v", decoded.Quality)
 	}
 }
+
+func TestAIExplanationQualityAndCoverageErrorsReturn500(t *testing.T) {
+	service := aiExplanationService(aiexplainDiagnosisStub{}, aiexplainProviderStub{}, aiexplainRepoStub{qualityErr: errors.New("quality db down")})
+	router := newAIExplanationRouter(service)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/ai/quality", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("quality error status=%d", rec.Code)
+	}
+
+	service = aiExplanationService(aiexplainDiagnosisStub{}, aiexplainProviderStub{}, aiexplainRepoStub{coverageErr: errors.New("coverage db down")})
+	router = newAIExplanationRouter(service)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/ai/coverage", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("coverage error status=%d", rec.Code)
+	}
+}

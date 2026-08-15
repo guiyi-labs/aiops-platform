@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1b httpserver 覆盖率 66.1% → 70.0%（全局最大单包顶到 70% 门禁线）
+
+- 新增 `internal/httpserver/clusters_test.go`：clusterHandler 全六 handler + clusterID util（list/get/create/setEnabled/updateCredential/probe/delete 全部错误哨兵：400/404/502/500 与 happy path 200/201/204）。
+- 扩展 `event_cockpit_test.go`（parseCockpitRequest 默认/显式/NaN/越界全分支 + parseEventTime 四分支）、`workspace_test.go`（listWorkspaces/updateWorkspace/deleteWorkspace/listMemberships/getQuota/listRoleBindings/revokeRole 七个 0% handler）、`inspection_test.go`（getPlan/deletePlan/listTasks/getTask/listResults/getResult/effectiveRules + 全 handler nil-service 503 巡检）、`aiexplain_handler_test.go`（quality/coverage 错误→500）、`alert_handler_test.go`（deleteRule 404/404/500/400 分支）。
+- See [change record](docs/changes/2026-08-14-m115-1b-httpserver-coverage-to-70.md)。覆盖率门禁 65% 暂保持，70% 上调随后续切片累计完成后一并修改 ci.yml。
+
 ### Added - M115-1 fuzz 状态机扩展与覆盖率首片（automation plan/rollback + SLA monitor）
 
 - 新增 fuzz：`internal/automation/FuzzPlanLifecycle`（action plan 状态机：approve/cancel/expire 任意状态下仅文档化哨兵错误、不 panic）、`FuzzRollbackContract`（仅 Deployment image_update/rollout_restart 可创建 rollback 计划）；`internal/incident/FuzzSLAMonitorStateMachine`（任意 escalation 窗口下 first<final 单调契约 + payload 合法性 + deep_link）。

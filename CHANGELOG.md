@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - Operator/CRD 增强（Commit 1）：ControlledOperation CRD 类型层
+
+- `backend/internal/operator/`：ControlledOperation CRD 类型（aiops.platform/v1）+ DeepCopy + scheme 注册；
+  纯 client-go dynamic typed wrapper（Get/UpdateStatus）；固定 action 目录（rollout_restart/scale/cronjob.suspend）；
+  dryRun 默认 true、idempotencyKey 幂等语义。
+- `deploy/kubernetes/crds/controlledoperations.aiops.platform.yaml`：CRD v1 定义（status subresource + enum 校验）。
+- 单元测试 7 用例全绿（deepcopy 隔离 / unstructured round-trip / scheme / AsGVR / dryRun 默认 / nil 守卫）。
+- See [change record](docs/changes/2026-08-15-operator-commit1-crd-types.md)。
+
 ### Fixed - ADR 0002 措辞中性化（毕设 → 项目）
 
 - `docs/adr/0002-modular-monolith-and-request-pipeline.md` 第 8 行「毕设需要」→「项目需要」，保持技术语义。

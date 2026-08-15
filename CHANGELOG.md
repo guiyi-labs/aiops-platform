@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1g httpserver/kubernetes.go 资源处理器覆盖率 9.6% → 87.6%（~70 个 handler）
+
+- 新增 `internal/httpserver/kubernetes_handler_test.go`：k8sCredStub+k8sGetStub 内存 gateway 构造真实 service；30 个 list + 27 个 detail/manifest handler 直测；disabled cluster 409、logs/logsSince/all_logs 参数校验 400、customResources 缺参 400/未白名单 404 分支。全局覆盖率 ~67.7% → ~68.9%（差 ~285 stmts 到 70%）。
+- See [change record](docs/changes/2026-08-14-m115-1g-kubernetes-handler-coverage-to-87.md)。
+
 ### Added - M115-1f alertroute 配置/错误分支测试（WithCipher/ConfigureDelivery/UpdateRoute 校验/repo 错误传播）
 
 - 扩展 `internal/alertroute/service_test.go`：WithCipher 返回 receiver、ConfigureDelivery 正值应用与 0 值 no-op、CreateReceiver 不泄露明文 secret、DeleteReceiver/DeleteRoute repo 错误传播、UpdateRoute 三组越界校验（priority 上下界/groupInterval/repeatInterval）+ 缺失元素错误。

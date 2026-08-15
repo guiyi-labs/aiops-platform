@@ -9,10 +9,12 @@ import (
 	"time"
 
 	"k8s-aiops.local/backend/internal/capacity"
+	"k8s-aiops.local/backend/internal/cis"
 	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/gitopsdrift"
 	"k8s-aiops.local/backend/internal/imagepolicy"
 	"k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/metricshistory"
 )
 
 // fakeLister returns canned list items per API path; an unknown path means
@@ -942,4 +944,168 @@ func TestCollectIngress_PropagatesListFailure(t *testing.T) {
 	if len(in.Ingresses) != 0 {
 		t.Fatalf("a failed collection must not return a partial bundle: %+v", in)
 	}
+}
+
+// --- M115-1l: RBAC/kubernetesLister/node usage source branches ---
+
+func TestCollectRBAC_PopulatesClusterAndNamespacedBindings(t *testing.T) {
+	lister := &fakeLister{data: map[string][]json.RawMessage{
+		"/apis/rbac.authorization.k8s.io/v1/clusterrolebindings": {
+			raw(`{"metadata":{"name":"admin-bind","uid":"uid-1"},"roleRef":{"kind":"ClusterRole","name":"cluster-admin","apiGroup":"rbac.authorization.k8s.io"},"subjects":[{"kind":"User","name":"alice","apiGroup":"rbac.authorization.k8s.io"}]}`),
+		},
+		"/apis/rbac.authorization.k8s.io/v1/clusterroles": {
+			raw(`{"metadata":{"name":"cluster-admin"},"rules":[{"apiGroups":["*"],"resources":["*"],"verbs":["*"]}]}`),
+		},
+		"/api/v1/namespaces": {
+			raw(`{"metadata":{"name":"prod"}}`),
+		},
+		"/apis/rbac.authorization.k8s.io/v1/namespaces/prod/rolebindings": {
+			raw(`{"metadata":{"name":"app-role-bind","uid":"uid-2"},"roleRef":{"kind":"Role","name":"app-role"},"subjects":[{"kind":"ServiceAccount","name":"api","namespace":"prod"}]}`),
+		},
+		"/apis/rbac.authorization.k8s.io/v1/namespaces/prod/roles": {
+			raw(`{"metadata":{"name":"app-role"},"rules":[{"apiGroups":["apps"],"resources":["deployments"],"verbs":["get","list"]}]}`),
+		},
+	}}
+	collector := NewCollector(lister, fakeMetrics{cpu: 100, mem: 100}, nil)
+	bindings, err := collector.collectRBAC(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bindings) != 2 {
+		t.Fatalf("bindings = %d, want 2", len(bindings))
+	}
+	// cluster binding has resolved rules
+	var clusterBinding, nsBinding cis.RBACBinding
+	for _, b := range bindings {
+		if b.Kind == "ClusterRoleBinding" {
+			clusterBinding = b
+		} else {
+			nsBinding = b
+		}
+	}
+	if len(clusterBinding.RoleRules) != 1 || clusterBinding.RoleRules[0].Verbs[0] != "*" {
+		t.Fatalf("cluster role rules = %+v", clusterBinding.RoleRules)
+	}
+	if clusterBinding.Subjects[0].Name != "alice" || nsBinding.Subjects[0].Kind != "ServiceAccount" {
+		t.Fatalf("subjects wrong: %+v / %+v", clusterBinding.Subjects, nsBinding.Subjects)
+	}
+}
+
+func TestCollectRBAC_PropagatesListFailure(t *testing.T) {
+	lister := &errorLister{}
+	collector := NewCollector(lister, fakeMetrics{}, nil)
+	_, err := collector.collectRBAC(context.Background(), 7)
+	if err == nil {
+		t.Fatal("expected error from failed list")
+	}
+}
+
+type errorLister struct{}
+
+func (errorLister) List(context.Context, int64, string) ([]json.RawMessage, error) {
+	return nil, errors.New("list failed")
+}
+
+func TestNewKubernetesListerListBranches(t *testing.T) {
+	// credential failure
+	badCreds := &failCreds{}
+	lister := NewKubernetesLister(&simpleGet{}, badCreds)
+	if _, err := lister.List(context.Background(), 7, "/api/v1/namespaces"); err == nil {
+		t.Fatal("expected credential error")
+	}
+	// gateway failure
+	lister2 := NewKubernetesLister(&errGet{}, &okCreds{})
+	if _, err := lister2.List(context.Background(), 7, "/api/v1/namespaces"); err == nil {
+		t.Fatal("expected gateway error")
+	}
+	// decode failure
+	lister3 := NewKubernetesLister(&fixedBodyGet{body: []byte(`not-json`)}, &okCreds{})
+	if _, err := lister3.List(context.Background(), 7, "/api/v1/namespaces"); err == nil {
+		t.Fatal("expected decode error")
+	}
+	// happy path
+	lister4 := NewKubernetesLister(&fixedBodyGet{body: []byte(`{"items":[{"a":1},{"b":2}]}`)}, &okCreds{})
+	items, err := lister4.List(context.Background(), 7, "/api/v1/namespaces")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("items = %d, want 2", len(items))
+	}
+}
+
+type failCreds struct{}
+
+func (failCreds) Access(context.Context, int64) (cluster.Cluster, []byte, error) {
+	return cluster.Cluster{}, nil, errors.New("no creds")
+}
+
+type okCreds struct{}
+
+func (okCreds) Access(context.Context, int64) (cluster.Cluster, []byte, error) {
+	return cluster.Cluster{ID: 7, Enabled: true}, []byte("kube"), nil
+}
+
+type simpleGet struct{}
+
+func (simpleGet) Get(context.Context, int64, []byte, string, url.Values, int64) ([]byte, error) {
+	return []byte(`{"items":[]}`), nil
+}
+
+type errGet struct{}
+
+func (errGet) Get(context.Context, int64, []byte, string, url.Values, int64) ([]byte, error) {
+	return nil, errors.New("gateway down")
+}
+
+type fixedBodyGet struct{ body []byte }
+
+func (f fixedBodyGet) Get(context.Context, int64, []byte, string, url.Values, int64) ([]byte, error) {
+	return f.body, nil
+}
+
+func TestNewNodeUsageSource(t *testing.T) {
+	svc := NewNodeUsageSource(nil, 0)
+	if svc == nil {
+		t.Fatal("nil source")
+	}
+	// window <= 0 defaults to 24h (exercised inside constructor)
+	src := NewNodeUsageSource(nil, time.Hour)
+	if src == nil {
+		t.Fatal("nil source with positive window")
+	}
+}
+
+func TestNodeUsageSeries_QueryError(t *testing.T) {
+	svc, err := metricshistory.NewService(metricshistory.Config{}, &errSeriesRepo{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := metricsHistoryUsageSource{svc: svc, window: time.Hour}
+	_, err = src.NodeUsageSeries(context.Background(), 7, "node-a", "cpu", time.Now().Add(-time.Hour), time.Now())
+	if err == nil {
+		t.Fatal("expected error from repo")
+	}
+}
+
+// errSeriesRepo fails every QuerySeries; other interface methods unused.
+type errSeriesRepo struct{}
+
+func (errSeriesRepo) SaveCollection(context.Context, metricshistory.Collection) (int64, error) {
+	return 0, errors.New("unused")
+}
+func (errSeriesRepo) QuerySeries(context.Context, metricshistory.SeriesQuery) (metricshistory.RepositorySeriesResult, error) {
+	return metricshistory.RepositorySeriesResult{}, errors.New("query failed")
+}
+func (errSeriesRepo) DeleteExpired(context.Context, time.Time, int) (int64, error) {
+	return 0, nil
+}
+func (errSeriesRepo) QueryArchiveSeries(context.Context, metricshistory.SeriesQuery) (metricshistory.RepositorySeriesResult, error) {
+	return metricshistory.RepositorySeriesResult{}, errors.New("unused")
+}
+func (errSeriesRepo) SaveDownsampledBatch(context.Context, []metricshistory.DownsampledSample) error {
+	return nil
+}
+func (errSeriesRepo) ListExpiringSamples(context.Context, time.Time, int) ([]metricshistory.Sample, error) {
+	return nil, nil
 }

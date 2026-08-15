@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1l optimization RBAC/kubernetesLister/NodeUsageSource 分支（两个 0% 函数清零）
+
+- 扩展 `internal/optimization/collector_test.go`：collectRBAC 全字段（cluster/namespaced bindings）+ list 失败、NewKubernetesLister.List 三错误分支 + happy path、NewNodeUsageSource/NodeUsageSeries（errSeriesRepo）。
+- See [change record](docs/changes/2026-08-14-m115-1l-optimization-rbac-lister-source.md)。
+
 ### Added - M115-1k kubernetes 分页/patch 解码/指标路径分支（包覆盖率 72.5% → 73.1%）
 
 - 扩展 `internal/kubernetes/rollout_test.go`：Namespaces 过滤+分页+Remaining、Nodes/NodeMetrics 响应、PodMetrics 容器归一化与 namespace 路径、三组 Patch 解码错误、PatchDeployment 双层错误（disabled/网关）。

@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1aa kubernetes ResourceQuotas/LimitRanges/Secrets/Services 双向 path
+
+- 扩展 `internal/kubernetes/rollout_test.go`：newListTestService + ResourceQuotasListPaths/LimitRangesListPaths/SecretsListPaths/ServicesListPaths（各测 namespaced + cluster-wide）。
+- See [change record](docs/changes/2026-08-14-m115-1aa-kubernetes-list-paths.md)。
+
 ### Added - M115-1z automation handler get/cancel/list 成功路径 + list 校验
 
 - 扩展 `internal/httpserver/automation_test.go`：GetPlanSuccess、CancelSuccess、ListPlansValidation（5 非法 query）、ListPlansSuccess；新增 cancelRepoStub/listPlansRepoStub。

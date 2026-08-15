@@ -582,3 +582,57 @@ func TestServiceAccountDetail(t *testing.T) {
 		t.Fatalf("sa = %+v err=%v", item, err)
 	}
 }
+
+// --- M115-1aa: namespaced vs cluster-wide list success paths ---
+
+func newListTestService() *Service {
+	return NewService(credentialStub{enabled: true}, &gatewayStub{body: []byte(`{"items":[]}`)}, nil)
+}
+
+func TestResourceQuotasListPaths(t *testing.T) {
+	svc := newListTestService()
+	_, err := svc.ResourceQuotas(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.ResourceQuotas(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLimitRangesListPaths(t *testing.T) {
+	svc := newListTestService()
+	_, err := svc.LimitRanges(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.LimitRanges(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSecretsListPaths(t *testing.T) {
+	svc := newListTestService()
+	_, err := svc.Secrets(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Secrets(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestServicesListPaths(t *testing.T) {
+	svc := newListTestService()
+	_, err := svc.Services(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Services(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+}

@@ -437,3 +437,81 @@ func TestLoadRejectsAlertRouteNonPositiveIntervals(t *testing.T) {
 		t.Fatal("Load() error = nil, want non-positive interval error")
 	}
 }
+
+// --- M115-1v: capability/signal/alert-route config branches via env ---
+
+func TestLoadCapabilityConfigBranches(t *testing.T) {
+	t.Setenv("CAPABILITY_ENABLED", "true")
+	t.Setenv("CAPABILITY_PROMETHEUS_ENDPOINT", "")
+	t.Setenv("CAPABILITY_LOKI_ENDPOINT", "")
+	if _, err := loadCapabilityConfig("development"); err == nil {
+		t.Fatal("expected missing-endpoint error")
+	}
+	t.Setenv("CAPABILITY_PROMETHEUS_ENDPOINT", "http://prom:9090")
+	cfg, err := loadCapabilityConfig("development")
+	if err != nil || !cfg.Enabled {
+		t.Fatalf("cfg = %+v, err = %v", cfg, err)
+	}
+	// production requires https
+	t.Setenv("CAPABILITY_PROMETHEUS_ENDPOINT", "http://prom:9090")
+	if _, err := loadCapabilityConfig("production"); err == nil {
+		t.Fatal("expected https-in-production error")
+	}
+	t.Setenv("CAPABILITY_PROMETHEUS_ENDPOINT", "https://prom:9090")
+	cfg, err = loadCapabilityConfig("production")
+	if err != nil {
+		t.Fatalf("production https = %v", err)
+	}
+	// invalid URL with userinfo
+	t.Setenv("CAPABILITY_PROMETHEUS_ENDPOINT", "https://user@prom:9090")
+	t.Setenv("CAPABILITY_LOKI_ENDPOINT", "https://loki:3100")
+	if _, err := loadCapabilityConfig("development"); err == nil {
+		t.Fatal("expected userinfo-in-url error")
+	}
+	// bad bool
+	t.Setenv("CAPABILITY_ENABLED", "not-a-bool")
+	if _, err := loadCapabilityConfig("development"); err == nil {
+		t.Fatal("expected bool parse error")
+	}
+	// bad duration
+	t.Setenv("CAPABILITY_ENABLED", "true")
+	t.Setenv("CAPABILITY_PROMETHEUS_TIMEOUT", "oops")
+	t.Setenv("CAPABILITY_PROMETHEUS_ENDPOINT", "https://prom:9090")
+	if _, err := loadCapabilityConfig("development"); err == nil {
+		t.Fatal("expected duration parse error")
+	}
+}
+
+func TestLoadSignalConfigBranches(t *testing.T) {
+	t.Setenv("SIGNAL_ENABLED", "true")
+	cfg, err := loadSignalConfig("development")
+	if err != nil || !cfg.Enabled {
+		t.Fatalf("signal = %+v, err = %v", cfg, err)
+	}
+	t.Setenv("SIGNAL_ENABLED", "not-a-bool")
+	if _, err := loadSignalConfig("development"); err == nil {
+		t.Fatal("expected signal bool error")
+	}
+	t.Setenv("SIGNAL_ENABLED", "true")
+	t.Setenv("SIGNAL_OVERVIEW_WINDOW", "bogus")
+	if _, err := loadSignalConfig("development"); err == nil {
+		t.Fatal("expected signal duration error")
+	}
+}
+
+func TestLoadAlertRouteConfigBranches(t *testing.T) {
+	t.Setenv("ALERT_ROUTE_ENABLED", "true")
+	cfg, err := loadAlertRouteConfig("development")
+	if err != nil || !cfg.Enabled {
+		t.Fatalf("alert route = %+v, err = %v", cfg, err)
+	}
+	t.Setenv("ALERT_ROUTE_ENABLED", "not-a-bool")
+	if _, err := loadAlertRouteConfig("development"); err == nil {
+		t.Fatal("expected alert-route bool error")
+	}
+	t.Setenv("ALERT_ROUTE_ENABLED", "true")
+	t.Setenv("ALERT_ROUTE_POLL_INTERVAL", "nope")
+	if _, err := loadAlertRouteConfig("development"); err == nil {
+		t.Fatal("expected poll interval error")
+	}
+}

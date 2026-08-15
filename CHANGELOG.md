@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1v config capability/signal/alert-route env 分支（60-80% 子加载器补齐）
+
+- 扩展 `internal/config/config_test.go`：CapabilityConfig（缺 endpoint/dev-http/prod-https/userinfo 非法/bad bool/bad duration）、SignalConfig、AlertRouteConfig 的合法+错误路径。
+- See [change record](docs/changes/2026-08-14-m115-1v-config-capability-signal-alertroute.md)。
+
 ### Added - M115-1u optimization finops/no-inputs/rate/auto-collect 分支
 
 - 扩展 `internal/httpserver/optimization_test.go`：FinOpsNoInputsNoCollector400、FinOpsRateOverride、CISNoInputsNoCollector400、DeprecatedAPIRequiresCluster。

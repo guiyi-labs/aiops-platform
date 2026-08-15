@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - Operator/CRD 增强（Commit 2）：reconcile controller + 单元测试
+
+- `backend/internal/operator/`：`Reconciler` 核心 reconcile（idempotencyKey 幂等、finalizer 清理、
+  不支持 action/target 拒绝、失败记 status.Failed）；`Controller` 基于 client-go workqueue；
+  `dynamicExecutor` 对目标 Deployment/CronJob 发 MergePatch（dryRun=All 透传、dryRun 默认 true）。
+- 单元测试 15 用例全绿（fake dynamic client + recording executor，覆盖成功/拒绝/幂等/finalizer/queue/patch 落盘）。
+- See [change record](docs/changes/2026-08-15-operator-commit2-controller.md)。
+
 ### Added - Operator/CRD 增强（Commit 1）：ControlledOperation CRD 类型层
 
 - `backend/internal/operator/`：ControlledOperation CRD 类型（aiops.platform/v1）+ DeepCopy + scheme 注册；

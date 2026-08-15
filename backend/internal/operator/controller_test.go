@@ -18,11 +18,11 @@ func AsDeploymentGVR() schema.GroupVersionResource {
 
 // recordingExecutor implements TargetExecutor for tests and records calls.
 type recordingExecutor struct {
-	calls    int
-	lastOp   *ControlledOperation
-	lastDry  bool
-	err      error
-	summary  string
+	calls   int
+	lastOp  *ControlledOperation
+	lastDry bool
+	err     error
+	summary string
 }
 
 func (e *recordingExecutor) Execute(_ context.Context, op *ControlledOperation) (string, error) {

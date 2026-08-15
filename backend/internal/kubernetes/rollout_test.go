@@ -372,3 +372,128 @@ func TestRolloutHistoryReplicaSetsGatewayError(t *testing.T) {
 		t.Fatal("expected ReplicaSets gateway error")
 	}
 }
+
+// --- M115-1k: pagination + patch decode + metrics paths ---
+
+func TestNamespacesFilterAndPaginate(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"items":[
+		{"metadata":{"name":"alpha"}},
+		{"metadata":{"name":"beta"}},
+		{"metadata":{"name":"gamma"}}
+	]}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	// name filter
+	resp, err := service.Namespaces(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 10, Name: "beta"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Items) != 1 || resp.Items[0].Metadata.Name != "beta" || resp.Total != 1 {
+		t.Fatalf("filtered = %+v", resp)
+	}
+	// offset+limit pagination with remaining
+	gateway2 := &gatewayStub{body: []byte(`{"items":[
+		{"metadata":{"name":"a"}},{"metadata":{"name":"b"}},{"metadata":{"name":"c"}},
+		{"metadata":{"name":"d"}},{"metadata":{"name":"e"}}
+	]}`)}
+	service2 := NewService(credentialStub{enabled: true}, gateway2, nil)
+	resp2, err := service2.Namespaces(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp2.Items) != 2 || resp2.Total != 5 || resp2.Remaining != 3 {
+		t.Fatalf("paged = %+v", resp2)
+	}
+}
+
+func TestNodesPageResponseBranches(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"n1"}},{"metadata":{"name":"n2"}}]}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	resp, err := service.Nodes(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Total != 2 || resp.Remaining != 0 {
+		t.Fatalf("nodes = %+v", resp)
+	}
+}
+
+func TestNodeMetricsQueryPath(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"n1"}}]}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	_, err := service.NodeMetrics(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.path != "/apis/metrics.k8s.io/v1beta1/nodes" {
+		t.Fatalf("path=%q", gateway.path)
+	}
+}
+
+func TestPodMetricsNormalizesContainersAndNamespacePath(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"p1"},"containers":[{"name":"c","usage":{"cpu":"1"}}]},{"metadata":{"name":"p2"}}]}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	resp, err := service.PodMetrics(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("pods = %d", len(resp.Items))
+	}
+	if resp.Items[1].Containers == nil {
+		t.Fatal("containers should be normalized to empty slice")
+	}
+	if gateway.path != "/apis/metrics.k8s.io/v1beta1/namespaces/demo/pods" {
+		t.Fatalf("path=%q", gateway.path)
+	}
+}
+
+func TestPatchDeploymentDecodeError(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`not-json`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	_, err := service.PatchDeployment(context.Background(), 7, "ns", "app", []byte(`{}`), false)
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
+func TestPatchCronJobDecodeError(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`not-json`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	_, err := service.PatchCronJob(context.Background(), 7, "ns", "job", []byte(`{}`), false)
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
+func TestPatchNodeDecodeError(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`not-json`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	_, err := service.PatchNode(context.Background(), 7, "node", []byte(`{}`), false)
+	if err == nil {
+		t.Fatal("expected decode error")
+	}
+}
+
+func TestPatchDeploymentGatewaysError(t *testing.T) {
+	// Access fails (disabled cluster)
+	service := NewService(credentialStub{enabled: false}, &gatewayStub{}, nil)
+	_, err := service.PatchDeployment(context.Background(), 7, "ns", "app", []byte(`{}`), false)
+	if err == nil {
+		t.Fatal("expected ErrDisabled")
+	}
+	// gateway error passes through mapGatewayError
+	errSvc := NewService(credentialStub{enabled: true}, failingGatewayErrs{}, nil)
+	_, err = errSvc.PatchDeployment(context.Background(), 7, "ns", "app", []byte(`{}`), false)
+	if err == nil {
+		t.Fatal("expected gateway error")
+	}
+}
+
+type failingGatewayErrs struct{}
+
+func (f failingGatewayErrs) Get(context.Context, int64, []byte, string, url.Values, int64) ([]byte, error) {
+	return nil, context.DeadlineExceeded
+}
+func (f failingGatewayErrs) Patch(context.Context, int64, []byte, string, url.Values, string, []byte, int64) ([]byte, error) {
+	return nil, context.DeadlineExceeded
+}

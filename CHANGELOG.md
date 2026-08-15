@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1k kubernetes 分页/patch 解码/指标路径分支（包覆盖率 72.5% → 73.1%）
+
+- 扩展 `internal/kubernetes/rollout_test.go`：Namespaces 过滤+分页+Remaining、Nodes/NodeMetrics 响应、PodMetrics 容器归一化与 namespace 路径、三组 Patch 解码错误、PatchDeployment 双层错误（disabled/网关）。
+- See [change record](docs/changes/2026-08-14-m115-1k-kubernetes-pagination-patch-branches.md)。
+
 ### Added - M115-1j incident assign/batch-assign 处理器分支（assign 0% → 100%）
 
 - 扩展 `internal/httpserver/incidents_test.go`：测试引擎注册 assignment 路由；AssignSuccessAndErrors（400/200/409/404）、AssignInvalidID、BatchAssignTooMany、EvidenceForMissingIncident。

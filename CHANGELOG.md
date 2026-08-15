@@ -14,6 +14,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 - `README.md`：基线描述从 M112 更新至 M115（工程质量冲刺），覆盖率数字更新为 ~74%，tag 更新为 `baseline-m115-20260815`。
 - See [change record](docs/changes/2026-08-15-m115-readme-baseline-update.md)。
 
+### Added - M115 答辩演示脚本草稿
+
+- `docs/thesis/demo-scripts-outline.md`：三条答辩演示主链路（故障修复、事故响应、SLO 预警），含步骤、证据锚点和翻车预案。
+- See [change record](docs/changes/2026-08-15-m115-demo-scripts-outline.md)。
+
 ### Added - M115-1ab config OIDC 加载成功与错误分支测试
 
 - 扩展 `internal/config/config_test.go`：TestLoadOIDCConfigValid（完整有效配置字段映射）、TestLoadOIDCConfigBranches（non-https issuer / bool parse / MaxAccounts 范围 / int parse 四条错误分支）。

@@ -266,6 +266,11 @@ type handlerFakeRepo struct {
 	grants     map[int64]workspace.UserWorkspaceGrant
 	wsSeq      int64
 	gSeq       int64
+
+	// error injection for membership/grant paths
+	addMembershipErr    error
+	removeMembershipErr error
+	grantErr            error
 }
 
 func newWorkspaceFakeRepo() *handlerFakeRepo {
@@ -332,6 +337,9 @@ func (r *handlerFakeRepo) DeleteWorkspace(ctx context.Context, id int64) error {
 }
 
 func (r *handlerFakeRepo) AddMembership(ctx context.Context, m workspace.WorkspaceMembership) (workspace.WorkspaceMembership, error) {
+	if r.addMembershipErr != nil {
+		return workspace.WorkspaceMembership{}, r.addMembershipErr
+	}
 	return m, nil
 }
 
@@ -344,7 +352,7 @@ func (r *handlerFakeRepo) ListMembershipsByCluster(ctx context.Context, clusterI
 }
 
 func (r *handlerFakeRepo) RemoveMembership(ctx context.Context, workspaceID, clusterID int64, namespace string) error {
-	return nil
+	return r.removeMembershipErr
 }
 
 func (r *handlerFakeRepo) GetQuota(ctx context.Context, workspaceID int64) (workspace.WorkspaceQuota, error) {
@@ -356,6 +364,9 @@ func (r *handlerFakeRepo) UpsertQuota(ctx context.Context, q workspace.Workspace
 }
 
 func (r *handlerFakeRepo) CreateGrant(ctx context.Context, g workspace.UserWorkspaceGrant) (workspace.UserWorkspaceGrant, error) {
+	if r.grantErr != nil {
+		return workspace.UserWorkspaceGrant{}, r.grantErr
+	}
 	for _, existing := range r.grants {
 		if existing.UserID == g.UserID && existing.WorkspaceID == g.WorkspaceID {
 			return workspace.UserWorkspaceGrant{}, workspace.ErrWorkspaceGrantAlreadyExists
@@ -610,5 +621,147 @@ func TestWorkspaceHandler_RevokeRoleReturns204(t *testing.T) {
 	// Might be 204 or 404 depending on whether the grant exists.
 	if w2.Code != http.StatusNoContent && w2.Code != http.StatusNotFound {
 		t.Fatalf("revoke role status = %d", w2.Code)
+	}
+}
+
+// --- M115-1m: workspace error branches + nil service ---
+
+func TestWorkspaceHandler_NilServiceReturnsUnavailable(t *testing.T) {
+	engine := newWorkspaceTestEngine(t, nil)
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{"GET", "/api/v1/workspaces"},
+		{"POST", "/api/v1/workspaces"},
+		{"GET", "/api/v1/workspaces/1"},
+		{"PATCH", "/api/v1/workspaces/1"},
+		{"DELETE", "/api/v1/workspaces/1"},
+		{"GET", "/api/v1/workspaces/1/memberships"},
+		{"POST", "/api/v1/workspaces/1/memberships"},
+		{"DELETE", "/api/v1/workspaces/1/memberships"},
+		{"GET", "/api/v1/workspaces/1/quota"},
+		{"PUT", "/api/v1/workspaces/1/quota"},
+		{"GET", "/api/v1/workspaces/1/role-bindings"},
+		{"POST", "/api/v1/workspaces/1/role-bindings"},
+		{"DELETE", "/api/v1/workspaces/1/role-bindings/7"},
+	}
+	for _, tt := range tests {
+		body := bytes.NewReader([]byte(`{}`))
+		req := httptest.NewRequest(tt.method, tt.path, body)
+		req.Header.Set("Content-Type", "application/json")
+		req = withWorkspaceActor(req, 10, []string{"viewer"})
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s %s = %d, want 503; body=%s", tt.method, tt.path, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestWorkspaceHandler_ListWorkspacesWithDisplayNameFilter(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	seedWorkspaceForHandler(t, repo, 10, "alpha")
+	seedWorkspaceForHandler(t, repo, 10, "bravo")
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("GET", "/api/v1/workspaces?display_name=alpha", nil)
+	req = withWorkspaceActor(req, 10, []string{"viewer"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestWorkspaceHandler_AddMembershipAlreadyExists(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	repo.addMembershipErr = workspace.ErrMembershipAlreadyExists
+	svc := workspace.NewService(repo)
+	ws := seedWorkspaceForHandler(t, repo, 10, "dup")
+	engine := newWorkspaceTestEngine(t, svc)
+	body := []byte(`{"cluster_id":7,"namespace":"prod"}`)
+	req := httptest.NewRequest("POST", "/api/v1/workspaces/"+itoa(ws.ID)+"/memberships", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 10, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestWorkspaceHandler_RemoveMembershipNotFound(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	repo.removeMembershipErr = workspace.ErrMembershipNotFound
+	svc := workspace.NewService(repo)
+	ws := seedWorkspaceForHandler(t, repo, 10, "rm-not")
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("DELETE", "/api/v1/workspaces/"+itoa(ws.ID)+"/memberships?cluster_id=999&namespace=x", nil)
+	req = withWorkspaceActor(req, 10, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestWorkspaceHandler_RemoveMembershipNoClusterQuery(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	ws := seedWorkspaceForHandler(t, repo, 10, "rm-c")
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("DELETE", "/api/v1/workspaces/"+itoa(ws.ID)+"/memberships?namespace=prod", nil)
+	req = withWorkspaceActor(req, 10, []string{"viewer"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestWorkspaceHandler_CreateDuplicateNameReturnsConflict(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	seedWorkspaceForHandler(t, repo, 10, "existing")
+	engine := newWorkspaceTestEngine(t, svc)
+	body := workspaceCreateRequest(t, "existing", "Dup")
+	req := httptest.NewRequest("POST", "/api/v1/workspaces", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 10, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestWorkspaceHandler_GetWorkspaceNotFound(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	engine := newWorkspaceTestEngine(t, svc)
+	req := httptest.NewRequest("GET", "/api/v1/workspaces/999", nil)
+	req = withWorkspaceActor(req, 10, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestWorkspaceHandler_GrantRoleNotFound(t *testing.T) {
+	repo := newWorkspaceFakeRepo()
+	svc := workspace.NewService(repo)
+	ws := seedWorkspaceForHandler(t, repo, 10, "grant-f")
+	repo.grantErr = workspace.ErrWorkspaceGrantNotFound
+	engine := newWorkspaceTestEngine(t, svc)
+	body := []byte(`{"user_id":42,"role":"workspace_editor"}`)
+	req := httptest.NewRequest("POST", "/api/v1/workspaces/"+itoa(ws.ID)+"/role-bindings", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = withWorkspaceActor(req, 10, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound && w.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 404 or 409; body=%s", w.Code, w.Body.String())
 	}
 }

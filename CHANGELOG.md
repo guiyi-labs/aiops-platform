@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1m workspace 处理器错误分支（nil-service 503 全路由 + membership/grant 错误注入）
+
+- 扩展 `internal/httpserver/workspace_test.go`：handlerFakeRepo 加 addMembershipErr/removeMembershipErr/grantErr；13 路由 nil-service 503 巡检、list 过滤、membership 409/404/400、duplicate 409、get 404、grant 缺失 404。
+- See [change record](docs/changes/2026-08-14-m115-1m-workspace-error-branches.md)。
+
 ### Added - M115-1l optimization RBAC/kubernetesLister/NodeUsageSource 分支（两个 0% 函数清零）
 
 - 扩展 `internal/optimization/collector_test.go`：collectRBAC 全字段（cluster/namespaced bindings）+ list 失败、NewKubernetesLister.List 三错误分支 + happy path、NewNodeUsageSource/NodeUsageSeries（errSeriesRepo）。

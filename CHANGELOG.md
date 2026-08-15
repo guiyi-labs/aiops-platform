@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1n incident 处理器分支全覆盖（list/metrics/batch/follower/note/postmortem/export）
+
+- 扩展 `internal/httpserver/incidents_test.go`：引擎注册 context/export/followers/notes/postmortem；List/Metrics 校验 10+6 非法 query、BatchAssign 3 校验分支、AddFollower/RemoveFollower/AddNote/SetPostmortem 全错误分支、Export/ExportPostmortem 404+200。
+- See [change record](docs/changes/2026-08-14-m115-1n-incident-handler-branches.md)。
+
 ### Added - M115-1m workspace 处理器错误分支（nil-service 503 全路由 + membership/grant 错误注入）
 
 - 扩展 `internal/httpserver/workspace_test.go`：handlerFakeRepo 加 addMembershipErr/removeMembershipErr/grantErr；13 路由 nil-service 503 巡检、list 过滤、membership 409/404/400、duplicate 409、get 404、grant 缺失 404。

@@ -184,10 +184,16 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	api.GET("/incidents/metrics", h.metrics)
 	api.GET("/incidents/:incident_id", h.get)
 	api.GET("/incidents/:incident_id/evidence", h.evidence)
+	api.GET("/incidents/:incident_id/context", h.context)
 	api.GET("/incidents/:incident_id/runbook", h.runbook)
+	api.GET("/incidents/:incident_id/export", h.export)
 	api.POST("/incidents", h.create)
 	api.POST("/incidents/batch-assign", h.batchAssign)
 	api.PATCH("/incidents/:incident_id", h.transition)
+	api.POST("/incidents/:incident_id/followers", h.addFollower)
+	api.DELETE("/incidents/:incident_id/followers/:user_id", h.removeFollower)
+	api.POST("/incidents/:incident_id/notes", h.addNote)
+	api.PUT("/incidents/:incident_id/postmortem", h.setPostmortem)
 	api.POST("/incidents/:incident_id/assignment", h.assign)
 	api.GET("/incidents/:incident_id/postmortem/export", h.exportPostmortem)
 	return r
@@ -1090,5 +1096,241 @@ func TestIncidentHandler_EvidenceForMissingIncident(t *testing.T) {
 	rec := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/999/evidence", "")
 	if rec.Code == http.StatusOK {
 		t.Fatal("expected non-200 for missing incident evidence")
+	}
+}
+
+// --- M115-1n: list/metrics/batchAssign/follower/note/postmortem/export branches ---
+
+func TestIncidentHandler_ListValidationBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	cases := []struct {
+		query string
+	}{
+		{"cluster_id=bogus"},
+		{"cluster_id=-1"},
+		{"limit=0"},
+		{"limit=201"},
+		{"limit=bogus"},
+		{"status=bogus"},
+		{"assignee_id=-1"},
+		{"assignee_id=bogus"},
+		{"follower_id=-1"},
+		{"follower_id=bogus"},
+	}
+	for _, tt := range cases {
+		rec := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents?"+tt.query, "")
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("query %q = %d, want 400", tt.query, rec.Code)
+		}
+	}
+	// happy path with all filters
+	rec := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents?cluster_id=7&limit=10&status=open&assignee_id=1&follower_id=2", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("filtered list = %d, want 200", rec.Code)
+	}
+}
+
+func TestIncidentHandler_MetricsValidationBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	for _, q := range []string{"cluster_id=bogus", "cluster_id=-1", "days=0", "days=91", "days=bogus", "days=-5"} {
+		rec := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/metrics?"+q, "")
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("metrics %q = %d, want 400", q, rec.Code)
+		}
+	}
+	rec := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/metrics?cluster_id=7&days=7", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestIncidentHandler_BatchAssignBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	// seed two incidents
+	for i := 1; i <= 2; i++ {
+		body := fmt.Sprintf(`{
+			"source_type":"finding",
+			"source_ref":"finding:7:pod.pending.v1:Pod:default:b%d",
+			"cluster_id":7,
+			"title":"pending",
+			"severity":"warning",
+			"resource":{"kind":"Pod","namespace":"default","name":"b%d"}
+		}`, i, i)
+		rec := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents", body)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("seed %d = %d", i, rec.Code)
+		}
+	}
+	// missing fields
+	bad := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", `{}`)
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("empty batch = %d, want 400", bad.Code)
+	}
+	// assignee missing
+	bad2 := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", `{"incident_ids":[1],"assignee_user_id":0}`)
+	if bad2.Code != http.StatusBadRequest {
+		t.Fatalf("no assignee = %d, want 400", bad2.Code)
+	}
+	// comment too long
+	long := strings.Repeat("x", 2001)
+	bad3 := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", fmt.Sprintf(`{"incident_ids":[1,2],"assignee_user_id":9,"comment":%q}`, long))
+	if bad3.Code != http.StatusBadRequest {
+		t.Fatalf("long comment = %d, want 400", bad3.Code)
+	}
+	// success (partial: one assigned, one version conflict)
+	ok := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", `{"incident_ids":[1,2],"assignee_user_id":9,"comment":"batch"}`)
+	if ok.Code != http.StatusOK {
+		t.Fatalf("batch assign = %d, want 200; body=%s", ok.Code, ok.Body.String())
+	}
+	var result incident.BatchAssignResult
+	if err := json.Unmarshal(ok.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode batch result: %v", err)
+	}
+	if result.Total != 2 || result.Assigned != 2 {
+		t.Fatalf("batch result = %+v", result)
+	}
+}
+
+func TestIncidentHandler_AddFollowerBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	seedIncidentForHandler(t, engine, "flw")
+	// missing incident → 404
+	missing := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/999/followers", `{"user_id":5}`)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing follower = %d, want 404", missing.Code)
+	}
+	// invalid body
+	bad := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/followers", `{"user_id":0}`)
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("bad follower body = %d, want 400", bad.Code)
+	}
+	// success
+	ok := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/followers", `{"user_id":5}`)
+	if ok.Code != http.StatusCreated {
+		t.Fatalf("add follower = %d, want 201; body=%s", ok.Code, ok.Body.String())
+	}
+	// duplicate → 409
+	repo.addFollowerErr = incident.ErrFollowerDuplicate
+	dup := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/followers", `{"user_id":5}`)
+	if dup.Code != http.StatusConflict {
+		t.Fatalf("duplicate follower = %d, want 409", dup.Code)
+	}
+}
+
+func TestIncidentHandler_RemoveFollowerBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	seedIncidentForHandler(t, engine, "rmflw")
+	// invalid user_id
+	bad := performIncidentRequest(engine, http.MethodDelete, "/api/v1/incidents/1/followers/0", "")
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("remove follower bad id = %d, want 400", bad.Code)
+	}
+	bad2 := performIncidentRequest(engine, http.MethodDelete, "/api/v1/incidents/1/followers/bogus", "")
+	if bad2.Code != http.StatusBadRequest {
+		t.Fatalf("remove follower nil id = %d, want 400", bad2.Code)
+	}
+	// success
+	ok := performIncidentRequest(engine, http.MethodDelete, "/api/v1/incidents/1/followers/5", "")
+	if ok.Code != http.StatusOK {
+		t.Fatalf("remove follower = %d, want 200", ok.Code)
+	}
+	// not following → 404
+	repo.removeFollowerErr = incident.ErrFollowerNotFound
+	nf := performIncidentRequest(engine, http.MethodDelete, "/api/v1/incidents/1/followers/5", "")
+	if nf.Code != http.StatusNotFound {
+		t.Fatalf("remove non-follower = %d, want 404", nf.Code)
+	}
+}
+
+func TestIncidentHandler_AddNoteBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	seedIncidentForHandler(t, engine, "note")
+	// missing incident
+	missing := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/999/notes", `{"content":"hi","expected_version":1}`)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("note missing = %d, want 404", missing.Code)
+	}
+	// invalid body
+	bad := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/notes", `{}`)
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("bad note = %d, want 400", bad.Code)
+	}
+	// version conflict
+	repo.addNoteErr = incident.ErrVersionConflict
+	stale := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/notes", `{"content":"hi","expected_version":1}`)
+	if stale.Code != http.StatusConflict {
+		t.Fatalf("stale note = %d, want 409", stale.Code)
+	}
+	repo.addNoteErr = nil
+	// success
+	ok := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/notes", `{"content":"hello","expected_version":1}`)
+	if ok.Code != http.StatusCreated {
+		t.Fatalf("add note = %d, want 201; body=%s", ok.Code, ok.Body.String())
+	}
+}
+
+func TestIncidentHandler_SetPostmortemBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	seedIncidentForHandler(t, engine, "pm")
+	// invalid body (content too long)
+	long := strings.Repeat("y", 10001)
+	bad := performIncidentRequest(engine, http.MethodPut, "/api/v1/incidents/1/postmortem", fmt.Sprintf(`{"expected_version":1,"content":%q}`, long))
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("bad postmortem = %d, want 400", bad.Code)
+	}
+	// success
+	ok := performIncidentRequest(engine, http.MethodPut, "/api/v1/incidents/1/postmortem", `{"expected_version":1,"content":"root cause"}`)
+	if ok.Code != http.StatusOK {
+		t.Fatalf("set postmortem = %d, want 200; body=%s", ok.Code, ok.Body.String())
+	}
+}
+
+func TestIncidentHandler_ExportBranches(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	seedIncidentForHandler(t, engine, "exp")
+	// missing incident export → 404
+	missing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/999/export", "")
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("export missing = %d, want 404", missing.Code)
+	}
+	// success
+	ok := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/1/export", "")
+	if ok.Code != http.StatusOK {
+		t.Fatalf("export = %d, want 200", ok.Code)
+	}
+	// postmortem export missing → 404
+	pmMissing := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/999/postmortem/export", "")
+	if pmMissing.Code != http.StatusNotFound {
+		t.Fatalf("pm export missing = %d, want 404", pmMissing.Code)
+	}
+	// postmortem export success
+	pmOK := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/1/postmortem/export", "")
+	if pmOK.Code != http.StatusOK {
+		t.Fatalf("pm export = %d, want 200", pmOK.Code)
+	}
+}
+
+// seedIncidentForHandler creates one incident via the engine and asserts 201.
+func seedIncidentForHandler(t *testing.T, engine *gin.Engine, slug string) {
+	t.Helper()
+	body := fmt.Sprintf(`{
+		"source_type":"finding",
+		"source_ref":"finding:7:%s",
+		"cluster_id":7,
+		"title":"pending",
+		"severity":"warning",
+		"resource":{"kind":"Pod","namespace":"default","name":"%s"}
+	}`, slug, slug)
+	rec := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents", body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("seed create = %d; body=%s", rec.Code, rec.Body.String())
 	}
 }

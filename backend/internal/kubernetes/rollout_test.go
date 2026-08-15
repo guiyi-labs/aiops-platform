@@ -497,3 +497,88 @@ func (f failingGatewayErrs) Get(context.Context, int64, []byte, string, url.Valu
 func (f failingGatewayErrs) Patch(context.Context, int64, []byte, string, url.Values, string, []byte, int64) ([]byte, error) {
 	return nil, context.DeadlineExceeded
 }
+
+// --- M115-1s: PV/NetworkPolicy/ServiceAccount + list-name-filter branches ---
+
+func TestPersistentVolumesAndDetail(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"pv-1"}}]}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	resp, err := service.PersistentVolumes(context.Background(), 7, apiquery.ListQuery{Page: 1, Limit: 50})
+	if err != nil || len(resp.Items) != 1 || resp.Items[0].Metadata.Name != "pv-1" {
+		t.Fatalf("pv list = %+v, err=%v", resp, err)
+	}
+	if gateway.path != "/api/v1/persistentvolumes" {
+		t.Fatalf("path=%q", gateway.path)
+	}
+}
+
+func TestPersistentVolumeDetail(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"metadata":{"name":"pv-1"}}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	item, err := service.PersistentVolume(context.Background(), 7, "pv-1")
+	if err != nil || item.Metadata.Name != "pv-1" {
+		t.Fatalf("pv = %+v, err=%v", item, err)
+	}
+	if gateway.path != "/api/v1/persistentvolumes/pv-1" {
+		t.Fatalf("path=%q", gateway.path)
+	}
+}
+
+func TestNetworkPoliciesClusterScopedAndNamespaced(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"np"}}]}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	_, err := service.NetworkPolicies(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.path != "/networking.k8s.io/v1/networkpolicies" {
+		t.Fatalf("cluster path=%q", gateway.path)
+	}
+	_, err = service.NetworkPolicies(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.path != "/api/v1/namespaces/demo/networkpolicies" {
+		t.Fatalf("ns path=%q", gateway.path)
+	}
+}
+
+func TestNetworkPolicyDetail(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"metadata":{"name":"np"}}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	item, err := service.NetworkPolicy(context.Background(), 7, "demo", "np")
+	if err != nil || item.Metadata.Name != "np" {
+		t.Fatalf("np = %+v err=%v", item, err)
+	}
+	if gateway.path != "/api/v1/namespaces/demo/networkpolicies/np" {
+		t.Fatalf("path=%q", gateway.path)
+	}
+}
+
+func TestServiceAccountsClusterScopedAndNamespaced(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"items":[{"metadata":{"name":"sa"}}]}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	_, err := service.ServiceAccounts(context.Background(), 7, "", apiquery.ListQuery{Page: 1, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.path != "/api/v1/serviceaccounts" {
+		t.Fatalf("cluster path=%q", gateway.path)
+	}
+	_, err = service.ServiceAccounts(context.Background(), 7, "demo", apiquery.ListQuery{Page: 1, Limit: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gateway.path != "/api/v1/namespaces/demo/serviceaccounts" {
+		t.Fatalf("ns path=%q", gateway.path)
+	}
+}
+
+func TestServiceAccountDetail(t *testing.T) {
+	gateway := &gatewayStub{body: []byte(`{"metadata":{"name":"sa"}}`)}
+	service := NewService(credentialStub{enabled: true}, gateway, nil)
+	item, err := service.ServiceAccount(context.Background(), 7, "demo", "sa")
+	if err != nil || item.Metadata.Name != "sa" {
+		t.Fatalf("sa = %+v err=%v", item, err)
+	}
+}

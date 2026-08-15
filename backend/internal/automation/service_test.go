@@ -1345,3 +1345,38 @@ func TestScheduleVerificationNilVerifier(t *testing.T) {
 		t.Fatalf("scheduleVerification err=%v", err)
 	}
 }
+
+func TestNopCaseReaderMethods(t *testing.T) {
+	reader := NopCaseReader{}
+	if _, err := reader.GetCase(context.Background(), 1); err != ErrCaseNotFound {
+		t.Fatalf("GetCase err = %v, want ErrCaseNotFound", err)
+	}
+	codes, err := reader.EligibleActionCodes(context.Background(), 1)
+	if err != nil || codes != nil {
+		t.Fatalf("EligibleActionCodes = %v, %v", codes, err)
+	}
+}
+
+func TestCreatePlanRejectsWhenEligibleCodesError(t *testing.T) {
+	t.Parallel()
+	reader := &fakeCaseReader{
+		caseCtx:  CaseContext{CaseID: 1, ClusterID: 7, PrimaryKind: "Deployment", PrimaryNamespace: "default", PrimaryName: "api", PrimaryUID: "uid-1"},
+		codesErr: errors.New("codes unavailable"),
+	}
+	svc := newTestService(t, NopRepository{}, reader, nil)
+	_, err := svc.CreatePlan(context.Background(), CreatePlanInput{
+		RunbookID: "rollout_restart_pods",
+		Operator:  ActorRef{ID: 1, Name: "alice"},
+	})
+	if err == nil || err.Error() != "codes unavailable" {
+		t.Fatalf("err = %v, want codes error", err)
+	}
+}
+
+func TestCreatePlanDisabledWhenNilRepo(t *testing.T) {
+	t.Parallel()
+	svc := NewService(nil, nil, nil)
+	if _, err := svc.CreatePlan(context.Background(), CreatePlanInput{}); !errors.Is(err, ErrDisabled) {
+		t.Fatalf("err = %v, want ErrDisabled", err)
+	}
+}

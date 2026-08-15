@@ -9,6 +9,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1w automation NopCaseReader 0% 清零 + CreatePlan 错误传播
+
+- 扩展 `internal/automation/service_test.go`：NopCaseReaderMethods（GetCase→ErrCaseNotFound、EligibleActionCodes→nil）、CreatePlanRejectsWhenEligibleCodesError、CreatePlanDisabledWhenNilRepo。
+- See [change record](docs/changes/2026-08-14-m115-1w-automation-createplan-nop.md)。
+
+### Added - M115-1x alertroute 接收器/路由上限 + 解密错误分支
+
+- 扩展 `internal/alertroute/service_test.go`：CreateReceiverLimit（20→ErrReceiverLimit）、ListReceiversDecryptError（enc: 信封篡改）、CreateRouteLimit（50→ErrRouteLimit）。
+- See [change record](docs/changes/2026-08-14-m115-1x-alertroute-limits-decrypt.md)。
+
 ### Added - M115-1v config capability/signal/alert-route env 分支（60-80% 子加载器补齐）
 
 - 扩展 `internal/config/config_test.go`：CapabilityConfig（缺 endpoint/dev-http/prod-https/userinfo 非法/bad bool/bad duration）、SignalConfig、AlertRouteConfig 的合法+错误路径。

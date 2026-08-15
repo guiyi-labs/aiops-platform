@@ -3,6 +3,7 @@ package alertroute
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1552,5 +1553,54 @@ func TestCreateReceiverMaskingSecret(t *testing.T) {
 	}
 	if rec.Secret == validSecret() {
 		t.Fatal("raw secret should not be stored on the receiver")
+	}
+}
+
+// --- M115-1w: receiver/route limit + decrypt-error branches ---
+
+func TestCreateReceiverLimit(t *testing.T) {
+	repo := newMockRepository()
+	svc := newTestService(repo)
+	for i := 0; i < MaxReceiversPerUser; i++ {
+		_, err := svc.CreateReceiver(context.Background(), 42, fmt.Sprintf("rec-%d", i), validHTTPSURL(), validSecret())
+		if err != nil {
+			t.Fatalf("receiver %d: %v", i, err)
+		}
+	}
+	_, err := svc.CreateReceiver(context.Background(), 42, "overflow", validHTTPSURL(), validSecret())
+	if !errors.Is(err, ErrReceiverLimit) {
+		t.Fatalf("err = %v, want ErrReceiverLimit", err)
+	}
+}
+
+func TestListReceiversDecryptError(t *testing.T) {
+	repo := newMockRepository()
+	svc := newTestService(repo)
+	_, _ = svc.CreateReceiver(context.Background(), 42, "corrupt", validHTTPSURL(), validSecret())
+	// tamper with the stored envelope: "enc:" prefix with one segment fails
+	// the 3-part SplitN envelope check in decryptValue.
+	repo.receivers[1].URL = "enc:broken"
+	_, err := svc.ListReceivers(context.Background(), 42)
+	if err == nil {
+		t.Fatal("expected decrypt error")
+	}
+}
+
+func TestCreateRouteLimit(t *testing.T) {
+	repo := newMockRepository()
+	svc := newTestService(repo)
+	_, err := svc.CreateReceiver(context.Background(), 42, "r", validHTTPSURL(), validSecret())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= MaxRoutesPerUser; i++ {
+		_, err := svc.CreateRoute(context.Background(), &Route{ReceiverID: 1, CreatorID: 42, Priority: i, DedupeKey: "{{.ClusterID}}:{{.RuleName}}"})
+		if err != nil {
+			t.Fatalf("route %d: %v", i, err)
+		}
+	}
+	_, err = svc.CreateRoute(context.Background(), &Route{ReceiverID: 1, CreatorID: 42, Priority: 51, DedupeKey: "{{.ClusterID}}:{{.RuleName}}"})
+	if !errors.Is(err, ErrRouteLimit) {
+		t.Fatalf("err = %v, want ErrRouteLimit", err)
 	}
 }

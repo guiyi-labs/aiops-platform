@@ -872,3 +872,75 @@ func TestAssignFailureCode(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceResponseCatalogReturnsIndependentClone(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	catalog := service.ResponseCatalog()
+	if len(catalog.Templates) == 0 || len(catalog.SeverityMatrix) == 0 {
+		t.Fatalf("catalog unexpectedly empty: %+v", catalog)
+	}
+	original := service.ResponseCatalog()
+	catalog.SeverityMatrix[0] = SeverityTarget{Severity: SeverityCritical, TargetMinutes: 1}
+	if orig := service.ResponseCatalog(); orig.SeverityMatrix[0] == catalog.SeverityMatrix[0] {
+		t.Fatalf("catalog clone leaked mutation: %+v", orig.SeverityMatrix[0])
+	}
+	_ = original
+}
+
+func TestServiceAssignValidatesAssignee(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	if _, err := service.Assign(context.Background(), 1, 1, 0, ActorRef{ID: 1, Name: "admin"}, ""); !errors.Is(err, ErrAssigneeNotFound) {
+		t.Fatalf("Assign(assignee=0) error = %v, want ErrAssigneeNotFound", err)
+	}
+}
+
+func TestServiceFollowerValidation(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	if _, err := service.AddFollower(context.Background(), 1, 0, ActorRef{ID: 1, Name: "admin"}); !errors.Is(err, ErrFollowerDuplicate) {
+		t.Fatalf("AddFollower(user=0) error = %v", err)
+	}
+	if _, err := service.RemoveFollower(context.Background(), 1, 0, ActorRef{ID: 1, Name: "admin"}); !errors.Is(err, ErrFollowerNotFound) {
+		t.Fatalf("RemoveFollower(user=0) error = %v", err)
+	}
+	record, err := service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeFinding, SourceRef: "finding:7:generic:Pod:default:web-0",
+		ClusterID: 7, Title: "web-0 pending", Severity: SeverityWarning, Summary: "pod pending",
+		Resource: ResourceRef{Kind: "Pod", Namespace: "default", Name: "web-0"},
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	updated, err := service.AddFollower(context.Background(), record.ID, 2, ActorRef{ID: 1, Name: "admin"})
+	if err != nil || len(updated.Followers) != 1 {
+		t.Fatalf("AddFollower err=%v followers=%d", err, len(updated.Followers))
+	}
+	updated, err = service.AddFollower(context.Background(), record.ID, 2, ActorRef{ID: 1, Name: "admin"})
+	if !errors.Is(err, ErrFollowerDuplicate) {
+		t.Fatalf("duplicate AddFollower error = %v", err)
+	}
+	updated, err = service.RemoveFollower(context.Background(), record.ID, 2, ActorRef{ID: 1, Name: "admin"})
+	if err != nil || len(updated.Followers) != 0 {
+		t.Fatalf("RemoveFollower err=%v followers=%d", err, len(updated.Followers))
+	}
+	if _, err := service.RemoveFollower(context.Background(), record.ID, 2, ActorRef{ID: 1, Name: "admin"}); !errors.Is(err, ErrFollowerNotFound) {
+		t.Fatalf("second RemoveFollower error = %v", err)
+	}
+}
+
+func TestServiceNoteValidation(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	if _, err := service.AddNote(context.Background(), 1, 1, ActorRef{ID: 1, Name: "admin"}, "   "); !errors.Is(err, ErrInvalidNote) {
+		t.Fatalf("AddNote(blank) error = %v, want ErrInvalidNote", err)
+	}
+}
+
+func TestServiceExportErrors(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	var buffer bytes.Buffer
+	if err := service.ExportMarkdown(context.Background(), 9999, &buffer); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ExportMarkdown(missing) error = %v, want ErrNotFound", err)
+	}
+	if _, err := service.ExportOne(context.Background(), 9999, &buffer); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("ExportOne(missing) error = %v, want ErrNotFound", err)
+	}
+}

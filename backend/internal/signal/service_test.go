@@ -279,3 +279,52 @@ func TestNopSourceReaderDefaults(t *testing.T) {
 		t.Fatalf("RecentChanges = %v/%v/%v, want nil/empty/nil", items, outcomes, err)
 	}
 }
+
+func TestBuildOccurrence_RejectsZeroClusterAndMissingObservedAt(t *testing.T) {
+	base := IngestRequest{
+		SignalID:   "diag.pod.pending.v1",
+		Resource:   ResourceCitation{Kind: "Pod", Namespace: "default", Name: "nginx"},
+		ObservedAt: time.Now(),
+	}
+	zeroCluster := base
+	zeroCluster.ClusterID = 0
+	if _, err := BuildOccurrence(zeroCluster, time.Now()); err == nil {
+		t.Fatal("expected error for cluster_id <= 0")
+	}
+	zeroObserved := base
+	zeroObserved.ClusterID = 1
+	zeroObserved.ObservedAt = time.Time{}
+	if _, err := BuildOccurrence(zeroObserved, time.Now()); err == nil {
+		t.Fatal("expected error for zero observed_at")
+	}
+}
+
+func TestBuildOccurrence_FallsBackToObservedAtForFreshness(t *testing.T) {
+	observed := time.Date(2026, 7, 31, 10, 0, 0, 0, time.UTC)
+	occ, err := BuildOccurrence(IngestRequest{
+		SignalID:   "diag.pod.pending.v1",
+		ClusterID:  1,
+		Resource:   ResourceCitation{Kind: "Pod", Namespace: "default", Name: "nginx"},
+		ObservedAt: observed,
+	}, time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !occ.Freshness.Equal(observed) {
+		t.Fatalf("Freshness = %s, want observed_at %s", occ.Freshness, observed)
+	}
+}
+
+func TestService_OverviewRejectsRecentChangesError(t *testing.T) {
+	svc := NewService(ServiceOptions{Repository: &mockRepo{}, Now: fixedNow, OverviewWindow: time.Hour})
+	_, err := svc.Overview(context.Background(), nil, "", &errorSourceReader{})
+	if err == nil {
+		t.Fatal("Overview must propagate RecentChanges errors")
+	}
+}
+
+type errorSourceReader struct{ mockSourceReader }
+
+func (errorSourceReader) RecentChanges(context.Context, *int64, string, time.Time) ([]OverviewChange, OverviewOutcomes, error) {
+	return nil, OverviewOutcomes{}, errors.New("changes unavailable")
+}

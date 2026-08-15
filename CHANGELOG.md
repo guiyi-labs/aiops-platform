@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1 fuzz 状态机扩展与覆盖率首片（automation plan/rollback + SLA monitor）
+
+- 新增 fuzz：`internal/automation/FuzzPlanLifecycle`（action plan 状态机：approve/cancel/expire 任意状态下仅文档化哨兵错误、不 panic）、`FuzzRollbackContract`（仅 Deployment image_update/rollout_restart 可创建 rollback 计划）；`internal/incident/FuzzSLAMonitorStateMachine`（任意 escalation 窗口下 first<final 单调契约 + payload 合法性 + deep_link）。
+- CI fuzz seed smoke 包列表加入 `./internal/automation/`（12 包全绿）。
+- 覆盖率提升：`internal/signal` 63.9%→70.1%、`internal/correlation` 67.2%→70.7%（service/metrics/factors/merge/provider 分支）；`internal/incident` 57.0%→61.7%（Service.Metrics/ResponseCatalog/导出/跟随者校验等）。
+- See [change record](docs/changes/2026-08-14-m115-1-fuzz-expansion-and-coverage-slice.md)。覆盖率门禁 65% 暂保持，70% 上调随后续切片（M115-1b/c）累计完成后一并修改 ci.yml。
+
 ### Added - M114-3 指标历史下采样归档（7天精确 → 30天下采样小时档，有界查询）
 
 - 新增迁移 `000049_metric_samples_downsampled`：30 天下采样归档表（每系列每小时一条 avg/max/count，幂等 upsert；表约束有意不重演精确表 Node/Pod 的历史不一致）。

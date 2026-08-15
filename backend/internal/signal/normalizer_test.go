@@ -221,3 +221,55 @@ func TestChangeNormalizer_PendingStatusSkips(t *testing.T) {
 		t.Fatal("expected ok=false for pending status")
 	}
 }
+
+func TestChangeSignalIDAllKinds(t *testing.T) {
+	cases := []struct {
+		kind   ChangeKind
+		status string
+		want   string
+		ok     bool
+	}{
+		{ChangeKindPromotion, "succeeded", "change.promotion.completed.v1", true},
+		{ChangeKindPromotion, "failed", "change.promotion.failed.v1", true},
+		{ChangeKindBackup, "succeeded", "change.backup.completed.v1", true},
+		{ChangeKindBackup, "failed", "change.backup.failed.v1", true},
+		{ChangeKindMaintenance, "succeeded", "change.maintenance.completed.v1", true},
+		{ChangeKindMaintenance, "failed", "change.maintenance.failed.v1", true},
+		{ChangeKindRestore, "succeeded", "change.restore.completed.v1", true},
+		{ChangeKindRestore, "failed", "change.restore.failed.v1", true},
+		{ChangeKindPromotion, "pending", "", false},
+		{ChangeKind("bogus"), "succeeded", "", false},
+	}
+	for _, tc := range cases {
+		got, ok := changeSignalID(tc.kind, tc.status)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("changeSignalID(%q, %q) = (%q, %v), want (%q, %v)",
+				tc.kind, tc.status, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+func TestMapSeverityUsesPolicyMappingsThenFallback(t *testing.T) {
+	descriptor := SignalDescriptor{SeverityPolicy: SeverityPolicy{
+		Mappings: map[string]Severity{"critical": SeverityCritical},
+		Fallback: SeverityWarning,
+	}}
+	if got := MapSeverity(descriptor, "critical"); got != SeverityCritical {
+		t.Errorf("MapSeverity(mapped) = %q, want critical", got)
+	}
+	if got := MapSeverity(descriptor, "unknown"); got != SeverityWarning {
+		t.Errorf("MapSeverity(fallback) = %q, want warning", got)
+	}
+}
+
+func TestAlertNormalizer_FallsBackToUpdatedAt(t *testing.T) {
+	req, err := (AlertNormalizer{}).FromInstance(
+		alert.Rule{ID: 1, ClusterID: 2, DisplayName: "cpu", ResourceKind: "Pod", ResourceName: "web-0", MetricName: "cpu_usage"},
+		alert.Instance{ID: 10, State: alert.StateFiring, UpdatedAt: time.Date(2026, 7, 31, 9, 0, 0, 0, time.UTC)}, "run-1")
+	if err != nil {
+		t.Fatalf("FromInstance: %v", err)
+	}
+	if req.ObservedAt.IsZero() || !req.ObservedAt.Equal(req.Freshness) {
+		t.Fatalf("expected observed_at from fallback, got %+v", req)
+	}
+}

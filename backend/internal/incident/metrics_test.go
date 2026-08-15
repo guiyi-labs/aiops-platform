@@ -1,9 +1,56 @@
 package incident
 
 import (
+	"context"
 	"testing"
 	"time"
 )
+
+func TestServiceMetricsUsesDefaultWindowAndClusterFilter(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	for index := 0; index < 3; index++ {
+		if _, err := service.Create(context.Background(), CreateInput{
+			SourceType: SourceTypeFinding, SourceRef: "finding:7:generic:Pod:default:web-" + intToText(int64(index+1)),
+			ClusterID: 7, Title: "web-" + intToText(int64(index+1)) + " pending", Severity: SeverityWarning,
+			Summary: "pod pending", Resource: ResourceRef{Kind: "Pod", Namespace: "default", Name: "web-" + intToText(int64(index+1))},
+		}); err != nil {
+			t.Fatalf("Create #%d: %v", index, err)
+		}
+	}
+	metrics, err := service.Metrics(context.Background(), MetricsFilter{ClusterID: 7})
+	if err != nil {
+		t.Fatalf("Metrics: %v", err)
+	}
+	if metrics.WindowDays != DefaultMetricsWindowDays || metrics.ClusterID != 7 ||
+		metrics.SampleLimit != MetricsSampleLimit || metrics.Sampled != 3 || metrics.Truncated {
+		t.Fatalf("unexpected metrics: %+v", metrics)
+	}
+}
+
+func TestServiceMetricsClampsWindowAndRespectsClusterFilter(t *testing.T) {
+	service, _ := newServiceWithFake(t)
+	if _, err := service.Create(context.Background(), CreateInput{
+		SourceType: SourceTypeFinding, SourceRef: "finding:7:generic:Pod:default:other",
+		ClusterID: 99, Title: "other cluster", Severity: SeverityWarning,
+		Summary: "other", Resource: ResourceRef{Kind: "Pod", Namespace: "default", Name: "other"},
+	}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	metrics, err := service.Metrics(context.Background(), MetricsFilter{ClusterID: 7, WindowDays: 999})
+	if err != nil {
+		t.Fatalf("Metrics: %v", err)
+	}
+	if metrics.WindowDays != MaxMetricsWindowDays || metrics.Sampled != 0 {
+		t.Fatalf("window clamp expected %d, got %+v", MaxMetricsWindowDays, metrics)
+	}
+	metrics, err = service.Metrics(context.Background(), MetricsFilter{ClusterID: 7, WindowDays: -3})
+	if err != nil {
+		t.Fatalf("Metrics(default): %v", err)
+	}
+	if metrics.WindowDays != DefaultMetricsWindowDays {
+		t.Fatalf("negative window expected default, got %d", metrics.WindowDays)
+	}
+}
 
 func TestDeriveMetricsUsesFirstLifecycleEvents(t *testing.T) {
 	base := time.Date(2026, time.August, 14, 8, 0, 0, 0, time.UTC)

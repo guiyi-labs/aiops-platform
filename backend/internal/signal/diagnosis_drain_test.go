@@ -166,3 +166,13 @@ func TestDiagnosisDrainRunLifecycle(t *testing.T) {
 		t.Fatalf("Run ingested %d occurrences, want 1 (immediate pass)", len(repo.occurrences))
 	}
 }
+
+func TestDiagnosisDrainDefaultsForZeroConfig(t *testing.T) {
+	d := NewDiagnosisDrain(DrainConfig{}, &fakeDiagnosisListReader{}, nil, nil)
+	if d.config.Interval != DefaultDrainInterval || d.config.PageSize != DefaultDrainPageSize {
+		t.Fatalf("defaults not applied: %+v", d.config)
+	}
+	if d.logger == nil {
+		t.Fatal("nil logger must default to a Nop logger")
+	}
+}

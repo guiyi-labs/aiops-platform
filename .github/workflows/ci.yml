@@ -219,7 +219,7 @@ jobs:
       - name: Fuzz seed + benchmark smoke (M84)
         working-directory: backend
         run: |
-          go test -run '^Fuzz' -count=1 ./internal/metricshistory/ ./internal/deprecatedapi/ ./internal/apiquery/ ./internal/netpolicy/ ./internal/namespaceposture/ ./internal/optimization/ ./internal/kubernetes/ ./internal/posture/ ./internal/topology/ ./internal/incident/ ./internal/correlation/
+          go test -run '^Fuzz' -count=1 ./internal/metricshistory/ ./internal/deprecatedapi/ ./internal/apiquery/ ./internal/netpolicy/ ./internal/namespaceposture/ ./internal/optimization/ ./internal/kubernetes/ ./internal/posture/ ./internal/topology/ ./internal/incident/ ./internal/correlation/ ./internal/automation/
           go test -bench . -benchtime 5x -run '^$' ./internal/metricshistory/ ./internal/topology/ ./internal/posture/ ./internal/capability/
       - name: Generate and verify M96 scale fixture (report mode)
         working-directory: backend

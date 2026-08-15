@@ -2,9 +2,11 @@ package signal
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
 	"k8s-aiops.local/backend/internal/slo"
 )
 
@@ -197,4 +199,32 @@ func TestSLOBurnSink_DisabledWhenServiceNil(t *testing.T) {
 	if err := sink.OnBurnTransition(context.Background(), burnTransition(nil)); err != nil {
 		t.Errorf("disabled sink must not error: %v", err)
 	}
+}
+
+func TestSLOBurnSink_WithLoggerSetsNonNil(t *testing.T) {
+	sink := NewSLOBurnSignalSink(nil, nil)
+	if returned := sink.WithLogger(zap.NewNop()); returned != sink {
+		t.Fatal("WithLogger must return the receiver")
+	}
+	if sink.logger == nil {
+		t.Fatal("WithLogger must set the logger")
+	}
+	if returned := sink.WithLogger(nil); returned != sink || sink.logger == nil {
+		t.Fatal("WithLogger(nil) must keep the existing logger")
+	}
+}
+
+func TestSLOBurnSink_IngestFailureLoggedNotPropagated(t *testing.T) {
+	failing := &failingUpsertRepo{}
+	svc := NewService(ServiceOptions{Repository: failing, Now: fixedNow})
+	sink := NewSLOBurnSignalSink(svc, nil).WithLogger(zap.NewNop())
+	if err := sink.OnBurnTransition(context.Background(), burnTransition(nil)); err != nil {
+		t.Fatalf("OnBurnTransition must not propagate an error: %v", err)
+	}
+}
+
+type failingUpsertRepo struct{ mockRepo }
+
+func (failingUpsertRepo) Upsert(context.Context, *Occurrence) error {
+	return errors.New("upsert failed")
 }

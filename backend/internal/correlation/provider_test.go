@@ -239,3 +239,36 @@ func TestProviderRecentDiagnosesMapsAndFilters(t *testing.T) {
 		t.Errorf("since = %v, want %v", diag.filter.Since, wantSince)
 	}
 }
+
+func TestProviderRecentChangesPropagatesError(t *testing.T) {
+	graph := &fakeTopologyReader{err: errors.New("graph down")}
+	p := newTestProvider(&fakeSignalReader{}, graph, &fakeDiagnosisReader{})
+	if _, err := p.RecentChanges(context.Background(), 7, "app", time.Hour); err == nil {
+		t.Fatal("RecentChanges must propagate the graph error")
+	}
+}
+
+func TestProviderTopologyEdgesPropagatesError(t *testing.T) {
+	graph := &fakeTopologyReader{err: errors.New("edges down")}
+	p := newTestProvider(&fakeSignalReader{}, graph, &fakeDiagnosisReader{})
+	if _, err := p.TopologyEdges(context.Background(), 7, "app"); err == nil {
+		t.Fatal("TopologyEdges must propagate the graph error")
+	}
+}
+
+func TestProviderRecentDiagnosesPropagatesError(t *testing.T) {
+	diag := &fakeDiagnosisReader{err: errors.New("diagnoses down")}
+	p := newTestProvider(&fakeSignalReader{}, &fakeTopologyReader{}, diag)
+	if _, err := p.RecentDiagnoses(context.Background(), 7, "app", time.Hour); err == nil {
+		t.Fatal("RecentDiagnoses must propagate the diagnosis error")
+	}
+}
+
+func TestToEvidenceEmptySlicesReturnNil(t *testing.T) {
+	if got := toSignalEvidence(nil); got != nil {
+		t.Fatalf("toSignalEvidence(nil) = %v, want nil", got)
+	}
+	if got := toTopologyEvidence(nil); got != nil {
+		t.Fatalf("toTopologyEvidence(nil) = %v, want nil", got)
+	}
+}

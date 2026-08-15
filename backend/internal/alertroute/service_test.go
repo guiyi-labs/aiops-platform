@@ -41,6 +41,9 @@ type mockRepository struct {
 	// inhibit source-firing override; when non-nil, HasFiringSource returns
 	// this value instead of scanning deliveries.
 	firingSourceOverride *bool
+
+	// listEnabledInhibitsErr, when non-nil, is returned by ListEnabledInhibits.
+	listEnabledInhibitsErr error
 }
 
 func newMockRepository() *mockRepository {
@@ -292,6 +295,9 @@ func (m *mockRepository) DeleteInhibit(_ context.Context, id, creatorID int64) e
 func (m *mockRepository) ListEnabledInhibits(_ context.Context) ([]Inhibit, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.listEnabledInhibitsErr != nil {
+		return nil, m.listEnabledInhibitsErr
+	}
 	var result []Inhibit
 	for _, inh := range m.inhibits {
 		if inh.Enabled {
@@ -1602,5 +1608,46 @@ func TestCreateRouteLimit(t *testing.T) {
 	_, err = svc.CreateRoute(context.Background(), &Route{ReceiverID: 1, CreatorID: 42, Priority: 51, DedupeKey: "{{.ClusterID}}:{{.RuleName}}"})
 	if !errors.Is(err, ErrRouteLimit) {
 		t.Fatalf("err = %v, want ErrRouteLimit", err)
+	}
+}
+
+// --- M115-1y: service ListDeliveries + IsInhibited error branches ---
+
+func TestServiceListDeliveries(t *testing.T) {
+	repo := newMockRepository()
+	svc := newTestService(repo)
+	now := time.Now().UTC()
+	repo.deliveries[1] = &Delivery{
+		ID: 1, RouteID: 10, ReceiverID: 20, AlertInstanceID: 300, EventType: EventTypeFiring,
+		DedupeKey: "1:cpu-hot", Status: DeliveryStatusPending, Attempts: 0,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	resp, err := svc.ListDeliveries(context.Background(), DeliveryListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Total != 1 || len(resp.Items) != 1 || resp.Items[0].ID != 1 || resp.Items[0].DedupeKey != "1:cpu-hot" {
+		t.Fatalf("resp = %+v", resp)
+	}
+	// filter by receiver + status
+	receiverID := int64(20)
+	filtered, err := svc.ListDeliveries(context.Background(), DeliveryListFilter{ReceiverID: &receiverID, Status: DeliveryStatusPending})
+	if err != nil || filtered.Total != 1 {
+		t.Fatalf("filtered = %+v, err = %v", filtered, err)
+	}
+	receiverMissing := int64(999)
+	none, err := svc.ListDeliveries(context.Background(), DeliveryListFilter{ReceiverID: &receiverMissing})
+	if err != nil || none.Total != 0 {
+		t.Fatalf("none = %+v, err = %v", none, err)
+	}
+}
+
+func TestIsInhibitedListErrorReturnsFalse(t *testing.T) {
+	repo := newMockRepository()
+	repo.listEnabledInhibitsErr = errors.New("inhibit list failed")
+	svc := newTestService(repo)
+	inhibited, inh := svc.IsInhibited(context.Background(), MatchAlert{ClusterID: 1, RuleName: "x", EventType: EventTypeFiring})
+	if inhibited || inh != nil {
+		t.Fatalf("expected inhibited=false on repo error, got %v/%v", inhibited, inh)
 	}
 }

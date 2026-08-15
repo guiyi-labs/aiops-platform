@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1h copyops Get/ListByUser/ListByCluster 查询面测试（0% 函数清零）
+
+- 扩展 `internal/copyops/service_test.go`：previewK8sFake 共享 fake + Get（命中/空 ID 拒绝）、ListByUser（多用户筛选/非法 userID）、ListByCluster（命中/非法 clusterID）、NewService 默认构造。
+- See [change record](docs/changes/2026-08-14-m115-1h-copyops-get-list-branches.md)。
+
 ### Added - M115-1g httpserver/kubernetes.go 资源处理器覆盖率 9.6% → 87.6%（~70 个 handler）
 
 - 新增 `internal/httpserver/kubernetes_handler_test.go`：k8sCredStub+k8sGetStub 内存 gateway 构造真实 service；30 个 list + 27 个 detail/manifest handler 直测；disabled cluster 409、logs/logsSince/all_logs 参数校验 400、customResources 缺参 400/未白名单 404 分支。全局覆盖率 ~67.7% → ~68.9%（差 ~285 stmts 到 70%）。

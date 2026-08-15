@@ -563,3 +563,104 @@ func sha256Sum(data []byte) []byte {
 
 var _ = sha256Sum
 var _ apiquery.ListQuery
+
+// --- M115-1h: Get / ListByUser / ListByCluster / NewService ---
+
+func previewK8sFake(t *testing.T) *fakeKubernetes {
+	t.Helper()
+	return &fakeKubernetes{
+		nsIdentity: func(context.Context, int64, string) (k8sgateway.SourceNamespaceIdentity, error) {
+			return k8sgateway.SourceNamespaceIdentity{Name: "src", UID: "ns-uid", ResourceVersion: "42"}, nil
+		},
+		nsExists: func(context.Context, int64, string) (bool, error) { return true, nil },
+		rawResource: func(_ context.Context, _ int64, _ string, _ string, _ string, ns string, name string) (map[string]any, error) {
+			return sourceDeploymentManifest(ns, name, "src-uid", "src-rv-1"), nil
+		},
+		resExists: func(context.Context, int64, string, string, string, string, string) (bool, error) { return false, nil },
+		createRes: func(_ context.Context, _ int64, _ string, body []byte, dryRun bool) ([]byte, error) {
+			if !dryRun {
+				return nil, errors.New("expected dry-run during Preview")
+			}
+			return body, nil
+		},
+	}
+}
+
+func TestServiceGetReturnsPlan(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewTestService(previewK8sFake(t), repo, frozenClock(time.Now()), staticRand([]byte{1, 2, 3}))
+	uid := int64(7)
+	created, err := svc.Preview(context.Background(), copyops.PreviewRequest{
+		SourceClusterID: 1, TargetClusterID: 2,
+		SourceNamespace: "prod", TargetNamespace: "stage",
+		Bundle: []copyops.BundleItemRequest{{Kind: "Deployment", Namespace: "prod", Name: "nginx"}},
+	}, copyops.ActorRef{ID: uid, Name: "alice"})
+	require.NoError(t, err)
+
+	got, err := svc.Get(context.Background(), created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, got.ID)
+}
+
+func TestServiceGetRejectsEmptyID(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewTestService(previewK8sFake(t), repo, frozenClock(time.Now()), staticRand([]byte{1}))
+	_, err := svc.Get(context.Background(), "")
+	assert.ErrorIs(t, err, copyops.ErrInvalidRequest)
+}
+
+func TestServiceListByUser(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	var seed uint32
+	randFn := func(n int) ([]byte, error) {
+		buf := make([]byte, n)
+		for i := range buf {
+			seed++
+			buf[i] = byte(seed)
+		}
+		return buf, nil
+	}
+	svc := copyops.NewTestService(previewK8sFake(t), repo, frozenClock(time.Now()), randFn)
+	uidA, uidB := int64(7), int64(8)
+	_, err := svc.Preview(context.Background(), copyops.PreviewRequest{SourceClusterID: 1, TargetClusterID: 2, SourceNamespace: "prod", TargetNamespace: "stage", Bundle: []copyops.BundleItemRequest{{Kind: "Deployment", Namespace: "prod", Name: "nginx"}}}, copyops.ActorRef{ID: uidA, Name: "a"})
+	require.NoError(t, err)
+	_, err = svc.Preview(context.Background(), copyops.PreviewRequest{SourceClusterID: 3, TargetClusterID: 4, SourceNamespace: "dev", TargetNamespace: "test", Bundle: []copyops.BundleItemRequest{{Kind: "Deployment", Namespace: "prod", Name: "nginx"}}}, copyops.ActorRef{ID: uidB, Name: "b"})
+	require.NoError(t, err)
+
+	items, total, err := svc.ListByUser(context.Background(), uidA, 0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	assert.Len(t, items, 1)
+}
+
+func TestServiceListByUserRejectsInvalid(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewTestService(previewK8sFake(t), repo, frozenClock(time.Now()), staticRand([]byte{1}))
+	_, _, err := svc.ListByUser(context.Background(), 0, 0, 10)
+	assert.ErrorIs(t, err, copyops.ErrInvalidRequest)
+}
+
+func TestServiceListByCluster(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewTestService(previewK8sFake(t), repo, frozenClock(time.Now()), staticRand([]byte{1}))
+	_, err := svc.Preview(context.Background(), copyops.PreviewRequest{SourceClusterID: 1, TargetClusterID: 2, SourceNamespace: "prod", TargetNamespace: "stage", Bundle: []copyops.BundleItemRequest{{Kind: "Deployment", Namespace: "prod", Name: "nginx"}}}, copyops.ActorRef{ID: 7, Name: "a"})
+	require.NoError(t, err)
+
+	items, total, err := svc.ListByCluster(context.Background(), 1, 0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	assert.Len(t, items, 1)
+}
+
+func TestServiceListByClusterRejectsInvalid(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewTestService(previewK8sFake(t), repo, frozenClock(time.Now()), staticRand([]byte{1}))
+	_, _, err := svc.ListByCluster(context.Background(), 0, 0, 10)
+	assert.ErrorIs(t, err, copyops.ErrInvalidRequest)
+}
+
+func TestServiceNewServiceDefaults(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewService(nil, repo)
+	assert.NotNil(t, svc)
+}

@@ -17,10 +17,9 @@
 经 dry-run、确认、幂等和审计，凭据加密存储且未授权资源返回 404 以避免
 信息泄漏。
 
-## 当前基线（M112 · 2026-08-14）
+## 当前基线（M115 · 2026-08-15）
 
-当前公开基线已推进至 **M112**。仓库把 Kubernetes 平台运维拆成可验证的工作链路，
-重点展示“发现问题 → 保留证据 → 辅助判断 → 受控处置 → 事故复盘”的工程闭环。
+当前公开基线已推进至 **M115**（工程卓越冲刺）。在 M114 可观测性深化（SLO burn 总览、事件驾驶舱、指标历史下采样）基础上，M115 完成了 27 个覆盖率与测试质量切片，涵盖 httpserver、kubernetes、automation、alertroute、config、copyops、remediation、promotion、namespaceposture、optimization、incident、appcatalog、diagnosis、workspace 等核心模块，后端逐包平均覆盖率提升至 **~74%**（全局门禁 ≥65%，核心包 ≥70%）。
 
 | 方向 | 当前可验证能力 |
 |---|---|
@@ -29,12 +28,9 @@
 | 事故响应 | 事故工作区、SLA / MTTA / MTTR、升级通知、Runbook、复盘 Markdown 导出 |
 | AI 辅助 | 引用校验的调查、引用式事故摘要、解释覆盖率与质量反馈只读大盘 |
 | 受控运维 | dry-run、人工确认、幂等执行、结果校验、审计；AI 不直接执行集群变更 |
-| 工程交付 | Go / Vue 全栈测试、OpenAPI/typegen、axe、响应式截图基线、CI 与供应链门禁 |
+| 工程交付 | M115 后端逐包平均覆盖率 ~74%（全局门禁 ≥65%，核心包 ≥70%）；所有测试全绿（mock/单测）。完整变更历史见 CHANGELOG.md。 |
 
-M109 已将 CI 全局覆盖率门禁提升至 65%；M112 的后端测试、前端类型检查、Lint、测试与构建均已通过。
-完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，阶段记录见 [`docs/changes/`](docs/changes/)，
-当前执行路线见 [`docs/development-roadmap-post-m110.md`](docs/development-roadmap-post-m110.md)，
-论文与答辩材料见 [`docs/thesis/README.md`](docs/thesis/README.md)。
+M115 工程质量冲刺已完成并推送（`baseline-m115-20260815`，HEAD `d338989`）。完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，阶段记录见 [`docs/changes/`](docs/changes/)，当前执行路线见 [`docs/development-roadmap-post-m110.md`](docs/development-roadmap-post-m110.md)，论文与答辩材料见 [`docs/thesis/README.md`](docs/thesis/README.md)。
 
 > **项目边界**：当前仓库保持 RC 口径。生产 OIDC/MFA、真实组织环境的 HA / PITR、发布授权与远端
 > 基础设施演练仍需外部条件，不在本地基线中宣称已完成。

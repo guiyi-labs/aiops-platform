@@ -195,3 +195,55 @@ func TestNodeCordonPatch(t *testing.T) {
 		t.Fatalf("cordon not applied: %v", spec)
 	}
 }
+
+// --- M115-1ac: list/discovery/metrics endpoints coverage ---
+
+func TestPodAndDeploymentListRoutes(t *testing.T) {
+	h := newHandler()
+	for _, path := range []string{
+		"/api/v1/pods",
+		"/api/v1/namespaces/demo/pods",
+		"/apis/apps/v1/namespaces/demo/deployments",
+	} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s = %d, want 200; body=%s", path, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestDiscoveryAndMetricsEndpoints(t *testing.T) {
+	h := newHandler()
+	for _, path := range []string{
+		"/apis/apps/v1/namespaces/demo/replicasets",
+		"/apis/apps/v1",
+		"/apis/metrics.k8s.io/v1beta1/nodes",
+		"/apis/metrics.k8s.io/v1beta1/namespaces/demo/pods",
+	} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("GET %s = %d, want 200; body=%s", path, w.Code, w.Body.String())
+		}
+	}
+}
+
+func TestGetObjectNotFoundWithMessage(t *testing.T) {
+	h := newHandler()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/namespaces/demo/pods/does-not-exist", nil)
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("missing pod = %d, want 404; body=%s", w.Code, w.Body.String())
+	}
+	// patch a missing object also routes through notFoundWithMessage
+	w2 := httptest.NewRecorder()
+	patch := httptest.NewRequest(http.MethodPatch, "/api/v1/namespaces/demo/pods/nope", strings.NewReader(`{"metadata":{"labels":{"x":"y"}}}`))
+	h.ServeHTTP(w2, patch)
+	if w2.Code != http.StatusNotFound {
+		t.Fatalf("patch missing pod = %d, want 404; body=%s", w2.Code, w2.Body.String())
+	}
+}

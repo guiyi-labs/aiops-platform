@@ -177,6 +177,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 - `docs/thesis/screenshots/README.md` 表格恢复 Dashboard/Clusters/Diagnoses 标记，修复答辩截图基线刷新引入的 delivery-assets 门禁回归。
 - See [change record](docs/changes/2026-08-15-thesis-readme-markers.md)。
 
+### Added - M115-1ac demo-kube-mock list/discovery/metrics 端点（8 个 0% 函数清零）
+
+- 扩展 `cmd/demo-kube-mock/handler_test.go`：PodAndDeploymentListRoutes、DiscoveryAndMetricsEndpoints、GetObjectNotFoundWithMessage；listPods/listDeployments/apiGroup/simpleMeta/fixture*/notFoundWithMessage 0%→100%。
+- See [change record](docs/changes/2026-08-15-m115-1ac-demo-mock-endpoints.md)。
+
 ### Added - M115-1b httpserver 覆盖率 66.1% → 70.0%（全局最大单包顶到 70% 门禁线）
 
 - 新增 `internal/httpserver/clusters_test.go`：clusterHandler 全六 handler + clusterID util（list/get/create/setEnabled/updateCredential/probe/delete 全部错误哨兵：400/404/502/500 与 happy path 200/201/204）。

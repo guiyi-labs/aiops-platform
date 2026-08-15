@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -500,4 +501,70 @@ func contains(value, fragment string) bool {
 		}
 	}
 	return false
+}
+
+// --- M115-1o: List / ListOperations / validate branches ---
+
+func TestListValidatesDiagnosisExists(t *testing.T) {
+	svc := NewService(diagnosisStub{err: errors.New("missing")}, &kubernetesStub{}, &repositoryStub{})
+	if _, err := svc.List(context.Background(), 42); err == nil {
+		t.Fatal("expected diagnosis error")
+	}
+	svcOK := NewService(diagnosisStub{record: diagnosis.Record{ID: 42}}, &kubernetesStub{}, &repositoryStub{plans: []Plan{{ID: "p-1"}}})
+	plans, err := svcOK.List(context.Background(), 42)
+	if err != nil || len(plans) != 1 {
+		t.Fatalf("list = %v, %v", plans, err)
+	}
+}
+
+func TestListOperationsValidation(t *testing.T) {
+	svc := NewService(diagnosisStub{}, &kubernetesStub{}, &repositoryStub{})
+	// invalid cluster
+	if _, err := svc.ListOperations(context.Background(), 0, "", "", ""); !errors.Is(err, ErrInvalidOperation) {
+		t.Fatalf("cluster 0 = %v", err)
+	}
+	// invalid namespace length
+	if _, err := svc.ListOperations(context.Background(), 7, strings.Repeat("n", 64), "", ""); !errors.Is(err, ErrInvalidOperation) {
+		t.Fatalf("long ns = %v", err)
+	}
+	// invalid kind
+	if _, err := svc.ListOperations(context.Background(), 7, "ns", "Service", ""); !errors.Is(err, ErrInvalidOperation) {
+		t.Fatalf("bad kind = %v", err)
+	}
+	// valid
+	svcOK := NewService(diagnosisStub{}, &kubernetesStub{}, &repositoryStub{plans: []Plan{{ID: "p", TargetNamespace: "ns"}}})
+	plans, err := svcOK.ListOperations(context.Background(), 7, " ns ", " Deployment ", "")
+	if err != nil || len(plans) != 1 {
+		t.Fatalf("list ops = %v, %v", plans, err)
+	}
+}
+
+func TestRolloutHistoryRejectsInvalidInput(t *testing.T) {
+	svc := NewService(diagnosisStub{}, &kubernetesStub{}, &repositoryStub{})
+	if _, err := svc.RolloutHistory(context.Background(), 0, "ns", "api"); !errors.Is(err, ErrInvalidOperation) {
+		t.Fatalf("cluster 0 err = %v", err)
+	}
+	if _, err := svc.RolloutStatus(context.Background(), 7, "", "api"); !errors.Is(err, ErrInvalidOperation) {
+		t.Fatalf("empty ns err = %v", err)
+	}
+	// error propagation when kube fails
+	svcErr := NewService(diagnosisStub{}, &kubernetesStub{err: errors.New("kube down")}, &repositoryStub{})
+	if _, err := svcErr.RolloutHistory(context.Background(), 7, "ns", "api"); err == nil {
+		t.Fatal("expected kube error")
+	}
+	if _, err := svcErr.RolloutStatus(context.Background(), 7, "ns", "api"); err == nil {
+		t.Fatal("expected kube error")
+	}
+}
+
+func TestValidResourceNameAndContainerImageEdges(t *testing.T) {
+	if !validResourceName("api-1", 63) || validResourceName("", 63) || validResourceName("Bad_Name", 63) {
+		t.Fatal("validResourceName edge wrong")
+	}
+	if !validContainerImage("nginx:1.27.1") || validContainerImage("") {
+		t.Fatal("validContainerImage edge wrong")
+	}
+	if validContainerImage(strings.Repeat("i", 513)) {
+		t.Fatal("overlong image accepted")
+	}
 }

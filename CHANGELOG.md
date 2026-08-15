@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1o remediation List/ListOperations 0% 清零 + 校验边界分支
+
+- 扩展 `internal/remediation/service_test.go`：List 诊断校验、ListOperations 三非法输入 + 合法、RolloutHistory/RolloutStatus 非法输入与 kube 错误传播、validResourceName/validContainerImage 边界。
+- See [change record](docs/changes/2026-08-14-m115-1o-remediation-list-validations.md)。
+
 ### Added - M115-1n incident 处理器分支全覆盖（list/metrics/batch/follower/note/postmortem/export）
 
 - 扩展 `internal/httpserver/incidents_test.go`：引擎注册 context/export/followers/notes/postmortem；List/Metrics 校验 10+6 非法 query、BatchAssign 3 校验分支、AddFollower/RemoveFollower/AddNote/SetPostmortem 全错误分支、Export/ExportPostmortem 404+200。

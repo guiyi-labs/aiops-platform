@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1e namespaceposture 覆盖率 ~54% → 90.2%（workload 五种 fetcher 全分支）
+
+- 扩展 `internal/namespaceposture/service_test.go`：新增 sts/ds/job/cronjob 构造器；Get 全 workload 聚合（deployment+sts+ds+job+cronjob 同时复数据）、workload fetcher 部分失败 → PartialSections best-effort、List/collectPods/collectNodeCapacity 错误分支、全部 fetcher 失败 → errPartial + SourcePartial、单 section 失败聚合。
+- See [change record](docs/changes/2026-08-14-m115-1e-namespaceposture-coverage-to-90.md)。
+
 ### Added - M115-1d kubernetes 包覆盖率 64.5% → 72.5%（rollout/replica-set/node/workload 读写路径）
 
 - 新增 `internal/kubernetes/rollout_test.go`：ReplicaSetsByOwner 过滤 + RolloutHistory 全流程（双请求、revision 排序/跳过、错误分支）、RolloutStatus（ProgressDeadlineExceeded phase 推导、默认 replicas=1、空条件归一）、PatchNode（成功/dryRun/非 PatchGateway fail-fast/disabled）、WorkloadTemplate.UnmarshalJSON（Raw 保留）；10 个列表函数（Namespaces/Nodes/Deployments/StatefulSets/DaemonSets/RS/Jobs/CronJobs/HPA/NodeMetrics）+ PatchDeployment/PatchCronJob 的 gateway-error 与 disabled-cluster 分支。

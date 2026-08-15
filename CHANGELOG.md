@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1ab config OIDC 加载成功与错误分支测试
+
+- 扩展 `internal/config/config_test.go`：TestLoadOIDCConfigValid（完整有效配置字段映射）、TestLoadOIDCConfigBranches（non-https issuer / bool parse / MaxAccounts 范围 / int parse 四条错误分支）。
+- See [change record](docs/changes/2026-08-15-m115-1ab-config-oidc-branches.md)。
+
 ### Added - M115-1aa kubernetes ResourceQuotas/LimitRanges/Secrets/Services 双向 path
 
 - 扩展 `internal/kubernetes/rollout_test.go`：newListTestService + ResourceQuotasListPaths/LimitRangesListPaths/SecretsListPaths/ServicesListPaths（各测 namespaced + cluster-wide）。

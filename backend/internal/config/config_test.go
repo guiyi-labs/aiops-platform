@@ -515,3 +515,61 @@ func TestLoadAlertRouteConfigBranches(t *testing.T) {
 		t.Fatal("expected poll interval error")
 	}
 }
+
+// --- M115-1ab: OIDC load success + error branches ---
+
+func TestLoadOIDCConfigValid(t *testing.T) {
+	t.Setenv("OIDC_ENABLED", "true")
+	t.Setenv("OIDC_ISSUER", "https://idp.example.com/issuer")
+	t.Setenv("OIDC_CLIENT_ID", "client-1")
+	t.Setenv("OIDC_CLIENT_SECRET", "s3cr3t-with-more-than-32-characters-padding")
+	t.Setenv("OIDC_REDIRECT_URI", "https://app.example.com/callback")
+	t.Setenv("OIDC_CLAIM_USERNAME", "preferred_username")
+	t.Setenv("OIDC_CLAIM_DISPLAY_NAME", "name")
+	t.Setenv("OIDC_CLAIM_GROUPS", "groups")
+	t.Setenv("OIDC_REQUIRED_SCOPES", "openid,profile")
+	t.Setenv("OIDC_ALLOWED_SIGNING_ALGORITHMS", "RS256")
+	t.Setenv("OIDC_GROUP_TO_ROLES", `{"admins":["system_admin"],"operators":["operations_admin"]}`)
+	t.Setenv("OIDC_MFA_REQUIRED", "true")
+	t.Setenv("OIDC_MFA_EVIDENCE_CLAIM", "acr")
+	t.Setenv("OIDC_MFA_ACCEPTED_VALUES", "phr")
+	t.Setenv("OIDC_SESSION_MAX_AGE", "12h")
+	t.Setenv("OIDC_SESSION_REAUTHENTICATION", "2h")
+	t.Setenv("OIDC_SESSION_REVOKE_ON_DISABLE", "true")
+	t.Setenv("OIDC_BREAK_GLASS_ENABLED", "true")
+	t.Setenv("OIDC_BREAK_GLASS_MAX_ACCOUNTS", "2")
+	t.Setenv("OIDC_JWKS_CACHE_TTL", "2h")
+	t.Setenv("OIDC_JWKS_REFRESH_TIMEOUT", "30s")
+	t.Setenv("OIDC_AUTH_SESSION_SIGNING_KEY", "0123456789abcdef0123456789abcdef")
+	cfg, err := loadOIDCConfig("development")
+	if err != nil {
+		t.Fatalf("valid OIDC = %v", err)
+	}
+	if !cfg.Enabled || cfg.Issuer != "https://idp.example.com/issuer" || cfg.BreakGlass.MaxAccounts != 2 {
+		t.Fatalf("cfg = %+v", cfg)
+	}
+	if got := cfg.GroupToRoles["admins"]; len(got) != 1 || got[0] != "system_admin" {
+		t.Fatalf("group roles = %+v", cfg.GroupToRoles)
+	}
+}
+
+func TestLoadOIDCConfigBranches(t *testing.T) {
+	t.Setenv("OIDC_ENABLED", "true")
+	t.Setenv("OIDC_ISSUER", "http://insecure.example.com") // non-https
+	if _, err := loadOIDCConfig("development"); err == nil {
+		t.Fatal("expected non-https issuer error")
+	}
+	t.Setenv("OIDC_ENABLED", "not-a-bool")
+	if _, err := loadOIDCConfig("development"); err == nil {
+		t.Fatal("expected bool parse error")
+	}
+	t.Setenv("OIDC_ENABLED", "true")
+	t.Setenv("OIDC_BREAK_GLASS_MAX_ACCOUNTS", "5") // out of range 1..2
+	if _, err := loadOIDCConfig("development"); err == nil {
+		t.Fatal("expected max accounts error")
+	}
+	t.Setenv("OIDC_BREAK_GLASS_MAX_ACCOUNTS", "not-an-int")
+	if _, err := loadOIDCConfig("development"); err == nil {
+		t.Fatal("expected int parse error")
+	}
+}

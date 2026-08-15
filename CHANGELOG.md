@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1d kubernetes 包覆盖率 64.5% → 72.5%（rollout/replica-set/node/workload 读写路径）
+
+- 新增 `internal/kubernetes/rollout_test.go`：ReplicaSetsByOwner 过滤 + RolloutHistory 全流程（双请求、revision 排序/跳过、错误分支）、RolloutStatus（ProgressDeadlineExceeded phase 推导、默认 replicas=1、空条件归一）、PatchNode（成功/dryRun/非 PatchGateway fail-fast/disabled）、WorkloadTemplate.UnmarshalJSON（Raw 保留）；10 个列表函数（Namespaces/Nodes/Deployments/StatefulSets/DaemonSets/RS/Jobs/CronJobs/HPA/NodeMetrics）+ PatchDeployment/PatchCronJob 的 gateway-error 与 disabled-cluster 分支。
+- See [change record](docs/changes/2026-08-14-m115-1d-kubernetes-coverage-to-72.md)。
+
 ### Added - M115-1c automation 覆盖率 46.5% → 66.9%（Execute/Verify 全生命周期测试）
 
 - 扩展 `internal/automation/service_test.go`：Execute 全生命周期（execRepo 内存 Claim/Complete/Fail/SaveVerification）——happy path Approved→Succeeded + 验证调度、patch 失败→Failed 仍调度验证、gate recheck fail-closed、错误 confirmation token；Verify happy path（SLO 改善 + rollout_restart 后快照 → Effective + MarkVerified）；Preview 全分支（disabled/not-draft/k8s 缺失/成功过渡 previewed）；materializeParameters 全分支（rollback 历史/无回滚点/no-change/缺 override/cronjob.suspend/unsupported action）；refreshSnapshot（Deployment/CronJob 成功 + 错误分支）；GetPlan。

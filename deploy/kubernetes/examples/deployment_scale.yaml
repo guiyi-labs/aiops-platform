@@ -1,0 +1,18 @@
+# ControlledOperation 示例：把 Deployment 缩容到 2 副本（dry-run）
+#
+# 应用方式：
+#   kubectl apply -f deploy/kubernetes/examples/deployment_scale.yaml
+# 显式 dryRun: true：controller 以 dryRun=All 校验 patch 可行性，不真正落盘。
+apiVersion: aiops.platform/v1
+kind: ControlledOperation
+metadata:
+  name: scale-demo
+  namespace: default
+spec:
+  action: deployment.scale
+  targetKind: Deployment
+  targetNamespace: default
+  targetName: api
+  desiredReplicas: 2
+  dryRun: true
+  idempotencyKey: scale-demo-001

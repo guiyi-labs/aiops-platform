@@ -1,0 +1,21 @@
+# ControlledOperation 示例：dry-run 触发 Deployment 滚动重启
+#
+# 应用方式：
+#   kubectl apply -f deploy/kubernetes/examples/deployment_rollout_restart.yaml
+# OP 的 dryRun 默认 true：本示例显式 dryRun: true，controller 会以
+# dryRun=All 执行而不真正改动集群，并在 status 标记 Succeeded (dry-run)。
+# 要真正执行，将 dryRun 改为 false（确认目标资源后）。
+apiVersion: aiops.platform/v1
+kind: ControlledOperation
+metadata:
+  name: rollout-restart-demo
+  namespace: default
+  annotations:
+    aiops.platform/purpose: operator-demo
+spec:
+  action: deployment.rollout_restart
+  targetKind: Deployment
+  targetNamespace: default
+  targetName: web
+  dryRun: true
+  idempotencyKey: rollout-demo-001

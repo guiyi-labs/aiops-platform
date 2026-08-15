@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - Operator/CRD 增强（Commit 4）：README 一节 + 示例清单
+
+- `README.md`：新增「ControlledOperation Operator（K8s Controller 深度实践）」章节
+  （为什么做 / 纯 client-go 架构 / 运行与验证 / 验证了什么）；Repository Layout 更新。
+- `deploy/kubernetes/examples/`：3 个 dry-run 示例（rollout_restart / scale / cronjob.suspend）。
+- See [change record](docs/changes/2026-08-15-operator-commit4-docs-examples.md)。
+
 ### Added - Operator/CRD 增强（Commit 3）：cmd 入口 + deploy 集成
 
 - `backend/cmd/controlled-operation-operator/`：纯 client-go 启动入口（dynamic informer + workqueue worker + kubeconfig 三级降级 + 优雅关闭）。

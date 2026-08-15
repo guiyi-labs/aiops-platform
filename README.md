@@ -154,13 +154,72 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-down.ps1
 
 验收证据写入已忽略的 `.artifacts`。
 
-## Repository Layout
+## ControlledOperation Operator（K8s Controller 深度实践）
+
+> 新增能力（M115 之后）：一个真实可运行的 Kubernetes Controller，把平台的
+> 「受控运维」语义以 Operator 模式落地为自定义资源（CRD），作为
+> client-go / 云原生工程的直接证据。
+
+### 为什么做
+
+平台核心是「多集群可观测 + 受控运维」。受控运维此前由平台主进程通过 API
+网关发起（dry-run + 确认 + 幂等 + 审计）。Operator 增强把同一语义做成
+**Kubernetes 原生控制器**：`ControlledOperation` CR 声明意图，控制器 watch
+并 reconcile，直接对目标 Deployment/CronJob 发 patch —— 这是控制器/声明式
+平面的标准交互方式，也是 K8s 生态真实工程的一部分。
+
+### 架构（纯 client-go，零 controller-runtime）
+
+- **CRD**：`controlledoperations.aiops.platform`（group `aiops.platform/v1`，
+  namespaced，status subresource）。`spec` 限定在固定操作目录：
+  `deployment.rollout_restart` / `deployment.scale` / `cronjob.suspend`。
+- **Controller**：`backend/cmd/controlled-operation-operator`。dynamic informer
+  watch CRD → add/update/delete 入 workqueue → worker 调 `Reconciler`。
+  `Reconciler` 仅依赖 `Client` + `TargetExecutor` 两个接口，完全可单测。
+- **执行**：`dynamicExecutor` 对目标资源发 MergePatch；`dryRun` 默认 true，
+  以 `dryRun=All` 透传校验但不落盘；`idempotencyKey` 保证同一意图不重复执行；
+  finalizer 保证删除时清理。
+- **RBAC**：最小权限 —— CRD get/list/watch/update/patch + target
+  Deployment/CronJob 仅 get/patch。
+
+### 运行与验证
+
+```bash
+# 1. 本地（out-of-cluster）跑 controller
+go run ./backend/cmd/controlled-operation-operator --kubeconfig ~/.kube/config
+
+# 2. 部署到集群（Kustomize 或 Helm 双路径）
+kubectl apply -k deploy/kubernetes          # 含 crds/ + operator.yaml
+# 或
+helm install aiops deploy/helm/aiops-platform
+
+# 3. 应用一个 dry-run 示例
+kubectl apply -f deploy/kubernetes/examples/deployment_rollout_restart.yaml
+kubectl get controlledoperation rollout-restart-demo -o yaml   # status.phase=Succeeded (dry-run)
+```
+
+### 验证了什么
+
+- **单元测试**（主证据）：`backend/internal/operator/` 15 个用例，用
+  `k8s.io/client-go/dynamic/fake` + recording executor 覆盖：成功路径、
+  unsupported action/target 拒绝、executor 错误 → `Failed`、幂等（同
+  `idempotencyKey` 两次 reconcile 只执行一次）、NotFound no-op、删除
+  finalizer 清理、queue/worker 驱动、dynamicExecutor patch 落盘验证。
+- **清单校验**：deploy 清单逐文件 YAML 结构合法；Helm template 由 CI
+  `.tools-ci/helm lint --strict` 覆盖。
+- kind 真实验证为后续可选步骤（`kind create cluster` → 安装 → 观察 status）。
+  本仓库在真实集群验证前不写入「已验证」。
+
+### Repository Layout
 
 ```text
 backend/             Go API service
+backend/cmd/controlled-operation-operator/   ControlledOperation operator (pure client-go)
 frontend/            Vue 3 web console
 deploy/              Compose, Kubernetes, Helm chart and demo manifests
 deploy/helm/aiops-platform/   Official Helm 3 chart (Chart.yaml, values.schema.json, templates/)
+deploy/kubernetes/crds/       CRD definitions for the ControlledOperation operator
+deploy/kubernetes/examples/   ControlledOperation example manifests (dry-run)
 docs/                Architecture, conventions, decisions and change records
 SECURITY.md          Supported versions, vulnerability reporting, threat-model boundaries
 CHANGELOG.md         Keep a Changelog 1.1.0 / SemVer 2.0.0 history

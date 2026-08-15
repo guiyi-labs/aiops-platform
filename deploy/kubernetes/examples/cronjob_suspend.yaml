@@ -1,0 +1,15 @@
+# ControlledOperation 示例：挂起 CronJob（dry-run）
+#
+# 应用方式：
+#   kubectl apply -f deploy/kubernetes/examples/cronjob_suspend.yaml
+apiVersion: aiops.platform/v1
+kind: ControlledOperation
+metadata:
+  name: suspend-cron-demo
+  namespace: default
+spec:
+  action: cronjob.suspend
+  targetKind: CronJob
+  targetNamespace: default
+  targetName: nightly-cleanup
+  dryRun: true

@@ -577,3 +577,66 @@ func TestExecuteMissingConfirmationTokenRejected(t *testing.T) {
 		t.Fatalf("expected ErrConfirmationInvalid, got %v", err)
 	}
 }
+
+// --- M115-1i: Get / List tests ---
+
+func previewForGetTest(t *testing.T) (string, *repoStub) {
+	t.Helper()
+	kube := newKubeStub()
+	kube.manifests["Deployment/prod/nginx"] = json.RawMessage(`{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"nginx","namespace":"prod","uid":"dep-1","resourceVersion":"42","labels":{"app":"nginx"},"annotations":{"kubectl.kubernetes.io/last-applied-configuration":"{}"}},"spec":{"replicas":2,"selector":{"matchLabels":{"app":"nginx"}},"template":{"metadata":{"labels":{"app":"nginx"}},"spec":{"containers":[{"name":"nginx","image":"nginx:1.21","ports":[{"containerPort":80}]}]}}}}`)
+	repo := newRepoStub()
+	svc := NewService(kube, repo)
+	plan, err := svc.Preview(context.Background(), PreviewRequest{
+		SourceClusterID:      7,
+		DestinationClusterID: 2,
+		SourceNamespace:      "prod",
+		DestinationNamespace: "stage",
+		Bundle: []BundleItemRequest{
+			{Kind: "Deployment", Namespace: "prod", Name: "nginx"},
+		},
+	}, ActorRef{ID: 1, Name: "req-name"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plan.ID, repo
+}
+
+func TestGetReturnsPlan(t *testing.T) {
+	planID, repo := previewForGetTest(t)
+	svc := NewService(newKubeStub(), repo)
+	got, err := svc.Get(context.Background(), planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != planID {
+		t.Fatalf("ID = %q, want %q", got.ID, planID)
+	}
+}
+
+func TestGetReturnsErrNotFound(t *testing.T) {
+	svc := NewService(newKubeStub(), newRepoStub())
+	_, err := svc.Get(context.Background(), "nonexistent")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestListReturnsPlans(t *testing.T) {
+	planID, repo := previewForGetTest(t)
+	svc := NewService(newKubeStub(), repo)
+	plans, err := svc.List(context.Background(), 7, "prod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || plans[0].ID != planID {
+		t.Fatalf("plans = %d, first ID=%v", len(plans), plans)
+	}
+}
+
+func TestListRejectsInvalidClusterID(t *testing.T) {
+	svc := NewService(newKubeStub(), newRepoStub())
+	_, err := svc.List(context.Background(), 0, "")
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("err = %v, want ErrInvalidRequest", err)
+	}
+}

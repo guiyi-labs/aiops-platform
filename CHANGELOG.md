@@ -177,6 +177,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 - `docs/thesis/screenshots/README.md` 表格恢复 Dashboard/Clusters/Diagnoses 标记，修复答辩截图基线刷新引入的 delivery-assets 门禁回归。
 - See [change record](docs/changes/2026-08-15-thesis-readme-markers.md)。
 
+### Changed - M115-1e CI 全局覆盖率门禁 65% → 70%（全局实测 70.02% 达标上调）
+
+- `.github/workflows/ci.yml` 覆盖率门禁 65.0 → 70.0，达成 M115 验收（覆盖率 70% 门禁上调）；核心包门禁 70% 不变。
+- See [change record](docs/changes/2026-08-15-m115-1e-ci-coverage-gate-70.md)。
+
 ### Added - M115-1ac demo-kube-mock list/discovery/metrics 端点（8 个 0% 函数清零）
 
 - 扩展 `cmd/demo-kube-mock/handler_test.go`：PodAndDeploymentListRoutes、DiscoveryAndMetricsEndpoints、GetObjectNotFoundWithMessage；listPods/listDeployments/apiGroup/simpleMeta/fixture*/notFoundWithMessage 0%→100%。

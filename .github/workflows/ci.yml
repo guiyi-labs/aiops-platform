@@ -203,8 +203,8 @@ jobs:
         working-directory: backend
         run: |
           go test -cover -p=1 -count=1 -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 65.0) { print "Coverage " a[1] "% is below 65.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 65.0% baseline" }}'
-      # M109: global coverage gate raised to 65% (was 60% since M84); core package gates enforced below.
+          go tool cover -func=coverage.out | tail -1 | awk '{split($NF, a, "%"); if (a[1]+0 < 70.0) { print "Coverage " a[1] "% is below 70.0% baseline"; exit 1 } else { print "Coverage " a[1] "% meets 70.0% baseline" }}'
+      # M115: global coverage gate raised to 70% (was 65% since M109); core package gates enforced below.
       - name: Core package coverage gate (M84)
         working-directory: backend
         run: |

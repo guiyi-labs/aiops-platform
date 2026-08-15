@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - P2 上游开源协作：kind 离线镜像文档 PR
+
+- 向 `kubernetes-sigs/kind` 提交 [PR #4234](https://github.com/kubernetes-sigs/kind/pull/4234)，补充受限网络/离线环境下从镜像源拉取并重新标记 `kindest/node` 镜像的说明；PR 当前等待上游审核。
+- See [change record](docs/changes/2026-08-15-p2-upstream-kind-doc-pr.md)。
+
 ### Added - P2 Release Notes（v0.3.0-rc.6）与 Helm Chart 元数据修正
 
 - `docs/releases/RELEASE-NOTES.md`：发布说明（RC 边界、兼容矩阵、升级/回滚、已知限制），关联 Issue #16/#17/#18。

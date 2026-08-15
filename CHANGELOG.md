@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - ADR 0002 措辞中性化（毕设 → 项目）
+
+- `docs/adr/0002-modular-monolith-and-request-pipeline.md` 第 8 行「毕设需要」→「项目需要」，保持技术语义。
+- See [change record](docs/changes/2026-08-15-adr0002-neutralize-wording.md)。
+
 ### Added - P2 上游开源协作：kind 离线镜像文档 PR
 
 - 向 `kubernetes-sigs/kind` 提交 [PR #4234](https://github.com/kubernetes-sigs/kind/pull/4234)，补充受限网络/离线环境下从镜像源拉取并重新标记 `kindest/node` 镜像的说明；PR 当前等待上游审核。

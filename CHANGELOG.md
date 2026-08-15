@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1z automation handler get/cancel/list 成功路径 + list 校验
+
+- 扩展 `internal/httpserver/automation_test.go`：GetPlanSuccess、CancelSuccess、ListPlansValidation（5 非法 query）、ListPlansSuccess；新增 cancelRepoStub/listPlansRepoStub。
+- See [change record](docs/changes/2026-08-14-m115-1z-automation-handler-plans.md)。
+
 ### Added - M115-1y alertroute 服务级 ListDeliveries 0% 清零 + IsInhibited 错误分支
 
 - 扩展 `internal/alertroute/service_test.go`：ServiceListDeliveries（全量+过滤+无匹配）、IsInhibitedListErrorReturnsFalse；mockRepository 新增 listEnabledInhibitsErr 注入。

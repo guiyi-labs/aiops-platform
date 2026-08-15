@@ -521,3 +521,99 @@ func TestAutomationHandler_ApproveNotPreviewed(t *testing.T) {
 }
 
 func int32Ptr(v int32) *int32 { return &v }
+
+// --- M115-1z: get/cancel/list success + list validation ---
+
+func TestAutomationHandler_GetPlanSuccess(t *testing.T) {
+	requested := int64(1)
+	plan := automation.ActionPlan{
+		ID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Status: automation.StatusApproved,
+		ApprovalType: automation.ApprovalSingle, RequestedByUserID: &requested,
+		ClusterID: 7, TargetNamespace: "prod",
+		ActionCode: "deployment.scale", BeforeReplicas: int32Ptr(2), DesiredReplicas: int32Ptr(3),
+	}
+	svc := automation.NewService(approveRepoStub{plan: plan}, nil, nil)
+	r := newAutomationTestEngine(t, svc)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/aiops/automation/plans/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", nil)
+	req = withAutomationActor(req, 9, "operator")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("get plan = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"status":"approved"`) || !strings.Contains(w.Body.String(), `"namespace":"prod"`) {
+		t.Fatalf("body missing approved/prod: %s", w.Body.String())
+	}
+}
+
+func TestAutomationHandler_CancelSuccess(t *testing.T) {
+	plan := automation.ActionPlan{
+		ID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Status: automation.StatusApproved,
+		ApprovalType: automation.ApprovalSingle, ClusterID: 7, TargetNamespace: "prod",
+	}
+	repo := cancelRepoStub{plan: plan}
+	svc := automation.NewService(repo, nil, nil)
+	r := newAutomationTestEngine(t, svc)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/aiops/automation/plans/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/cancel", nil)
+	req = withAutomationActor(req, 9, "operator")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("cancel = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"status":"cancelled"`) {
+		t.Fatalf("body missing cancelled: %s", w.Body.String())
+	}
+}
+
+func TestAutomationHandler_ListPlansValidation(t *testing.T) {
+	svc := automation.NewService(automation.NopRepository{}, nil, nil)
+	r := newAutomationTestEngine(t, svc)
+	for _, q := range []string{"case_id=abc", "case_id=0", "cluster_id=-1", "limit=0", "limit=201"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/aiops/automation/plans?"+q, nil)
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("%s = %d, want 400", q, w.Code)
+		}
+	}
+}
+
+func TestAutomationHandler_ListPlansSuccess(t *testing.T) {
+	repo := listPlansRepoStub{}
+	svc := automation.NewService(repo, nil, nil)
+	r := newAutomationTestEngine(t, svc)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/aiops/automation/plans?cluster_id=7&limit=10", nil)
+	req = withAutomationActor(req, 9, "operator")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("list plans = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"total":2`) {
+		t.Fatalf("body missing total: %s", w.Body.String())
+	}
+}
+
+type cancelRepoStub struct {
+	automation.NopRepository
+	plan automation.ActionPlan
+}
+
+func (r cancelRepoStub) Cancel(_ context.Context, id string, now time.Time) (automation.ActionPlan, error) {
+	p := r.plan
+	p.Status = automation.StatusCancelled
+	return p, nil
+}
+
+type listPlansRepoStub struct {
+	automation.NopRepository
+}
+
+func (r listPlansRepoStub) ListPlans(context.Context, automation.ActionPlanFilter) ([]automation.ActionPlan, int64, error) {
+	requested := int64(1)
+	return []automation.ActionPlan{
+		{ID: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Status: automation.StatusApproved, RequestedByUserID: &requested, ClusterID: 7, TargetNamespace: "prod"},
+		{ID: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", Status: automation.StatusSucceeded, ClusterID: 7, TargetNamespace: "dev"},
+	}, 2, nil
+}

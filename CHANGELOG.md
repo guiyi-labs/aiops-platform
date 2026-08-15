@@ -20,26 +20,23 @@ Detailed change records for each milestone live under `docs/changes/`.
 - `deploy/helm/aiops-platform/Chart.yaml`：修正 `home` 仓库 URL 与 maintainer 名称（`aiops/aiops-platform` → `guiyi-labs/aiops-platform`）。
 - See [change record](docs/changes/2026-08-15-p2-release-notes-chart-fix.md)。
 
-### Added - M115 论文实验摘要
+### Added - M115 实验摘要
 
-- `docs/thesis/experiment-summary.md`：诊断覆盖/准确率、API P95 延迟（本地实测）、受控操作幂等性（同 key 重放无二次变更）、资源成本（约 92 MiB）四节实验摘要，附方法论与诚实边界。
-- See [change record](docs/changes/2026-08-15-m115-thesis-experiment-summary.md)。
+- `docs/experiment-summary.md`：诊断覆盖/准确率、API P95 延迟（本地实测）、受控操作幂等性（同 key 重放无二次变更）、资源成本（约 92 MiB）四节实验摘要，附方法论与诚实边界。
 
-### Changed - M115 答辩截图基线刷新
+### Changed - M115 演示截图基线刷新
 
-- `scripts/capture-thesis-screenshots.mjs`：页面预期文案与 4 个旧文案对齐当前 UI，并新增 Incidents/Alerts/Events/SLO 4 页，共 8 页覆盖三条答辩演示链路。
-- `docs/thesis/screenshots/`：8 张截图按 M115 基线重新采集（2026-08-15，`source_revision=e7daa6f`），`capture-metadata.json` 同步更新；README 记录数据源（demo-kube-mock fixture + 平台真实 API）、演示数据与重新采集步骤。
-- `docs/thesis/demo-environment.md`：采集说明更新至 M115 基线，补充 macOS/Node 采集方式。
-- See [change record](docs/changes/2026-08-15-m115-thesis-screenshots-baseline.md)。
+- `docs/screenshots/`：8 张截图按 M115 基线重新采集（2026-08-15，`source_revision=e7daa6f`），`capture-metadata.json` 同步更新；README 记录数据源（demo-kube-mock fixture + 平台真实 API）、演示数据与重新采集步骤。
+- `docs/testing/test-matrix.md`：采集说明更新至 M115 基线，补充 macOS/Node 采集方式。
 
 ### Changed - M115 README 基线更新
 
 - `README.md`：基线描述从 M112 更新至 M115（工程质量冲刺），覆盖率数字更新为 ~74%，tag 更新为 `baseline-m115-20260815`。
 - See [change record](docs/changes/2026-08-15-m115-readme-baseline-update.md)。
 
-### Added - M115 答辩演示脚本草稿
+### Added - M115 演示脚本草稿
 
-- `docs/thesis/demo-scripts-outline.md`：三条答辩演示主链路（故障修复、事故响应、SLO 预警），含步骤、证据锚点和翻车预案。
+- 三条演示主链路（故障修复、事故响应、SLO 预警），含步骤、证据锚点和翻车预案（详细材料仅本地留存）。
 - See [change record](docs/changes/2026-08-15-m115-demo-scripts-outline.md)。
 
 ### Added - M115-1ab config OIDC 加载成功与错误分支测试
@@ -172,10 +169,9 @@ Detailed change records for each milestone live under `docs/changes/`.
 - 扩展 `internal/automation/service_test.go`：Execute 全生命周期（execRepo 内存 Claim/Complete/Fail/SaveVerification）——happy path Approved→Succeeded + 验证调度、patch 失败→Failed 仍调度验证、gate recheck fail-closed、错误 confirmation token；Verify happy path（SLO 改善 + rollout_restart 后快照 → Effective + MarkVerified）；Preview 全分支（disabled/not-draft/k8s 缺失/成功过渡 previewed）；materializeParameters 全分支（rollback 历史/无回滚点/no-change/缺 override/cronjob.suspend/unsupported action）；refreshSnapshot（Deployment/CronJob 成功 + 错误分支）；GetPlan。
 - See [change record](docs/changes/2026-08-14-m115-1c-automation-coverage-to-67.md)。
 
-### Fixed - thesis 截图 README 恢复交付资产门禁英文标记（Clusters/Diagnoses）
+### Fixed - 截图 README 恢复交付资产门禁英文标记（Clusters/Diagnoses）
 
-- `docs/thesis/screenshots/README.md` 表格恢复 Dashboard/Clusters/Diagnoses 标记，修复答辩截图基线刷新引入的 delivery-assets 门禁回归。
-- See [change record](docs/changes/2026-08-15-thesis-readme-markers.md)。
+- `docs/screenshots/README.md` 表格恢复 Dashboard/Clusters/Diagnoses 标记，修复截图基线刷新引入的 delivery-assets 门禁回归。
 
 ### Changed - M115-1e CI 全局覆盖率门禁 65% → 70%（全局实测 70.02% 达标上调）
 
@@ -259,7 +255,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 - 将旗舰仓库 README 首屏从 M93 更新至 M112，增加多集群运维、可观测诊断、事故响应、AI 辅助、
   受控运维和工程交付能力摘要。
-- 修正 CI 覆盖率门禁的过时表述（60% → 65%），并明确当前 RC 边界、生产条件限制及论文答辩材料入口。
+- 修正 CI 覆盖率门禁的过时表述（60% → 65%），并明确当前 RC 边界与生产条件限制。
 - 将历史安全脱敏说明和 M1-M32 早期路线下移，减少首屏维护信息对项目能力的干扰。
 - See [change record](docs/changes/2026-08-14-public-readme-baseline.md)。
 
@@ -2715,7 +2711,7 @@ and ADR 0050.
 - Bounded RBAC read-only inventory exposing Role, ClusterRole, RoleBinding
   and ClusterRoleBinding projections.
 - Documentation refresh: README, `docs/architecture/overview.md`,
-  `docs/development-handoff.md`, `docs/thesis/test-matrix.md`.
+  `docs/development-handoff.md`, `docs/testing/test-matrix.md`.
 
 See `docs/changes/2026-07-31-m34-route-descriptor-and-rbac-inventory.md`
 and ADR 0049.

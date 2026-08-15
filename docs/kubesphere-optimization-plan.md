@@ -43,7 +43,7 @@ AIOps 与受控运维平台”，而不是通用 PaaS、应用商店或 DevOps �
 
 - `docs/changes/2026-07-31-final-baseline-archive.md`；
 - `docs/changes/2026-07-30-m32-formal-closure.md`；
-- `docs/thesis/test-matrix.md`；
+- `docs/testing/test-matrix.md`；
 - `.artifacts/verification/verify-20260731-015255.json`；
 - M27-M31 一次性 kind/Velero/MinIO 验收证据。
 
@@ -202,7 +202,7 @@ ADR 0039 承诺 Role、ClusterRole、RoleBinding 和 ClusterRoleBinding 固定�
 ### 4.3 Documentation truth debt
 
 README 仍写 17 类资源和早期四种操作，架构/API 文档仍称 Deployment rollback 未实现，
-旧计划仍指示 Agent 从 M27 开始，论文截图仍绑定 `uncommitted-baseline`。M34 必须把
+旧计划仍指示 Agent 从 M27 开始，截图仍绑定 `uncommitted-baseline`。M34 必须把
 源码、OpenAPI、架构图、状态页、计划和截图重新绑定到真实 revision。
 
 ### 4.4 Remote verification debt

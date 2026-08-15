@@ -89,7 +89,7 @@ deployment contract tests:
 - **Verifiable releases.** Release artifacts ship with `SHA256SUMS` and are
   signed and verified with `--verify-tag`. See ADR 0028.
 - **License allowlist.** Production dependencies must appear on the
-  allowlist in `docs/thesis/dependency-licenses.md`; new licenses require an
+  allowlist in `docs/supply-chain/dependency-licenses.md`; new licenses require an
   ADR update before they can be merged.
 
 ## Credential handling

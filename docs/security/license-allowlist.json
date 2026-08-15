@@ -16,5 +16,5 @@
     "UNKNOWN",
     "SEE-LICENSE"
   ],
-  "reviewPolicy": "Licenses in reviewRequiredLicenses block the CI gate until a maintainer records an ADR-driven exception. The fast gate runs the license allowlist contract test against docs/thesis/dependency-licenses.md and docs/security/license-allowlist.json."
+  "reviewPolicy": "Licenses in reviewRequiredLicenses block the CI gate until a maintainer records an ADR-driven exception. The fast gate runs the license allowlist contract test against docs/supply-chain/dependency-licenses.md and docs/security/license-allowlist.json."
 }

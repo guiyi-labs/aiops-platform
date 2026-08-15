@@ -1,15 +1,15 @@
 # Change Record: M5 delivery packaging
 
 - Date: 2026-07-26
-- Scope: One-command verification, real kind E2E, thesis assets and delivery archive
+- Scope: One-command verification, real kind E2E, architecture assets and delivery archive
 - Result: Passed
 
 ## Delivered
 
 - Added `scripts/verify.ps1` for backend vet/test/build, frontend typecheck/test/build, Compose build/runtime health, three Kustomize render gates and backend/frontend/proxy HTTP checks.
 - Added `scripts/e2e-kind.ps1` for repeatable real-cluster validation with an in-memory one-hour ServiceAccount kubeconfig, three deterministic diagnoses, confirmed/idempotent rollout restart, RBAC denial checks and guaranteed platform-cluster cleanup.
-- Added `scripts/generate-license-report.ps1`; it inventories modules reachable from the Go server binary and the pnpm production dependency graph, then regenerates `docs/thesis/dependency-licenses.md`.
-- Added thesis architecture/use-case/ER/sequence diagrams, test matrix, environment record, 10-minute defense script and reference attribution under `docs/thesis`.
+- Added `scripts/generate-license-report.ps1`; it inventories modules reachable from the Go server binary and the pnpm production dependency graph, then regenerates `docs/supply-chain/dependency-licenses.md`.
+- Added architecture/use-case/ER/sequence diagrams, test matrix and environment record (detailed materials retained locally).
 - Added a deployment contract test that keeps all required delivery assets in the normal Go suite.
 - Ignored `.artifacts/`, which stores only machine-readable, sanitized local evidence.
 

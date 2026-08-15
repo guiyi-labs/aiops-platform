@@ -63,7 +63,7 @@ func TestDependencyLicenseInventoryStaysWithinAllowlist(t *testing.T) {
 		allowed[name] = true
 	}
 
-	inventoryPath := filepath.Join(root, "docs", "thesis", "dependency-licenses.md")
+	inventoryPath := filepath.Join(root, "docs", "supply-chain", "dependency-licenses.md")
 	contents, err := os.ReadFile(inventoryPath)
 	if err != nil {
 		t.Fatalf("read dependency license inventory: %v", err)

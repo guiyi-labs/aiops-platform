@@ -60,7 +60,7 @@
 | P1 | M29 Namespace governance and capacity posture | After M28 | Deterministic real-kind posture acceptance |
 | P1 | M30 controlled Node maintenance | After M29 | Two-worker kind, PDB and eviction acceptance |
 | P1 | M31 isolated workload restore rehearsal | After M30 and accepted M28 | Real Velero quarantine-restore acceptance |
-| P2 | M32 formal closure and thesis/demo refresh | Last | Reviewed revision, final gates and explicit external-gate disposition |
+| P2 | M32 formal closure and demo refresh | Last | Reviewed revision, final gates and explicit external-gate disposition |
 
 The next Agent should start M27 unless the user explicitly supplies the M26 external decisions or
 explicitly changes priority. M27-M31 are independently reviewed milestones and must not be collapsed into one

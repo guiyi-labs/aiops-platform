@@ -1,7 +1,7 @@
 /**
  * Capture UI baselines for the K8s AIOps console.
  *
- * Uses headless Chrome over CDP (same technique as capture-thesis-screenshots).
+ * Uses headless Chrome over CDP (same technique as the platform screenshot scripts).
  * Captures each view at the configured viewports with `prefers-reduced-motion:
  * reduce` emulated so page rendering is deterministic (CSS animations reset and
  * the ParticleNetwork canvas freezes), then stores the PNG plus a manifest entry

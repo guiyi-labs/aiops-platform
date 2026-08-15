@@ -133,7 +133,7 @@ documented in OpenAPI.
 #### Modified files
 
 - `docs/roadmap.md`: added M40 status section.
-- `docs/thesis/test-matrix.md`: added M40 addendum.
+- `docs/testing/test-matrix.md`: added M40 addendum.
 - `docs/development-handoff.md`: updated baseline to M40, added M40 highlights
   and closure summary row.
 

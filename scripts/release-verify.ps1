@@ -109,7 +109,7 @@ if ($IncludeImages) {
 
 Invoke-Native -FilePath 'git' -Arguments @('-C', $Root, 'archive', '--format=tar.gz', "--output=$OutDir\aiops-platform-source-$Version.tar.gz", $sha)
 Copy-Item (Join-Path $Root 'docs\api\openapi.yaml') (Join-Path $OutDir 'openapi.yaml')
-Copy-Item (Join-Path $Root 'docs\thesis\dependency-licenses.md') (Join-Path $OutDir 'dependency-licenses.md')
+Copy-Item (Join-Path $Root 'docs\supply-chain\dependency-licenses.md') (Join-Path $OutDir 'dependency-licenses.md')
 Copy-Item (Join-Path $Root 'docs\security\license-allowlist.json') (Join-Path $OutDir 'license-allowlist.json')
 Copy-Item (Join-Path $Root 'docs\release-candidate-operations.md') (Join-Path $OutDir 'release-candidate-operations.md')
 

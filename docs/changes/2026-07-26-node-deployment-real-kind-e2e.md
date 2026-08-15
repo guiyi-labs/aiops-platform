@@ -9,7 +9,7 @@
 
 补齐 M8 两条新规则的真实 Kubernetes API 验证，确认 Node Condition 与
 Deployment status 能经由短期只读凭据进入平台、命中规则并持久化为可追溯证据。
-本阶段不修改 `deploy/demo-scenarios`、`scripts/e2e-kind.ps1` 或答辩环境的
+本阶段不修改 `deploy/demo-scenarios`、`scripts/e2e-kind.ps1` 或演示环境的
 准备/清理脚本。
 
 ## 实现
@@ -19,7 +19,7 @@ Deployment status 能经由短期只读凭据进入平台、命中规则并持�
      `Ready=False / SyntheticKubeletUnavailable`；
    - `stalled-deployment` 固定期望 2 个副本，并使用不会匹配任何 Node 的
      `nodeSelector`，由真实 Deployment controller 形成 `2/0/0/2` 状态；
-   - 夹具与 `aiops-demo` Namespace 和答辩三场景完全隔离。
+   - 夹具与 `aiops-demo` Namespace 和演示三场景完全隔离。
 2. 新增 `scripts/e2e-diagnosis-kind.ps1`：
    - 使用仓库内 `kind v0.30.0` 创建时间戳命名的一次性集群；
    - 只应用 `deploy/managed-cluster/observer.yaml`，不应用处置 Role；
@@ -69,7 +69,7 @@ Deployment status 能经由短期只读凭据进入平台、命中规则并持�
 
 ## 边界
 
-- 合成 Node 仅用于独立 E2E，不进入答辩演示数据，也不污染真实控制平面 Node。
+- 合成 Node 仅用于独立 E2E，不进入演示演示数据，也不污染真实控制平面 Node。
 - 目标集群凭据严格只读；平台没有通过该凭据执行 Node 或 Deployment 写入。
 - 本阶段没有增加任意 YAML、任意 Patch、Pod Exec、WebShell 或新的处置动作。
-- 答辩三条稳定诊断场景及其准备/清理契约未修改。
+- 演示三条稳定诊断场景及其准备/清理契约未修改。

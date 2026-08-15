@@ -9,7 +9,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $Root = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $Root 'docs\thesis\dependency-licenses.md'
+    $OutputPath = Join-Path $Root 'docs\supply-chain\dependency-licenses.md'
 }
 
 function Invoke-NativeText {

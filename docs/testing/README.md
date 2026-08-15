@@ -456,13 +456,13 @@ fixtures are intentionally excluded from the retained defense demo.
   authenticated API because the state is a platform preference and does not
   require a second target cluster. Test-created filters must be removed after
   the run; observer credentials remain short-lived.
-- `scripts/generate-license-report.ps1` refreshes the thesis dependency-license
+- `scripts/generate-license-report.ps1` refreshes the supply-chain dependency-license
   inventory after module or package changes.
 - `scripts/demo-up.ps1` retains a successful real E2E as populated defense data;
   `scripts/demo-down.ps1` removes only the namespaced demo lifecycle and
   `demo-kind-*` platform records.
-- `scripts/capture-thesis-screenshots.ps1` uses the installed Edge/Chrome CDP
+- `scripts/capture-ui-baselines.mjs` uses the installed Edge/Chrome CDP
   endpoint to capture authenticated pages without installing browser packages.
 - The current M5 result is archived in
-  `docs/changes/2026-07-26-delivery-packaging.md`; thesis-facing coverage is in
-  `docs/thesis/test-matrix.md`.
+  `docs/changes/2026-07-26-delivery-packaging.md`; relevant coverage is in
+  `docs/testing/test-matrix.md`.

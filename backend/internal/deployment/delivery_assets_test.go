@@ -279,22 +279,12 @@ func TestDeliveryAssetsCoverVerificationAndThesisMaterials(t *testing.T) {
 		"scripts/demo-down.ps1": {
 			"/api/v1/clusters", "demo-kind-", "CleanupDemoResources",
 		},
-		"scripts/capture-thesis-screenshots.ps1": {
-			"capture-thesis-screenshots.mjs", "AIOPS_ADMIN_PASSWORD", "docs\\thesis\\screenshots",
+		"docs/supply-chain/dependency-licenses.md": {
+			"Go production dependencies", "Frontend production dependencies",
 		},
-		"scripts/capture-thesis-screenshots.mjs": {
-			"Page.captureScreenshot", "Runtime.evaluate", "msedge.exe",
+		"docs/screenshots/README.md": {
+			"Dashboard", "Clusters", "Diagnoses",
 		},
-		"docs/thesis/system-diagrams.md": {
-			"```mermaid", "flowchart", "erDiagram", "sequenceDiagram",
-		},
-		"docs/thesis/test-matrix.md":         {"Backend", "Frontend", "Real kind"},
-		"docs/thesis/environment.md":         {"Docker Desktop", "Kubernetes", "PostgreSQL"},
-		"docs/thesis/defense-demo-script.md": {"10", "ImagePullBackOff", "CrashLoopBackOff"},
-		"docs/thesis/dependency-licenses.md": {"Go production dependencies", "Frontend production dependencies"},
-		"docs/thesis/references.md":          {"KubeSphere", "KRM", "Ratel"},
-		"docs/thesis/demo-environment.md":    {"Preparation", "Cleanup", "short-lived credential"},
-		"docs/thesis/screenshots/README.md":  {"Dashboard", "Clusters", "Diagnoses"},
 		"deploy/helm/aiops-platform/Chart.yaml": {
 			"apiVersion: v2", "name: aiops-platform", "type: application",
 			"version:", "appVersion:",

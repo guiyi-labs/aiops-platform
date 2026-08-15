@@ -79,4 +79,4 @@ healthy、Kustomize 16/5/10/3 与运行态 HTTP 检查全部通过。证据为
 - 接入 Metrics API 或 Prometheus 后提供真实 CPU、内存与历史趋势。
 - 评估 Secret 仅元数据/键名合同；在完成威胁分析前不进入实现。
 - 拓扑增加 Ingress -> Service -> EndpointSlice -> Pod 关系。
-- 初始 Git 基线确认后重采集绑定 revision 的答辩截图与发布标签。
+- 初始 Git 基线确认后重采集绑定 revision 的演示截图与发布标签。

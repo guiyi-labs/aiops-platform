@@ -76,5 +76,5 @@ Namespace、首次/最后时间、累计次数、kubelet 和上报实例。凭�
 - Event 数据继续实时读取 Kubernetes API，不进行全量持久化。
 - 本阶段没有新增 watch、任意 YAML、任意 Patch、Pod Exec 或 WebShell。
 - 通知投递 Outbox 的数据库、Worker、重试和审计合同均未改变。
-- 保留的答辩集群、三条诊断记录和一条处置记录不因本阶段清理。
+- 保留的演示集群、三条诊断记录和一条处置记录不因本阶段清理。
 - 初始 Git commit 仍需人工确认作者身份和提交范围。

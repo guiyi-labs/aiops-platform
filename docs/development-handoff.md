@@ -1654,9 +1654,9 @@ v1.34.0 matched all three rule IDs, executed and idempotently replayed the
 allowlisted rollout restart, confirmed the expected RBAC yes/yes/no/no matrix,
 and left zero platform cluster/diagnosis/remediation QA rows.
 
-Thesis diagrams, test matrix, environment record, dependency-license report,
-reference attribution and the 10-minute defense script are indexed by
-`docs/thesis/README.md`. Exact results and compatibility fixes are archived in
+Architecture diagrams, test matrix, environment record, dependency-license report
+and reference attribution are indexed by
+`docs/README.md`. Exact results and compatibility fixes are archived in
 `docs/changes/2026-07-26-delivery-packaging.md`.
 
 ## Latest Defense Demo Readiness
@@ -1668,10 +1668,10 @@ tolerant of normal Kubernetes state transitions. The current retained cluster
 is `demo-kind-20260726-170601`, Ready on Kubernetes v1.34.0 with three diagnosis
 records and one succeeded/idempotently replayed remediation.
 
-`scripts/capture-thesis-screenshots.ps1` uses installed Edge/Chrome through the
+`scripts/capture-ui-baselines.mjs` uses installed Edge/Chrome through the
 standard DevTools Protocol and needs no npm/browser installation. Four 1440x1000
 authenticated screenshots were captured and visually checked under
-`docs/thesis/screenshots`. The ignored browser profile is removed after every
+`docs/screenshots`. The ignored browser profile is removed after every
 run. See `docs/changes/2026-07-26-defense-demo-readiness.md`.
 
 The final regression passed at 17:16:02 and the default ephemeral E2E passed

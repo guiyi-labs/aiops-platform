@@ -23,7 +23,7 @@ M100 验收要求“安全扫描结果可追溯到 release manifest；例外有�
 - `docs/security/image-base-manifest.md` + `scripts/image-base-drift.sh`：锁定 4 个基础镜像（backend `golang:1.26-alpine`/`alpine:3.22`，frontend `node:22.13.1-alpine3.21`/`nginx:1.27-alpine`）的 manifest digest；本地 docker 或 registry 重解析比对，漂移 fail-closed。
 - `scripts/sbom-diff.mjs` + `scripts/testdata/sbom/`：syft SPDX JSON 差异（added/removed/changed），默认 `--added-threshold 0` fail-closed；fixture 验证检出新增包与版本变更。
 - `.github/workflows/ci.yml`：新增 `dependency-scan` job（govulncheck + pnpm audit + 许可证 + 基础镜像漂移 + SBOM diff 自测）。
-- `docs/thesis/dependency-licenses.md`：随依赖升级同步版本（pgx v5.9.2、nanoid 3.3.17）。
+- `docs/supply-chain/dependency-licenses.md`：随依赖升级同步版本（pgx v5.9.2、nanoid 3.3.17）。
 
 ## Verification
 

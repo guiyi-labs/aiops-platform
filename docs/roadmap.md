@@ -1185,7 +1185,7 @@ criteria are authoritative in `docs/references/final-product-gap-analysis.md`.
    Backup into a server-generated quarantine Namespace with PV, overwrite,
    cross-cluster and cutover paths disabled. Prove the workflow against a real
    Velero controller and disposable object store.
-8. **M32 — Formal closure and thesis/demo refresh (P2).** Bind final gates,
+8. **M32 — Formal closure and demo refresh (P2).** Bind final gates,
    release metadata, architecture/test matrices and sanitized screenshots to one
    reviewed revision. Record every M26 organization gate as completed, deferred
    with a re-entry condition, or not applicable; do not claim production

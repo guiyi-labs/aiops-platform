@@ -19,13 +19,13 @@ remained relative to a defensible, reproducible delivery:
 2. **Helm chart.** Operators deployed the platform by applying
    `deploy/kubernetes` with `kubectl kustomize`. There was no parameterized,
    versioned chart, so per-environment customization required forked manifests
-   or ad-hoc `kustomize edit` overlays. This is acceptable for a thesis demo
+   or ad-hoc `kustomize edit` overlays. This is acceptable for a demo
    but not for a multi-environment product.
 
 3. **Supply chain.** Releases produced `docker save` tarballs for
    `linux/amd64` only, with no SBOM, no license allowlist enforcement at gate
    time, and no signed attestation. The license inventory in
-   `docs/thesis/dependency-licenses.md` was descriptive, not enforced.
+   `docs/supply-chain/dependency-licenses.md` was descriptive, not enforced.
 
 `docs/kubesphere-optimization-plan.md` records these gaps under "Engineering
 and delivery hardening" and the M38 milestone.
@@ -113,7 +113,7 @@ Two contract tests enforce it:
 - `TestLicenseAllowlistRejectsReciprocalLicenses` — the allowlist itself
   must not include reciprocal or unknown licenses
 - `TestDependencyLicenseInventoryStaysWithinAllowlist` — every entry in
-  `docs/thesis/dependency-licenses.md` must use a license from the allowlist
+  `docs/supply-chain/dependency-licenses.md` must use a license from the allowlist
 
 Adding a new license requires an ADR update; the contract test fails
 otherwise.
@@ -136,7 +136,7 @@ enforced as delivery assets in `delivery_assets_test.go`.
 - Operators can deploy the platform with `helm install` and override values
   per environment without forked manifests.
 - Releases are reproducible, multi-architecture, and ship SPDX SBOMs, meeting
-  the SLSA-build-level expectations for a thesis-defensible supply chain.
+  the SLSA-build-level expectations for a defensible supply chain.
 - The license allowlist turns the descriptive inventory into an enforceable
   gate; reciprocal licenses cannot enter production silently.
 

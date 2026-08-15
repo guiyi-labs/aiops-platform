@@ -89,7 +89,7 @@ this development deliverable.
 ### Modified files
 
 - `docs/roadmap.md`: M45 status section added.
-- `docs/thesis/test-matrix.md`: M45 addendum with 9 test counts.
+- `docs/testing/test-matrix.md`: M45 addendum with 9 test counts.
 - `docs/development-handoff.md`: updated to M45 baseline.
 - `CHANGELOG.md`: M45 entry.
 

@@ -136,7 +136,7 @@ jobs:
             --output=".artifacts/release/aiops-platform-source-$VERSION.tar.gz" \
             "$GITHUB_SHA"
           cp docs/api/openapi.yaml .artifacts/release/openapi.yaml
-          cp docs/thesis/dependency-licenses.md .artifacts/release/dependency-licenses.md
+          cp docs/supply-chain/dependency-licenses.md .artifacts/release/dependency-licenses.md
           cp docs/security/license-allowlist.json .artifacts/release/license-allowlist.json
           cp docs/release-candidate-operations.md .artifacts/release/release-candidate-operations.md
           offline_name="aiops-platform-offline-$VERSION"

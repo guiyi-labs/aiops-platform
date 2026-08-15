@@ -7,7 +7,7 @@
 
 > 面向中小规模 Kubernetes 环境的多集群可观测、故障诊断与受控运维平台。
 
-![AIOps Dashboard](docs/thesis/screenshots/01-dashboard.png)
+![AIOps Dashboard](docs/screenshots/01-dashboard.png)
 
 ## 项目简介
 
@@ -30,7 +30,7 @@
 | 受控运维 | dry-run、人工确认、幂等执行、结果校验、审计；AI 不直接执行集群变更 |
 | 工程交付 | M115 后端逐包平均覆盖率 ~74%（全局门禁 ≥65%，核心包 ≥70%）；所有测试全绿（mock/单测）。完整变更历史见 CHANGELOG.md。 |
 
-M115 工程质量冲刺已完成并推送（`baseline-m115-20260815`，HEAD `d338989`）。完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，阶段记录见 [`docs/changes/`](docs/changes/)，当前执行路线见 [`docs/development-roadmap-post-m110.md`](docs/development-roadmap-post-m110.md)，论文与答辩材料见 [`docs/thesis/README.md`](docs/thesis/README.md)。
+M115 工程质量冲刺已完成并推送（`baseline-m115-20260815`，HEAD `d338989`）。完整变更历史见 [`CHANGELOG.md`](CHANGELOG.md)，阶段记录见 [`docs/changes/`](docs/changes/)，当前执行路线见 [`docs/development-roadmap-post-m110.md`](docs/development-roadmap-post-m110.md)。
 
 > **项目边界**：当前仓库保持 RC 口径。生产 OIDC/MFA、真实组织环境的 HA / PITR、发布授权与远端
 > 基础设施演练仍需外部条件，不在本地基线中宣称已完成。
@@ -145,15 +145,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\e2e-postgres-backu
 # CI, tagged release and self-hosted real-kind runner contract
 # See docs/ci-release.md before enabling remote workflows
 
-# Retain populated defense data and capture authenticated thesis screenshots
+# Retain populated demo data and capture authenticated UI screenshots (docs/screenshots)
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-up.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\capture-thesis-screenshots.ps1
 
 # Remove retained platform data; add -CleanupDemoResources to remove kind fixtures
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-down.ps1
 ```
 
-验收证据写入已忽略的 `.artifacts`。论文与答辩材料索引见 `docs/thesis/README.md`。
+验收证据写入已忽略的 `.artifacts`。
 
 ## Repository Layout
 

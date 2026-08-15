@@ -8,7 +8,7 @@
 - Go 文件和包使用小写英文，文件名使用 snake_case。
 - Vue 组件使用 PascalCase，组合函数使用 `useXxx.ts`，API 模块使用 kebab-case。
 - 一个文件只承担一个清晰职责，禁止使用 `utils`、`common` 作为无边界收纳目录。
-- 生产代码、测试、部署清单和论文材料分开存放。
+- 生产代码、测试、部署清单和文档材料分开存放。
 - 自动生成文件必须标记来源，不手工修改。
 
 ## Backend
@@ -52,7 +52,7 @@ frontend/src/
 - 架构变更先新增或更新 ADR。
 - 每个开发阶段在 `docs/changes/YYYY-MM-DD-<topic>.md` 记录范围、验证和遗留项。
 - API、数据库迁移和演示场景发生变化时同步更新对应文档。
-- 论文引用的截图和实验数据放入 `docs/thesis/`，注明版本和采集日期。
+- 项目截图和实验数据放入 `docs/`，注明版本和采集日期。
 
 ## Migration Naming
 

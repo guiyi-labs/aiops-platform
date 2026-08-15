@@ -26,7 +26,8 @@
 | `security/` | 身份源就绪合同、安全策略模板、接入运行手册与 M102 安全声明（`security-statement.md`） |
 | `authorization-gate-prep.md` | M89/M90 授权轨准备材料：最小授权包、验收范围、本地证据引用与授权后执行顺序 |
 | `testing/` | 测试策略、M102 测试矩阵（`test-matrix.md`）、已知限制（`known-limitations.md`）、兼容范围（`compatibility.md`）与演示场景 |
-| `thesis/` | 论文图表、实验数据和答辩材料 |
+| `supply-chain/` | 生产依赖许可证清单（CI 强制） |
+| `screenshots/` | 平台功能截图与采集基线 |
 
 M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后曾使用的
 `references/final-product-gap-analysis.md` 已完成其 M27-M32 路线决策职责，现作为历史分析保留。
@@ -142,7 +143,7 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 - `docs/changes/2026-07-27-bounded-global-resource-search.md`：M20 固定 Pod/Deployment/Service/Ingress 全局名称搜索与工作台深链。
 - `docs/changes/2026-07-27-user-owned-global-search-filters.md`：M20 当前用户私有搜索条件的保存、应用、维护与兼容迁移边界。
 - `docs/changes/2026-07-27-two-cluster-global-search-e2e.md`：M20 双独立 kind 集群固定资源搜索、故障隔离、恢复与清理验收。
-- `docs/thesis/README.md`：论文图表、测试矩阵、环境、许可证和答辩脚本索引。
+- `docs/screenshots/README.md`：平台截图与采集基线。
 - `scripts/verify.ps1`：一键质量门禁。
 - `scripts/e2e-kind.ps1`：真实 kind 端到端验收。
 - `scripts/e2e-diagnosis-kind.ps1`：一次性真实 kind Node/Deployment 只读诊断验收。

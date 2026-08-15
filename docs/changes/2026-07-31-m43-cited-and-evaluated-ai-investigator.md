@@ -192,7 +192,7 @@ No public API contract was broken beyond the four new
 #### Modified files
 
 - `docs/roadmap.md`: M43 status section added.
-- `docs/thesis/test-matrix.md`: M43 addendum with 47 test counts.
+- `docs/testing/test-matrix.md`: M43 addendum with 47 test counts.
 - `docs/development-handoff.md`: updated to M43 baseline.
 - `CHANGELOG.md`: M43 entry.
 

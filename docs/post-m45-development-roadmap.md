@@ -497,7 +497,7 @@ flowchart TB
 - ADR 开头
 - `docs/changes/` 变更记录
 - `docs/roadmap.md` 状态更新
-- `docs/thesis/test-matrix.md` 附录更新
+- `docs/testing/test-matrix.md` 附录更新
 - `docs/development-handoff.md` baseline 更新
 - `CHANGELOG.md` 条目
 

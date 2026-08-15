@@ -272,7 +272,7 @@ routes documented in OpenAPI.
 #### Modified files
 
 - `docs/roadmap.md`: M44 status section added.
-- `docs/thesis/test-matrix.md`: M44 addendum with 66 test counts.
+- `docs/testing/test-matrix.md`: M44 addendum with 66 test counts.
 - `docs/development-handoff.md`: updated to M44 baseline.
 - `CHANGELOG.md`: M44 entry.
 

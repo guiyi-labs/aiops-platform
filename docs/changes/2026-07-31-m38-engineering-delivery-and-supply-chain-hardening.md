@@ -154,7 +154,7 @@ remains the supported non-Helm path.
   tests. `TestLicenseAllowlistRejectsReciprocalLicenses` ensures the
   allowlist itself does not admit reciprocal licenses.
   `TestDependencyLicenseInventoryStaysWithinAllowlist` parses
-  `docs/thesis/dependency-licenses.md` and fails if any row uses a license
+  `docs/supply-chain/dependency-licenses.md` and fails if any row uses a license
   not on the allowlist.
 
 #### Modified files (documentation)

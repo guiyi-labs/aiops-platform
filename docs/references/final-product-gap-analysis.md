@@ -127,7 +127,7 @@ the source. It proves only that approved namespaced resources can be reconstruct
 
 Bind code, evidence and presentation material to one reviewed revision. Run the final security/quality audit,
 hosted CI and authorized runner/release gates; verify the release package and checksums; refresh README, architecture,
-test matrix, thesis/demo text and sanitized desktop/mobile screenshots; record every external gate as completed or
+test matrix, demo text and sanitized desktop/mobile screenshots; record every external gate as completed or
 formally deferred.
 
 M32 is not permission to change repository settings, register a runner, push a tag, publish an image or create a
@@ -188,7 +188,7 @@ The project reaches **development complete** only when all of the following are 
 4. Security review finds no generic write proxy, credential exposure, unrestricted execution or unbounded background/fan-out path.
 5. Desktop and mobile workflows pass browser verification without overlap or unexpected console errors.
 6. Every disposable cluster, object store, registration, image and temporary credential is cleaned; evidence is sanitized.
-7. README, architecture, roadmap, handoff, test matrix, change records and thesis/demo material describe the same exact revision.
+7. README, architecture, roadmap, handoff, test matrix, change records and demo material describe the same exact revision.
 8. One release candidate has green hosted CI; package hashes verify independently. Tag/release publication occurs only if authorized.
 9. Every M26 external item is marked `completed`, `deferred with owner/reason/re-entry gate`, or `not applicable`; none is implied complete.
 10. A final reviewer confirms that no accepted requirement is left only as prose without implementation and evidence.

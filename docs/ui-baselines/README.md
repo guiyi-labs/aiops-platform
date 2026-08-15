@@ -2,7 +2,7 @@
 
 登录页（及后续视图）的**确定性像素级截图基线**与验证机制，用于前端视觉回归
 （Track A · 关键页面截图基线）。机制复用本仓库既有的 CDP 截图思路
-（见 `scripts/capture-thesis-screenshots.mjs`），但以"可重复像素对比"为目标。
+（见 `scripts/capture-ui-baselines.mjs`），但以"可重复像素对比"为目标。
 
 ## 目录结构
 

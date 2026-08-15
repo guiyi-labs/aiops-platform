@@ -1,7 +1,7 @@
 # Change Record: Defense demo readiness
 
 - Date: 2026-07-26
-- Scope: Retained real-cluster demo data, deterministic cleanup and thesis screenshots
+- Scope: Retained real-cluster demo data, deterministic cleanup and demo screenshots
 - Result: Passed
 
 ## Delivered
@@ -11,8 +11,8 @@
 - Extended `scripts/e2e-kind.ps1` with `KeepPlatformCluster`. The default remains ephemeral and cleanup-first; retained mode keeps the platform cluster only after the entire E2E succeeds. A failed retained run still deletes its cluster in `finally`.
 - Added cold-start-safe Pod state polling. Kubernetes Pods may briefly expose running or terminated state before the expected waiting reason exists; strict PowerShell property access no longer aborts during that transition.
 - Added dependency-free screenshot capture using system Edge/Chrome and standard Chrome DevTools Protocol. No Playwright package or browser download is required.
-- Added four thesis screenshots plus capture metadata under `docs/thesis/screenshots`.
-- Added `docs/thesis/demo-environment.md` and updated the 10-minute defense script.
+- Added four demo screenshots plus capture metadata under `docs/screenshots`.
+- Added `docs/testing/test-matrix.md` and updated the 10-minute defense script.
 
 ## Full cleanup validation
 
@@ -41,7 +41,7 @@ The retained ServiceAccount credential expires after one hour. `demo-up` must be
 
 ## Screenshot validation
 
-`scripts/capture-thesis-screenshots.ps1` logged in through the real frontend, captured a 1440x1000 viewport and destroyed its temporary browser profile afterward.
+`scripts/capture-ui-baselines.mjs` logged in through the real frontend, captured a 1440x1000 viewport and destroyed its temporary browser profile afterward.
 
 - `01-dashboard.png`: one registered cluster, three diagnoses and recent real activity.
 - `02-clusters.png`: retained kind cluster Ready on Kubernetes v1.34.0.

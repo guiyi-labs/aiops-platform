@@ -79,4 +79,4 @@ Vitest 文件/44 个用例、生产构建、Compose 三服务 healthy、Kustomiz
 
 - 接入 Metrics API 或 Prometheus 后增加真实 CPU、内存与趋势。
 - 在独立威胁分析后评估 Secret 仅元数据/键名合同，禁止返回 data。
-- 人工确认作者身份和范围后创建初始 Git 基线，再重采集绑定 revision 的答辩截图。
+- 人工确认作者身份和范围后创建初始 Git 基线，再重采集绑定 revision 的演示截图。

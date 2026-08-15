@@ -922,3 +922,95 @@ func TestFindChartEntry(t *testing.T) {
 		t.Fatalf("expected ErrChartNotFound, got %v", err)
 	}
 }
+
+// --- M115-1q: Get/List repos, GetPlan, validRepoURL, extractCredentials ---
+
+func TestGetRepository_SuccessAndNotFound(t *testing.T) {
+	svc, _, store, _ := newTestService(t)
+	repo, err := svc.CreateRepository(context.Background(), CreateRepositoryRequest{
+		Name: "helm-1", URL: "https://charts.example.com",
+	}, ActorRef{ID: 1, Name: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.GetRepository(context.Background(), repo.ID)
+	if err != nil || got.ID != repo.ID {
+		t.Fatalf("get = %+v, err = %v", got, err)
+	}
+	if _, err := svc.GetRepository(context.Background(), 999); err != ErrRepoNotFound {
+		t.Fatalf("missing repo err = %v", err)
+	}
+	_ = store
+}
+
+func TestListRepositories_Success(t *testing.T) {
+	svc, _, _, _ := newTestService(t)
+	if _, err := svc.CreateRepository(context.Background(), CreateRepositoryRequest{
+		Name: "r1", URL: "https://a.example.com",
+	}, ActorRef{ID: 1, Name: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.CreateRepository(context.Background(), CreateRepositoryRequest{
+		Name: "r2", URL: "https://b.example.com",
+	}, ActorRef{ID: 1, Name: "alice"}); err != nil {
+		t.Fatal(err)
+	}
+	repos, err := svc.ListRepositories(context.Background())
+	if err != nil || len(repos) != 2 {
+		t.Fatalf("list = %d repos, err = %v", len(repos), err)
+	}
+}
+
+func TestGetPlan_SuccessAndNotFound(t *testing.T) {
+	svc, _, store, index := newTestService(t)
+	_ = index
+	index.body = []byte(validIndexYAML)
+	store.repos[1] = &Repository{ID: 1, Name: "nginx", URL: "https://charts.example.com"}
+	plan, err := svc.Preview(context.Background(), DeployPreviewRequest{
+		RepoID: 1, ChartName: "nginx", ChartVersion: "1.2.3", TargetClusterID: 1, TargetNamespace: "default", ReleaseName: "web",
+	}, ActorRef{ID: 1, Name: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.GetPlan(context.Background(), plan.ID)
+	if err != nil || got.ID != plan.ID {
+		t.Fatalf("get plan = %+v, err = %v", got, err)
+	}
+	if _, err := svc.GetPlan(context.Background(), "missing"); err != ErrPlanNotFound {
+		t.Fatalf("missing plan err = %v", err)
+	}
+	_ = store
+}
+
+func TestValidRepoURLEdges(t *testing.T) {
+	if validRepoURL("https://x.io") != true || validRepoURL("ftp://x.io") || validRepoURL("short") || validRepoURL(strings.Repeat("u", 600)) {
+		t.Fatal("validRepoURL edge wrong")
+	}
+}
+
+func TestExtractCredentialsBranches(t *testing.T) {
+	if u, p := extractCredentials(nil); u != "" || p != "" {
+		t.Fatalf("nil creds = %q/%q", u, p)
+	}
+	if u, p := extractCredentials(JSON(`not-json`)); u != "" || p != "" {
+		t.Fatalf("bad json = %q/%q", u, p)
+	}
+	if u, p := extractCredentials(JSON(`{"username":"u","password":"p"}`)); u != "u" || p != "p" {
+		t.Fatalf("auth = %q/%q", u, p)
+	}
+}
+
+func TestNewServiceProductConstructors(t *testing.T) {
+	svc := NewService(newFakeKubernetes(), newFakeDataStore())
+	if svc == nil {
+		t.Fatal("nil svc")
+	}
+	ts := NewTestService(newFakeKubernetes(), newFakeDataStore(), &fakeChartIndexSource{})
+	if ts == nil {
+		t.Fatal("nil test svc")
+	}
+	src := NewHTTPIndexSource()
+	if src == nil {
+		t.Fatal("nil index source")
+	}
+}

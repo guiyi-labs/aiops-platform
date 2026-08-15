@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1q appcatalog Get/List repo、GetPlan、validRepoURL、extractCredentials、构造器（4 个 0% 函数清零）
+
+- 扩展 `internal/appcatalog/service_test.go`：GetRepository/ListRepositories/GetPlan（含 not-found）、validRepoURL 边界、extractCredentials 三分支、NewService/NewTestService/NewHTTPIndexSource 构造器。
+- See [change record](docs/changes/2026-08-14-m115-1q-appcatalog-crud-queries.md)。
+
 ### Added - M115-1p copyops Execute 校验 + failPlan 错误分支（validation/NSIdentity/destNsExists/createRes）
 
 - 扩展 `internal/copyops/service_test.go`：ExecuteValidationBranches（短 planID/空 token/空 idempotency）、ClaimNotFound、NSIdentityError（first-call 模式）、DestNamespaceDeleted、CreateResourceError（dryRun 成功/real 失败）。

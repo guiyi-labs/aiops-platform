@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: controlled-operation-operator
+  labels:
+    app.kubernetes.io/part-of: k8s-aiops
+    app.kubernetes.io/component: operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: controlled-operation-operator
+  labels:
+    app.kubernetes.io/part-of: k8s-aiops
+    app.kubernetes.io/component: operator
+rules:
+  # The CRD itself: read + status update.
+  - apiGroups: ["aiops.platform"]
+    resources: ["controlledoperations", "controlledoperations/status", "controlledoperations/finalizers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  # Targets of the fixed controlled-operation directory:
+  # deployment.rollout_restart / deployment.scale patch Deployments;
+  # cronjob.suspend patches CronJobs. Patching is the only target verb.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: controlled-operation-operator
+  labels:
+    app.kubernetes.io/part-of: k8s-aiops
+    app.kubernetes.io/component: operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: controlled-operation-operator
+subjects:
+  - kind: ServiceAccount
+    name: controlled-operation-operator
+    namespace: aiops-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controlled-operation-operator
+  labels:
+    app.kubernetes.io/part-of: k8s-aiops
+    app.kubernetes.io/component: operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: operator
+    spec:
+      serviceAccountName: controlled-operation-operator
+      containers:
+        - name: operator
+          image: k8s-aiops/controlled-operation-operator:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - --workers=1
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

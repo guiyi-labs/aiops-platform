@@ -1,0 +1,115 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: controlledoperations.aiops.platform
+spec:
+  group: aiops.platform
+  names:
+    kind: ControlledOperation
+    listKind: ControlledOperationList
+    plural: controlledoperations
+    singular: controlledoperation
+    shortNames:
+      - cop
+      - cops
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Action
+          type: string
+          jsonPath: .spec.action
+        - name: Target
+          type: string
+          jsonPath: .spec.targetKind
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >-
+            ControlledOperation declares a controlled operation (from the
+            platform's fixed operation directory) that the operator carries
+            out idempotently. Actions are limited to a small, auditable set.
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - action
+                - targetKind
+                - targetNamespace
+                - targetName
+              properties:
+                action:
+                  type: string
+                  description: >-
+                    One of deployment.rollout_restart, deployment.scale or
+                    cronjob.suspend.
+                  enum:
+                    - deployment.rollout_restart
+                    - deployment.scale
+                    - cronjob.suspend
+                targetKind:
+                  type: string
+                  description: Resource kind of the target (Deployment or CronJob).
+                  enum:
+                    - Deployment
+                    - CronJob
+                targetNamespace:
+                  type: string
+                  description: Namespace of the target resource.
+                  minLength: 1
+                targetName:
+                  type: string
+                  description: Name of the target resource.
+                  minLength: 1
+                desiredReplicas:
+                  type: integer
+                  format: int32
+                  minimum: 0
+                  description: Required for deployment.scale.
+                dryRun:
+                  type: boolean
+                  description: >-
+                    Defaults to true. When true the controller carries out the
+                    operation with the Kubernetes dryRun=All query parameter
+                    and records Succeeded without mutating the cluster.
+                idempotencyKey:
+                  type: string
+                  description: >-
+                    Optional key; an operation with a consumed key is not
+                    re-executed.
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Reconciling
+                    - Succeeded
+                    - Failed
+                attempts:
+                  type: integer
+                  format: int32
+                observedGeneration:
+                  type: integer
+                  format: int64
+                lastMessage:
+                  type: string
+                appliedID:
+                  type: string

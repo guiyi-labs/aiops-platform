@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - Operator/CRD 增强（Commit 3）：cmd 入口 + deploy 集成
+
+- `backend/cmd/controlled-operation-operator/`：纯 client-go 启动入口（dynamic informer + workqueue worker + kubeconfig 三级降级 + 优雅关闭）。
+- `deploy/kubernetes/`：Operator 部署清单（ServiceAccount + RBAC 最小权限 + Deployment，已纳入 kustomization.yaml）。
+- `deploy/kubernetes/crds/` + `deploy/helm/aiops-platform/crds/`：CRD v1 定义（双路径）。
+- Helm：`templates/operator.yaml`（SA + RBAC + Deployment）+ `values.yaml` 新增 `operator:` 段。
+- See [change record](docs/changes/2026-08-15-operator-commit3-deploy.md)。
+
 ### Added - Operator/CRD 增强（Commit 2）：reconcile controller + 单元测试
 
 - `backend/internal/operator/`：`Reconciler` 核心 reconcile（idempotencyKey 幂等、finalizer 清理、

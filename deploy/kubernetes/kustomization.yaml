@@ -10,6 +10,8 @@ resources:
   - frontend.yaml
   - ingress.yaml
   - network-policies.yaml
+  - crds/controlledoperations.aiops.platform.yaml
+  - operator.yaml
 labels:
   - pairs:
       app.kubernetes.io/part-of: k8s-aiops

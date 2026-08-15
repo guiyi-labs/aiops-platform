@@ -20,6 +20,8 @@ M115 基线（`e7daa6f`）为准，全部数字来源于现场实测或既有 dr
   同 Idempotency-Key 重放返回同一计划且 mock 仅 1 次 mutation，跨环境复现；
   4 资源成本：平台三服务合计约 92 MiB 内存），附局限与后续。
 
+- `docs/thesis/README.md`：论文材料索引增加实验摘要链接。
+
 ## Verification
 
 - 幂等性现场复测（2026-08-15）：preview 计划 `fca00e11-…` → execute `succeeded` →

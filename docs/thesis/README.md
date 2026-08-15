@@ -8,6 +8,7 @@
 - [10 分钟答辩演示脚本](defense-demo-script.md)。
 - [答辩演示环境准备与清理](demo-environment.md)。
 - [系统答辩截图与采集说明](screenshots/README.md)。
+- [实验摘要（诊断覆盖 / P95 延迟 / 幂等性 / 资源成本）](experiment-summary.md)。
 - [依赖许可证清单](dependency-licenses.md)，由 `scripts/generate-license-report.ps1` 生成。
 - [参考项目与资料归属说明](references.md)。
 

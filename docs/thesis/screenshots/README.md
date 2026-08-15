@@ -7,9 +7,9 @@ Protocol）登录平台并按路由逐页截取，数据全部来自运行中的
 | 文件 | 页面 | 对应演示链路 |
 |---|---|---|
 | `01-dashboard.png` | Dashboard 集群态势（多集群健康、待处置诊断、资源用量） | 链路一 |
-| `02-clusters.png` | 集群接入（demo-kind-capture Ready + v1.36.0 + Condition 状态） | 链路一 |
+| `02-clusters.png` | Clusters 集群接入（demo-kind-capture Ready + v1.36.0 + Condition 状态） | 链路一 |
 | `03-workloads.png` | 资源工作台（demo 命名空间 Pod/Deployment 等真实只读资源） | 链路一 |
-| `04-diagnoses.png` | 智能诊断（3 条规则诊断：node.not_ready / pod.oom_killed / replicas_unavailable） | 链路一 |
+| `04-diagnoses.png` | Diagnoses 智能诊断（3 条规则诊断：node.not_ready / pod.oom_killed / replicas_unavailable） | 链路一 |
 | `05-incidents.png` | 事故工作空间（由诊断提升的事故、SLA/MTTA/MTTR） | 链路二 |
 | `06-alerts.png` | 告警规则（规则/接收器/抑制路由配置） | 链路二/三 |
 | `07-events.png` | 事件中心（按严重级/原因/资源折叠的趋势与证据深链） | 链路三 |

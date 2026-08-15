@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1j incident assign/batch-assign 处理器分支（assign 0% → 100%）
+
+- 扩展 `internal/httpserver/incidents_test.go`：测试引擎注册 assignment 路由；AssignSuccessAndErrors（400/200/409/404）、AssignInvalidID、BatchAssignTooMany、EvidenceForMissingIncident。
+- See [change record](docs/changes/2026-08-14-m115-1j-incident-assign-handler.md)。
+
 ### Added - M115-1i promotion Get/List 查询面测试（0% 函数清零）
 
 - 扩展 `internal/promotion/service_test.go`：previewForGetTest 建 plan + Get（命中/ErrNotFound）、List（命中/非法 clusterID）。

@@ -188,6 +188,7 @@ func newIncidentTestEngine(t *testing.T, repo *incidentRepoStub) *gin.Engine {
 	api.POST("/incidents", h.create)
 	api.POST("/incidents/batch-assign", h.batchAssign)
 	api.PATCH("/incidents/:incident_id", h.transition)
+	api.POST("/incidents/:incident_id/assignment", h.assign)
 	api.GET("/incidents/:incident_id/postmortem/export", h.exportPostmortem)
 	return r
 }
@@ -1014,5 +1015,80 @@ func TestIncidentExportSuccess(t *testing.T) {
 	w := performIncidentRequest(r, http.MethodGet, "/api/v1/incidents/"+strconv.FormatInt(rec.ID, 10)+"/export", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// --- M115-1j: assign handler + validation branches ---
+
+func TestIncidentHandler_AssignSuccessAndErrors(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	// seed an incident
+	created := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents", `{
+		"source_type":"finding",
+		"source_ref":"finding:7:pod.pending.v1:Pod:default:web-9",
+		"cluster_id":7,
+		"title":"Pod pending",
+		"severity":"warning",
+		"resource":{"kind":"Pod","namespace":"default","name":"web-9"}
+	}`)
+	if created.Code != http.StatusCreated {
+		t.Fatalf("seed create = %d, %s", created.Code, created.Body.String())
+	}
+	// invalid body → 400
+	bad := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/assignment", `{"assignee_user_id":0}`)
+	if bad.Code != http.StatusBadRequest {
+		t.Fatalf("bad assign code = %d, want 400", bad.Code)
+	}
+	// success → 200
+	var seeded incident.Incident
+	if err := json.Unmarshal(created.Body.Bytes(), &seeded); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	ok := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/assignment", fmt.Sprintf(`{"assignee_user_id":42,"expected_version":%d,"comment":"hand over"}`, seeded.Version))
+	if ok.Code != http.StatusOK {
+		t.Fatalf("assign code = %d, want 200; body=%s", ok.Code, ok.Body.String())
+	}
+	// version conflict → 409
+	conflict := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/1/assignment", fmt.Sprintf(`{"assignee_user_id":42,"expected_version":%d,"comment":"stale"}`, seeded.Version))
+	if conflict.Code != http.StatusConflict {
+		t.Fatalf("stale assign code = %d, want 409", conflict.Code)
+	}
+	// not found → 404
+	missing := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/999/assignment", `{"assignee_user_id":42,"expected_version":1,"comment":"x"}`)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing assign code = %d, want 404", missing.Code)
+	}
+}
+
+func TestIncidentHandler_AssignInvalidID(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	rec := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/notanumber/assignment", `{}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad incident id code = %d, want 400", rec.Code)
+	}
+}
+
+func TestIncidentHandler_BatchAssignTooMany(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	var ids []string
+	for i := 1; i <= incident.MaxBatchAssignSize+1; i++ {
+		ids = append(ids, strconv.Itoa(i))
+	}
+	body := `{"incident_ids":[` + strings.Join(ids, ",") + `],"assignee_user_id":42}`
+	rec := performIncidentRequest(engine, http.MethodPost, "/api/v1/incidents/batch-assign", body)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("oversized batch code = %d, want 400", rec.Code)
+	}
+}
+
+func TestIncidentHandler_EvidenceForMissingIncident(t *testing.T) {
+	repo := newIncidentRepoStub()
+	engine := newIncidentTestEngine(t, repo)
+	rec := performIncidentRequest(engine, http.MethodGet, "/api/v1/incidents/999/evidence", "")
+	if rec.Code == http.StatusOK {
+		t.Fatal("expected non-200 for missing incident evidence")
 	}
 }

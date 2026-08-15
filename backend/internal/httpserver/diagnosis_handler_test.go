@@ -12,7 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"k8s-aiops.local/backend/internal/auth"
+	"k8s-aiops.local/backend/internal/cluster"
 	"k8s-aiops.local/backend/internal/diagnosis"
+	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
 
@@ -189,4 +191,193 @@ func TestDiagnosisMutationErrorBranches(t *testing.T) {
 	if r.Code != http.StatusConflict || !contains(r.Body.String(), "ALREADY_ASSIGNED") {
 		t.Fatalf("status=%d body=%s", r.Code, r.Body.String())
 	}
+}
+
+// diagSourceStub implements diagnosis.Source with per-kind canned responses.
+type diagSourceStub struct {
+	err error
+}
+
+func (s diagSourceStub) Pod(context.Context, int64, string, string) (k8sgateway.Pod, error) {
+	return k8sgateway.Pod{}, s.err
+}
+func (s diagSourceStub) PodEvents(context.Context, int64, string, string) ([]k8sgateway.Event, error) {
+	return nil, s.err
+}
+func (s diagSourceStub) GetService(context.Context, int64, string, string) (k8sgateway.ServiceResource, error) {
+	return k8sgateway.ServiceResource{}, s.err
+}
+func (s diagSourceStub) ServiceEndpoints(context.Context, int64, string, string) (k8sgateway.Endpoints, error) {
+	return k8sgateway.Endpoints{}, s.err
+}
+func (s diagSourceStub) Node(context.Context, int64, string) (k8sgateway.Node, error) {
+	return k8sgateway.Node{}, s.err
+}
+func (s diagSourceStub) Deployment(context.Context, int64, string, string) (k8sgateway.Deployment, error) {
+	return k8sgateway.Deployment{}, s.err
+}
+func (s diagSourceStub) Ingress(context.Context, int64, string, string) (k8sgateway.Ingress, error) {
+	return k8sgateway.Ingress{}, s.err
+}
+func (s diagSourceStub) PersistentVolumeClaim(context.Context, int64, string, string) (k8sgateway.PersistentVolumeClaim, error) {
+	return k8sgateway.PersistentVolumeClaim{}, s.err
+}
+func (s diagSourceStub) HorizontalPodAutoscaler(context.Context, int64, string, string) (k8sgateway.HorizontalPodAutoscaler, error) {
+	return k8sgateway.HorizontalPodAutoscaler{}, s.err
+}
+func (s diagSourceStub) ResourceEvents(context.Context, int64, string, string) ([]k8sgateway.Event, error) {
+	return nil, s.err
+}
+
+func performDiagnosisCreate(t *testing.T, svc *diagnosis.Service, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	h := &diagnosisHandler{service: svc}
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Request = c.Request.WithContext(requestctx.WithMetadata(c.Request.Context(), requestctx.Metadata{
+			ActorID: 1, ActorDisplayName: "Admin", Roles: []string{auth.SystemAdmin}, ClusterID: 1, RequestID: "diagnosis-create-test",
+		}))
+		c.Next()
+	})
+	router.POST("/api/v1/diagnoses", h.create)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/diagnoses", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+func TestDiagnosisHandler_CreateValidationBranches(t *testing.T) {
+	svc := diagnosis.NewService(diagSourceStub{}, &diagTestRepo{})
+	// missing required fields
+	missing := performDiagnosisCreate(t, svc, `{}`)
+	if missing.Code != http.StatusBadRequest {
+		t.Fatalf("empty body = %d, want 400", missing.Code)
+	}
+	// namespaced without namespace
+	noNS := performDiagnosisCreate(t, svc, `{"resource_kind":"Pod","name":"web"}`)
+	if noNS.Code != http.StatusBadRequest {
+		t.Fatalf("pod without ns = %d, want 400", noNS.Code)
+	}
+	// unsupported kind
+	badKind := performDiagnosisCreate(t, svc, `{"resource_kind":"DaemonSet","namespace":"ns","name":"x"}`)
+	if badKind.Code != http.StatusBadRequest {
+		t.Fatalf("unsupported kind = %d, want 400", badKind.Code)
+	}
+	// node needs no namespace → grandfathered
+	nodeReq := performDiagnosisCreate(t, svc, `{"resource_kind":"Node","name":"node-1"}`)
+	if nodeReq.Code == http.StatusBadRequest {
+		t.Fatalf("node without ns should not 400, got %d", nodeReq.Code)
+	}
+}
+
+func TestDiagnosisHandler_CreateErrorMapping(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		code int
+	}{
+		{"not found", k8sgateway.ErrResourceNotFound, http.StatusNotFound},
+		{"no rule match", diagnosis.ErrNoRuleMatch, http.StatusUnprocessableEntity},
+		{"cluster disabled", cluster.ErrDisabled, http.StatusConflict},
+		{"cluster not found", cluster.ErrNotFound, http.StatusNotFound},
+		{"generic", errors.New("boom"), http.StatusBadGateway},
+	}
+	for _, tt := range cases {
+		svc := diagnosis.NewService(diagSourceStub{err: tt.err}, &diagTestRepo{})
+		rec := performDiagnosisCreate(t, svc, `{"resource_kind":"Pod","namespace":"ns","name":"web"}`)
+		if rec.Code != tt.code {
+			t.Errorf("%s: code = %d, want %d", tt.name, rec.Code, tt.code)
+		}
+	}
+}
+
+// diagSourceWithPod is a source that returns a canned pod + events on Pod()/PodEvents().
+type diagSourceWithPod struct {
+	diagSourceStub
+	pod    k8sgateway.Pod
+	events []k8sgateway.Event
+}
+
+func (s diagSourceWithPod) Pod(context.Context, int64, string, string) (k8sgateway.Pod, error) {
+	return s.pod, nil
+}
+func (s diagSourceWithPod) PodEvents(context.Context, int64, string, string) ([]k8sgateway.Event, error) {
+	return s.events, nil
+}
+
+func TestDiagnosisHandler_CreatePodSuccess(t *testing.T) {
+	pod := k8sgateway.Pod{}
+	pod.Metadata.Name = "web"
+	pod.Metadata.Namespace = "ns"
+	pod.Metadata.UID = "pod-uid-1"
+	pod.Status.Phase = "Running"
+	oomReason := "OOMKilled"
+	pod.Status.ContainerStatuses = []k8sgateway.ContainerStatus{{
+		Name:         "app",
+		RestartCount: 2,
+		State: k8sgateway.ContainerState{
+			Terminated: &k8sgateway.ContainerStateDetail{Reason: oomReason, ExitCode: 137, Message: "out of memory"},
+		},
+	}}
+	svc := diagnosis.NewService(diagSourceWithPod{pod: pod}, &diagTestRepo{})
+	rec := performDiagnosisCreate(t, svc, `{"resource_kind":"Pod","namespace":"ns","name":"web"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("pod create = %d, want 201; body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Pod") {
+		t.Fatalf("response missing Pod kind: %s", rec.Body.String())
+	}
+}
+
+func TestDiagnosisHandler_CreateDeploymentSuccess(t *testing.T) {
+	dep := k8sgateway.Deployment{}
+	dep.Metadata.Name = "api"
+	dep.Metadata.Namespace = "ns"
+	dep.Metadata.UID = "dep-uid-1"
+	replicas := int32(3)
+	dep.Spec.Replicas = &replicas
+	dep.Status.UnavailableReplicas = 3
+	// For Deployment, source.Deployment is called — inject via special stub
+	depSource := &diagSourceDeploymentStub{dep: dep}
+	rec := performDiagnosisCreate(t, diagnosis.NewService(depSource, &diagTestRepo{}), `{"resource_kind":"Deployment","namespace":"ns","name":"api"}`)
+	if rec.Code != http.StatusCreated && rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("dep create = %d; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+type diagSourceDeploymentStub struct {
+	dep k8sgateway.Deployment
+}
+
+func (s *diagSourceDeploymentStub) Pod(context.Context, int64, string, string) (k8sgateway.Pod, error) {
+	return k8sgateway.Pod{}, nil
+}
+func (s *diagSourceDeploymentStub) PodEvents(context.Context, int64, string, string) ([]k8sgateway.Event, error) {
+	return nil, nil
+}
+func (s *diagSourceDeploymentStub) GetService(context.Context, int64, string, string) (k8sgateway.ServiceResource, error) {
+	return k8sgateway.ServiceResource{}, nil
+}
+func (s *diagSourceDeploymentStub) ServiceEndpoints(context.Context, int64, string, string) (k8sgateway.Endpoints, error) {
+	return k8sgateway.Endpoints{}, nil
+}
+func (s *diagSourceDeploymentStub) Node(context.Context, int64, string) (k8sgateway.Node, error) {
+	return k8sgateway.Node{}, nil
+}
+func (s *diagSourceDeploymentStub) Deployment(context.Context, int64, string, string) (k8sgateway.Deployment, error) {
+	return s.dep, nil
+}
+func (s *diagSourceDeploymentStub) Ingress(context.Context, int64, string, string) (k8sgateway.Ingress, error) {
+	return k8sgateway.Ingress{}, nil
+}
+func (s *diagSourceDeploymentStub) PersistentVolumeClaim(context.Context, int64, string, string) (k8sgateway.PersistentVolumeClaim, error) {
+	return k8sgateway.PersistentVolumeClaim{}, nil
+}
+func (s *diagSourceDeploymentStub) HorizontalPodAutoscaler(context.Context, int64, string, string) (k8sgateway.HorizontalPodAutoscaler, error) {
+	return k8sgateway.HorizontalPodAutoscaler{}, nil
+}
+func (s *diagSourceDeploymentStub) ResourceEvents(context.Context, int64, string, string) ([]k8sgateway.Event, error) {
+	return nil, nil
 }

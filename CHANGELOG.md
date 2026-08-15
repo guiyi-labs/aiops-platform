@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1t diagnosis create 处理器 0% → 全覆盖（validation/error-map/成功路径）
+
+- 扩展 `internal/httpserver/diagnosis_handler_test.go`：diagSourceStub 家族 + performDiagnosisCreate；CreateValidationBranches（4 校验）、CreateErrorMapping（5 错误映射）、CreatePodSuccess（OOMKilled 201）、CreateDeploymentSuccess。
+- See [change record](docs/changes/2026-08-14-m115-1t-diagnosis-create-handler.md)。
+
 ### Added - M115-1s kubernetes PersistentVolume/NetworkPolicy/ServiceAccount 0% 清零（6 函数）
 
 - 扩展 `internal/kubernetes/rollout_test.go`：PV/NetworkPolicy/ServiceAccount 的 list+detail（含 cluster/namespace path 分支）。

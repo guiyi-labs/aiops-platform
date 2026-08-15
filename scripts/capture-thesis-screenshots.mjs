@@ -191,10 +191,14 @@ try {
   await waitFor(client, `location.pathname !== '/login'`, 'successful login')
 
   const pages = [
-    { name: 'Dashboard', route: '/', expected: '累计规则命中', file: '01-dashboard.png' },
-    { name: 'Clusters', route: '/clusters', expected: 'demo-kind-', file: '02-clusters.png' },
-    { name: 'Workloads', route: '/workloads', expected: '工作负载', file: '03-workloads.png' },
+    { name: 'Dashboard', route: '/', expected: '集群态势', file: '01-dashboard.png' },
+    { name: 'Clusters', route: '/clusters', expected: '集群接入', file: '02-clusters.png' },
+    { name: 'Workloads', route: '/workloads', expected: '资源工作台', file: '03-workloads.png' },
     { name: 'Diagnoses', route: '/diagnoses', expected: '智能诊断', file: '04-diagnoses.png' },
+    { name: 'Incidents', route: '/incidents', expected: '事故工作空间', file: '05-incidents.png' },
+    { name: 'Alerts', route: '/alerts', expected: '告警规则', file: '06-alerts.png' },
+    { name: 'Events', route: '/events', expected: '事件中心', file: '07-events.png' },
+    { name: 'SLO', route: '/aiops/slo', expected: 'SLO 仪表盘', file: '08-slo.png' },
   ]
   for (const page of pages) {
     await navigate(client, `${webBase}${page.route}`, page.expected)

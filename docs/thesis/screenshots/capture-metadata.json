@@ -1,11 +1,11 @@
 {
-  "captured_at": "2026-07-26T09:11:12.629Z",
+  "captured_at": "2026-08-15T07:16:26.328Z",
   "web_base": "http://127.0.0.1:18080",
   "viewport": {
     "width": 1440,
     "height": 1000
   },
-  "source_revision": "uncommitted-baseline",
+  "source_revision": "e7daa6fb14f58f90c2860c7d06edb5af7279fb54",
   "pages": [
     {
       "name": "Dashboard",
@@ -26,6 +26,26 @@
       "name": "Diagnoses",
       "route": "/diagnoses",
       "file": "04-diagnoses.png"
+    },
+    {
+      "name": "Incidents",
+      "route": "/incidents",
+      "file": "05-incidents.png"
+    },
+    {
+      "name": "Alerts",
+      "route": "/alerts",
+      "file": "06-alerts.png"
+    },
+    {
+      "name": "Events",
+      "route": "/events",
+      "file": "07-events.png"
+    },
+    {
+      "name": "SLO",
+      "route": "/aiops/slo",
+      "file": "08-slo.png"
     }
   ]
 }

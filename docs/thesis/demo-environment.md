@@ -1,6 +1,6 @@
 # Defense Demo Environment
 
-更新时间：2026-07-26
+更新时间：2026-08-15（M115 答辩基线）
 
 此流程用于答辩排练、最终截图和现场演示。它复用真实 kind E2E 主链路，不引入静态假数据或绕过平台 API 的数据库写入。
 
@@ -21,13 +21,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\demo-up.ps1
 - ImagePullBackOff 记录为 confirmed，并带 succeeded remediation 历史。
 - 脱敏证据位于 `.artifacts/demo` 和 `.artifacts/e2e-kind`。
 
-生成论文/答辩截图：
+生成论文/答辩截图（Windows）：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\capture-thesis-screenshots.ps1
 ```
 
-截图保存到 `docs/thesis/screenshots`。采集器使用系统 Edge/Chrome，结束后删除 `.artifacts` 下的临时浏览器 profile。
+生成论文/答辩截图（macOS / 通用 Node 方式）：
+
+```bash
+AIOPS_CAPTURE_PASSWORD='<password>' AIOPS_CAPTURE_USERNAME=admin AIOPS_CAPTURE_WEB_BASE=http://127.0.0.1:18080 AIOPS_BROWSER_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node scripts/capture-thesis-screenshots.mjs
+```
+
+M115 基线截图已按此流程重新采集（8 页，`2026-08-15`，源码修订 `e7daa6f`，见
+`docs/thesis/screenshots/README.md` 与 `capture-metadata.json`）。截图也可复用
+内置 `demo-kube-mock` 确定性 fixture 离线复现（见 screenshots README）。
 
 凭据原文只在脚本内存和 HTTPS 请求期间存在。平台数据库保存 AES-256-GCM 密文，证据和文档不记录 kubeconfig、CA、token、密码、访问令牌或 Cookie。由于 ServiceAccount token 有效期为一小时，正式演示前应重新运行准备脚本。
 

@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - M115 答辩截图基线刷新
+
+- `scripts/capture-thesis-screenshots.mjs`：页面预期文案与 4 个旧文案对齐当前 UI，并新增 Incidents/Alerts/Events/SLO 4 页，共 8 页覆盖三条答辩演示链路。
+- `docs/thesis/screenshots/`：8 张截图按 M115 基线重新采集（2026-08-15，`source_revision=e7daa6f`），`capture-metadata.json` 同步更新；README 记录数据源（demo-kube-mock fixture + 平台真实 API）、演示数据与重新采集步骤。
+- `docs/thesis/demo-environment.md`：采集说明更新至 M115 基线，补充 macOS/Node 采集方式。
+- See [change record](docs/changes/2026-08-15-m115-thesis-screenshots-baseline.md)。
+
 ### Changed - M115 README 基线更新
 
 - `README.md`：基线描述从 M112 更新至 M115（工程质量冲刺），覆盖率数字更新为 ~74%，tag 更新为 `baseline-m115-20260815`。

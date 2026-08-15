@@ -664,3 +664,153 @@ func TestServiceNewServiceDefaults(t *testing.T) {
 	svc := copyops.NewService(nil, repo)
 	assert.NotNil(t, svc)
 }
+
+// --- M115-1p: Execute validation + failPlan error branches ---
+
+func TestExecuteValidationBranches(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewTestService(&fakeKubernetes{}, repo, frozenClock(time.Now()), staticRand([]byte{0xAA}))
+	_, err := svc.Execute(context.Background(), copyops.ExecuteRequest{PlanID: "short"}, copyops.ActorRef{ID: 1, Name: "x"})
+	if err != copyops.ErrInvalidRequest {
+		t.Fatalf("bad plan id = %v", err)
+	}
+	_, err = svc.Execute(context.Background(), copyops.ExecuteRequest{
+		PlanID:            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		ConfirmationToken: "",
+		IdempotencyKey:    "k1",
+	}, copyops.ActorRef{ID: 1, Name: "x"})
+	if err != copyops.ErrConfirmationInvalid {
+		t.Fatalf("empty token = %v", err)
+	}
+	_, err = svc.Execute(context.Background(), copyops.ExecuteRequest{
+		PlanID:            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		ConfirmationToken: "tok",
+		IdempotencyKey:    "",
+	}, copyops.ActorRef{ID: 1, Name: "x"})
+	if err != copyops.ErrInvalidIdempotency {
+		t.Fatalf("empty idem = %v", err)
+	}
+}
+
+func TestExecute_ClaimNotFound(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	svc := copyops.NewTestService(&fakeKubernetes{}, repo, frozenClock(time.Now()), staticRand([]byte{0xAA}))
+	_, err := svc.Execute(context.Background(), copyops.ExecuteRequest{
+		PlanID:            "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+		ConfirmationToken: "tok",
+		IdempotencyKey:    "k1",
+	}, copyops.ActorRef{ID: 1, Name: "x"})
+	if err != copyops.ErrNotFound {
+		t.Fatalf("claim missing = %v", err)
+	}
+}
+
+func TestExecute_NSIdentityError(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	first := true
+	fake := &fakeKubernetes{
+		nsIdentity: func(context.Context, int64, string) (k8sgateway.SourceNamespaceIdentity, error) {
+			if first {
+				first = false
+				return k8sgateway.SourceNamespaceIdentity{Name: "prod", UID: "ns-uid", ResourceVersion: "42"}, nil
+			}
+			return k8sgateway.SourceNamespaceIdentity{}, errors.New("identity failed")
+		},
+		nsExists: func(context.Context, int64, string) (bool, error) { return true, nil },
+		rawResource: func(_ context.Context, _ int64, _ string, _ string, _ string, ns string, name string) (map[string]any, error) {
+			return sourceDeploymentManifest(ns, name, "u1", "rv1"), nil
+		},
+		resExists: func(context.Context, int64, string, string, string, string, string) (bool, error) { return false, nil },
+		createRes: func(context.Context, int64, string, []byte, bool) ([]byte, error) {
+			return []byte(`{"metadata":{"uid":"applied","resourceVersion":"1"}}`), nil
+		},
+	}
+	svc := copyops.NewTestService(fake, repo, frozenClock(time.Now()), staticRand([]byte{0xBB}))
+	plan, err := svc.Preview(context.Background(), copyops.PreviewRequest{
+		SourceClusterID: 1, TargetClusterID: 2,
+		SourceNamespace: "prod", TargetNamespace: "stage",
+		Bundle: []copyops.BundleItemRequest{{Kind: "Deployment", Namespace: "prod", Name: "app"}},
+	}, copyops.ActorRef{ID: 7, Name: "alice"})
+	require.NoError(t, err)
+	_, err = svc.Execute(context.Background(), copyops.ExecuteRequest{
+		PlanID: plan.ID, ConfirmationToken: plan.ConfirmationToken, IdempotencyKey: "k1",
+	}, copyops.ActorRef{ID: 7, Name: "alice"})
+	require.NoError(t, err)
+	got, _ := svc.Get(context.Background(), plan.ID)
+	assert.Equal(t, copyops.StatusFailed, got.Status)
+	assert.Contains(t, got.LastError, "identity read failed")
+}
+
+func TestExecute_DestNamespaceDeleted(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	nsExistsFirst := true
+	fake := &fakeKubernetes{
+		nsIdentity: func(context.Context, int64, string) (k8sgateway.SourceNamespaceIdentity, error) {
+			return k8sgateway.SourceNamespaceIdentity{Name: "prod", UID: "ns-uid", ResourceVersion: "42"}, nil
+		},
+		nsExists: func(context.Context, int64, string) (bool, error) {
+			if nsExistsFirst {
+				nsExistsFirst = false
+				return true, nil
+			}
+			return false, nil
+		},
+		rawResource: func(_ context.Context, _ int64, _ string, _ string, _ string, ns string, name string) (map[string]any, error) {
+			return sourceDeploymentManifest(ns, name, "u1", "rv1"), nil
+		},
+		resExists: func(context.Context, int64, string, string, string, string, string) (bool, error) { return false, nil },
+		createRes: func(context.Context, int64, string, []byte, bool) ([]byte, error) {
+			return []byte(`{"metadata":{"uid":"x","resourceVersion":"1"}}`), nil
+		},
+	}
+	svc := copyops.NewTestService(fake, repo, frozenClock(time.Now()), staticRand([]byte{0xCC}))
+	plan, err := svc.Preview(context.Background(), copyops.PreviewRequest{
+		SourceClusterID: 1, TargetClusterID: 2,
+		SourceNamespace: "prod", TargetNamespace: "stage",
+		Bundle: []copyops.BundleItemRequest{{Kind: "Deployment", Namespace: "prod", Name: "app"}},
+	}, copyops.ActorRef{ID: 7, Name: "alice"})
+	require.NoError(t, err)
+	_, err = svc.Execute(context.Background(), copyops.ExecuteRequest{
+		PlanID: plan.ID, ConfirmationToken: plan.ConfirmationToken, IdempotencyKey: "k1",
+	}, copyops.ActorRef{ID: 7, Name: "alice"})
+	require.NoError(t, err)
+	got, _ := svc.Get(context.Background(), plan.ID)
+	assert.Equal(t, copyops.StatusFailed, got.Status)
+	assert.Contains(t, got.LastError, "deleted between Preview and Execute")
+}
+
+func TestExecute_CreateResourceError(t *testing.T) {
+	repo := &inmemRepo{plans: map[string]copyops.Plan{}}
+	createCalls := 0
+	fake := &fakeKubernetes{
+		nsIdentity: func(context.Context, int64, string) (k8sgateway.SourceNamespaceIdentity, error) {
+			return k8sgateway.SourceNamespaceIdentity{Name: "prod", UID: "ns-uid", ResourceVersion: "42"}, nil
+		},
+		nsExists: func(context.Context, int64, string) (bool, error) { return true, nil },
+		rawResource: func(_ context.Context, _ int64, _ string, _ string, _ string, ns string, name string) (map[string]any, error) {
+			return sourceDeploymentManifest(ns, name, "u1", "rv1"), nil
+		},
+		resExists: func(context.Context, int64, string, string, string, string, string) (bool, error) { return false, nil },
+		createRes: func(ctx context.Context, clusterID int64, path string, body []byte, dryRun bool) ([]byte, error) {
+			createCalls++
+			if dryRun {
+				// Preview dry-run succeeds; Execute real create fails.
+				return []byte(`{"metadata":{"uid":"x","resourceVersion":"1"}}`), nil
+			}
+			return nil, errors.New("admission denied")
+		},
+	}
+	svc := copyops.NewTestService(fake, repo, frozenClock(time.Now()), staticRand([]byte{0xDD}))
+	plan, err := svc.Preview(context.Background(), copyops.PreviewRequest{
+		SourceClusterID: 1, TargetClusterID: 2,
+		SourceNamespace: "prod", TargetNamespace: "stage",
+		Bundle: []copyops.BundleItemRequest{{Kind: "Deployment", Namespace: "prod", Name: "app"}},
+	}, copyops.ActorRef{ID: 7, Name: "alice"})
+	require.NoError(t, err)
+	_, err = svc.Execute(context.Background(), copyops.ExecuteRequest{
+		PlanID: plan.ID, ConfirmationToken: plan.ConfirmationToken, IdempotencyKey: "k1",
+	}, copyops.ActorRef{ID: 7, Name: "alice"})
+	require.NoError(t, err)
+	got, _ := svc.Get(context.Background(), plan.ID)
+	assert.Equal(t, copyops.StatusFailed, got.Status)
+}

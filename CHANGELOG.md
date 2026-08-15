@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1p copyops Execute 校验 + failPlan 错误分支（validation/NSIdentity/destNsExists/createRes）
+
+- 扩展 `internal/copyops/service_test.go`：ExecuteValidationBranches（短 planID/空 token/空 idempotency）、ClaimNotFound、NSIdentityError（first-call 模式）、DestNamespaceDeleted、CreateResourceError（dryRun 成功/real 失败）。
+- See [change record](docs/changes/2026-08-14-m115-1p-copyops-execute-branches.md)。
+
 ### Added - M115-1o remediation List/ListOperations 0% 清零 + 校验边界分支
 
 - 扩展 `internal/remediation/service_test.go`：List 诊断校验、ListOperations 三非法输入 + 合法、RolloutHistory/RolloutStatus 非法输入与 kube 错误传播、validResourceName/validContainerImage 边界。

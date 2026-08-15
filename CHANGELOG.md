@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1u optimization finops/no-inputs/rate/auto-collect 分支
+
+- 扩展 `internal/httpserver/optimization_test.go`：FinOpsNoInputsNoCollector400、FinOpsRateOverride、CISNoInputsNoCollector400、DeprecatedAPIRequiresCluster。
+- See [change record](docs/changes/2026-08-14-m115-1u-optimization-finops-branches.md)。
+
 ### Added - M115-1t diagnosis create 处理器 0% → 全覆盖（validation/error-map/成功路径）
 
 - 扩展 `internal/httpserver/diagnosis_handler_test.go`：diagSourceStub 家族 + performDiagnosisCreate；CreateValidationBranches（4 校验）、CreateErrorMapping（5 错误映射）、CreatePodSuccess（OOMKilled 201）、CreateDeploymentSuccess。

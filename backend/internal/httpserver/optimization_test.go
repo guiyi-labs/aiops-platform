@@ -1009,3 +1009,53 @@ func TestOptimizationIngressAnalyzeRejectsMissingClusterAndInputs(t *testing.T) 
 		t.Fatalf("error code = %q, want NO_INPUTS; body=%s", errBody.Code, rec.Body.String())
 	}
 }
+
+// --- M115-1u: finops/no-inputs/auto-collect/error branches ---
+
+func TestOptimizationFinOpsNoInputsNoCollector400(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/finops/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("no-inputs = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestOptimizationFinOpsRateOverride(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/finops/analyze", map[string]any{
+		"rate": map[string]any{"cpu": 0.04, "mem": 0.005},
+		"inputs": []map[string]any{
+			{
+				"cluster_id":     7,
+				"namespace":      "default",
+				"workload_kind":  "Deployment",
+				"workload_name":  "api",
+				"container_name": "c",
+				"requests":       map[string]any{"cpu_request": 2000000000, "mem_request": 2147483648},
+				"limits":         map[string]any{"cpu_limit": 2000000000, "mem_limit": 2147483648},
+				"cpu_usage_p95":  100000000,
+				"mem_usage_p95":  100000000,
+				"replicas":       2,
+			},
+		},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rate override = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestOptimizationCISNoInputsNoCollector400(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/cis/analyze", map[string]any{"cluster_id": 7})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("cis no-inputs = %d, want 400; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestOptimizationDeprecatedAPIRequiresCluster(t *testing.T) {
+	engine := newOptimizationEngine(t)
+	rec := postJSON(t, engine, "/api/v1/optimization/deprecated-api/analyze", map[string]any{"target_version": "v1.32"})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("dep-api no cluster = %d, want 400", rec.Code)
+	}
+}

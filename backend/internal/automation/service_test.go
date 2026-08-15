@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"testing"
 	"time"
@@ -537,5 +538,810 @@ func TestListPlansNotTruncatedWhenEmpty(t *testing.T) {
 	}
 	if resp.Truncated {
 		t.Error("Truncated = true, want false (no items)")
+	}
+}
+
+// ============================================================================
+// M115-1b: automation/service coverage for Preview / GetPlan / materializeParameters
+// ============================================================================
+
+func TestGetPlanReturnsPlan(t *testing.T) {
+	t.Parallel()
+	repo := newMemRepo()
+	_ = repo.SavePlan(context.Background(), &ActionPlan{
+		ID:     "plan-existing",
+		Status: StatusDraft,
+	})
+	svc := newTestService(t, repo, &fakeCaseReader{}, nil)
+	plan, err := svc.GetPlan(context.Background(), "plan-existing")
+	if err != nil {
+		t.Fatalf("GetPlan err=%v", err)
+	}
+	if plan.ID != "plan-existing" {
+		t.Fatalf("plan.ID=%q, want plan-existing", plan.ID)
+	}
+}
+
+func TestGetPlanNotFound(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, NopRepository{}, &fakeCaseReader{}, nil)
+	_, err := svc.GetPlan(context.Background(), "nope")
+	if !errors.Is(err, ErrPlanNotFound) {
+		t.Fatalf("GetPlan err=%v, want ErrPlanNotFound", err)
+	}
+}
+
+func TestPreviewDisabledService(t *testing.T) {
+	t.Parallel()
+	svc := &Service{enabled: false, repo: NopRepository{}, now: func() time.Time { return fixedTime }}
+	_, err := svc.Preview(context.Background(), "x")
+	if !errors.Is(err, ErrDisabled) {
+		t.Fatalf("err=%v, want ErrDisabled", err)
+	}
+}
+
+func TestPreviewNotDraftReturnsErrNotDraft(t *testing.T) {
+	t.Parallel()
+	repo := newMemRepo()
+	_ = repo.SavePlan(context.Background(), &ActionPlan{
+		ID:     "plan-previewed",
+		Status: StatusPreviewed,
+	})
+	svc := newTestService(t, repo, &fakeCaseReader{}, nil)
+	_, err := svc.Preview(context.Background(), "plan-previewed")
+	if !errors.Is(err, ErrNotDraft) {
+		t.Fatalf("err=%v, want ErrNotDraft", err)
+	}
+}
+
+func TestPreviewDisabledRepoNil(t *testing.T) {
+	t.Parallel()
+	svc := &Service{enabled: true, repo: nil, now: func() time.Time { return fixedTime }}
+	_, err := svc.Preview(context.Background(), "x")
+	if !errors.Is(err, ErrDisabled) {
+		t.Fatalf("err=%v, want ErrDisabled", err)
+	}
+}
+
+func TestCreatePlanWithRolloutRestartMaterializesParams(t *testing.T) {
+	t.Parallel()
+	repo := newMemRepo()
+	reader := &fakeCaseReader{
+		caseCtx: CaseContext{
+			CaseID:           10,
+			ClusterID:        1,
+			PrimaryKind:      "Deployment",
+			PrimaryNamespace: "default",
+			PrimaryName:      "web",
+		},
+		codes: map[string]bool{"deployment.rollout_restart": true},
+	}
+	fk8s := &fakeKubernetesSource{
+		deployment: k8sgateway.Deployment{
+			Metadata: k8sgateway.ObjectMeta{UID: "dep-uid-1", ResourceVersion: "rv-42"},
+			Spec: struct {
+				Replicas *int32 `json:"replicas,omitempty"`
+				Selector struct {
+					MatchLabels map[string]string `json:"matchLabels,omitempty"`
+				} `json:"selector"`
+				Template k8sgateway.WorkloadTemplate `json:"template"`
+			}{Replicas: int32Ptr(3)},
+		},
+	}
+	svc := newTestService(t, repo, reader, fk8s)
+	plan, err := svc.CreatePlan(context.Background(), CreatePlanInput{
+		CaseID:    10,
+		RunbookID: "rollout_restart_pods",
+		Operator:  ActorRef{ID: 1, Name: "alice"},
+	})
+	if err != nil {
+		t.Fatalf("CreatePlan err=%v", err)
+	}
+	if plan.TargetUID != "dep-uid-1" || plan.TargetResourceVersion != "rv-42" {
+		t.Fatalf("target snapshot = UID=%q RV=%q", plan.TargetUID, plan.TargetResourceVersion)
+	}
+	if plan.BeforeReplicas == nil || *plan.BeforeReplicas != 3 {
+		t.Fatalf("BeforeReplicas = %v, want 3", plan.BeforeReplicas)
+	}
+	if plan.DesiredReplicas == nil || *plan.DesiredReplicas != 3 {
+		t.Fatalf("DesiredReplicas = %v, want 3", plan.DesiredReplicas)
+	}
+}
+
+func TestCreatePlanWithRollbackMaterializesParams(t *testing.T) {
+	t.Parallel()
+	repo := newMemRepo()
+	reader := &fakeCaseReader{
+		caseCtx: CaseContext{
+			CaseID:           20,
+			ClusterID:        1,
+			PrimaryKind:      "Deployment",
+			PrimaryNamespace: "prod",
+			PrimaryName:      "api",
+		},
+		codes: map[string]bool{"deployment.rollback": true},
+	}
+	// History: rev=2 is current, rev=1 is previous (rollback target)
+	fk8s := &fakeKubernetesSource{
+		deployment: k8sgateway.Deployment{
+			Metadata: k8sgateway.ObjectMeta{UID: "dep-uid-2", ResourceVersion: "rv-10"},
+		},
+		history: k8sgateway.RolloutHistory{
+			Revisions: []k8sgateway.RolloutRevision{
+				{Revision: 2, Current: true, ReplicaSetName: "api-v2", UID: "rs-2", ResourceVersion: "rs-rv-2"},
+				{Revision: 1, Current: false, ReplicaSetName: "api-v1", UID: "rs-1", ResourceVersion: "rs-rv-1"},
+			},
+		},
+	}
+	svc := newTestService(t, repo, reader, fk8s)
+	plan, err := svc.CreatePlan(context.Background(), CreatePlanInput{
+		CaseID:    20,
+		RunbookID: "rollback_last_rollout",
+		Operator:  ActorRef{ID: 2, Name: "bob"},
+	})
+	if err != nil {
+		t.Fatalf("CreatePlan err=%v", err)
+	}
+	if plan.RollbackRevision == nil || *plan.RollbackRevision != 1 {
+		t.Fatalf("RollbackRevision=%v, want 1", plan.RollbackRevision)
+	}
+	if plan.RollbackReplicaSetName != "api-v1" {
+		t.Fatalf("RollbackReplicaSetName=%q, want api-v1", plan.RollbackReplicaSetName)
+	}
+	if plan.RollbackReplicaSetUID != "rs-1" {
+		t.Fatalf("RollbackReplicaSetUID=%q, want rs-1", plan.RollbackReplicaSetUID)
+	}
+}
+
+func TestCreatePlanWithRollbackNoRollbackPoint(t *testing.T) {
+	t.Parallel()
+	repo := newMemRepo()
+	reader := &fakeCaseReader{
+		caseCtx: CaseContext{
+			CaseID:           32,
+			ClusterID:        1,
+			PrimaryKind:      "Deployment",
+			PrimaryNamespace: "default",
+			PrimaryName:      "app",
+		},
+		codes: map[string]bool{"deployment.rollback": true},
+	}
+	// History with only one revision (current) — no rollback target
+	fk8s := &fakeKubernetesSource{
+		deployment: k8sgateway.Deployment{
+			Metadata: k8sgateway.ObjectMeta{UID: "dep-uid-5"},
+		},
+		history: k8sgateway.RolloutHistory{
+			Revisions: []k8sgateway.RolloutRevision{
+				{Revision: 1, Current: true},
+			},
+		},
+	}
+	svc := newTestService(t, repo, reader, fk8s)
+	_, err := svc.CreatePlan(context.Background(), CreatePlanInput{
+		CaseID:    32,
+		RunbookID: "rollback_last_rollout",
+		Operator:  ActorRef{ID: 5, Name: "eve"},
+	})
+	if !errors.Is(err, ErrNoRollbackPoint) {
+		t.Fatalf("err=%v, want ErrNoRollbackPoint", err)
+	}
+}
+
+func TestCreatePlanWithRolloutRestartK8sError(t *testing.T) {
+	t.Parallel()
+	repo := newMemRepo()
+	reader := &fakeCaseReader{
+		caseCtx: CaseContext{
+			CaseID:           33,
+			ClusterID:        1,
+			PrimaryKind:      "Deployment",
+			PrimaryNamespace: "default",
+			PrimaryName:      "svc",
+		},
+		codes: map[string]bool{"deployment.rollout_restart": true},
+	}
+	fk8s := &fakeKubernetesSource{depErr: errors.New("k8s down")}
+	svc := newTestService(t, repo, reader, fk8s)
+	_, err := svc.CreatePlan(context.Background(), CreatePlanInput{
+		CaseID:    33,
+		RunbookID: "rollout_restart_pods",
+		Operator:  ActorRef{ID: 6, Name: "frank"},
+	})
+	if err == nil {
+		t.Fatal("expected error for k8s failure")
+	}
+}
+
+func TestMaterializeParametersDisabled(t *testing.T) {
+	t.Parallel()
+	svc := &Service{enabled: true, repo: NopRepository{}, k8s: nil, now: func() time.Time { return fixedTime }}
+	plan := &ActionPlan{ActionCode: "deployment.rollback", TargetName: "x"}
+	err := svc.materializeParameters(context.Background(), plan, nil)
+	if !errors.Is(err, ErrDisabled) {
+		t.Fatalf("err=%v, want ErrDisabled", err)
+	}
+}
+
+func TestMaterializeParametersUnsupportedAction(t *testing.T) {
+	t.Parallel()
+	fk8s := &fakeKubernetesSource{}
+	svc := &Service{enabled: true, repo: NopRepository{}, k8s: fk8s, now: func() time.Time { return fixedTime }}
+	plan := &ActionPlan{ActionCode: "bogus.action", TargetName: "x"}
+	err := svc.materializeParameters(context.Background(), plan, nil)
+	if !errors.Is(err, ErrUnsupportedAction) {
+		t.Fatalf("err=%v, want ErrUnsupportedAction", err)
+	}
+}
+
+func TestRefreshSnapshotNilK8s(t *testing.T) {
+	t.Parallel()
+	svc := &Service{enabled: true, k8s: nil, now: func() time.Time { return fixedTime }}
+	plan := &ActionPlan{TargetKind: "Deployment"}
+	err := svc.refreshSnapshot(context.Background(), plan)
+	if !errors.Is(err, ErrDisabled) {
+		t.Fatalf("err=%v, want ErrDisabled", err)
+	}
+}
+
+func TestRefreshSnapshotUnsupportedKind(t *testing.T) {
+	t.Parallel()
+	fk8s := &fakeKubernetesSource{}
+	svc := &Service{enabled: true, k8s: fk8s, now: func() time.Time { return fixedTime }}
+	plan := &ActionPlan{TargetKind: "Service"}
+	err := svc.refreshSnapshot(context.Background(), plan)
+	if !errors.Is(err, ErrUnsupportedTargetKind) {
+		t.Fatalf("err=%v, want ErrUnsupportedTargetKind", err)
+	}
+}
+
+func TestRefreshSnapshotDeploymentSuccess(t *testing.T) {
+	t.Parallel()
+	fk8s := &fakeKubernetesSource{
+		deployment: k8sgateway.Deployment{
+			Metadata: k8sgateway.ObjectMeta{UID: "uid-1", ResourceVersion: "rv-7"},
+		},
+	}
+	svc := &Service{enabled: true, k8s: fk8s, now: func() time.Time { return fixedTime }}
+	plan := &ActionPlan{TargetKind: "Deployment", ClusterID: 1, TargetNamespace: "ns", TargetName: "name"}
+	err := svc.refreshSnapshot(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if plan.TargetUID != "uid-1" || plan.TargetResourceVersion != "rv-7" {
+		t.Fatalf("snapshot = UID=%q RV=%q", plan.TargetUID, plan.TargetResourceVersion)
+	}
+}
+
+func TestRefreshSnapshotCronJobSuccess(t *testing.T) {
+	t.Parallel()
+	fk8s := &fakeKubernetesSource{
+		cronJob: k8sgateway.CronJob{
+			Metadata: k8sgateway.ObjectMeta{UID: "cron-1", ResourceVersion: "cron-rv"},
+		},
+	}
+	svc := &Service{enabled: true, k8s: fk8s, now: func() time.Time { return fixedTime }}
+	plan := &ActionPlan{TargetKind: "CronJob", ClusterID: 2, TargetNamespace: "prod", TargetName: "cronjob"}
+	err := svc.refreshSnapshot(context.Background(), plan)
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if plan.TargetUID != "cron-1" {
+		t.Fatalf("TargetUID=%q", plan.TargetUID)
+	}
+}
+
+func TestPreviewRollbackErrDisabledK8s(t *testing.T) {
+	t.Parallel()
+	repo := newMemRepo()
+	_ = repo.SavePlan(context.Background(), &ActionPlan{
+		ID:         "plan-draft",
+		Status:     StatusDraft,
+		ActionCode: "deployment.rollback",
+		TargetKind: "Deployment",
+	})
+	svc := &Service{enabled: true, repo: repo, k8s: nil, now: func() time.Time { return fixedTime },
+		gates: NewGateEvaluator()}
+	_, err := svc.Preview(context.Background(), "plan-draft")
+	if !errors.Is(err, ErrDisabled) {
+		t.Fatalf("err=%v, want ErrDisabled", err)
+	}
+}
+
+// ============================================================================
+// M115-1b: materializeParameters scale/cronjob branches
+// ============================================================================
+
+func TestMaterializeParametersScaleBranch(t *testing.T) {
+	t.Parallel()
+	dep := k8sgateway.Deployment{
+		Metadata: k8sgateway.ObjectMeta{UID: "dep-scale", ResourceVersion: "rv-scale"},
+	}
+	rp := int32(2)
+	dep.Spec = struct {
+		Replicas *int32 `json:"replicas,omitempty"`
+		Selector struct {
+			MatchLabels map[string]string `json:"matchLabels,omitempty"`
+		} `json:"selector"`
+		Template k8sgateway.WorkloadTemplate `json:"template"`
+	}{Replicas: &rp}
+	fk8s := &fakeKubernetesSource{deployment: dep}
+	svc := newTestService(t, NopRepository{}, &fakeCaseReader{}, fk8s)
+	plan := &ActionPlan{ActionCode: "deployment.scale", ClusterID: 1, TargetNamespace: "ns", TargetName: "app"}
+	desired := int32(4)
+	err := svc.materializeParameters(context.Background(), plan, &OperationParameters{DesiredReplicas: &desired})
+	if err != nil {
+		t.Fatalf("err=%v", err)
+	}
+	if plan.BeforeReplicas == nil || *plan.BeforeReplicas != 2 || plan.DesiredReplicas == nil || *plan.DesiredReplicas != 4 {
+		t.Fatalf("scale params = before=%v desired=%v", plan.BeforeReplicas, plan.DesiredReplicas)
+	}
+}
+
+func TestMaterializeParametersScaleNoChange(t *testing.T) {
+	t.Parallel()
+	rp := int32(3)
+	dep := k8sgateway.Deployment{Metadata: k8sgateway.ObjectMeta{UID: "u"}}
+	dep.Spec = struct {
+		Replicas *int32 `json:"replicas,omitempty"`
+		Selector struct {
+			MatchLabels map[string]string `json:"matchLabels,omitempty"`
+		} `json:"selector"`
+		Template k8sgateway.WorkloadTemplate `json:"template"`
+	}{Replicas: &rp}
+	svc := newTestService(t, NopRepository{}, &fakeCaseReader{}, &fakeKubernetesSource{deployment: dep})
+	plan := &ActionPlan{ActionCode: "deployment.scale", ClusterID: 1, TargetNamespace: "ns", TargetName: "app"}
+	desired := int32(3)
+	err := svc.materializeParameters(context.Background(), plan, &OperationParameters{DesiredReplicas: &desired})
+	if !errors.Is(err, ErrOperationNoChange) {
+		t.Fatalf("err=%v, want ErrOperationNoChange", err)
+	}
+}
+
+func TestMaterializeParametersScaleMissingOverride(t *testing.T) {
+	t.Parallel()
+	svc := newTestService(t, NopRepository{}, &fakeCaseReader{}, &fakeKubernetesSource{})
+	plan := &ActionPlan{ActionCode: "deployment.scale", ClusterID: 1, TargetNamespace: "ns", TargetName: "app"}
+	err := svc.materializeParameters(context.Background(), plan, nil)
+	if !errors.Is(err, ErrInvalidOperation) {
+		t.Fatalf("err=%v, want ErrInvalidOperation", err)
+	}
+}
+
+func TestMaterializeParametersCronJobSuspend(t *testing.T) {
+	t.Parallel()
+	dep := k8sgateway.CronJob{
+		Metadata: k8sgateway.ObjectMeta{UID: "cron-u", ResourceVersion: "cron-rv"},
+	}
+	s := true
+	dep.Spec = struct {
+		Schedule                   string `json:"schedule"`
+		TimeZone                   string `json:"timeZone,omitempty"`
+		ConcurrencyPolicy          string `json:"concurrencyPolicy,omitempty"`
+		Suspend                    *bool  `json:"suspend,omitempty"`
+		SuccessfulJobsHistoryLimit *int32 `json:"successfulJobsHistoryLimit,omitempty"`
+		FailedJobsHistoryLimit     *int32 `json:"failedJobsHistoryLimit,omitempty"`
+		JobTemplate                struct {
+			Spec k8sgateway.JobSpec `json:"spec"`
+		} `json:"jobTemplate"`
+	}{Suspend: &s}
+	svc := newTestService(t, NopRepository{}, &fakeCaseReader{}, &fakeKubernetesSource{cronJob: dep})
+	plan := &ActionPlan{ActionCode: "cronjob.suspend", ClusterID: 1, TargetNamespace: "ns", TargetName: "cronjob"}
+	if err := svc.materializeParameters(context.Background(), plan, nil); err == nil {
+		t.Fatal("expected ErrOperationNoChange for already-suspended cronjob")
+	}
+}
+
+// ============================================================================
+// M115-1b: Preview happy path (stateful repo transitions draft -> previewed)
+// ============================================================================
+
+// previewCapableRepo extends memRepo with MarkPreviewed so Preview can
+// transition a draft plan to previewed.
+type previewCapableRepo struct {
+	*memRepo
+	previewed *ActionPlan
+}
+
+func (r *previewCapableRepo) MarkPreviewed(_ context.Context, id string, gates []PolicyGate, now time.Time) (ActionPlan, error) {
+	plan, ok := r.plans[id]
+	if !ok {
+		return ActionPlan{}, ErrPlanNotFound
+	}
+	plan.Status = StatusPreviewed
+	plan.PolicyGates = gates
+	r.plans[id] = plan
+	r.previewed = &plan
+	return plan, nil
+}
+
+func TestPreviewSuccessTransitionsToPreviewed(t *testing.T) {
+	t.Parallel()
+	repo := &previewCapableRepo{memRepo: newMemRepo()}
+	dep := k8sgateway.Deployment{
+		Metadata: k8sgateway.ObjectMeta{UID: "dep-prev", ResourceVersion: "rv-prev"},
+	}
+	dep.Spec = struct {
+		Replicas *int32 `json:"replicas,omitempty"`
+		Selector struct {
+			MatchLabels map[string]string `json:"matchLabels,omitempty"`
+		} `json:"selector"`
+		Template k8sgateway.WorkloadTemplate `json:"template"`
+	}{}
+	// MarkPreviewed must be implemented on memRepo
+	_ = repo.SavePlan(context.Background(), &ActionPlan{
+		ID:         "plan-preview-target",
+		Status:     StatusDraft,
+		ActionCode: "deployment.rollout_restart",
+		TargetKind: "Deployment",
+		ClusterID:  1, TargetNamespace: "ns", TargetName: "app",
+	})
+	svc := newTestService(t, repo, &fakeCaseReader{}, &fakeKubernetesSource{deployment: dep})
+	plan, err := svc.Preview(context.Background(), "plan-preview-target")
+	if err != nil {
+		t.Fatalf("Preview err=%v", err)
+	}
+	if plan.Status != StatusPreviewed {
+		t.Fatalf("Status=%q, want previewed", plan.Status)
+	}
+	if repo.previewed == nil || repo.previewed.Status != StatusPreviewed {
+		t.Fatal("MarkPreviewed not persisted to previewed status")
+	}
+}
+
+// ============================================================================
+// M115-1b: Execute + Verify happy paths (stateful repo)
+// ============================================================================
+
+// execRepo is a stateful in-memory Repository implementing the full
+// execute/verify cycle: Claim/Complete/Fail/SaveVerification/
+// GetVerificationByPlan/UpdateVerification/MarkVerified.
+type execRepo struct {
+	*memRepo
+	verifications map[int64]ActionVerification
+	nextVerID     int64
+	verified      map[string]int64 // planID -> verificationID
+	claimErr      error
+}
+
+func newExecRepo() *execRepo {
+	return &execRepo{
+		memRepo:       newMemRepo(),
+		verifications: make(map[int64]ActionVerification),
+		verified:      make(map[string]int64),
+		nextVerID:     1,
+	}
+}
+
+func (r *execRepo) Claim(_ context.Context, id string, tokenHash []byte, idempotencyKey string, now, staleBefore time.Time) (ActionPlan, bool, error) {
+	if r.claimErr != nil {
+		return ActionPlan{}, false, r.claimErr
+	}
+	plan, ok := r.plans[id]
+	if !ok {
+		return ActionPlan{}, false, ErrPlanNotFound
+	}
+	// Constant-time token comparison.
+	if !bytesEqual(plan.ConfirmationTokenHash[:], tokenHash) {
+		return plan, false, ErrConfirmationInvalid
+	}
+	if plan.Status == StatusApproved {
+		plan.Status = StatusExecuting
+		plan.IdempotencyKey = idempotencyKey
+		locked := now
+		plan.LockedAt = &locked
+		r.plans[id] = plan
+		return plan, true, nil
+	}
+	if plan.Status == StatusSucceeded || plan.Status == StatusFailed {
+		if plan.IdempotencyKey != idempotencyKey {
+			return plan, false, ErrAlreadyExecuted
+		}
+		return plan, false, nil // idempotent replay
+	}
+	return plan, false, ErrAlreadyExecuted
+}
+
+func (r *execRepo) Complete(_ context.Context, id, idempotencyKey string, executedAt time.Time) (ActionPlan, error) {
+	plan, ok := r.plans[id]
+	if !ok || plan.Status != StatusExecuting {
+		return ActionPlan{}, ErrPlanNotFound
+	}
+	plan.Status = StatusSucceeded
+	plan.IdempotencyKey = idempotencyKey
+	plan.LockedAt = nil
+	r.plans[id] = plan
+	return plan, nil
+}
+
+func (r *execRepo) Fail(_ context.Context, id, idempotencyKey, message string) (ActionPlan, error) {
+	plan, ok := r.plans[id]
+	if !ok || plan.Status != StatusExecuting {
+		return ActionPlan{}, ErrPlanNotFound
+	}
+	plan.Status = StatusFailed
+	plan.IdempotencyKey = idempotencyKey
+	plan.LockedAt = nil
+	plan.LastError = message
+	r.plans[id] = plan
+	return plan, nil
+}
+
+func (r *execRepo) SaveVerification(_ context.Context, verification *ActionVerification) error {
+	verification.ID = r.nextVerID
+	r.nextVerID++
+	r.verifications[verification.ID] = *verification
+	return nil
+}
+
+func (r *execRepo) GetVerificationByPlan(_ context.Context, planID string) (ActionVerification, error) {
+	for _, v := range r.verifications {
+		if v.PlanID == planID {
+			return v, nil
+		}
+	}
+	return ActionVerification{}, ErrVerificationNotFound
+}
+
+func (r *execRepo) UpdateVerification(_ context.Context, id int64, update VerificationUpdate) (ActionVerification, error) {
+	v, ok := r.verifications[id]
+	if !ok {
+		return ActionVerification{}, ErrVerificationNotFound
+	}
+	if update.Status != "" {
+		v.Status = update.Status
+	}
+	if update.EvidenceComparison != "" {
+		v.EvidenceComparison = update.EvidenceComparison
+	}
+	if update.PostSnapshot != nil {
+		v.PostSnapshot = *update.PostSnapshot
+	}
+	if update.MissingEvidence != nil {
+		v.MissingEvidence = *update.MissingEvidence
+	}
+	if update.VerifiedAt != nil {
+		v.VerifiedAt = update.VerifiedAt
+	}
+	if update.Reason != "" {
+		v.Reason = update.Reason
+	}
+	if update.RollbackTriggered != nil {
+		v.RollbackTriggered = *update.RollbackTriggered
+	}
+	if update.RollbackPlanID != nil {
+		v.RollbackPlanID = update.RollbackPlanID
+	}
+	r.verifications[id] = v
+	return v, nil
+}
+
+func (r *execRepo) MarkVerified(_ context.Context, planID string, verificationID int64, now time.Time) (ActionPlan, error) {
+	plan, ok := r.plans[planID]
+	if !ok {
+		return ActionPlan{}, ErrPlanNotFound
+	}
+	r.verified[planID] = verificationID
+	return plan, nil
+}
+
+func (r *execRepo) GetVerification(_ context.Context, id int64) (ActionVerification, error) {
+	v, ok := r.verifications[id]
+	if !ok {
+		return ActionVerification{}, ErrVerificationNotFound
+	}
+	return v, nil
+}
+
+func TestExecuteHappyPath(t *testing.T) {
+	t.Parallel()
+	repo := newExecRepo()
+	token := "confirmation-token-123"
+	tokenHash := sha256.Sum256([]byte(token))
+	dep := k8sgateway.Deployment{
+		Metadata: k8sgateway.ObjectMeta{UID: "dep-exec", ResourceVersion: "rv-exec"},
+	}
+	dep.Spec = struct {
+		Replicas *int32 `json:"replicas,omitempty"`
+		Selector struct {
+			MatchLabels map[string]string `json:"matchLabels,omitempty"`
+		} `json:"selector"`
+		Template k8sgateway.WorkloadTemplate `json:"template"`
+	}{}
+	now := fixedTime
+	plan := ActionPlan{
+		ID:                    "plan-exec",
+		Status:                StatusApproved,
+		ActionCode:            "deployment.rollout_restart",
+		TargetKind:            "Deployment",
+		ClusterID:             1,
+		TargetNamespace:       "ns",
+		TargetName:            "app",
+		TargetUID:             "dep-exec",
+		TargetResourceVersion: "rv-exec",
+		ConfirmationTokenHash: tokenHash[:],
+		ExpiresAt:             now.Add(time.Hour),
+	}
+	_ = repo.SavePlan(context.Background(), &plan)
+
+	provider := &fakeEvidenceProvider{
+		pre: validSnapshot(map[string]any{"replicas": int32(3)}, nil),
+	}
+	svc := newTestService(t, repo, &fakeCaseReader{}, &fakeKubernetesSource{deployment: dep})
+	svc = NewService(repo, &fakeCaseReader{}, &fakeKubernetesSource{deployment: dep},
+		WithNow(func() time.Time { return now }),
+		WithEvidenceProvider(provider),
+		WithCooldown(120*time.Second))
+
+	completed, err := svc.Execute(context.Background(), "plan-exec", token, "idempotency-key-123456")
+	if err != nil {
+		t.Fatalf("Execute err=%v", err)
+	}
+	if completed.Status != StatusSucceeded {
+		t.Fatalf("Status=%q, want succeeded", completed.Status)
+	}
+	// scheduleVerification must have persisted a pending verification.
+	verification, err := repo.GetVerificationByPlan(context.Background(), "plan-exec")
+	if err != nil {
+		t.Fatalf("GetVerificationByPlan err=%v", err)
+	}
+	if verification.Status != VerificationStatusPending {
+		t.Fatalf("verification.Status=%q, want pending", verification.Status)
+	}
+}
+
+func TestExecutePatchErrorFailsAndSchedulesVerification(t *testing.T) {
+	t.Parallel()
+	repo := newExecRepo()
+	token := "confirmation-token-456"
+	tokenHash := sha256.Sum256([]byte(token))
+	now := fixedTime
+	plan := ActionPlan{
+		ID:                    "plan-fail",
+		Status:                StatusApproved,
+		ActionCode:            "deployment.rollout_restart",
+		TargetKind:            "Deployment",
+		ClusterID:             1,
+		TargetNamespace:       "ns",
+		TargetName:            "app",
+		TargetUID:             "dep-exec",
+		TargetResourceVersion: "rv-exec",
+		ConfirmationTokenHash: tokenHash[:],
+		ExpiresAt:             now.Add(time.Hour),
+	}
+	_ = repo.SavePlan(context.Background(), &plan)
+	provider := &fakeEvidenceProvider{pre: validSnapshot(map[string]any{}, nil)}
+	svc := NewService(repo, &fakeCaseReader{},
+		&fakeKubernetesSource{deployment: k8sgateway.Deployment{Metadata: k8sgateway.ObjectMeta{UID: "dep-exec", ResourceVersion: "rv-exec"}}, patchDepErr: errors.New("k8s patch failed")},
+		WithNow(func() time.Time { return now }),
+		WithEvidenceProvider(provider),
+		WithCooldown(120*time.Second))
+	failed, err := svc.Execute(context.Background(), "plan-fail", token, "idempotency-key-abcdef")
+	if err == nil {
+		t.Fatalf("expected Execute error, got plan=%+v", failed)
+	}
+	if failed.Status != StatusFailed {
+		t.Fatalf("Status=%q, want failed", failed.Status)
+	}
+	// Verification still scheduled for failed executions.
+	verification, err := repo.GetVerificationByPlan(context.Background(), "plan-fail")
+	if err != nil {
+		t.Fatalf("GetVerificationByPlan err=%v", err)
+	}
+	if verification.Status != VerificationStatusPending {
+		t.Fatalf("verification.Status=%q, want pending", verification.Status)
+	}
+}
+
+func TestExecuteGateRecheckFailure(t *testing.T) {
+	t.Parallel()
+	repo := newExecRepo()
+	token := "confirmation-token-789"
+	tokenHash := sha256.Sum256([]byte(token))
+	now := fixedTime
+	plan := ActionPlan{
+		ID:                    "plan-gate",
+		Status:                StatusApproved,
+		ActionCode:            "deployment.rollout_restart",
+		TargetKind:            "Deployment",
+		ClusterID:             1,
+		TargetNamespace:       "ns",
+		TargetName:            "app",
+		TargetUID:             "dep-exec",
+		TargetResourceVersion: "rv-exec",
+		ConfirmationTokenHash: tokenHash[:],
+		ExpiresAt:             now.Add(time.Hour),
+	}
+	_ = repo.SavePlan(context.Background(), &plan)
+	// No k8s source: the uid_rv_recheck gate sees CurrentSnapshot empty
+	// and should fail closed (nil CurrentSnapshot).
+	svc := NewService(repo, &fakeCaseReader{}, nil,
+		WithNow(func() time.Time { return now }))
+	_, err := svc.Execute(context.Background(), "plan-gate", token, "idempotency-key-ghijkl")
+	if err == nil {
+		t.Fatal("expected gate recheck error, got nil")
+	}
+	stored, _ := repo.GetPlan(context.Background(), "plan-gate")
+	if stored.Status != StatusFailed {
+		t.Fatalf("stored.Status=%q, want failed after gate rejection", stored.Status)
+	}
+}
+
+func TestExecuteWrongConfirmationToken(t *testing.T) {
+	t.Parallel()
+	repo := newExecRepo()
+	token := "correct-token-111"
+	tokenHash := sha256.Sum256([]byte(token))
+	now := fixedTime
+	plan := ActionPlan{
+		ID:                    "plan-token",
+		Status:                StatusApproved,
+		ActionCode:            "deployment.rollout_restart",
+		TargetKind:            "Deployment",
+		ClusterID:             1,
+		TargetNamespace:       "ns",
+		TargetName:            "app",
+		TargetUID:             "dep-exec",
+		TargetResourceVersion: "rv-exec",
+		ConfirmationTokenHash: tokenHash[:],
+		ExpiresAt:             now.Add(time.Hour),
+	}
+	_ = repo.SavePlan(context.Background(), &plan)
+	svc := NewService(repo, &fakeCaseReader{}, &fakeKubernetesSource{},
+		WithNow(func() time.Time { return now }))
+	_, err := svc.Execute(context.Background(), "plan-token", "wrong-token", "idempotency-key-123456")
+	if !errors.Is(err, ErrConfirmationInvalid) {
+		t.Fatalf("err=%v, want ErrConfirmationInvalid", err)
+	}
+}
+
+func TestVerifyHappyPathEffective(t *testing.T) {
+	t.Parallel()
+	repo := newExecRepo()
+	now := fixedTime
+	plan := ActionPlan{
+		ID:                    "plan-verify",
+		Status:                StatusSucceeded,
+		ActionCode:            "deployment.rollout_restart",
+		TargetKind:            "Deployment",
+		ClusterID:             1,
+		TargetNamespace:       "ns",
+		TargetName:            "app",
+		TargetUID:             "dep-exec",
+		TargetResourceVersion: "rv-exec",
+	}
+	_ = repo.SavePlan(context.Background(), &plan)
+	pre := validSnapshot(map[string]any{"replicas": int32(2), "available_replicas": int32(2)}, sloSnapshot("burning_fast"))
+	post := validSnapshot(map[string]any{"replicas": int32(3), "available_replicas": int32(3), "restarted_at": "2026-08-14T10:00:00Z"}, sloSnapshot("healthy"))
+	provider := &fakeEvidenceProvider{pre: pre, post: post}
+	verifier := NewVerifier(WithVerifierProvider(provider), WithVerifierNow(func() time.Time { return now }), WithVerifierCooldown(120*time.Second))
+	verification, _ := verifier.CreateVerification(context.Background(), plan)
+	verification.Status = VerificationStatusPending
+	_ = repo.SaveVerification(context.Background(), &verification)
+
+	svc := NewService(repo, &fakeCaseReader{}, &fakeKubernetesSource{},
+		WithNow(func() time.Time { return now }),
+		WithEvidenceProvider(provider),
+		WithCooldown(120*time.Second))
+	evaluated, err := svc.Verify(context.Background(), "plan-verify")
+	if err != nil {
+		t.Fatalf("Verify err=%v", err)
+	}
+	if evaluated.Status != VerificationStatusEffective {
+		t.Fatalf("Status=%q, want effective", evaluated.Status)
+	}
+	if evaluated.VerifiedAt == nil {
+		t.Fatal("VerifiedAt is nil, want set")
+	}
+	if _, ok := repo.verified["plan-verify"]; !ok {
+		t.Fatal("MarkVerified not called")
+	}
+}
+
+func TestScheduleVerificationNilVerifier(t *testing.T) {
+	t.Parallel()
+	svc := &Service{enabled: true, verifier: nil, now: func() time.Time { return fixedTime }}
+	if err := svc.scheduleVerification(context.Background(), ActionPlan{ID: "p"}); err != nil {
+		t.Fatalf("scheduleVerification err=%v", err)
 	}
 }

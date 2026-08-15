@@ -9,6 +9,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - M115-1c automation 覆盖率 46.5% → 66.9%（Execute/Verify 全生命周期测试）
+
+- 扩展 `internal/automation/service_test.go`：Execute 全生命周期（execRepo 内存 Claim/Complete/Fail/SaveVerification）——happy path Approved→Succeeded + 验证调度、patch 失败→Failed 仍调度验证、gate recheck fail-closed、错误 confirmation token；Verify happy path（SLO 改善 + rollout_restart 后快照 → Effective + MarkVerified）；Preview 全分支（disabled/not-draft/k8s 缺失/成功过渡 previewed）；materializeParameters 全分支（rollback 历史/无回滚点/no-change/缺 override/cronjob.suspend/unsupported action）；refreshSnapshot（Deployment/CronJob 成功 + 错误分支）；GetPlan。
+- See [change record](docs/changes/2026-08-14-m115-1c-automation-coverage-to-67.md)。
+
 ### Added - M115-1b httpserver 覆盖率 66.1% → 70.0%（全局最大单包顶到 70% 门禁线）
 
 - 新增 `internal/httpserver/clusters_test.go`：clusterHandler 全六 handler + clusterID util（list/get/create/setEnabled/updateCredential/probe/delete 全部错误哨兵：400/404/502/500 与 happy path 200/201/204）。

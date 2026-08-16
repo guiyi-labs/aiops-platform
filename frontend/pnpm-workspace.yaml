@@ -1,6 +1,12 @@
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
 # pnpm 10+ reads settings from this file instead of package.json "pnpm" field.
+# esbuild's postinstall must run (it downloads/validates its platform binary);
+# without approval pnpm 11 fails `install --frozen-lockfile` with
+# ERR_PNPM_IGNORED_BUILDS. allowBuilds + onlyBuiltDependencies are the two
+# accepted v11 keys; both are kept for forward compatibility.
+onlyBuiltDependencies:
+  - esbuild
 # P2a: force patched nanoid (CVE-2026-67213, fixed 3.3.18) for all transitive
 # consumers (vite/postcss) until their own fixed releases are published.
 overrides:

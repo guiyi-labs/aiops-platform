@@ -62,7 +62,17 @@ while IFS= read -r line; do
 echo
 echo "== Frontend production licenses =="
 if command -v pnpm >/dev/null 2>&1; then
-  (cd "$ROOT/frontend" && pnpm licenses list --prod --json 2>/dev/null | ALLOWLIST="$ALLOWLIST" node "$ROOT/scripts/license-scan-parser.mjs") || fail=1
+  # `pnpm licenses list` requires an installed dependency tree. The dependency
+  # CI job has no install step, so ensure node_modules exists first
+  # (frozen-lockfile; a no-op when already installed). An install failure
+  # fails the gate with the log surfaced, rather than scanning an empty tree.
+  (cd "$ROOT/frontend" && pnpm install --frozen-lockfile >/tmp/pnpm-install-license.log 2>&1) || {
+    cat /tmp/pnpm-install-license.log
+    fail=1
+  }
+  if [[ "$fail" -eq 0 ]]; then
+    (cd "$ROOT/frontend" && pnpm licenses list --prod --json 2>/dev/null | ALLOWLIST="$ALLOWLIST" node "$ROOT/scripts/license-scan-parser.mjs") || fail=1
+  fi
 else
   echo "  pnpm not found" >&2
   fail=1

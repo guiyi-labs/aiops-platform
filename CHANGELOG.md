@@ -46,6 +46,20 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 
 ## [Unreleased]
 
+### Fixed - CI 全绿修复：pnpm esbuild 构建批准 + license 扫描链（13a486d 两 job failure）
+
+- `frontend/pnpm-workspace.yaml`：879ac75 误伤 esbuild 构建批准配置
+  （`allowBuilds.esbuild` 占位文本 + 删除 `onlyBuiltDependencies`），pnpm v11
+  拦截 esbuild postinstall → `install --frozen-lockfile` 失败；恢复
+  `allowBuilds.esbuild: true` + `onlyBuiltDependencies: [esbuild]`。
+- license 扫描链：CI dependency job 无 `pnpm install` 前置，`pnpm licenses
+  list --prod --json` 在无 node_modules 下输出形态异常 → parse failed；
+  脚本前置 install（势态 fail-closed），parser 结构容错（数组/单对象/嵌套
+  `licenses` 桶/空流归一化，非 allowlist 仍 exit 1）。
+- gosec 遗漏复核：中枢列的 7 个位置经 golangci v2.12.2（同 CI 命令版本）+ 独立
+  gosec 全阈值复验均无真实发现（已带 #nosec 或非触发模式），未追加无意义标注。
+- See [change record](docs/changes/2026-08-16-ci-fix-pnpm-license-scan.md)。
+
 ### Changed - P2a 质量部分：gosec/trivy/nanoid + 测试提测（门禁阈值拆分）
 
 - `.golangci.yml` 启用 **gosec**（排除保守噪声 G115/G304/G104/G602 与

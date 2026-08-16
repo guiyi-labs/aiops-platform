@@ -158,25 +158,25 @@ func (in *ControlledOperation) DeepCopyObject() runtime.Object {
 }
 
 // DeepCopyInto copies the receiver into out.
-func (in *ControlledOperationSpec) DeepCopyInto(out *ControlledOperationSpec) {
-	*out = *in
-	if in.DesiredReplicas != nil {
-		v := *in.DesiredReplicas
+func (s *ControlledOperationSpec) DeepCopyInto(out *ControlledOperationSpec) {
+	*out = *s
+	if s.DesiredReplicas != nil {
+		v := *s.DesiredReplicas
 		out.DesiredReplicas = &v
 	}
-	if in.DryRun != nil {
-		v := *in.DryRun
+	if s.DryRun != nil {
+		v := *s.DryRun
 		out.DryRun = &v
 	}
 }
 
 // DeepCopy returns a deep copy of the receiver.
-func (in *ControlledOperationSpec) DeepCopy() *ControlledOperationSpec {
-	if in == nil {
+func (s *ControlledOperationSpec) DeepCopy() *ControlledOperationSpec {
+	if s == nil {
 		return nil
 	}
 	out := new(ControlledOperationSpec)
-	in.DeepCopyInto(out)
+	s.DeepCopyInto(out)
 	return out
 }
 

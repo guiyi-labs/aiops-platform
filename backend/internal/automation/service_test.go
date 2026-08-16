@@ -1167,8 +1167,7 @@ func TestExecuteHappyPath(t *testing.T) {
 	provider := &fakeEvidenceProvider{
 		pre: validSnapshot(map[string]any{"replicas": int32(3)}, nil),
 	}
-	svc := newTestService(t, repo, &fakeCaseReader{}, &fakeKubernetesSource{deployment: dep})
-	svc = NewService(repo, &fakeCaseReader{}, &fakeKubernetesSource{deployment: dep},
+	svc := NewService(repo, &fakeCaseReader{}, &fakeKubernetesSource{deployment: dep},
 		WithNow(func() time.Time { return now }),
 		WithEvidenceProvider(provider),
 		WithCooldown(120*time.Second))

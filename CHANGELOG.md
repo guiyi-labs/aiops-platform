@@ -9,6 +9,13 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - CI golangci-lint：receiver name 统一 + ineffassign
+
+- `operator/types.go`：`ControlledOperationSpec` DeepCopy* receiver `in`→`s`
+  （ST1016，与 IsDryRun 一致）；`automation/service_test.go` 删除无效 `svc` 赋值
+  （ineffassign）。golangci-lint v2.12.2 同配置 0 issues。
+- See [change record](docs/changes/2026-08-15-operator-lint-receiver-ineffassign.md)。
+
 ### Fixed - metricshistory 测试顺序 flaky 修复（CI backend race）
 
 - `TestDownsampleAndArchiveAggregatesHourlyBuckets` 断言改按 series 身份匹配，

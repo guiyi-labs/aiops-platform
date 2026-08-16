@@ -75,7 +75,24 @@ const (
 	EvidenceKindSLOEvaluation    EvidenceKind = "slo_evaluation"
 	EvidenceKindCorrelationCase  EvidenceKind = "correlation_case"
 	EvidenceKindChangeCandidate  EvidenceKind = "change_candidate"
+	// EvidenceKindHistoricalCase marks a distilled, verified historical
+	// diagnosis entry injected by the P1 knowledge base as a *reference*
+	// (never counted as case evidence, so investigation keys stay stable).
+	EvidenceKindHistoricalCase EvidenceKind = "historical_case"
 )
+
+// HistoricalCaseContext is a distilled, verified past diagnosis outcome that
+// the knowledge base injected into the prompt as reference material. It is
+// intentionally NOT part of the authorized EvidenceRefs / PromptHash set: it
+// enriches the investigation without affecting its replay key.
+type HistoricalCaseContext struct {
+	RuleID          string   `json:"rule_id"`
+	Severity        string   `json:"severity"`
+	Summary         string   `json:"summary"`
+	RootCauses      []string `json:"root_causes"`
+	Recommendations []string `json:"recommendations"`
+	NotedAt         string   `json:"noted_at"`
+}
 
 // EvidenceRef points at a stable, redacted evidence snapshot authorized for
 // this investigation. The prompt builder assembles the authorized set; the

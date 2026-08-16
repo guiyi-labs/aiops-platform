@@ -25,6 +25,11 @@ type CaseContext struct {
 	SignalLinks          []SignalLinkContext
 	ResourceLinks        []ResourceLinkContext
 	ChangeCandidates     []ChangeCandidateContext
+	// HistoricalCases are verified past diagnosis outcomes injected as
+	// reference material (P1 knowledge base). They never enter the
+	// authorized evidence set / prompt hash, so investigation keys remain
+	// stable regardless of knowledge availability.
+	HistoricalCases []HistoricalCaseContext
 }
 
 type FactorContext struct {
@@ -222,6 +227,21 @@ func buildUserPrompt(ctx CaseContext, evidence map[string]EvidenceRef) (string, 
 	for _, cc := range ctx.ChangeCandidates {
 		fmt.Fprintf(&b, "  - change_candidate:%d rule=%s confidence=%s rank=%d reason=%s\n",
 			cc.ChangeEventID, cc.RuleID, cc.Confidence, cc.Rank, cc.ReasonCode)
+	}
+
+	fmt.Fprintf(&b, "\nHISTORICAL REFERENCES (验证过的历史处置，仅参考，不计入证据):\n")
+	if len(ctx.HistoricalCases) == 0 {
+		fmt.Fprintf(&b, "  - none\n")
+	}
+	for i, hc := range ctx.HistoricalCases {
+		fmt.Fprintf(&b, "  - historical:%d rule=%s severity=%s noted=%s summary=%s\n",
+			i+1, hc.RuleID, hc.Severity, hc.NotedAt, hc.Summary)
+		if len(hc.RootCauses) > 0 {
+			fmt.Fprintf(&b, "    root_causes: %s\n", strings.Join(hc.RootCauses, "; "))
+		}
+		if len(hc.Recommendations) > 0 {
+			fmt.Fprintf(&b, "    recommendations: %s\n", strings.Join(hc.Recommendations, "; "))
+		}
 	}
 
 	return b.String(), nil

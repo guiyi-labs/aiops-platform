@@ -6,10 +6,14 @@ failure happens, you (or your AI) recall the past fix in seconds.
 
 ![Dashboard](docs/screenshots/01-dashboard.png)
 
+**Live demo** — `aiops diagnose` on a real fault-injected kind cluster: rule-based findings → case recall:
+
+![aiops CLI demo — real fault cluster](docs/screenshots/demo-cli.gif)
+
 ```bash
 # Try it in one line (CLI, no cluster web stack needed)
-# Option 1 — GitHub Release binary (recommended, v0.1.0+): download aiops for
-#           your platform from the Release assets, or
+# Option 1 — GitHub Release binary (recommended, Linux/macOS x64+arm64):
+#   https://github.com/guiyi-labs/aiops-platform/releases
 # Option 2 — from source:
 git clone https://github.com/guiyi-labs/aiops-platform
 cd aiops-platform/backend
@@ -25,6 +29,10 @@ aiops diagnose --kubeconfig ~/.kube/config
 [![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?logo=vuedotjs&logoColor=white)](#)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.36-326CE5?logo=kubernetes&logoColor=white)](#)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](#)
+
+**Companion skill:** [KubeMD](https://github.com/guiyi-labs/kubemd) — the same
+diagnosis + case-memory engine, packaged as a DSH agent skill (drop-in
+`~/.dsh/skills/`). CLI for terminals, KubeMD for agents.
 
 ---
 

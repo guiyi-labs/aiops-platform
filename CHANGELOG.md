@@ -9,6 +9,16 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - Frontend E2E 补缺失 mock（M112/M113 渲染回归）
+
+- `incidents.spec.ts` 补 `/incidents/:id/context`（cockpit）+ `/summary`（AI 摘要）mock；
+  `finding-evidence.spec.ts` 补 inspection `coverage` mock —— 均为合法结构 fixture。
+- 根因：M112/M113 新增驾驶舱渲染但 e2e mock 未同步 → 兜底空响应缺字段 →
+  Vue render 崩溃 → workflow-status/finding-panel 断言失败（stable，非 flaky）。
+- 本地验证：目标 spec 14/14 + 全量 e2e 76/76 + typecheck/lint/vitest 全绿。
+- See [change record](docs/changes/2026-08-16-frontend-missing-e2e-mocks.md) 与
+  [判因分析](docs/enhancement-frontend-analysis.md)。
+
 ### Changed - Operator 单测补强：全局覆盖率推过 70% 门禁
 
 - `internal/operator/` 新增 executor/util 测试（fake dynamic client + reactor）：

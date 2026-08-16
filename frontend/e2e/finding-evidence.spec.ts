@@ -90,6 +90,28 @@ const inspectionResult = {
   observed_at: observedAt,
 }
 
+// M113 inspection coverage: InspectionView renders Object.keys(coverage.by_severity)
+// and coverage.trend unconditionally once coverage is set, so the mock must be a
+// legal InspectionCoverageSummary (never the api-fixtures fallback).
+const inspectionCoverage = {
+  scope: 'cluster:1',
+  observed_at: observedAt,
+  window_days: 30,
+  plan_total: 1,
+  plan_enabled: 1,
+  task_total: 1,
+  task_completed: 1,
+  task_failed: 0,
+  task_scheduled: 0,
+  task_manual: 1,
+  finding_total: 1,
+  distinct_rule_codes: 1,
+  by_severity: { critical: 1 },
+  rule_coverage: 1,
+  trend: [{ day: observedAt.slice(0, 10), tasks: 1, findings: 1 }],
+  fail_closed: false,
+}
+
 test.beforeEach(async ({ page }) => {
   await mockAuthenticatedAPI(page)
   await page.route('**/api/v1/clusters', (route) => fulfillJSON(route, { items: [cluster], total: 1, remaining: 0 }))
@@ -100,6 +122,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/aiops/inspection/plans', (route) => fulfillJSON(route, { items: [] }))
   await page.route('**/api/v1/aiops/inspection/tasks**', (route) => fulfillJSON(route, { items: [inspectionTask], total: 1 }))
   await page.route('**/api/v1/aiops/inspection/results**', (route) => fulfillJSON(route, { items: [inspectionResult], total: 1 }))
+  await page.route('**/api/v1/aiops/inspection/coverage**', (route) => fulfillJSON(route, inspectionCoverage))
 })
 
 test('Posture evidence panel expands with source and recommendation', async ({ page }) => {

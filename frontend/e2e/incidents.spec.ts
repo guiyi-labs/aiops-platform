@@ -54,6 +54,59 @@ function resolvedIncident(): typeof incident {
 
 const summary = { total: 1, open: 1, confirmed: 0, resolved: 0, dismissed: 0, overdue: 0 }
 
+// M112 context cockpit: IncidentsView.vue dereferences cockpit.resource_context.scope
+// unconditionally once cockpit is set, so the mock must be a legal IncidentContextCockpit
+// (never the api-fixtures fallback, which lacks resource_context).
+const cockpitContext = {
+  resource_context: {
+    scope: { cluster_id: 1, namespace: 'default', kind: 'Pod', name: 'web-0', source_type: 'finding' },
+    observed_at: '2026-08-12T08:00:00Z',
+    source: 'finding',
+    freshness: { age_seconds: 120, as_of: '2026-08-12T08:02:00Z' },
+    empty_sample: { count: 0, bounded: true, semantic: 'fail_closed' },
+  },
+  incident: {
+    id: 7,
+    number: 'INC-000007',
+    title: 'web-0 CrashLoopBackOff',
+    severity: 'high',
+    status: 'open',
+    summary: '容器持续崩溃重启',
+    source_type: 'finding',
+    resource: { kind: 'Pod', namespace: 'default', name: 'web-0', uid: 'pod-7' },
+    version: 1,
+    created_at: '2026-08-12T08:00:00Z',
+    updated_at: '2026-08-12T08:00:00Z',
+  },
+  sla: { due_at: '2026-08-12T12:00:00Z', overdue: false, remaining: '3h 58m', deadline_text: '3h 58m 后截止' },
+  health: { status: 'open', overdue: false, evidence_available: true, runbook_available: false, note_count: 0, system_event_count: 1 },
+  evidence_sources: [{ source_type: 'finding', count: 1, deep_link: '/diagnoses/1' }],
+  recent_events: [
+    { id: 1, event_type: 'system', actor: { id: 0, name: 'system' }, content: 'incident created from finding source finding:1:pod.crash_loop_backoff.v1:Pod:default:web-0', created_at: '2026-08-12T08:00:00Z' },
+  ],
+  recommended_actions: [{ action: 'restart rollout', target_kind: 'Deployment', dry_run_first: true, summary: '触发滚动重启（dry-run 预览）' }],
+}
+
+// M112-3 cited AI summary: IncidentsView.vue reads incidentSummary.next_steps /
+// incidentSummary.citations unconditionally once incidentSummary is set.
+const incidentSummary = {
+  incident_id: 7,
+  resource_context: cockpitContext.resource_context,
+  mode: 'deterministic',
+  root_cause_candidate: 'image tag drift (deterministic gate)',
+  impact: 'web-0 CrashLoopBackOff',
+  evidence_summary: '从 finding:1:pod.crash_loop_backoff.v1 提取',
+  next_steps: [],
+  citations: [],
+  provider: 'deterministic',
+  model: 'gate',
+  input_tokens: 0,
+  output_tokens: 0,
+  fail_closed: true,
+  stage_gate_passed: true,
+  stage_gate_reason: 'deterministic fallback',
+}
+
 test.beforeEach(async ({ page }) => {
   consoleErrors.length = 0
   page.on('console', (msg) => {
@@ -126,6 +179,14 @@ test.beforeEach(async ({ page }) => {
     }
     if (route.request().method() === 'GET' && path === '/api/v1/incidents/7/postmortem/export') {
       await route.fulfill({ status: 200, contentType: 'text/markdown', headers: { 'Content-Disposition': 'attachment; filename="incident-INC-000007-postmortem.md"' }, body: '# INC-000007\n\n## Outcome\n' })
+      return
+    }
+    if (route.request().method() === 'GET' && path === '/api/v1/incidents/7/context') {
+      await fulfillJSON(route, cockpitContext)
+      return
+    }
+    if (route.request().method() === 'GET' && path === '/api/v1/incidents/7/summary') {
+      await fulfillJSON(route, incidentSummary)
       return
     }
     await fulfillJSON(route, { items: [], total: 0, remaining: 0 })

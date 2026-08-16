@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
+## [0.1.0] - 2026-08-16
+
+First public release of the AIOps platform — deterministic Kubernetes fault
+diagnosis with case memory, surfaced through a zero-setup CLI.
+
+### Highlights
+
+- **`aiops` CLI** (`backend/cmd/aiops`): `diagnose` runs the compiled-in
+  deterministic rule chain (OOM kill → image pull back-off → crash loop
+  back-off → pending) against your cluster — or built-in demo data when no
+  kubeconfig is available — and `cases` searches the historical case library
+  (built-in rule catalog when no server is reachable). English output, `-o
+  json`, exit codes 0/1/2.
+- **Case memory (RAG)**: resolved diagnoses are auto-distilled into a
+  searchable case library; two-stage retrieval (structured shortlist +
+  optional LLM re-rank) recalls past fixes for recurring failures.
+- **Verifiable AI explanation**: AI only enhances, every citation is checked
+  (`historical:N` evidence references the case library).
+- **ControlledOperation operator**: pure client-go controller (CRD
+  `controlledoperations.aiops.platform`) for rollout-restart / scale /
+  cronjob-suspend with dry-run, idempotency and finalizer cleanup.
+- **Web console**: multi-cluster observability (metrics/logs/events/SLO),
+  evidence-based diagnosis, incident response, audit-driven controlled ops,
+  cluster+namespace 2D authorization.
+
+### Quality
+
+- Coverage ≥ 70% overall (core packages ≥ 75%), linters 0 issues,
+  gosec/trivy clean, race detector enforced, Playwright e2e green.
+
+### Notes
+
+- The repository is a monorepo; the CLI is installed from source
+  (`cd backend && go install ./cmd/aiops`) or via GitHub Release binaries.
+- Full milestone-level detail remains in the change records below
+  (`docs/changes/`) and the `Unreleased` sections that followed each baseline.
+
 ## [Unreleased]
 
 ### Added - aiops CLI：diagnose + cases（star 放大器）

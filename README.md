@@ -8,7 +8,12 @@ failure happens, you (or your AI) recall the past fix in seconds.
 
 ```bash
 # Try it in one line (CLI, no cluster web stack needed)
-go install github.com/guiyi-labs/aiops-platform/cmd/aiops@latest
+# Option 1 — GitHub Release binary (recommended, v0.1.0+): download aiops for
+#           your platform from the Release assets, or
+# Option 2 — from source:
+git clone https://github.com/guiyi-labs/aiops-platform
+cd aiops-platform/backend
+go install ./cmd/aiops
 aiops diagnose --kubeconfig ~/.kube/config
 ```
 
@@ -57,8 +62,12 @@ remembers *how you fixed it*:
 ## Quickstart
 
 ```bash
-# Option A — CLI (recommended for trying out)
-go install github.com/guiyi-labs/aiops-platform/cmd/aiops@latest
+# Quickstart — CLI (recommended for trying out)
+# Release binary: grab `aiops-<os>-<arch>` from the latest Release assets.
+# Or from source:
+git clone https://github.com/guiyi-labs/aiops-platform
+cd aiops-platform/backend
+go install ./cmd/aiops
 aiops diagnose                                  # run deterministic rule diagnosis
 aiops cases --query "crashloop"                 # search historical cases (degraded to pure rules without a server)
 

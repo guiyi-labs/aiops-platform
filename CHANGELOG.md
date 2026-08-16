@@ -46,6 +46,17 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 
 ## [Unreleased]
 
+### Changed - P2a CI 门禁：核心包覆盖率阈值 70% → 75%（5 包）
+
+- `.github/workflows/ci.yml` 核心包门禁（P2a）：metricshistory / apiquery /
+  deprecatedapi / optimization / knowledge 5 包覆盖率门槛 **70.0% → 75.0%**
+  （全局 70% 门禁不动）。
+- 5 包本地实测：76.2% / 100.0% / 93.2% / 82.5% / 86.9%，全部达标；提交后
+  Backend job 门禁复核。
+- 口径：以中枢点名的 5 包列表为准（含 P1 RAG knowledge）；「4 旗舰包
+  diagnosis/aiexplain/aiinvestigator ≥75%」若需另做提测，为挂起事项。
+- See [change record](docs/changes/2026-08-16-p2a-ci-core-package-gate-75.md)。
+
 ### Fixed - CI 全绿修复：pnpm esbuild 构建批准 + license 扫描链（13a486d 两 job failure）
 
 - `frontend/pnpm-workspace.yaml`：879ac75 误伤 esbuild 构建批准配置

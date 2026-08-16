@@ -1,6 +1,7 @@
 allowBuilds:
-  esbuild: true
-onlyBuiltDependencies:
-  - esbuild
+  esbuild: set this to true or false
+# pnpm 10+ reads settings from this file instead of package.json "pnpm" field.
+# P2a: force patched nanoid (CVE-2026-67213, fixed 3.3.18) for all transitive
+# consumers (vite/postcss) until their own fixed releases are published.
 overrides:
-  nanoid: 3.3.17
+  nanoid: 3.3.18

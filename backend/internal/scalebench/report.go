@@ -430,11 +430,11 @@ func WriteReport(path string, report Report) error {
 		return err
 	}
 	data = append(data, '\n')
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return err
 	}
 	markdownPath := strings.TrimSuffix(path, filepath.Ext(path)) + ".md"
-	return os.WriteFile(markdownPath, []byte(markdownReport(report)), 0o644)
+	return os.WriteFile(markdownPath, []byte(markdownReport(report)), 0o600)
 }
 
 func markdownReport(report Report) string {

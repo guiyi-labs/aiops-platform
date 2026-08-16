@@ -170,7 +170,7 @@ func (h authHandler) revokeOtherSessions(c *gin.Context) {
 }
 
 func (h authHandler) setRefreshCookie(c *gin.Context, value string) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure follows config (local http demo); HttpOnly+SameSite always on
 		Name:     refreshCookieName,
 		Value:    value,
 		Path:     "/api/v1/auth",
@@ -182,7 +182,7 @@ func (h authHandler) setRefreshCookie(c *gin.Context, value string) {
 }
 
 func (h authHandler) clearRefreshCookie(c *gin.Context) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure follows config (local http demo); HttpOnly+SameSite always on
 		Name:     refreshCookieName,
 		Value:    "",
 		Path:     "/api/v1/auth",

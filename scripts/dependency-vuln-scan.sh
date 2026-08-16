@@ -38,6 +38,34 @@ else
 fi
 
 echo
+echo "== Frontend + all lockfiles: trivy fs (P2a) =="
+# trivy scans the full dependency tree (dev + prod) from lockfiles, catching
+# advisories pnpm audit --prod and govulncheck intentionally skip. Installed
+# on demand when missing; a scan failure fails the gate.
+if ! command -v trivy >/dev/null 2>&1 && [[ -x /tmp/gobin/trivy ]]; then
+  export PATH="/tmp/gobin:$PATH"
+fi
+if command -v trivy >/dev/null 2>&1; then
+  (
+    cd "$ROOT"
+    set +e
+    set -e
+    for target in "$ROOT/backend" "$ROOT/frontend"; do
+      set +e
+      output="$(trivy fs --scanners vuln --severity HIGH,CRITICAL --exit-code 1 --no-progress --skip-dirs node_modules --skip-dirs .git "$target" 2>&1)"
+      t_exit=$?
+      set -e
+      printf '== trivy fs %s ==\n%s\n' "$target" "$output"
+      if [[ "$t_exit" != "0" ]]; then
+        fail=1
+      fi
+    done
+  )
+else
+  echo "trivy not found — skipping (install: brew install trivy)" >&2
+fi
+
+echo
 echo "== Frontend: pnpm audit --prod =="
 if command -v pnpm >/dev/null 2>&1; then
   (

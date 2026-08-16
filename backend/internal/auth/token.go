@@ -11,7 +11,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const tokenIssuer = "k8s-aiops-api"
+const tokenIssuer = "k8s-aiops-api" // #nosec G101 -- issuer claim, not a credential
 
 type Claims struct {
 	Username    string   `json:"username"`

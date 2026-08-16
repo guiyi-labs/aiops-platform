@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultDatabaseURL = "postgres://aiops:admin123@localhost:5432/aiops?sslmode=disable"
+	defaultDatabaseURL = "postgres://aiops:admin123@localhost:5432/aiops?sslmode=disable" // #nosec G101 -- local dev default; overridden by env in deployment
 	defaultHTTPAddress = ":8080"
 )
 
@@ -346,11 +346,11 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("JWT_SIGNING_KEY must contain at least 32 characters")
 	}
 	bootstrapPassword := stringFromEnv("BOOTSTRAP_ADMIN_PASSWORD", "admin123")
-	if environment == "production" && (bootstrapPassword == "change_me_now" || bootstrapPassword == "admin123") {
+	if environment == "production" && (bootstrapPassword == "change_me_now" || bootstrapPassword == "admin123") { // #nosec G101 -- placeholder validated below in production
 		return Config{}, fmt.Errorf("BOOTSTRAP_ADMIN_PASSWORD must be changed in production")
 	}
-	credentialKey := stringFromEnv("CREDENTIAL_ENCRYPTION_KEY", "ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE=")
-	if environment == "production" && credentialKey == "ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE=" {
+	credentialKey := stringFromEnv("CREDENTIAL_ENCRYPTION_KEY", "ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE=") // #nosec G101 -- dev placeholder rejected in production below
+	if environment == "production" && credentialKey == "ZGV2LW9ubHktMzItYnl0ZS1rZXktY2hhbmdlLW5vdyE=" {         // #nosec G101 -- dev placeholder rejected below
 		return Config{}, fmt.Errorf("CREDENTIAL_ENCRYPTION_KEY must be changed in production")
 	}
 	credentialKeyVersion := stringFromEnv("CREDENTIAL_KEY_VERSION", "v1")

@@ -39,7 +39,7 @@ func main() {
 
 	if *health {
 		client := &http.Client{Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}, //nolint:gosec -- local healthcheck only
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}, // #nosec G402 -- local demo mock only
 		}}
 		resp, err := client.Get("https://127.0.0.1:8443/healthz")
 		if err == nil && resp.StatusCode == http.StatusOK {

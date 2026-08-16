@@ -172,7 +172,7 @@ func writeManifest(outputDir string, manifest Manifest) error {
 		return err
 	}
 	data = append(data, '\n')
-	return os.WriteFile(filepath.Join(outputDir, "manifest.json"), data, 0o644)
+	return os.WriteFile(filepath.Join(outputDir, "manifest.json"), data, 0o600)
 }
 
 func datasetHash(artifacts []Artifact) string {

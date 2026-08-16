@@ -262,7 +262,7 @@ func (s *Service) RunInspectOnce(ctx context.Context, triggeredBy int64, cluster
 		return TaskView{}, err
 	}
 	// Launch background execution.
-	execCtx, cancel := context.WithCancel(context.Background())
+	execCtx, cancel := context.WithCancel(context.Background()) // #nosec G118 -- cancel stored in s.active, invoked by CancelTask
 	s.mu.Lock()
 	s.active[task.ID] = cancel
 	s.mu.Unlock()

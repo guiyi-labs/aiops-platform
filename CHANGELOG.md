@@ -46,10 +46,25 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 
 ## [Unreleased]
 
+### Changed - P2a 质量部分：gosec/trivy/nanoid + 测试提测（门禁阈值拆分）
+
+- `.golangci.yml` 启用 **gosec**（排除保守噪声 G115/G304/G104/G602 与
+  `_test.go`）；13 个 backend 文件真实 gosec 发现修复/标注（TLS 校验注解、
+  文件权限收紧 0o600、G112/G107 等）；全仓库 `golangci-lint` **0 issues**。
+- 新增 `scripts/dependency-vuln-scan.sh`：trivy `fs` 逐目录扫描，0 findings。
+- frontend 供应链：`nanoid` **3.3.18** overrides（CVE-2025-49013）+ pnpm
+  workspace 字段清理。
+- `knowledge/repository.go` severity 过滤确定性顺序（修 flaky）；
+  `metricshistory/pure_helpers_test.go` 提测 74.9 → 76.2%。
+- **拆分说明**：CI 门禁阈值（4 旗舰包 diagnosis/knowledge/aiexplain/
+  aiinvestigator ≥75%）暂存工作树，待旗舰包提测完成同批提交。
+- See [change record](docs/changes/2026-08-16-p2a-security-lint-coverage.md)。
+
 ### Added - aiops CLI：diagnose + cases（star 放大器）
 
-- 新增 `backend/cmd/aiops/`：零依赖（复用 internal 包）的命令行体验入口，
-  `go install github.com/guiyi-labs/aiops-platform/cmd/aiops@latest` 一行可跑。
+- 新增 `backend/cmd/aiops/`：零依赖（复用 internal 包）的命令行体验入口；
+  因仓库为 monorepo（Go 模块在 `backend/`），安装方式为 Release 二进制或
+  `cd backend && go install ./cmd/aiops`（`@latest` 不适用，见 [0.1.0] Notes）。
 - **`aiops diagnose`**：复用 diagnosis 编译期规则链（OOM → ImagePull →
   CrashLoop → Pending）做确定性 Pod 诊断；有 `~/.kube/config` 时直连 API
   Server 扫描命名空间，缺失/不可解析时**降级内置 5 个演示 fixture** 零门槛

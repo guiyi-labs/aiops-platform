@@ -61,7 +61,7 @@ func (s *Service) RunReplay(ctx context.Context) (string, error) {
 	}
 	s.tasks.set(task)
 
-	go s.executeReplay(taskID)
+	go s.executeReplay(taskID) // #nosec G118 -- replay outlives the request ctx; bounded internally
 
 	return taskID, nil
 }
@@ -85,7 +85,7 @@ func (s *Service) GetTask(id string) (ReplayTaskView, bool) {
 }
 
 func (s *Service) executeReplay(taskID string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute) // #nosec G118 -- replay outlives the request ctx; explicitly bounded
 	defer cancel()
 
 	s.mu.Lock()

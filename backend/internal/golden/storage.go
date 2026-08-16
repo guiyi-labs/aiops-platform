@@ -55,7 +55,7 @@ func (s *FileReportStorage) Save(report QualityReport) error {
 	if err != nil {
 		return fmt.Errorf("marshal quality report: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("write quality report file: %w", err)
 	}
 	return nil

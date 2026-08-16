@@ -8,8 +8,8 @@ const (
 	StatusReady       = "ready"
 	StatusUnreachable = "unreachable"
 
-	ConditionReady           = "Ready"
-	ConditionCredentialValid = "CredentialValid"
+	ConditionReady           = "Ready"           // #nosec G101 -- condition string, not a credential
+	ConditionCredentialValid = "CredentialValid" // #nosec G101 -- condition string, not a credential
 	ConditionReachable       = "Reachable"
 )
 

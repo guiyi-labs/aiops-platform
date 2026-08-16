@@ -626,7 +626,7 @@ func parsePort(v string) (int32, bool) {
 	if err != nil || n <= 0 || n > 65535 {
 		return 0, false
 	}
-	return int32(n), true
+	return int32(uint16(n)), true // #nosec G109 -- n is range-checked to (0,65535] above
 }
 
 // protocolMatches compares two protocol values, treating an empty value as the

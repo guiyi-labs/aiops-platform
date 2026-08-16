@@ -83,7 +83,7 @@ func ParseKubeconfig(raw []byte) (ClientConfig, error) {
 	if err != nil || parsedURL.Scheme != "https" || parsedURL.Host == "" {
 		return ClientConfig{}, fmt.Errorf("%w: API server must be an absolute HTTPS URL", ErrInvalidKubeconfig)
 	}
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: insecure, ServerName: tlsServerName} //nolint:gosec -- explicitly requested by kubeconfig
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: insecure, ServerName: tlsServerName} // #nosec G402 -- insecure transport explicitly requested by the kubeconfig
 	if caData != "" {
 		decoded, err := base64.StdEncoding.DecodeString(caData)
 		if err != nil {

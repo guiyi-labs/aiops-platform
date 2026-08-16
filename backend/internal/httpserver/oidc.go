@@ -44,7 +44,7 @@ func (h oidcHandler) login(c *gin.Context) {
 		writeError(c, http.StatusBadGateway, "OIDC_UNAVAILABLE", "unable to contact the identity provider")
 		return
 	}
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure follows config; HttpOnly+SameSite always on
 		Name:     oidc.AuthSessionCookieName,
 		Value:    sessionToken,
 		Path:     "/api/v1/auth/oidc",
@@ -107,7 +107,7 @@ func (h oidcHandler) logout(c *gin.Context) {
 }
 
 func (h oidcHandler) clearAuthSessionCookie(c *gin.Context) {
-	http.SetCookie(c.Writer, &http.Cookie{
+	http.SetCookie(c.Writer, &http.Cookie{ // #nosec G124 -- Secure follows config; HttpOnly+SameSite always on
 		Name:     oidc.AuthSessionCookieName,
 		Value:    "",
 		Path:     "/api/v1/auth/oidc",

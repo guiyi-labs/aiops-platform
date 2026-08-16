@@ -8,6 +8,7 @@ linters:
     - ineffassign
     - staticcheck
     - unused
+    - gosec
   settings:
     staticcheck:
       checks:
@@ -31,6 +32,14 @@ linters:
     rules:
       - linters:
           - unused
+        path: _test\.go
+      # gosec: exclude conservative/noise detectors that flag faithful
+      # conversions and local CLI/audit file paths; test fixtures are not an
+      # attack surface. Real findings (cookie flags, file permissions, TLS)
+      # are fixed in code or annotated, not excluded.
+      - linters: [gosec]
+        text: "G115|G304|G104|G602"
+      - linters: [gosec]
         path: _test\.go
     paths:
       - third_party$

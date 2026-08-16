@@ -9,6 +9,15 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - README 英文重写（Star 版首屏）
+
+- `README.md` 由中文 M115 版完整替换为英文 Star 版：首屏 30 秒看懂
+  （一句话定位 + `go install` 一行 + 徽章行），四象限能力表、
+  Mermaid 架构图、Quickstart（CLI / docker compose 双路径）、工程指标、
+  Repository layout / Project boundaries。
+- 完整功能清单移出首页 → `docs/`；终端演示 GIF 待指挥中枢录制后接入。
+- See [change record](docs/changes/2026-08-16-readme-english-star.md)。
+
 ### Added - P1 RAG 知识库诊断（差异化核心能力）
 
 - **知识库**：新增 `internal/knowledge/` —— 把 resolved 诊断自动蒸馏入库

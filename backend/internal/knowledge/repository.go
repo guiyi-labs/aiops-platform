@@ -93,9 +93,11 @@ func (r *GormRepository) ListByFilter(ctx context.Context, filter Filter) (ListR
 		args = append(args, filter.Severity)
 	} else if filter.MinSeverity != "" {
 		min := SeverityRank[filter.MinSeverity]
+		// Deterministic IN-list regardless of map iteration order, so the
+		// generated SQL is stable and test assertions are not flaky.
 		var allowed []string
-		for severity, rank := range SeverityRank {
-			if rank >= min {
+		for _, severity := range []string{string(SeverityInfo), string(SeverityWarning), string(SeverityHigh), string(SeverityCritical)} {
+			if SeverityRank[severity] >= min {
 				allowed = append(allowed, "'"+severity+"'")
 			}
 		}

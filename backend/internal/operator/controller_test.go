@@ -16,6 +16,10 @@ func AsDeploymentGVR() schema.GroupVersionResource {
 	return schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 }
 
+func AsCronJobGVR() schema.GroupVersionResource {
+	return schema.GroupVersionResource{Group: "batch", Version: "v1", Resource: "cronjobs"}
+}
+
 // recordingExecutor implements TargetExecutor for tests and records calls.
 type recordingExecutor struct {
 	calls   int

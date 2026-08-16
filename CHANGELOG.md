@@ -9,6 +9,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed - Operator 单测补强：全局覆盖率推过 70% 门禁
+
+- `internal/operator/` 新增 executor/util 测试（fake dynamic client + reactor）：
+  rollout_restart/cronjob.suspend 分支、dryRun=All 选项透传断言、unsupported 拒绝、
+  IsNotFound/KeyFor/List DeepCopy/Enqueue tombstone 等；包覆盖率 72.1% → **88.8%**。
+- 全局覆盖率（CI 同款命令）**70.0%，门禁通过**。
+- See [change record](docs/changes/2026-08-15-operator-coverage-above-baseline.md)。
+
 ### Fixed - CI golangci-lint：receiver name 统一 + ineffassign
 
 - `operator/types.go`：`ControlledOperationSpec` DeepCopy* receiver `in`→`s`

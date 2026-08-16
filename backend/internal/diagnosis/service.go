@@ -33,11 +33,20 @@ type Service struct {
 	source          Source
 	repository      Repository
 	metricEvaluator MetricEvaluator
+	ingester        KnowledgeIngester
 	now             func() time.Time
 }
 
 func NewService(source Source, repository Repository) *Service {
 	return &Service{source: source, repository: repository, now: time.Now}
+}
+
+// WithKnowledgeIngester makes the service push resolved records into the
+// knowledge base.  Must be called before any Transition; nil is harmless and
+// keeps the deterministic diagnosis chain unchanged.
+func (s *Service) WithKnowledgeIngester(i KnowledgeIngester) *Service {
+	s.ingester = i
+	return s
 }
 
 func (s *Service) WithMetricEvaluator(evaluator MetricEvaluator) *Service {
@@ -223,6 +232,9 @@ func (s *Service) Transition(ctx context.Context, id int64, status string, actor
 	if err != nil {
 		return Record{}, err
 	}
+	// Distill resolved records into the knowledge base (best-effort, never
+	// blocks or fails the transition).
+	IngestResolvedIfEligible(ctx, s.ingester, record, s.now)
 	return WithNarrative(record), nil
 }
 

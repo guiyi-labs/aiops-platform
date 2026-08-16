@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"k8s-aiops.local/backend/internal/diagnosis"
+	"k8s-aiops.local/backend/internal/knowledge"
 )
 
 const maxPromptBytes = 32 * 1024
@@ -48,6 +49,27 @@ func BuildPrompt(record diagnosis.Record) Prompt {
 		System: "你是 Kubernetes 故障诊断解释器。只能解释输入中的确定性规则结果和证据，不得声称已执行修复，不得把根因假设描述为已证实事实。每个关键判断必须引用提供的 evidence ID；如果证据不足，应明确说明需要补充验证。输出必须符合给定 JSON Schema。",
 		Input:  string(encoded), EvidenceIDs: valid,
 	}
+}
+
+// BuildPromptWithHistory is the RAG variant of BuildPrompt: verified
+// historical cases are injected as a lead-in section and registered as
+// citable evidence (historical:1..N) so the model may reference them, while
+// the existing citation validator keeps rejecting fabricated evidence IDs.
+func BuildPromptWithHistory(record diagnosis.Record, history []knowledge.Entry) Prompt {
+	base := BuildPrompt(record)
+	if len(history) == 0 {
+		return base
+	}
+	contextBlock := knowledge.BuildPromptContext(history)
+	contextBlock += "\n请优先参考历史案例中的根因与处置措施，但不得直接复制；结合当前证据给出独立判断。\n"
+	valid := base.EvidenceIDs
+	if valid == nil {
+		valid = make(map[string]struct{})
+	}
+	for index := range history {
+		valid[fmt.Sprintf("historical:%d", index+1)] = struct{}{}
+	}
+	return Prompt{System: base.System, Input: contextBlock + base.Input, EvidenceIDs: valid}
 }
 
 func sanitizeValue(value any) any {

@@ -7,10 +7,17 @@ import (
 	"time"
 
 	"k8s-aiops.local/backend/internal/diagnosis"
+	"k8s-aiops.local/backend/internal/knowledge"
 )
 
 type diagnosisReader interface {
 	Get(context.Context, int64) (diagnosis.Record, error)
+}
+
+// knowledgeRetriever is the narrow retrieval contract used by Generate.
+// It keeps aiexplain independent of the concrete retriever implementation.
+type knowledgeRetriever interface {
+	Retrieve(ctx context.Context, query knowledge.Query, reranker knowledge.Reranker) ([]knowledge.Entry, error)
 }
 
 type Service struct {
@@ -18,6 +25,7 @@ type Service struct {
 	diagnoses        diagnosisReader
 	provider         Provider
 	repository       Repository
+	knowledge        knowledgeRetriever
 	providerName     string
 	model            string
 	dailyTokenBudget int
@@ -59,6 +67,21 @@ func (s *Service) Generate(ctx context.Context, diagnosisID int64, actor ActorRe
 		return Explanation{}, err
 	}
 	prompt := BuildPrompt(record)
+	// RAG: retrieve verified historical cases for this diagnosis context.
+	// A failed knowledge lookup must never block explanation — degrade to
+	// the legacy prompt silently.
+	if s.knowledge != nil {
+		var history []knowledge.Entry
+		if entries, retrErr := s.knowledge.Retrieve(ctx, knowledge.Query{
+			RuleID:       record.RuleID,
+			Severity:     record.Severity,
+			ResourceKind: record.Resource.Kind,
+			SummaryHint:  record.Summary,
+		}, nil); retrErr == nil {
+			history = entries
+		}
+		prompt = BuildPromptWithHistory(record, history)
+	}
 	if len(prompt.EvidenceIDs) == 0 {
 		return Explanation{}, ErrNoEvidence
 	}
@@ -80,6 +103,14 @@ func (s *Service) Generate(ctx context.Context, diagnosisID int64, actor ActorRe
 		return Explanation{}, err
 	}
 	return item, nil
+}
+
+// WithKnowledgeRetriever enables RAG: resolved historical cases are injected
+// into the explanation prompt. Removing/omitting it keeps the legacy
+// explanation path (nil-safe).
+func (s *Service) WithKnowledgeRetriever(retriever knowledgeRetriever) *Service {
+	s.knowledge = retriever
+	return s
 }
 
 func (s *Service) Status(ctx context.Context) (RuntimeStatus, error) {

@@ -9,6 +9,22 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - aiops CLI：diagnose + cases（star 放大器）
+
+- 新增 `backend/cmd/aiops/`：零依赖（复用 internal 包）的命令行体验入口，
+  `go install github.com/guiyi-labs/aiops-platform/cmd/aiops@latest` 一行可跑。
+- **`aiops diagnose`**：复用 diagnosis 编译期规则链（OOM → ImagePull →
+  CrashLoop → Pending）做确定性 Pod 诊断；有 `~/.kube/config` 时直连 API
+  Server 扫描命名空间，缺失/不可解析时**降级内置 5 个演示 fixture** 零门槛
+  体验；英文输出 + `-o json`；exit 0 无告警 / 1 有告警 / 2 错误。
+- **`aiops cases`**：查历史案例（knowledge.Entry 语义），无 `--server` 或
+  端点不可达时**降级内置规则目录**（6 条代表性案例）；`--query`/`--severity`/
+  `--limit` 过滤；exit 0 有结果 / 1 无结果 / 2 错误。
+- 测试：cmd/aiops 覆盖率 84.8%（demo + httptest 假 API server + 降级路径）；
+  全量 `go test ./...` 75 包全绿，全局覆盖率 **70.2% ≥ 70%**，golangci-lint
+  （含 gosec）0 issues。
+- See [change record](docs/changes/2026-08-16-cli-aiops-diagnose-cases.md)。
+
 ### Changed - README 英文重写（Star 版首屏）
 
 - `README.md` 由中文 M115 版完整替换为英文 Star 版：首屏 30 秒看懂

@@ -186,6 +186,9 @@ function openDeepLink(href: string): void {
 }
 
 function evidenceLabel(id: string): string {
+  // P1 knowledge base: historical case references (historical:1..N) are
+  // framed as verified past outcomes, not live evidence.
+  if (id.startsWith('historical:')) return '历史案例'
   if (!detail.value) return id
   const index = Number(id.slice(1)) - 1
   const evidence = detail.value.evidence[index]

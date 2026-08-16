@@ -9,6 +9,27 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added - P1 RAG 知识库诊断（差异化核心能力）
+
+- **知识库**：新增 `internal/knowledge/` —— 把 resolved 诊断自动蒸馏入库
+  （迁移 `000050_knowledge_entries`，B-tree 检索索引 + 循环缺陷去重），
+  GormRepository + 两阶段 Retriever（结构化短名单 → 可选 LLM 精排，
+  精排默认关、失败静默回退）。
+- **诊断钩子**：`diagnosis.Service` 新增 `WithKnowledgeIngester`，Transition
+  到 resolved 时自动入库（nil 安全、错误吞掉不阻断确定性主链）。
+- **aiexplain RAG**：`BuildPromptWithHistory` 注入「历史相似案例」并注册
+  `historical:N` 可引用证据（遵守既有 citation 防伪造校验）；知识库故障
+  静默降级原生 prompt。
+- **aiinvestigator 历史参考**：`EvidenceKindHistoricalCase` + CaseContext
+  HistoricalCases 渲染为参考段——不进 authorized evidence / PromptHash，
+  investigation_key 保持稳定。
+- **前端**：DiagnosesView evidenceLabel 识别 `historical:` 前缀显示
+  「历史案例」。
+- 全量门禁：`go test ./...` 全绿、race 全绿、golangci-lint 0 issues、
+  全局覆盖率 **70.08% ≥ 70%**。
+- See [change record](docs/changes/2026-08-16-p1-rag-diagnosis.md) 与
+  [P1 方案](docs/enhancement-p1-rag-diagnosis-plan.md)。
+
 ### Fixed - Frontend E2E 补缺失 mock（M112/M113 渲染回归）
 
 - `incidents.spec.ts` 补 `/incidents/:id/context`（cockpit）+ `/summary`（AI 摘要）mock；

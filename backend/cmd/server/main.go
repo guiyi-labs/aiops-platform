@@ -36,6 +36,7 @@ import (
 	"k8s-aiops.local/backend/internal/httpserver"
 	"k8s-aiops.local/backend/internal/incident"
 	"k8s-aiops.local/backend/internal/inspection"
+	"k8s-aiops.local/backend/internal/knowledge"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
 	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/metricshistory"
@@ -433,6 +434,16 @@ func main() {
 		aiProvider = aiexplain.NewResponsesProvider(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel, cfg.AIRequestTimeout, cfg.AIMaxOutputTokens)
 	}
 	aiExplanationService := aiexplain.NewService(aiexplain.ServiceConfig{Enabled: cfg.AIEnabled, ProviderName: "responses-compatible", Model: cfg.AIModel, DailyTokenBudget: cfg.AIDailyTokenBudget, MaxConcurrentRequests: cfg.AIMaxConcurrentRequests, MaxOutputTokens: cfg.AIMaxOutputTokens, ReservationTTL: cfg.AIRequestTimeout + time.Minute}, diagnosisService, aiProvider, aiexplain.NewGormRepository(database.GORM()))
+	// P1 RAG knowledge base: resolved diagnoses are distilled into knowledge
+	// entries and re-injected as verified historical references. Wiring is
+	// enabled whenever AI is enabled; the knowledge layer degrades silently
+	// (empty retrieval / failed ingest never block the diagnosis chain).
+	knowledgeRepository := knowledge.NewGormRepository(database.GORM())
+	knowledgeRetrieverCfg := knowledge.DefaultConfig()
+	knowledgeRetrieverCfg.RerankEnabled = false // re-rank is a Phase-2 API call; keep the default cost-free
+	knowledgeRetriever := knowledge.NewRetriever(knowledgeRepository, knowledgeRetrieverCfg)
+	diagnosisService = diagnosisService.WithKnowledgeIngester(knowledge.NewDiagnosisIngester(knowledgeRepository))
+	aiExplanationService = aiExplanationService.WithKnowledgeRetriever(knowledgeRetriever)
 	auditService := audit.NewService(audit.NewGormRepository(database.GORM()))
 	notificationRepository := notification.NewGormRepository(database.GORM())
 	if err := notificationRepository.SetEnabled(context.Background(), cfg.NotificationEnabled); err != nil {

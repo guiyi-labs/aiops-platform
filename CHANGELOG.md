@@ -9,6 +9,12 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed - metricshistory 测试顺序 flaky 修复（CI backend race）
+
+- `TestDownsampleAndArchiveAggregatesHourlyBuckets` 断言改按 series 身份匹配，
+  不再依赖 Go map 遍历的未定义顺序；race 复跑 8 次全绿。
+- See [change record](docs/changes/2026-08-15-metricshistory-test-order-flaky.md)。
+
 ### Fixed - gofmt 全量格式化修复（CI Check formatting 阻塞）
 
 - 14 个 Go 文件对齐空白修复（Go 1.26 gofmt struct 字段对齐规则变更）；

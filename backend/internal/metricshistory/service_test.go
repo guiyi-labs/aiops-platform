@@ -228,10 +228,22 @@ func TestDownsampleAndArchiveAggregatesHourlyBuckets(t *testing.T) {
 	if len(repository.downsampled) != 2 {
 		t.Fatalf("saved rows = %d, want 2", len(repository.downsampled))
 	}
-	first := repository.downsampled[0]
+	// The archive rows come from a map iteration, whose order is undefined in
+	// Go; assert by series identity instead of slice position.
+	byName := map[string]DownsampledSample{}
+	for _, row := range repository.downsampled {
+		byName[row.ResourceName] = row
+	}
+	first, ok := byName["api-0"]
+	if !ok {
+		t.Fatalf("no archived row for api-0: %#v", repository.downsampled)
+	}
 	if first.ValueAvg != 300 || first.ValueMax != 500 || first.SampleCount != 3 ||
 		first.WindowMilliseconds != 3600000 || !first.BucketHour.Equal(hour) {
-		t.Fatalf("first bucket = %#v", first)
+		t.Fatalf("api-0 bucket = %#v", first)
+	}
+	if second, ok := byName["api-1"]; !ok || second.ValueAvg != 900 || second.SampleCount != 1 {
+		t.Fatalf("api-1 bucket = %#v, ok=%v", second, ok)
 	}
 }
 

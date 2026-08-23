@@ -46,6 +46,21 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 
 ## [Unreleased]
 
+> 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
+> 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
+
+### Changed - 归档遗留计划文档 + CHANGELOG 结构修复（仓库卫生）
+
+- 5 个长期 untracked 的规划文档入库：`enhancement-frontend-analysis.md`、
+  `enhancement-operator-plan.md`、`enhancement-p1-rag-diagnosis-plan.md`、
+  `enhancement-p2-flagship-roadmap.md`、`aiops-readme-en-v1.md`（英文 README
+  定稿留档）；敏感扫描通过。
+- `docs/star-playbook.md` 含个人求职策略上下文，转本地私有排除
+  （与 `docs/thesis/` 同等纪律），不进入公开仓库。
+- 合并 12 个散落重复的 `[Unreleased]` 小节头为唯一区块（+3/−12 行，
+  条目内容零改动），保持 `[0.1.0]` 在前的时序并附说明。
+- See [change record](docs/changes/2026-08-23-archive-stray-planning-docs.md)。
+
 ### Changed - P2a CI 门禁：核心包覆盖率阈值 70% → 75%（5 包）
 
 - `.github/workflows/ci.yml` 核心包门禁（P2a）：metricshistory / apiquery /
@@ -824,7 +839,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   `result` 汇总的必填结果；另提供可选本地钩子 `scripts/git-hooks/pre-commit`。
 - See [change record](docs/changes/2026-08-13-archive-gate-change-record.md)。
 
-## [Unreleased]
 
 - 登录页填充空旷感：`LoginView.vue` 左侧介绍区新增纯装饰三层——中段雷达扫描
   SVG（同心环 + 旋转扫线 + 呼吸信号点，呼应"信号驱动/持续监测"）、标题下特性词条
@@ -869,7 +883,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   重心上移、左下角干净，粒子行为逻辑不变。
 - See [change record](docs/changes/2026-08-13-login-ambience-enhance.md)。
 
-## [Unreleased]
 
 ### Added - M107 Incident Evidence Timeline (v0.3.0-m107)
 
@@ -884,7 +897,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 演示：`demo-drill.sh` incident-journey 新增 `incident-evidence` 断言（diagnosis 源 +
   deep_link=/diagnoses）。
 
-## [Unreleased]
 
 ### Added - M107 Incident SLA Notifications (v0.3.0-m107)
 
@@ -903,7 +915,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - See [change record](docs/changes/2026-08-13-m107-incident-sla-notifications.md)。
 - See [change record](docs/changes/2026-08-13-m107-incident-evidence-timeline.md)。
 
-## [Unreleased]
 
 ### Added - M107 Incident Batch Assignment (v0.3.0-m107)
 
@@ -917,7 +928,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 演示：`demo-drill.sh` incident-journey 新增 `incident-batch-assign` 断言（assigned ≥ 1）。
 - See [change record](docs/changes/2026-08-13-m107-incident-batch-assign.md)。
 
-## [Unreleased]
 
 ### Added - M107 Postmortem Narrative View (v0.3.0-m107)
 
@@ -942,7 +952,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   矮屏（≤760px 高）与移动端（≤720px 宽）断点内边距同步适配。
 - See [change record](docs/changes/2026-08-13-login-panel-enhance.md)。
 
-## [Unreleased]
 
 ### Added - Post-M106 Development Roadmap
 
@@ -952,7 +961,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   （性能 fail-closed/旅程 E2E/覆盖率 65%）、M110 RC-6 刷新，以及 M89/M90 授权轨 → GA Gate D。
 - See [change record](docs/changes/2026-08-13-roadmap-post-m106.md)。
 
-## [Unreleased]
 
 ### Changed - M106 Local UX Polish (v0.3.0-m106)
 
@@ -1045,7 +1053,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 离线演练闭环：`docker load` 与安装/清理改用已发布离线包（`$BUNDLE_STABLE`），发布产物被真实安装验证（10/10，`report-20260812-230945-4bb47d.json`）。
 - See [offline bundle self-contained change record](docs/changes/2026-08-12-m102-offline-bundle-self-contained.md)、[openapi typegen sync change record](docs/changes/2026-08-12-m94-openapi-typegen-sync.md)、[replay e2e browser change record](docs/changes/2026-08-12-m94-replay-e2e-browser.md) 与 [rc.5-replay dual-env evidence](docs/changes/2026-08-12-m102-rc5-replay-dual-env-evidence.md).
 
-## [Unreleased]
 
 ### Added - M94 Diagnosis Replay Mode
 
@@ -1055,8 +1062,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 测试：后端 diagnosis 3 单测 + httpserver 4 单测、前端 composable 4 单测；前后端全量门禁（build/vet/test/typecheck/lint）全绿。
 - See [M94 replay mode change record](docs/changes/2026-08-12-m94-diagnosis-replay.md).
 
-## [Unreleased]
-## [Unreleased]
 
 ### Added - M102 Offline Install Bundle Drill (Local Track)
 
@@ -1064,7 +1069,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 意义：补齐「只有离线包时能完成分发→加载→安装」的本地证据（此前只证明镜像已在本地时可安装）；`pull_policy: never` 使镜像缺失即失败，反证离线充分性。
 - See [M102 offline install drill change record](docs/changes/2026-08-12-m102-offline-install-drill.md).
 
-## [Unreleased]
 
 ### Added - M102 Final Delivery Documents (Test Matrix / Limitations / Compatibility / Runbook / Security Statement)
 
@@ -1078,7 +1082,6 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 结论：M89/M90 与真实组织演练未关闭前版本保持 RC，不宣称 GA。
 - See [M102 final documents change record](docs/changes/2026-08-12-m102-final-docs.md).
 
-## [Unreleased]
 
 ### Added - M102 Reproducible Demo Drill (Local Track)
 

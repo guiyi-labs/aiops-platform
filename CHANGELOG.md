@@ -49,6 +49,14 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - README 旗舰重写（P2b）
+
+- README 首屏架构流程图补齐「有界只读网关 → 确定性诊断 → 证据时间线 →
+  案例库(RAG) → 引用式 AI → 控制台/CLI」主链路，徽章行精确反映 CI 门禁
+  （全局 ≥70% / 核心 ≥75%），新增演示脚本矩阵与路线图章节；快速上手新增
+  端到端 kind 演示入口 `scripts/demo-up.ps1`。
+- See [change record](docs/changes/2026-08-23-readme-flagship.md)。
+
 ### Added - 演示链路 macOS 化 + 压测探针 load-probe
 
 - `scripts/verify-fast.ps1` 跨平台修复：gofmt 按所选 Go 工具链后缀解析

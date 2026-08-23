@@ -1,0 +1,299 @@
+{
+  "version": "1.0",
+  "description": "Labeled diagnosis-rule evaluation corpus for cmd/aiopsbench. Labels anchor to reviewed unit tests (internal/diagnosis/*_test.go) and rule specifications, never to engine output. Each scenario evaluates exactly one target rule; Pod scenarios additionally carry pipeline_expect for the deterministic evaluatePod priority chain (oom -> image_pull -> crash_loop -> pending).",
+  "observed_at": "2026-08-23T08:30:00Z",
+  "scenarios": [
+    {
+      "id": "ipb-basic", "target_rule": "pod.image_pull_backoff.v1", "expected": true,
+      "pipeline_expect": "pod.image_pull_backoff.v1", "kind": "Pod",
+      "note": "TestEvaluateImagePullBackOff: waiting ImagePullBackOff + Failed pull event.",
+      "pod": {"metadata": {"name": "broken-api", "namespace": "demo", "uid": "pod-ipb-1"}, "spec": {"containers": [{"name": "app", "image": "registry.example/missing:v9"}]}, "status": {"containerStatuses": [{"name": "app", "restartCount": 2, "state": {"waiting": {"reason": "ImagePullBackOff", "message": "Back-off pulling image"}}}]}},
+      "events": [{"metadata": {"name": "pull-failed"}, "type": "Warning", "reason": "Failed", "message": "Failed to pull image", "count": 3}]
+    },
+    {
+      "id": "ipb-err-image-pull-no-events", "target_rule": "pod.image_pull_backoff.v1", "expected": true,
+      "pipeline_expect": "pod.image_pull_backoff.v1", "kind": "Pod",
+      "note": "ErrImagePull waiting reason matches without any events.",
+      "pod": {"metadata": {"name": "typo-image", "namespace": "demo", "uid": "pod-ipb-2"}, "spec": {"containers": [{"name": "app", "image": "registry.example/api:1.0.0"}]}, "status": {"phase": "Pending", "containerStatuses": [{"name": "app", "restartCount": 0, "state": {"waiting": {"reason": "ErrImagePull", "message": "image pull failed"}}}]}},
+      "events": []
+    },
+    {
+      "id": "ipb-running-healthy-nearmiss", "target_rule": "pod.image_pull_backoff.v1", "expected": false,
+      "pipeline_expect": "", "kind": "Pod",
+      "note": "TestEvaluateImagePullBackOffDoesNotMatchRunningPod.",
+      "pod": {"metadata": {"name": "healthy", "namespace": "demo", "uid": "pod-ipb-3"}, "status": {"phase": "Running"}},
+      "events": []
+    },
+    {
+      "id": "ipb-crashloop-cross-label", "target_rule": "pod.image_pull_backoff.v1", "expected": false,
+      "pipeline_expect": "pod.crash_loop_backoff.v1", "kind": "Pod",
+      "note": "Near-miss cross label: crash-looping Pod must not satisfy image-pull rule; pipeline selects crash-loop.",
+      "pod": {"metadata": {"name": "crashing-api", "namespace": "demo", "uid": "pod-ipb-4"}, "status": {"phase": "Running", "containerStatuses": [{"name": "app", "restartCount": 8, "state": {"waiting": {"reason": "CrashLoopBackOff", "message": "back-off 5m"}}, "lastState": {"terminated": {"reason": "Error", "exitCode": 1}}}]}},
+      "events": []
+    },
+    {
+      "id": "clb-basic", "target_rule": "pod.crash_loop_backoff.v1", "expected": true,
+      "pipeline_expect": "pod.crash_loop_backoff.v1", "kind": "Pod",
+      "note": "TestEvaluateCrashLoopBackOff.",
+      "pod": {"metadata": {"name": "crashing-api", "namespace": "demo", "uid": "pod-clb-1"}, "status": {"containerStatuses": [{"name": "app", "restartCount": 8, "state": {"waiting": {"reason": "CrashLoopBackOff", "message": "back-off 5m"}}, "lastState": {"terminated": {"reason": "Error", "exitCode": 1, "finishedAt": "2026-07-17T02:00:00Z"}}}]}},
+      "events": [{"metadata": {"name": "restart-backoff"}, "type": "Warning", "reason": "BackOff", "message": "Back-off restarting failed container", "count": 8}]
+    },
+    {
+      "id": "clb-state-only-no-events", "target_rule": "pod.crash_loop_backoff.v1", "expected": true,
+      "pipeline_expect": "pod.crash_loop_backoff.v1", "kind": "Pod",
+      "note": "Waiting.CrashLoopBackOff alone satisfies the rule; events only enrich evidence.",
+      "pod": {"metadata": {"name": "worker-x", "namespace": "demo", "uid": "pod-clb-2"}, "status": {"phase": "Running", "containerStatuses": [{"name": "worker", "restartCount": 5, "state": {"waiting": {"reason": "CrashLoopBackOff", "message": "back-off 40s"}}}]}},
+      "events": []
+    },
+    {
+      "id": "clb-completed-job-nearmiss", "target_rule": "pod.crash_loop_backoff.v1", "expected": false,
+      "pipeline_expect": "", "kind": "Pod",
+      "note": "TestEvaluateCrashLoopBackOffDoesNotMatchTerminatedJob.",
+      "pod": {"metadata": {"name": "finished"}, "status": {"phase": "Succeeded", "containerStatuses": [{"name": "job", "restartCount": 0, "state": {"terminated": {"reason": "Completed", "exitCode": 0}}}]}},
+      "events": []
+    },
+    {
+      "id": "oom-basic-last-state", "target_rule": "pod.oom_killed.v1", "expected": true,
+      "pipeline_expect": "pod.oom_killed.v1", "kind": "Pod",
+      "note": "TestEvaluatePodOOMKilled.",
+      "pod": {"metadata": {"name": "memory-api", "namespace": "demo", "uid": "pod-oom-1"}, "status": {"phase": "Running", "containerStatuses": [{"name": "app", "restartCount": 3, "lastState": {"terminated": {"reason": "OOMKilled", "exitCode": 137, "finishedAt": "2026-07-17T02:00:00Z"}}}]}},
+      "events": [{"metadata": {"name": "oom-killed"}, "type": "Warning", "reason": "OOMKilled", "message": "container was killed due to out of memory", "count": 2}]
+    },
+    {
+      "id": "oom-current-state", "target_rule": "pod.oom_killed.v1", "expected": true,
+      "pipeline_expect": "pod.oom_killed.v1", "kind": "Pod",
+      "note": "Current state.terminated OOMKilled matches without lastState.",
+      "pod": {"metadata": {"name": "memory-worker", "namespace": "demo", "uid": "pod-oom-2"}, "status": {"phase": "Failed", "containerStatuses": [{"name": "app", "restartCount": 0, "state": {"terminated": {"reason": "OOMKilled", "exitCode": 137}}}]}},
+      "events": []
+    },
+    {
+      "id": "oom-error-exit-nearmiss", "target_rule": "pod.oom_killed.v1", "expected": false,
+      "pipeline_expect": "", "kind": "Pod",
+      "note": "Near-miss: terminated Error exit 1 is not an OOM kill.",
+      "pod": {"metadata": {"name": "buggy-api", "namespace": "demo", "uid": "pod-oom-3"}, "status": {"phase": "Running", "containerStatuses": [{"name": "app", "restartCount": 4, "lastState": {"terminated": {"reason": "Error", "exitCode": 1}}}]}},
+      "events": []
+    },
+    {
+      "id": "pending-unschedulable", "target_rule": "pod.pending.v1", "expected": true,
+      "pipeline_expect": "pod.pending.v1", "kind": "Pod",
+      "note": "TestEvaluatePodPending.",
+      "pod": {"metadata": {"name": "pending-api", "namespace": "demo", "uid": "pod-pending-1"}, "status": {"phase": "Pending", "reason": "Unschedulable", "message": "0/1 nodes are available", "conditions": [{"type": "PodScheduled", "status": "False", "reason": "Unschedulable", "message": "Insufficient cpu"}]}},
+      "events": [{"metadata": {"name": "pending-schedule"}, "type": "Warning", "reason": "FailedScheduling", "message": "0/1 nodes are available: insufficient cpu", "count": 4}]
+    },
+    {
+      "id": "pending-phase-only", "target_rule": "pod.pending.v1", "expected": true,
+      "pipeline_expect": "pod.pending.v1", "kind": "Pod",
+      "note": "Phase Pending alone satisfies the rule.",
+      "pod": {"metadata": {"name": "stuck-init", "namespace": "demo", "uid": "pod-pending-2"}, "status": {"phase": "Pending"}},
+      "events": []
+    },
+    {
+      "id": "pending-running-nearmiss", "target_rule": "pod.pending.v1", "expected": false,
+      "pipeline_expect": "", "kind": "Pod",
+      "note": "TestEvaluatePodPendingDoesNotMatchRunningPod.",
+      "pod": {"metadata": {"name": "running-app"}, "status": {"phase": "Running"}},
+      "events": []
+    },
+    {
+      "id": "svc-notready-core-v1", "target_rule": "service.no_ready_endpoints.v1", "expected": true,
+      "kind": "Service",
+      "note": "TestEvaluateServiceNoEndpoints: notReady addresses only, core/v1 source.",
+      "service": {"metadata": {"name": "api", "namespace": "demo", "uid": "service-1"}, "spec": {"type": "ClusterIP", "selector": {"app": "api"}, "ports": [{"port": 80, "targetPort": 8080, "protocol": "TCP"}]}},
+      "endpoints": {"metadata": {"name": "api", "namespace": "demo"}, "subsets": [{"notReadyAddresses": [{"ip": "10.0.0.9"}]}]}
+    },
+    {
+      "id": "svc-endpointslice-source", "target_rule": "service.no_ready_endpoints.v1", "expected": true,
+      "kind": "Service",
+      "note": "TestEvaluateServiceNoEndpointsPreservesEndpointSliceSource.",
+      "service": {"metadata": {"name": "api", "namespace": "demo"}, "spec": {"selector": {"app": "api"}}},
+      "endpoints": {"source_api": "discovery.k8s.io/v1", "subsets": [{"notReadyAddresses": [{"ip": "10.0.0.9"}]}]}
+    },
+    {
+      "id": "svc-externalname-nearmiss", "target_rule": "service.no_ready_endpoints.v1", "expected": false,
+      "kind": "Service",
+      "note": "TestEvaluateServiceNoEndpointsSkipsExpectedCases case 1.",
+      "service": {"metadata": {"name": "external"}, "spec": {"externalName": "database.example.com"}},
+      "endpoints": {}
+    },
+    {
+      "id": "svc-manual-clusterip-nearmiss", "target_rule": "service.no_ready_endpoints.v1", "expected": false,
+      "kind": "Service",
+      "note": "TestEvaluateServiceNoEndpointsSkipsExpectedCases case 2: ClusterIP without selector is not a fault.",
+      "service": {"metadata": {"name": "manual"}, "spec": {"type": "ClusterIP"}},
+      "endpoints": {}
+    },
+    {
+      "id": "svc-ready-endpoints-nearmiss", "target_rule": "service.no_ready_endpoints.v1", "expected": false,
+      "kind": "Service",
+      "note": "TestEvaluateServiceNoEndpointsSkipsExpectedCases case 3.",
+      "service": {"metadata": {"name": "ready"}, "spec": {"selector": {"app": "api"}}},
+      "endpoints": {"subsets": [{"addresses": [{"ip": "10.0.0.8"}]}]}
+    },
+    {
+      "id": "node-notready-kubelet", "target_rule": "node.not_ready.v1", "expected": true,
+      "kind": "Node",
+      "note": "TestEvaluateNodeNotReady.",
+      "node": {"metadata": {"name": "worker-1", "uid": "node-1"}, "status": {"conditions": [
+        {"type": "Ready", "status": "False", "reason": "KubeletNotReady", "message": "runtime is unavailable", "lastTransitionTime": "2026-07-26T10:00:00Z"},
+        {"type": "MemoryPressure", "status": "True", "reason": "KubeletHasInsufficientMemory", "message": "memory pressure", "lastTransitionTime": "2026-07-26T10:01:00Z"}
+      ]}}
+    },
+    {
+      "id": "node-ready-nearmiss", "target_rule": "node.not_ready.v1", "expected": false,
+      "kind": "Node",
+      "note": "TestEvaluateNodeNotReadySkipsReadyNode.",
+      "node": {"metadata": {"name": "worker-1"}, "status": {"conditions": [{"type": "Ready", "status": "True"}]}}
+    },
+    {
+      "id": "node-missing-ready-condition", "target_rule": "node.not_ready.v1", "expected": true,
+      "kind": "Node",
+      "note": "TestEvaluateNodeNotReadyMatchesMissingReadyCondition: missing condition fails closed as not-ready.",
+      "node": {"metadata": {"name": "worker-2"}, "status": {"conditions": []}}
+    },
+    {
+      "id": "node-pressure-memory-ready", "target_rule": "node.pressure.v1", "expected": true,
+      "kind": "Node",
+      "note": "m18 fixture ready-memory-pressure.",
+      "node": {"metadata": {"name": "pressure-worker", "uid": "node-pressure-1"}, "status": {"conditions": [
+        {"type": "Ready", "status": "True", "reason": "KubeletReady"},
+        {"type": "MemoryPressure", "status": "True", "reason": "KubeletHasInsufficientMemory", "message": "available memory is below threshold", "lastTransitionTime": "2026-07-27T08:00:00Z"}
+      ]}}
+    },
+    {
+      "id": "node-pressure-not-ready-boundary", "target_rule": "node.pressure.v1", "expected": false,
+      "kind": "Node",
+      "note": "Boundary from rule spec: pressure conditions without Ready=True do not match pressure rule (not-ready rule owns that state).",
+      "node": {"metadata": {"name": "down-worker", "uid": "node-down-1"}, "status": {"conditions": [
+        {"type": "Ready", "status": "False", "reason": "KubeletNotReady"},
+        {"type": "MemoryPressure", "status": "True"}
+      ]}}
+    },
+    {
+      "id": "node-healthy-nearmiss", "target_rule": "node.pressure.v1", "expected": false,
+      "kind": "Node",
+      "note": "m18 fixture healthy-ready-node.",
+      "node": {"metadata": {"name": "healthy-worker", "uid": "node-healthy-1"}, "status": {"conditions": [
+        {"type": "Ready", "status": "True"},
+        {"type": "MemoryPressure", "status": "False"},
+        {"type": "DiskPressure", "status": "False"},
+        {"type": "PIDPressure", "status": "False"}
+      ]}}
+    },
+    {
+      "id": "deploy-unavailable", "target_rule": "deployment.replicas_unavailable.v1", "expected": true,
+      "kind": "Deployment",
+      "note": "TestEvaluateDeploymentReplicasUnavailable.",
+      "deployment": {"metadata": {"name": "api", "namespace": "demo", "uid": "deployment-1"}, "spec": {"replicas": 3}, "status": {"replicas": 2, "readyReplicas": 1, "availableReplicas": 1, "updatedReplicas": 2, "unavailableReplicas": 1}}
+    },
+    {
+      "id": "deploy-default-replicas", "target_rule": "deployment.replicas_unavailable.v1", "expected": true,
+      "kind": "Deployment",
+      "note": "TestEvaluateDeploymentReplicasUnavailableUsesKubernetesDefault: omitted spec.replicas defaults to one.",
+      "deployment": {"metadata": {"name": "api-default", "namespace": "demo"}, "status": {"readyReplicas": 0, "availableReplicas": 0}}
+    },
+    {
+      "id": "deploy-healthy-nearmiss", "target_rule": "deployment.replicas_unavailable.v1", "expected": false,
+      "kind": "Deployment",
+      "note": "Fully available deployment must not match.",
+      "deployment": {"metadata": {"name": "api-ok", "namespace": "demo"}, "spec": {"replicas": 3}, "status": {"readyReplicas": 3, "availableReplicas": 3}}
+    },
+    {
+      "id": "deploy-scaled-to-zero-nearmiss", "target_rule": "deployment.replicas_unavailable.v1", "expected": false,
+      "kind": "Deployment",
+      "note": "Intentional scale-to-zero is not a fault.",
+      "deployment": {"metadata": {"name": "idle", "namespace": "demo"}, "spec": {"replicas": 0}, "status": {}}
+    },
+    {
+      "id": "pvc-pending-warning", "target_rule": "persistentvolumeclaim.pending.v1", "expected": true,
+      "kind": "PersistentVolumeClaim",
+      "note": "m18 fixture pending-with-warning.",
+      "claim": {"metadata": {"name": "data", "namespace": "demo", "uid": "pvc-1"}, "spec": {"storageClassName": "missing", "accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "16Mi"}}}, "status": {"phase": "Pending"}},
+      "events": [{"metadata": {"name": "provisioning-failed"}, "type": "Warning", "reason": "ProvisioningFailed", "message": "storageclass.storage.k8s.io missing not found", "count": 1}]
+    },
+    {
+      "id": "pvc-wait-first-consumer-nearmiss", "target_rule": "persistentvolumeclaim.pending.v1", "expected": false,
+      "kind": "PersistentVolumeClaim",
+      "note": "m18 fixture wait-for-first-consumer-without-warning: deferred binding is normal.",
+      "claim": {"metadata": {"name": "deferred", "namespace": "demo", "uid": "pvc-2"}, "spec": {"storageClassName": "wait-consumer", "accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "16Mi"}}}, "status": {"phase": "Pending"}},
+      "events": [{"metadata": {"name": "wait"}, "type": "Normal", "reason": "WaitForFirstConsumer", "message": "waiting for first consumer", "count": 1}]
+    },
+    {
+      "id": "hpa-max-limited", "target_rule": "horizontalpodautoscaler.saturated.v1", "expected": true,
+      "kind": "HorizontalPodAutoscaler",
+      "note": "m18 fixture limited-at-maximum.",
+      "hpa": {"metadata": {"name": "api", "namespace": "demo", "uid": "hpa-1"}, "spec": {"scaleTargetRef": {"apiVersion": "apps/v1", "kind": "Deployment", "name": "api"}, "minReplicas": 1, "maxReplicas": 4, "metrics": [{"type": "Resource", "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": 70}}}]}, "status": {"currentReplicas": 4, "desiredReplicas": 4, "conditions": [{"type": "ScalingLimited", "status": "True", "reason": "TooManyReplicas", "message": "desired count is above maximum"}]}}
+    },
+    {
+      "id": "hpa-min-limited-nearmiss", "target_rule": "horizontalpodautoscaler.saturated.v1", "expected": false,
+      "kind": "HorizontalPodAutoscaler",
+      "note": "m18 fixture limited-at-minimum: floor-limited is idle, not saturated.",
+      "hpa": {"metadata": {"name": "idle", "namespace": "demo", "uid": "hpa-2"}, "spec": {"scaleTargetRef": {"apiVersion": "apps/v1", "kind": "Deployment", "name": "idle"}, "minReplicas": 2, "maxReplicas": 8, "metrics": []}, "status": {"currentReplicas": 2, "desiredReplicas": 2, "conditions": [{"type": "ScalingLimited", "status": "True", "reason": "TooFewReplicas", "message": "desired count is below minimum"}]}}
+    },
+    {
+      "id": "ing-broken-backend", "target_rule": "ingress.backend_unavailable.v1", "expected": true,
+      "kind": "Ingress",
+      "note": "m18 fixture backend-without-ready-addresses.",
+      "ingress": {"metadata":{"name":"broken","namespace":"demo","uid":"ingress-1"},"spec":{"rules":[{"host":"broken.example.test","http":{"paths":[{"path":"/api","pathType":"Prefix","backend":{"service":{"name":"api","port":{"number":80}}}}]}}]}},
+      "services": {"api": {"metadata": {"name": "api", "namespace": "demo", "uid": "service-1"}, "spec": {"type": "ClusterIP", "selector": {"app": "api"}, "ports": [{"port": 80, "targetPort": 8080}]}}},
+      "endpoints_map": {"api": {"metadata": {"name": "api", "namespace": "demo"}, "subsets": [{"notReadyAddresses": [{"ip": "10.0.0.8"}]}]}}
+    },
+    {
+      "id": "ing-healthy-backend-nearmiss", "target_rule": "ingress.backend_unavailable.v1", "expected": false,
+      "kind": "Ingress",
+      "note": "m18 fixture backend-with-ready-address.",
+      "ingress": {"metadata": {"name": "healthy", "namespace": "demo", "uid": "ingress-2"}, "spec": {"defaultBackend": {"service": {"name": "web", "port": {"name": "http"}}}}},
+      "services": {"web": {"metadata": {"name": "web", "namespace": "demo", "uid": "service-2"}, "spec": {"type": "ClusterIP", "selector": {"app": "web"}, "ports": [{"name": "http", "port": 80, "targetPort": 8080}]}}},
+      "endpoints_map": {"web": {"metadata": {"name": "web", "namespace": "demo"}, "subsets": [{"addresses": [{"ip": "10.0.0.9"}]}]}}
+    },
+    {
+      "id": "metric-cpu-firing", "target_rule": "node.metric_sustained_breach.v1", "expected": true,
+      "kind": "MetricBreach",
+      "note": "TestEvaluateSustainedMetricBreachFiring: sustained CPU breach, high severity.",
+      "evaluation": {
+        "series": {"cluster_id": 7, "resource_kind": "Node", "resource_name": "worker-a", "metric_name": "cpu", "unit": "nanocores"},
+        "state": "firing", "operator": "gte", "threshold": 50000000, "for_seconds": 60, "minimum_points": 2,
+        "points_evaluated": 4, "breaching_points": 3, "observed_span_seconds": 120,
+        "coverage": {"collections": 4, "succeeded": 4, "points": 4},
+        "sustained_windows": [{"breaching_points": 3, "span_seconds": 120}],
+        "latest_firing_window": {"breaching_points": 3, "span_seconds": 120}
+      }
+    },
+    {
+      "id": "metric-memory-firing", "target_rule": "node.metric_sustained_breach.v1", "expected": true,
+      "kind": "MetricBreach",
+      "note": "TestEvaluateSustainedMetricBreachMemorySeverity: memory breach maps to critical severity.",
+      "evaluation": {
+        "series": {"cluster_id": 7, "resource_kind": "Node", "resource_name": "worker-b", "metric_name": "memory", "unit": "bytes"},
+        "state": "firing", "operator": "gte", "threshold": 90, "for_seconds": 60, "minimum_points": 2,
+        "points_evaluated": 3, "breaching_points": 3, "observed_span_seconds": 180,
+        "coverage": {"collections": 3, "succeeded": 3, "points": 3},
+        "sustained_windows": [{"breaching_points": 3, "span_seconds": 180}],
+        "latest_firing_window": {"breaching_points": 3, "span_seconds": 180}
+      }
+    },
+    {
+      "id": "metric-normal-nearmiss", "target_rule": "node.metric_sustained_breach.v1", "expected": false,
+      "kind": "MetricBreach",
+      "note": "TestEvaluateSustainedMetricBreachNoMatchNormal.",
+      "evaluation": {
+        "series": {"cluster_id": 7, "resource_kind": "Node", "resource_name": "worker-c", "metric_name": "cpu", "unit": "nanocores"},
+        "state": "normal", "operator": "gte", "threshold": 50000000, "for_seconds": 60, "minimum_points": 2,
+        "points_evaluated": 4, "breaching_points": 0, "observed_span_seconds": 120,
+        "coverage": {"collections": 4, "succeeded": 4, "points": 4},
+        "sustained_windows": []
+      }
+    },
+    {
+      "id": "metric-insufficient-data-nearmiss", "target_rule": "node.metric_sustained_breach.v1", "expected": false,
+      "kind": "MetricBreach",
+      "note": "TestEvaluateSustainedMetricBreachNoMatchInsufficientData: missing data fails closed.",
+      "evaluation": {
+        "series": {"cluster_id": 7, "resource_kind": "Node", "resource_name": "worker-d", "metric_name": "cpu", "unit": "nanocores"},
+        "state": "insufficient_data", "operator": "gte", "threshold": 50000000, "for_seconds": 60, "minimum_points": 2,
+        "points_evaluated": 1, "breaching_points": 1, "observed_span_seconds": 30,
+        "coverage": {"collections": 2, "succeeded": 1, "timed_out": 1, "points": 1},
+        "sustained_windows": []
+      }
+    }
+  ]
+}

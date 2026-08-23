@@ -49,6 +49,19 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - aiopsbench 离线质量基准（诊断 P/R/F1 + 案例检索 Hit@k）
+
+- 新增 `backend/cmd/aiopsbench`：`diagnosis` 回放 38 场景标注语料
+  （12 条规则全覆盖，标签锚定已评审单测）输出逐规则 Precision/Recall/F1、
+  micro/macro 聚合与 evaluatePod 优先级链 top-1 准确率；`retrieval` 在跨
+  语料规模的合成案例库上度量结构化检索 Hit@1/Hit@3/MRR。两模式均 hermetic。
+- 语料即 CI 契约：规则行为变化破坏任一标签即测试失败，强制显式评审。
+- `internal/knowledge` InMemoryRepository 从 `_test.go` 提升为正式实现，
+  并补齐与 Gorm 一致的 `noted_at DESC` 排序语义。
+- 实测：诊断 micro/macro F1=1.000；检索在新近序 shortlist=10 下暴露容量
+  边界（旧案例跌出 shortlist，Hit@3 归零），为 Phase 2 语义召回提供实证。
+- See [change record](docs/changes/2026-08-23-aiopsbench-quality-benchmark.md)。
+
 ### Changed - 归档遗留计划文档 + CHANGELOG 结构修复（仓库卫生）
 
 - 5 个长期 untracked 的规划文档入库：`enhancement-frontend-analysis.md`、

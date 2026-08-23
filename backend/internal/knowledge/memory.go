@@ -4,9 +4,14 @@ import (
 	"context"
 )
 
-// InMemoryRepository is a pure-Go test double for Repository.  It is
-// intentionally minimal — enough to exercise the retriever / service
-// logic without a real database.
+// InMemoryRepository is a pure-Go Repository implementation backed by a
+// slice. It serves three consumers: unit tests (retriever / ingest logic),
+// offline benchmarking (`cmd/aiopsbench retrieval`), and any caller that
+// needs the knowledge pipeline without PostgreSQL. It is intentionally
+// minimal and deterministic: Insert deduplicates on
+// (rule_id, resource_kind, resource_name, first root cause) exactly like the
+// production Gorm repository, and ListByFilter applies the same structured
+// selection semantics (equality filters plus MinSeverity rank, newest first).
 type InMemoryRepository struct {
 	entries []Entry
 }
@@ -16,6 +21,8 @@ func NewInMemoryRepository() *InMemoryRepository {
 	return &InMemoryRepository{}
 }
 
+// Insert stores one entry, deduplicating on the same natural key as the
+// production repository (existing entries are updated in place).
 func (m *InMemoryRepository) Insert(ctx context.Context, entry Entry) (Entry, error) {
 	dedupRule := ""
 	if len(entry.RootCauses) > 0 {
@@ -45,6 +52,9 @@ func (m *InMemoryRepository) Insert(ctx context.Context, entry Entry) (Entry, er
 	return entry, nil
 }
 
+// ListByFilter applies the structured selection semantics: equality filters
+// on RuleID / Severity / ResourceKind plus the MinSeverity rank floor,
+// newest entries first, bounded by filter.Limit.
 func (m *InMemoryRepository) ListByFilter(ctx context.Context, filter Filter) (ListResponse, error) {
 	var items []Entry
 	min := SeverityRank[filter.MinSeverity]
@@ -67,12 +77,21 @@ func (m *InMemoryRepository) ListByFilter(ctx context.Context, filter Filter) (L
 	if limit <= 0 {
 		limit = 10
 	}
+	// Newest first — mirrors the production B-tree ordering.
+	for i := 0; i < len(items); i++ {
+		for j := i + 1; j < len(items); j++ {
+			if items[j].NotedAt.After(items[i].NotedAt) {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
 	if len(items) > limit {
 		items = items[:limit]
 	}
 	return ListResponse{Items: items, Total: int64(len(items)), Truncated: len(items) == limit}, nil
 }
 
+// Count returns the number of stored entries.
 func (m *InMemoryRepository) Count(ctx context.Context) (int64, error) {
 	return int64(len(m.entries)), nil
 }

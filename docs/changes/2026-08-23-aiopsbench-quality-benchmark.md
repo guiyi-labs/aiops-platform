@@ -59,6 +59,15 @@ InMemoryRepository 只存在于 `_test.go`，离线评测无法复用。
     新近序结构化检索的容量边界，为 Phase 2（pgvector 语义召回 /
     LLM 重排）提供实证动机。
 
+## Notes — P2a 覆盖率门禁关联
+
+本提交引入的 `InMemoryRepository.ListByFilter` 已对齐生产语义
+`noted_at DESC`（原 `memory_test.go` 桩无排序）。该变更被
+`retriever_test.go` 的短名单边界用例与 `aiopsbench retrieval` 的
+Hit@k 衰退曲线共同覆盖；不单独增 ADR，遵循既有 change-record 约定。
+CI 门禁保持：全局 ≥ 70%、核心包 ≥ 75%（`.github/workflows/ci.yml`
+P2a 小节已落地）。
+
 ## Risks / Notes
 
 - 语料规模尚小（38 场景）：结论限定为"规格一致性回归"，不宣称真实集群

@@ -75,7 +75,7 @@ function Enable-NodePath {
     $dependencies = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $pnpm.Source))
     $candidate = Join-Path $dependencies 'node\bin'
     if (Test-Path -LiteralPath (Join-Path $candidate 'node.exe')) {
-        $env:Path = "$candidate;$env:Path"
+        $env:Path = "$candidate$([IO.Path]::PathSeparator)$env:Path"
     }
     Get-Command node -ErrorAction Stop | Out-Null
 }
@@ -117,8 +117,11 @@ if ($runBackend) {
 
     $goFiles = @($changed | Where-Object { $_ -like 'backend/*.go' -or $_ -like 'backend/*/*.go' -or $_ -like 'backend/*/*/*.go' -or $_ -like 'backend/*/*/*/*.go' })
     if ($goFiles.Count -gt 0) {
+        # Resolve gofmt beside the selected Go toolchain. The extension follows
+        # the resolved binary so this works on Windows (.exe) and POSIX ('').
+        $gofmt = Join-Path (Split-Path -Parent $go) ('gofmt' + [IO.Path]::GetExtension($go))
         $formatTargets = @($goFiles | ForEach-Object { Join-Path $Root $_ })
-        $unformatted = @(& (Join-Path (Split-Path -Parent $go) 'gofmt.exe') -l $formatTargets)
+        $unformatted = @(& $gofmt -l $formatTargets)
         if ($unformatted.Count -gt 0) { throw "unformatted Go files: $($unformatted -join ', ')" }
     }
 

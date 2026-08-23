@@ -49,6 +49,18 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - 演示链路 macOS 化 + 压测探针 load-probe
+
+- `scripts/verify-fast.ps1` 跨平台修复：gofmt 按所选 Go 工具链后缀解析
+  （不再硬编码 `.exe`），PATH 追加分隔符改用 `[IO.Path]::PathSeparator`。
+- 新增 `scripts/load-probe.mjs`（零依赖）：按并发档位对只读端点输出
+  p50/p95/p99/max/rps，明确标注功能级参考口径；实测 c=1 p95≈10ms →
+  c=64 p95≈100ms（err=0）。
+- macOS(colima+pwsh 7.4.6) 实跑 demo-up 全链成功：kind v1.36.1 注册 Ready、
+  诊断/确认/幂等处置闭环、证据落盘 `.artifacts/demo/`；记录 colima 资源
+  下限与 kind node 镜像预载（镜像源 retag）两个环境坑及解法。
+- See [change record](docs/changes/2026-08-23-macos-demo-rehearsal-path.md)。
+
 ### Added - aiopsbench 离线质量基准（诊断 P/R/F1 + 案例检索 Hit@k）
 
 - 新增 `backend/cmd/aiopsbench`：`diagnosis` 回放 38 场景标注语料

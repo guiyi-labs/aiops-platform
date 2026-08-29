@@ -1596,6 +1596,34 @@ paths:
               schema: { $ref: '#/components/schemas/InspectionCoverageResponse' }
         '400': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/aiops/knowledge:
+    get:
+      tags: [aiops]
+      summary: List distilled RAG case-library entries (read-only)
+      operationId: listKnowledgeEntries
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: rule_id, in: query, schema: { type: string } }
+        - { name: severity, in: query, schema: { type: string, enum: [info, warning, high, critical] } }
+        - { name: min_severity, in: query, schema: { type: string, enum: [info, warning, high, critical] } }
+        - { name: resource_kind, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200': { description: Knowledge entries, content: { application/json: { schema: { $ref: '#/components/schemas/KnowledgeEntryList' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /api/v1/aiops/knowledge/stats:
+    get:
+      tags: [aiops]
+      summary: Total count of distilled RAG case-library entries
+      operationId: getKnowledgeStats
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Knowledge entry count, content: { application/json: { schema: { type: object, properties: { total: { type: integer } } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /api/v1/aiops/overview:
     get:
       tags: [aiops]
@@ -5861,4 +5889,27 @@ components:
       required: [status]
       properties:
         status: { type: string, enum: [registered, healthy, degraded, disconnected] }
+    KnowledgeEntryList:
+      type: object
+      required: [items, total, truncated]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/KnowledgeEntry' } }
+        total: { type: integer, minimum: 0 }
+        truncated: { type: boolean }
+    KnowledgeEntry:
+      type: object
+      required: [id, rule_id, severity, resource_kind, summary, root_causes, recommendations, noted_at]
+      properties:
+        id: { type: integer, format: int64 }
+        source_diagnosis_id: { type: integer, format: int64 }
+        rule_id: { type: string }
+        severity: { type: string, enum: [info, warning, high, critical] }
+        resource_kind: { type: string }
+        resource_namespace: { type: string, nullable: true }
+        resource_name: { type: string }
+        summary: { type: string, description: Bounded failure description }
+        root_causes: { type: array, items: { type: string } }
+        recommendations: { type: array, items: { type: string } }
+        noted_at: { type: string, format: date-time, description: When the source diagnosis was resolved; ranked newest first }
+        score: { type: number, minimum: 0, maximum: 1, description: Retrieval score; zero for the structured phase }
         message: { type: string }

@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 307 |
+| 路由总数 | 309 |
 | 角色受限 | 87 |
-| 已审计 | 183 |
+| 已审计 | 185 |
 | scope=workspace | 13 |
 | scope=cluster | 86 |
 | scope=namespace | 32 |
-| scope=none | 176 |
+| scope=none | 178 |
 | 角色 operations_admin | 66 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 87 |
@@ -68,6 +68,8 @@
 | POST | `/api/v1/aiops/investigator/cases/:case_id/investigations` | any | none | aiops.investigator.investigations.generate |
 | GET | `/api/v1/aiops/investigator/investigations/:id` | any | none | aiops.investigator.investigations.read |
 | GET | `/api/v1/aiops/investigator/runbooks` | any | none | aiops.investigator.runbooks.list |
+| GET | `/api/v1/aiops/knowledge` | any | none | aiops.knowledge.list |
+| GET | `/api/v1/aiops/knowledge/stats` | any | none | aiops.knowledge.stats.read |
 | GET | `/api/v1/aiops/overview` | any | none | aiops.overview.read |
 | GET | `/api/v1/aiops/quality-report` | any | none | aiops.quality_report.read |
 | POST | `/api/v1/aiops/quality-report/run` | `operations_admin`, `system_admin` | none | aiops.quality_report.run |

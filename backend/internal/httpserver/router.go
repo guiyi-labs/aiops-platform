@@ -33,6 +33,7 @@ import (
 	"k8s-aiops.local/backend/internal/incidentchat"
 	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/knowledge"
 	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/metricshistory"
 	"k8s-aiops.local/backend/internal/monitoring"
@@ -141,6 +142,10 @@ type Options struct {
 	// are not registered. Exposes the latest quality report (GET) and an
 	// async replay trigger (POST, SystemOpsAdmin only).
 	GoldenService *golden.Service
+	// P2 RAG case library repository (P1 distillation target). When nil the
+	// /knowledge read-only routes are not registered. Writes happen only
+	// through the diagnosis resolution hook, never via HTTP.
+	KnowledgeRepository knowledge.Repository
 	// M57 Helm application catalog service. When nil the app-catalog routes
 	// are not registered. Exposes Helm repository CRUD, chart listing/detail
 	// (read-only index.yaml fetch), and M19 controlled-operation deploy
@@ -759,6 +764,15 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		goldenAPI := goldenHandler{service: options.GoldenService}
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/quality-report", AuthRequired: true, Handler: goldenAPI.getQualityReport, AuditAction: "aiops.quality_report.read", AuditResource: "QualityReport"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/quality-report/run", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: goldenAPI.runQualityReplay, AuditAction: "aiops.quality_report.run", AuditResource: "QualityReport"})
+	}
+
+	// P2 RAG case library (P1 distillation target). Read-only query surface
+	// only; writes happen through the diagnosis resolution hook. The library
+	// degrades silently (empty list / zero count) when the repository is nil.
+	if options.KnowledgeRepository != nil {
+		knowledgeAPI := knowledgeHandler{repo: options.KnowledgeRepository}
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/knowledge", AuthRequired: true, Handler: knowledgeAPI.listKnowledge, AuditAction: "aiops.knowledge.list", AuditResource: "KnowledgeEntry"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/knowledge/stats", AuthRequired: true, Handler: knowledgeAPI.knowledgeStats, AuditAction: "aiops.knowledge.stats.read", AuditResource: "KnowledgeEntry"})
 	}
 
 	// M81 AIOps closed-loop runbook: maps a posture finding to its diagnosis,

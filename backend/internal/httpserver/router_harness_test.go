@@ -30,6 +30,7 @@ import (
 	"k8s-aiops.local/backend/internal/incidentchat"
 	"k8s-aiops.local/backend/internal/inspection"
 	k8sgateway "k8s-aiops.local/backend/internal/kubernetes"
+	"k8s-aiops.local/backend/internal/knowledge"
 	"k8s-aiops.local/backend/internal/maintenance"
 	"k8s-aiops.local/backend/internal/monitoring"
 	"k8s-aiops.local/backend/internal/namespaceposture"
@@ -166,7 +167,12 @@ func buildFullEngine(t *testing.T) *gin.Engine {
 		// test. The noop repository/executor avoid DB and cluster access
 		// during route registration.
 		InspectionService: mustInspectionService(t),
-		Version:           "route-contract-test",
+		// P2 RAG case library: non-nil so the /knowledge routes are
+		// registered and covered by the route contract test. A nil-backed
+		// NopRepository is enough because the test only inspects route
+		// registration, not behavior.
+		KnowledgeRepository: knowledge.NopRepository{},
+		Version:             "route-contract-test",
 	}).(*gin.Engine)
 	if !ok {
 		t.Fatal("http server is not a gin engine")

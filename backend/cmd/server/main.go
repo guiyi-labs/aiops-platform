@@ -540,6 +540,7 @@ func main() {
 			InspectionService:         inspectionService,
 			ServiceMeshService:        serviceMeshService,
 			GoldenService:             goldenService,
+			KnowledgeRepository:       knowledgeRepository,
 			AppCatalogService:         appCatalogService,
 			GitOpsService:             gitopsService,
 			CopyOpsService:            copyOpsService,

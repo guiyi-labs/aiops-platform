@@ -49,6 +49,20 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - P2c RAG 案例库只读端点 + 幂等 seed 脚本
+
+- 新增 `GET /api/v1/aiops/knowledge`（按 rule_id/severity/min_severity/
+  resource_kind/limit 过滤，截断经响应信封披露）与 `GET /api/v1/aiops/
+  knowledge/stats`（案例库总数）；仓库为 nil 时返回 503 优雅降级，写入仍
+  只走诊断结案钩子（HTTP 面只读，符合 ADR 0004 边界）。
+- 新增 `backend/cmd/seed-knowledge`：幂等灌入 10 条精心构造的已解决案例
+  （crash_loop/oom/image_pull/pending/node/ingress/hpa/pvc/deployment 等），
+  按 `seed:` 前缀精确清除 + 外键级联；`-dry-run` 不触库，`-timeout` 控总超时。
+- `docs/api/openapi.yaml` 补 `KnowledgeEntryList`/`KnowledgeEntry` schema；
+  `docs/security/permission-matrix.md` 经契约测试重新生成，纳入两条新路由。
+- `docs/thesis/rag-demo-script.md`：毕设演示剧本（mock/stub，不依赖真实 LLM key）。
+- See [change record](docs/changes/2026-08-23-p2c-knowledge-readonly-seed.md)。
+
 ### Added - README 旗舰重写（P2b）
 
 - README 首屏架构流程图补齐「有界只读网关 → 确定性诊断 → 证据时间线 →

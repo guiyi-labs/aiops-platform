@@ -95,3 +95,26 @@ func (m *InMemoryRepository) ListByFilter(ctx context.Context, filter Filter) (L
 func (m *InMemoryRepository) Count(ctx context.Context) (int64, error) {
 	return int64(len(m.entries)), nil
 }
+
+// NopRepository is a no-op Repository used by route-contract tests and as a
+// safe nil replacement. Every call returns an empty result without error, so
+// callers that depend on a Repository always succeed regardless of whether the
+// knowledge layer is wired up.
+type NopRepository struct{}
+
+// Insert is a no-op that returns the input unchanged.
+func (NopRepository) Insert(ctx context.Context, entry Entry) (Entry, error) { return entry, nil }
+
+// ListByFilter returns an empty response.
+func (NopRepository) ListByFilter(ctx context.Context, filter Filter) (ListResponse, error) {
+	return ListResponse{}, nil
+}
+
+// Count returns zero.
+func (NopRepository) Count(ctx context.Context) (int64, error) { return 0, nil }
+
+// Compile-time assertion that both repositories satisfy the interface.
+var (
+	_ Repository = (*InMemoryRepository)(nil)
+	_ Repository = NopRepository{}
+)

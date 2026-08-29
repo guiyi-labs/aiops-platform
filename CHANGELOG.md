@@ -63,6 +63,16 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - `docs/thesis/rag-demo-script.md`：毕设演示剧本（mock/stub，不依赖真实 LLM key）。
 - See [change record](docs/changes/2026-08-23-p2c-knowledge-readonly-seed.md)。
 
+### Fixed - P2c 后续小修：aiopsbench/seed 报告文件权限收紧至 0600 + 格式对齐
+
+- `backend/cmd/aiopsbench/diagnosis.go` 与 `retrieval.go`：回放报告文件写入权限由 `0o644`
+  收紧至 `0o600`，符合敏感质量基准产物权限纪律（参照 P2a 质量部分）。
+- `backend/cmd/seed-knowledge/main.go`：`seed` 结构体字面量缩进对齐（纯空白）。
+- `backend/internal/httpserver/router.go` 与 `router_harness_test.go`：import 块中
+  `k8sgateway` 行按字母序重排（纯排序）。
+- 零语义变化，仅权限收紧与格式对齐；`gofmt -l` 为空，`go build ./...` 通过。
+- See [change record](docs/changes/2026-08-29-p2c-followup-touchups.md)。
+
 ### Added - README 旗舰重写（P2b）
 
 - README 首屏架构流程图补齐「有界只读网关 → 确定性诊断 → 证据时间线 →

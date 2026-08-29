@@ -80,7 +80,7 @@ func runRetrieval(args []string) error {
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(*jsonOut, append(data, '\n'), 0o644); err != nil {
+		if err := os.WriteFile(*jsonOut, append(data, '\n'), 0o600); err != nil {
 			return fmt.Errorf("write report: %w", err)
 		}
 		fmt.Printf("report written to %s\n", *jsonOut)

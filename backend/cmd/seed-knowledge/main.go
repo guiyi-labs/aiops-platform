@@ -112,8 +112,8 @@ func seed(ctx context.Context, db *gorm.DB, entries []knowledge.Entry) error {
 				Namespace: e.ResourceNamespace,
 				Name:      e.ResourceName,
 			},
-			Summary:        seedProvenanceMarker + e.Summary,
-			RootCauses:     e.RootCauses,
+			Summary:         seedProvenanceMarker + e.Summary,
+			RootCauses:      e.RootCauses,
 			Recommendations: e.Recommendations,
 		}
 		if err := diagRepo.Save(ctx, record); err != nil {

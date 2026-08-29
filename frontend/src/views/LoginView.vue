@@ -17,7 +17,7 @@ import {
 import { useRoute, useRouter } from 'vue-router'
 
 import { APIError } from '../api/auth'
-import ParticleNetwork from '../components/ParticleNetwork.vue'
+import FluidBackground from '../components/FluidBackground.vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -149,7 +149,7 @@ async function submit() {
 <template>
   <main :class="['login-page', `login-page--${authPhase}`]" :data-auth-phase="authPhase">
     <section class="login-intro">
-      <ParticleNetwork :phase="authPhase" />
+      <FluidBackground />
       <div class="login-depth" aria-hidden="true"></div>
       <div class="login-spine" aria-hidden="true"><i></i></div>
       <div class="login-brand"><span><Boxes :size="22" /></span>K8s AIOps</div>

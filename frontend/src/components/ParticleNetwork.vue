@@ -22,6 +22,24 @@ let devicePixelRatio = 1
 let width = 0
 let height = 0
 
+// ---- 游标轨迹特效：在空白处移动时留下的光点残影与点击涟漪 ----
+interface TrailPoint {
+  x: number
+  y: number
+  life: number
+}
+interface Ripple {
+  x: number
+  y: number
+  radius: number
+  life: number
+}
+
+const trail: TrailPoint[] = []
+const ripples: Ripple[] = []
+const TRAIL_MAX = 26
+const trailSpawnTimer = { last: 0 }
+
 interface Particle {
   x: number
   y: number
@@ -229,11 +247,73 @@ function draw() {
     context.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2)
     context.fill()
   }
+
+  // ---- 游标轨迹残影：随鼠标在空白处移动留下的连珠光点 ----
+  if (pointer.active && !reducedMotion.value && props.phase !== 'success') {
+    for (let trailIndex = 0; trailIndex < trail.length; trailIndex += 1) {
+      const point = trail[trailIndex]
+      const t = trailIndex / Math.max(1, trail.length)
+      const alpha = (1 - t) * 0.5
+      const radius = 1.6 + (1 - t) * 3.2
+      const halo = context.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius * 3)
+      halo.addColorStop(0, `rgba(129, 230, 217, ${alpha})`)
+      halo.addColorStop(0.5, `rgba(94, 234, 212, ${alpha * 0.5})`)
+      halo.addColorStop(1, 'rgba(94, 234, 212, 0)')
+      context.fillStyle = halo
+      context.beginPath()
+      context.arc(point.x, point.y, radius * 3, 0, Math.PI * 2)
+      context.fill()
+    }
+    if (trail.length > 1) {
+      context.strokeStyle = 'rgba(94, 234, 212, 0.18)'
+      context.lineWidth = 1
+      context.beginPath()
+      context.moveTo(trail[0].x, trail[0].y)
+      for (let trailIndex = 1; trailIndex < trail.length; trailIndex += 1) {
+        context.lineTo(trail[trailIndex].x, trail[trailIndex].y)
+      }
+      context.stroke()
+    }
+  }
+
+  // ---- 点击涟漪 ----
+  for (let rippleIndex = ripples.length - 1; rippleIndex >= 0; rippleIndex -= 1) {
+    const ripple = ripples[rippleIndex]
+    if (ripple.life <= 0) {
+      ripples.splice(rippleIndex, 1)
+      continue
+    }
+    const alpha = ripple.life * 0.5
+    context.strokeStyle = `rgba(129, 230, 217, ${alpha})`
+    context.lineWidth = 1.4
+    context.beginPath()
+    context.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2)
+    context.stroke()
+  }
+}
+
+function advanceTrail() {
+  if (reducedMotion.value) return
+  for (let trailIndex = trail.length - 1; trailIndex >= 0; trailIndex -= 1) {
+    trail[trailIndex].life -= 0.035
+    if (trail[trailIndex].life <= 0) trail.splice(trailIndex, 1)
+  }
+  for (let rippleIndex = ripples.length - 1; rippleIndex >= 0; rippleIndex -= 1) {
+    const ripple = ripples[rippleIndex]
+    ripple.radius += 2.4
+    ripple.life -= 0.025
+  }
+}
+
+function spawnTrailPoint(x: number, y: number) {
+  trail.push({ x, y, life: 1 })
+  if (trail.length > TRAIL_MAX) trail.shift()
 }
 
 function animationLoop() {
   if (!isRunning.value) return
   updateParticles()
+  advanceTrail()
   draw()
   animationFrame = requestAnimationFrame(animationLoop)
 }
@@ -266,6 +346,18 @@ function handlePointerMove(event: MouseEvent) {
   pointer.x = event.clientX - bounds.left
   pointer.y = event.clientY - bounds.top
   pointer.active = true
+  const now = performance.now()
+  if (pointer.active && now - trailSpawnTimer.last > 16) {
+    trailSpawnTimer.last = now
+    spawnTrailPoint(pointer.x, pointer.y)
+  }
+}
+
+function handlePointerClick(event: MouseEvent) {
+  const canvas = canvasRef.value
+  if (!canvas || reducedMotion.value) return
+  const bounds = canvas.getBoundingClientRect()
+  ripples.push({ x: event.clientX - bounds.left, y: event.clientY - bounds.top, radius: 4, life: 1 })
 }
 
 function handlePointerLeave() {
@@ -282,6 +374,11 @@ function handleTouchMove(event: TouchEvent) {
   pointer.x = touch.clientX - bounds.left
   pointer.y = touch.clientY - bounds.top
   pointer.active = true
+  const now = performance.now()
+  if (now - trailSpawnTimer.last > 16) {
+    trailSpawnTimer.last = now
+    spawnTrailPoint(pointer.x, pointer.y)
+  }
 }
 
 function handleVisibilityChange() {
@@ -318,6 +415,7 @@ onMounted(() => {
   parentElement.addEventListener('mouseleave', handlePointerLeave)
   parentElement.addEventListener('touchmove', handleTouchMove, { passive: true })
   parentElement.addEventListener('touchend', handlePointerLeave)
+  parentElement.addEventListener('click', handlePointerClick)
   document.addEventListener('visibilitychange', handleVisibilityChange)
 
   resizeObserver = new ResizeObserver(resizeCanvas)
@@ -335,6 +433,7 @@ onBeforeUnmount(() => {
   parentElement?.removeEventListener('mouseleave', handlePointerLeave)
   parentElement?.removeEventListener('touchmove', handleTouchMove)
   parentElement?.removeEventListener('touchend', handlePointerLeave)
+  parentElement?.removeEventListener('click', handlePointerClick)
 })
 </script>
 

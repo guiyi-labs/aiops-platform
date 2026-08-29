@@ -73,6 +73,12 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 零语义变化，仅权限收紧与格式对齐；`gofmt -l` 为空，`go build ./...` 通过。
 - See [change record](docs/changes/2026-08-29-p2c-followup-touchups.md)。
 
+### Added - 登录页光标轨迹特效：粒子网络新增鼠标拖尾与点击涟漪
+
+- `frontend/src/components/ParticleNetwork.vue`：鼠标在空白处移动时以约 16ms 节流生成连珠光点残影（最多 26 个，逐帧衰减）并以低透明度描边连接形成拖尾；点击空白处产生扩散涟漪；触屏 move 同步生成轨迹；`prefers-reduced-motion` 与成功态下不绘制，遵守既有降级纪律。
+- `pnpm typecheck` / `pnpm build` 通过；运行容器已热更新至新 `LoginView` chunk 并校验轨迹色值与绘制逻辑。
+- See [change record](docs/changes/2026-08-29-login-cursor-trail-effect.md)。
+
 ### Added - README 旗舰重写（P2b）
 
 - README 首屏架构流程图补齐「有界只读网关 → 确定性诊断 → 证据时间线 →

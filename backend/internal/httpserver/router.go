@@ -849,6 +849,11 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(federationRoutes, RouteDescriptor{Method: "POST", Path: "/clusters/:cluster_id/heartbeat", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: federationAPI.heartbeat, AuditAction: "federation.cluster.heartbeat", AuditResource: "FederationCluster"})
 		reg.register(federationRoutes, RouteDescriptor{Method: "PATCH", Path: "/clusters/:cluster_id/status", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: federationAPI.updateStatus, AuditAction: "federation.cluster.status.update", AuditResource: "FederationCluster"})
 		reg.register(federationRoutes, RouteDescriptor{Method: "GET", Path: "/clusters/:cluster_id/events", AuthRequired: true, Handler: federationAPI.listClusterEvents, AuditAction: "federation.cluster.events.list", AuditResource: "FederationEvent"})
+		// P2d cross-cluster diagnosis aggregation (platform-side view).
+		// Reads are authentication-only; the authz layer provides the 2D
+		// cluster scope so callers only see their authorized fleet.
+		reg.register(federationRoutes, RouteDescriptor{Method: "GET", Path: "/diagnoses", AuthRequired: true, Handler: federationAPI.listDiagnoses, AuditAction: "federation.diagnoses.list", AuditResource: "FederationDiagnosis"})
+		reg.register(federationRoutes, RouteDescriptor{Method: "GET", Path: "/diagnoses/stats", AuthRequired: true, Handler: federationAPI.diagnosisStats, AuditAction: "federation.diagnoses.stats.read", AuditResource: "FederationDiagnosisStats"})
 	}
 
 	router.NoRoute(noRoute)

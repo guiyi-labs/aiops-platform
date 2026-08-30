@@ -207,7 +207,8 @@ func main() {
 	authzService := authz.NewService(authzRepo)
 	grantManager := authz.NewGrantManager(authzRepo)
 	workspaceService := workspace.NewService(workspace.NewGormRepository(database.GORM()))
-	federationService := federation.NewService(federation.NewGormRepository(database.GORM()), newKubernetesClusterLister(kubernetesService))
+	federationService := federation.NewService(federation.NewGormRepository(database.GORM()), newKubernetesClusterLister(kubernetesService)).
+		WithDiagnosisRepository(diagnosis.NewGormRepository(database.GORM()))
 
 	// M50: capability providers (Prometheus + Loki). Constructed only when
 	// cfg.Capability.Enabled is true and the corresponding endpoint is set.

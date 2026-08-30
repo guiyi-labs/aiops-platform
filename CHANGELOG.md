@@ -90,6 +90,30 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - `LoginView.vue`：同时挂载 `FluidBackground`（流体底层）与 `ParticleNetwork`（粒子顶层），
   WebGL 流体模拟——鼠标移动推动彩色烟雾扩散、染料在流体场中互相晕染。
 - See [change record](docs/changes/2026-08-30-login-fluid-cursor-webgl.md)。
+
+### Added - 登录页全屏彩色粒子交互 + 静谧尘埃衬底
+
+- 新增 `frontend/src/components/DustField.vue`：Canvas 2D 实现的灰黑色散点缓慢漂浮 + 缩放闪烁效果，灰阶 HSL 范围可配（默认浅色 22–42%，深色 70–92%），不阻塞输入、不引入鼠标交互；`prefers-reduced-motion` 与 `document.hidden` 时停 RAF。
+- `LoginView.vue` 将 `<ParticleNetwork />` 提升到 `.login-page` 直接子节点，让彩色粒子 + 鼠标轨迹/涟漪在登录页左右两个面板的空白处都生效；新增 `<DustField :color-lightness="[70, 92]" />` 作为衬底层（适配深色登录底），`FluidBackground` 保留在左侧介绍区。
+- `console-theme.css` 新增 `.login-page > .dust-field` (z-1) 与 `.login-page > .particle-network` (z-2)，同步迁移 mask 下沿淡出效果；表单面板仍以 z-3 位于最上层，键盘焦点/输入不受影响。
+- `pnpm typecheck` / `pnpm exec eslint src/components/DustField.vue src/views/LoginView.vue` / `pnpm build` 全通过；`dist/assets/LoginView-*.js` 44.51 kB（gzip 14.01 kB），`DustField` 增加约 1.6 kB gzip。
+- See [change record](docs/changes/2026-08-30-login-dust-field-preview.md)。
+
+### Added - P2d 多集群 Federation 深化 — 跨集群诊断聚合端点
+
+- 新增 `GET /api/v1/federation/diagnoses`（按 status/severity/limit 过滤，2D 集群授权可见性，最新优先）与 `GET /api/v1/federation/diagnoses/stats`（total / by_status / by_severity / by_cluster 三维统计）；均为只读聚合，背后为 SQL `WHERE cluster_id IN (visible)`（平台侧视图，无实时扇出），空集群集 fail-closed、诊断仓储未配置时降级为空。
+- Backend：`internal/diagnosis.Repository` 新增 `ListByClusters` / `StatsByClusters`（含共享类型 `FederationDiagnosisRow` 等）；`internal/federation` 新增 `diagnoses.go`（`FederationDiagnosisRepository` 接口、`ListDiagnoses` / `DiagnosesStats` 服务方法、集群名富化、输入校验）。
+- `cmd/server/main.go` 接线：`federationService.WithDiagnosisRepository(diagnosis.NewGormRepository(...))`；`internal/httpserver/federation.go` 新路由接入 `authorizedClusterFilter`。
+- `docs/api/openapi.yaml` 补两条路径与四套 schema；`docs/security/permission-matrix.md` 重新生成（路由总数 309→311）。
+- `go vet ./...` 0 issues；新增 `internal/federation/diagnoses_test.go`（service 层 5 cases）与 `internal/federation/handler_test`（7 cases，含 nil 降级与枚举校验），Contract tests `TestRegisteredRoutesMatchOpenAPI` / `TestPermissionMatrixMatchesCommittedDocument` 回归绿。
+- See [change record](docs/changes/2026-08-30-p2d-fleet-diagnoses-aggregation.md)。
+
+### Fixed - 首次登录后侧栏导航失效（auth restore 竞态）
+
+- `frontend/src/stores/auth.ts`：`login()` 成功后设置 `initialized = true`，避免 `router.replace(redirect)` 触发的守卫 `restore()` 向服务端 `refreshSession()` 竞态清掉刚写入的认证状态（初始表现为首次登录后点左侧任务栏不跳转）。
+- `pnpm typecheck` / `pnpm build` 通过。
+- See [change record](docs/changes/2026-08-30-fix-login-sidebar-race.md)。
+
 ### Added - README 旗舰重写（P2b）
 
 - README 首屏架构流程图补齐「有界只读网关 → 确定性诊断 → 证据时间线 →

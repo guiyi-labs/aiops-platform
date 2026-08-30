@@ -74,16 +74,28 @@ type CountResult struct {
 //   - Federation events are append-only.
 //   - The resource summary is a bounded fan-out over the existing kubernetes
 //     gateway; missing/unreachable clusters contribute zero counts.
+//   - The cross-cluster diagnosis aggregation (P2d) reads the already-centralized
+//     diagnosis_records table (platform-side view); no live cluster fan-out.
 type Service struct {
-	repo   Repository
-	lister ClusterLister
-	now    func() time.Time
+	repo         Repository
+	lister       ClusterLister
+	diagnosisRepo FederationDiagnosisRepository
+	now          func() time.Time
 }
 
 // NewService constructs a federation Service backed by repo. lister may be
-// nil; in that case ResourceSummary returns an empty result.
+// nil; in that case ResourceSummary returns an empty result. diagnosisRepo may
+// be nil; in that case the P2d diagnosis aggregation returns empty results.
 func NewService(repo Repository, lister ClusterLister) *Service {
 	return &Service{repo: repo, lister: lister, now: time.Now}
+}
+
+// WithDiagnosisRepository attaches the cross-cluster diagnosis read surface used
+// by the P2d fleet-diagnosis aggregation endpoints. It is a fluent setter so the
+// existing wiring stays unchanged when the diagnosis repository is absent.
+func (s *Service) WithDiagnosisRepository(repo FederationDiagnosisRepository) *Service {
+	s.diagnosisRepo = repo
+	return s
 }
 
 // RegisterClusterInput is the validated payload for RegisterCluster.

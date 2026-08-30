@@ -50,6 +50,14 @@ func (s *diagTestRepo) Summary(context.Context) (diagnosis.Summary, error) {
 	return s.summary, s.summaryErr
 }
 
+func (s *diagTestRepo) ListByClusters(_ context.Context, _ []int64, _, _ string, _ int) ([]diagnosis.FederationDiagnosisRow, error) {
+	return []diagnosis.FederationDiagnosisRow{}, nil
+}
+
+func (s *diagTestRepo) StatsByClusters(_ context.Context, _ []int64) (diagnosis.FederationDiagnosisStats, error) {
+	return diagnosis.FederationDiagnosisStats{ByStatus: map[string]int64{}, BySeverity: map[string]int64{}, ByCluster: []diagnosis.FederationClusterCount{}}, nil
+}
+
 func newDiagnosisRouter(repo *diagTestRepo) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	_ = auth.SystemAdmin

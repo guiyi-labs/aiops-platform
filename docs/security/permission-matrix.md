@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 309 |
+| 路由总数 | 311 |
 | 角色受限 | 87 |
-| 已审计 | 185 |
+| 已审计 | 187 |
 | scope=workspace | 13 |
 | scope=cluster | 86 |
 | scope=namespace | 32 |
-| scope=none | 178 |
+| scope=none | 180 |
 | 角色 operations_admin | 66 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 87 |
@@ -262,6 +262,8 @@
 | POST | `/api/v1/federation/clusters/:cluster_id/promote` | `operations_admin`, `system_admin` | cluster | federation.cluster.promote |
 | PATCH | `/api/v1/federation/clusters/:cluster_id/status` | `operations_admin`, `system_admin` | cluster | federation.cluster.status.update |
 | POST | `/api/v1/federation/clusters/register` | `operations_admin`, `system_admin` | none | federation.cluster.register |
+| GET | `/api/v1/federation/diagnoses` | any | none | federation.diagnoses.list |
+| GET | `/api/v1/federation/diagnoses/stats` | any | none | federation.diagnoses.stats.read |
 | GET | `/api/v1/federation/events` | any | none | federation.events.list |
 | GET | `/api/v1/federation/overview` | any | none | federation.overview.read |
 | GET | `/api/v1/federation/resources/summary` | any | none | federation.resources.summary.read |

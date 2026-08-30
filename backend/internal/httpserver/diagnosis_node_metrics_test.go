@@ -65,6 +65,14 @@ func (s *diagnosisRepositoryStub) Summary(_ context.Context) (diagnosis.Summary,
 	return s.summary, s.summaryErr
 }
 
+func (s *diagnosisRepositoryStub) ListByClusters(_ context.Context, _ []int64, _, _ string, _ int) ([]diagnosis.FederationDiagnosisRow, error) {
+	return []diagnosis.FederationDiagnosisRow{}, nil
+}
+
+func (s *diagnosisRepositoryStub) StatsByClusters(_ context.Context, _ []int64) (diagnosis.FederationDiagnosisStats, error) {
+	return diagnosis.FederationDiagnosisStats{ByStatus: map[string]int64{}, BySeverity: map[string]int64{}, ByCluster: []diagnosis.FederationClusterCount{}}, nil
+}
+
 type fakeMetricEvaluator struct {
 	response metricshistory.EvaluationResponse
 	err      error

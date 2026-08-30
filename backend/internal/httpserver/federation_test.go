@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"k8s-aiops.local/backend/internal/cluster"
+	"k8s-aiops.local/backend/internal/diagnosis"
 	"k8s-aiops.local/backend/internal/federation"
 	"k8s-aiops.local/backend/internal/requestctx"
 )
@@ -36,6 +37,9 @@ func newFederationTestEngine(t *testing.T, svc *federation.Service) *gin.Engine 
 	api.POST("/clusters/:cluster_id/heartbeat", h.heartbeat)
 	api.PATCH("/clusters/:cluster_id/status", h.updateStatus)
 	api.GET("/clusters/:cluster_id/events", h.listClusterEvents)
+	// P2d cross-cluster diagnosis aggregation.
+	api.GET("/diagnoses", h.listDiagnoses)
+	api.GET("/diagnoses/stats", h.diagnosisStats)
 	return r
 }
 
@@ -585,5 +589,232 @@ func TestFederationHandler_ResourceSummaryReturns200(t *testing.T) {
 	}
 	if len(summary.Items) != 0 {
 		t.Fatalf("items len = %d, want 0 (nil lister)", len(summary.Items))
+	}
+}
+
+// ============================================================================
+// P2d: Cross-cluster diagnosis aggregation
+// ============================================================================
+
+// handlerFedDiagRepo is a thin in-memory mock implementing
+// federation.FederationDiagnosisRepository for handler-level P2d tests.
+type handlerFedDiagRepo struct {
+	rows []diagnosis.FederationDiagnosisRow
+	stats diagnosis.FederationDiagnosisStats
+}
+
+func (r *handlerFedDiagRepo) ListByClusters(_ context.Context, clusters []int64, status, severity string, limit int) ([]diagnosis.FederationDiagnosisRow, error) {
+	visible := make(map[int64]bool, len(clusters))
+	for _, id := range clusters {
+		visible[id] = true
+	}
+	out := make([]diagnosis.FederationDiagnosisRow, 0, len(r.rows))
+	for _, row := range r.rows {
+		if len(clusters) > 0 && !visible[row.ClusterID] {
+			continue
+		}
+		if status != "" && row.Status != status {
+			continue
+		}
+		if severity != "" && row.Severity != severity {
+			continue
+		}
+		out = append(out, row)
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (r *handlerFedDiagRepo) StatsByClusters(_ context.Context, _ []int64) (diagnosis.FederationDiagnosisStats, error) {
+	return r.stats, nil
+}
+
+func TestFederationHandler_ListDiagnosesReturns200(t *testing.T) {
+	fedRepo := newHandlerFedRepo()
+	seedFedCluster(fedRepo, 1, "c1", cluster.ClusterRoleHost, cluster.FederationStatusHealthy)
+	seedFedCluster(fedRepo, 2, "c2", cluster.ClusterRoleMember, cluster.FederationStatusHealthy)
+	svc := federation.NewService(fedRepo, nil).WithDiagnosisRepository(&handlerFedDiagRepo{
+		rows: []diagnosis.FederationDiagnosisRow{
+			{ID: 1, ClusterID: 1, RuleID: "pod.crash_loop_backoff.v1", Severity: "high", ResourceKind: "Pod", ResourceName: "nginx-0", Status: "open", Summary: "crash loop", ObservedAt: time.Now().UTC()},
+			{ID: 2, ClusterID: 2, RuleID: "node.not_ready.v1", Severity: "critical", ResourceKind: "Node", ResourceName: "node-1", Status: "resolved", Summary: "node not ready", ObservedAt: time.Now().UTC()},
+		},
+	})
+	engine := newFederationTestEngine(t, svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/federation/diagnoses", nil)
+	req = withFederationActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Items []federation.FederationDiagnosis `json:"items"`
+		Total int                              `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Total != 2 {
+		t.Fatalf("total = %d, want 2", resp.Total)
+	}
+	if len(resp.Items) != 2 {
+		t.Fatalf("items len = %d, want 2", len(resp.Items))
+	}
+	// Verify cluster names are enriched.
+	for _, item := range resp.Items {
+		if item.ClusterName == "" {
+			t.Fatalf("cluster_name is empty for cluster_id=%d", item.ClusterID)
+		}
+	}
+}
+
+func TestFederationHandler_ListDiagnosesStatusFilter(t *testing.T) {
+	fedRepo := newHandlerFedRepo()
+	seedFedCluster(fedRepo, 1, "c1", cluster.ClusterRoleHost, cluster.FederationStatusHealthy)
+	svc := federation.NewService(fedRepo, nil).WithDiagnosisRepository(&handlerFedDiagRepo{
+		rows: []diagnosis.FederationDiagnosisRow{
+			{ID: 1, ClusterID: 1, RuleID: "pod.crash_loop_backoff.v1", Severity: "high", Status: "open", Summary: "crash loop", ObservedAt: time.Now().UTC()},
+			{ID: 2, ClusterID: 1, RuleID: "node.not_ready.v1", Severity: "critical", Status: "resolved", Summary: "node not ready", ObservedAt: time.Now().UTC()},
+		},
+	})
+	engine := newFederationTestEngine(t, svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/federation/diagnoses?status=open", nil)
+	req = withFederationActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Items []federation.FederationDiagnosis `json:"items"`
+		Total int                              `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Total != 1 {
+		t.Fatalf("total = %d, want 1 (filtered by status=open)", resp.Total)
+	}
+	if resp.Items[0].Status != "open" {
+		t.Fatalf("status = %s, want open", resp.Items[0].Status)
+	}
+}
+
+func TestFederationHandler_ListDiagnosesInvalidStatusReturns400(t *testing.T) {
+	repo := newHandlerFedRepo()
+	svc := federation.NewService(repo, nil)
+	engine := newFederationTestEngine(t, svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/federation/diagnoses?status=bogus", nil)
+	req = withFederationActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestFederationHandler_ListDiagnosesInvalidSeverityReturns400(t *testing.T) {
+	repo := newHandlerFedRepo()
+	svc := federation.NewService(repo, nil)
+	engine := newFederationTestEngine(t, svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/federation/diagnoses?severity=ultra", nil)
+	req = withFederationActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestFederationHandler_DiagnosisStatsReturns200(t *testing.T) {
+	fedRepo := newHandlerFedRepo()
+	seedFedCluster(fedRepo, 1, "c1", cluster.ClusterRoleHost, cluster.FederationStatusHealthy)
+	svc := federation.NewService(fedRepo, nil).WithDiagnosisRepository(&handlerFedDiagRepo{
+		stats: diagnosis.FederationDiagnosisStats{
+			Total:      5,
+			ByStatus:   map[string]int64{"open": 3, "resolved": 2},
+			BySeverity: map[string]int64{"high": 3, "medium": 2},
+			ByCluster:  []diagnosis.FederationClusterCount{{ClusterID: 1, Count: 5}},
+		},
+	})
+	engine := newFederationTestEngine(t, svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/federation/diagnoses/stats", nil)
+	req = withFederationActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var stats federation.FederationDiagnosisStats
+	if err := json.Unmarshal(w.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if stats.Total != 5 {
+		t.Fatalf("total = %d, want 5", stats.Total)
+	}
+	if stats.ByStatus["open"] != 3 {
+		t.Fatalf("by_status.open = %d, want 3", stats.ByStatus["open"])
+	}
+	if len(stats.ByCluster) != 1 {
+		t.Fatalf("by_cluster len = %d, want 1", len(stats.ByCluster))
+	}
+}
+
+func TestFederationHandler_DiagnosisStatsNilRepoReturnsZeros(t *testing.T) {
+	repo := newHandlerFedRepo()
+	svc := federation.NewService(repo, nil) // no diagnosis repo → nil
+	engine := newFederationTestEngine(t, svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/federation/diagnoses/stats", nil)
+	req = withFederationActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var stats federation.FederationDiagnosisStats
+	if err := json.Unmarshal(w.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if stats.Total != 0 {
+		t.Fatalf("total = %d, want 0 (nil repo)", stats.Total)
+	}
+}
+
+func TestFederationHandler_ListDiagnosesNilRepoReturnsEmpty(t *testing.T) {
+	repo := newHandlerFedRepo()
+	svc := federation.NewService(repo, nil) // no diagnosis repo → nil
+	engine := newFederationTestEngine(t, svc)
+
+	req := httptest.NewRequest("GET", "/api/v1/federation/diagnoses", nil)
+	req = withFederationActor(req, 1, []string{"system_admin"})
+	w := httptest.NewRecorder()
+	engine.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Items []federation.FederationDiagnosis `json:"items"`
+		Total int                              `json:"total"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Total != 0 {
+		t.Fatalf("total = %d, want 0 (nil repo)", resp.Total)
 	}
 }

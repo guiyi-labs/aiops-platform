@@ -22,6 +22,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(username: string, password: string) {
     applySession(await authAPI.login(username.trim(), password))
+    // Mark session as initialized so the router guard does not immediately
+    // call restore() -> refreshSession(), which would race with the login
+    // response and potentially clear the freshly-set auth state.
+    initialized.value = true
   }
 
   async function restore() {

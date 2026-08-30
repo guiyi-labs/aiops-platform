@@ -8,6 +8,7 @@ package diagnosis
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -141,6 +142,63 @@ func (m *memRepo) Assign(_ context.Context, id int64, assignee, _ ActorRef, _ st
 
 func (m *memRepo) Summary(_ context.Context) (Summary, error) {
 	return Summary{Total: int64(len(m.records))}, nil
+}
+
+func (m *memRepo) ListByClusters(_ context.Context, clusters []int64, status, severity string, limit int) ([]FederationDiagnosisRow, error) {
+	if len(clusters) == 0 {
+		return []FederationDiagnosisRow{}, nil
+	}
+	visible := make(map[int64]bool, len(clusters))
+	for _, id := range clusters {
+		visible[id] = true
+	}
+	out := make([]FederationDiagnosisRow, 0, len(m.records))
+	for _, r := range m.records {
+		if !visible[r.ClusterID] {
+			continue
+		}
+		if status != "" && r.Status != status {
+			continue
+		}
+		if severity != "" && r.Severity != severity {
+			continue
+		}
+		out = append(out, FederationDiagnosisRow{
+			ID: r.ID, ClusterID: r.ClusterID, RuleID: r.RuleID, Severity: r.Severity,
+			ResourceKind: r.Resource.Kind, ResourceName: r.Resource.Name, ResourceNamespace: r.Resource.Namespace,
+			Status: r.Status, Summary: r.Summary, ObservedAt: r.ObservedAt, ResolvedAt: r.ResolvedAt,
+		})
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (m *memRepo) StatsByClusters(_ context.Context, clusters []int64) (FederationDiagnosisStats, error) {
+	stats := FederationDiagnosisStats{ByStatus: map[string]int64{}, BySeverity: map[string]int64{}, ByCluster: []FederationClusterCount{}}
+	if len(clusters) == 0 {
+		return stats, nil
+	}
+	visible := make(map[int64]bool, len(clusters))
+	for _, id := range clusters {
+		visible[id] = true
+	}
+	clusterTotals := make(map[int64]int64)
+	for _, r := range m.records {
+		if !visible[r.ClusterID] {
+			continue
+		}
+		stats.Total++
+		stats.ByStatus[r.Status]++
+		stats.BySeverity[r.Severity]++
+		clusterTotals[r.ClusterID]++
+	}
+	for id, count := range clusterTotals {
+		stats.ByCluster = append(stats.ByCluster, FederationClusterCount{ClusterID: id, Count: count})
+	}
+	sort.Slice(stats.ByCluster, func(i, j int) bool { return stats.ByCluster[i].ClusterID < stats.ByCluster[j].ClusterID })
+	return stats, nil
 }
 
 func newSvc(t *testing.T) (*Service, *fakeSource, *memRepo) {

@@ -880,8 +880,14 @@ tbody tr {
   z-index: 0;
 }
 
-.login-intro > .particle-network {
+/* Page-level layers: dust field first, then full-page particle network on top.
+   Both sit above .login-intro (z-0) but below .login-form-panel (z-3). */
+.login-page > .dust-field {
   z-index: 1;
+}
+
+.login-page > .particle-network {
+  z-index: 2;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 62%, rgba(0, 0, 0, 0.35) 84%, transparent 100%);
   mask-image: linear-gradient(180deg, #000 0%, #000 62%, rgba(0, 0, 0, 0.35) 84%, transparent 100%);
 }

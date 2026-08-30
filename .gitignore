@@ -32,6 +32,7 @@ frontend/coverage/
 .tools-ci/
 data/
 tmp/
+outputs/
 *.log
 *.dump
 *.backup

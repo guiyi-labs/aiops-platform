@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -20,6 +21,45 @@ type Repository interface {
 	AddFeedback(context.Context, int64, string, ActorRef, string) (Record, error)
 	Assign(context.Context, int64, ActorRef, ActorRef, string) (Record, error)
 	Summary(context.Context) (Summary, error)
+	// ListByClusters returns a flattened, list-friendly projection of diagnosis
+	// records whose cluster_id is in clusters, optionally filtered by status and
+	// severity, newest first (used by the federation cross-cluster aggregation).
+	// A nil/empty clusters slice returns no rows.
+	ListByClusters(ctx context.Context, clusters []int64, status, severity string, limit int) ([]FederationDiagnosisRow, error)
+	// StatsByClusters returns aggregate diagnosis counts across clusters, grouped
+	// by status, severity and cluster. A nil/empty clusters slice returns zeroed
+	// stats.
+	StatsByClusters(ctx context.Context, clusters []int64) (FederationDiagnosisStats, error)
+}
+
+// FederationDiagnosisRow is the flattened projection returned by ListByClusters.
+// It is the shared shape reused by the federation package's P2d aggregation.
+type FederationDiagnosisRow struct {
+	ID                int64
+	ClusterID         int64
+	RuleID            string
+	Severity          string
+	ResourceKind      string
+	ResourceName      string
+	ResourceNamespace string
+	Status            string
+	Summary           string
+	ObservedAt        time.Time
+	ResolvedAt        *time.Time
+}
+
+// FederationDiagnosisStats is the aggregate count shape returned by StatsByClusters.
+type FederationDiagnosisStats struct {
+	Total      int64
+	ByStatus   map[string]int64
+	BySeverity map[string]int64
+	ByCluster  []FederationClusterCount
+}
+
+// FederationClusterCount is one per-cluster contribution to the stats.
+type FederationClusterCount struct {
+	ClusterID int64
+	Count     int64
 }
 
 type GormRepository struct{ db *gorm.DB }
@@ -327,6 +367,73 @@ func (r *GormRepository) Summary(ctx context.Context) (Summary, error) {
 	}
 	summary.Recent = recent
 	return summary, nil
+}
+
+// ListByClusters returns a flattened projection of diagnosis records whose
+// cluster_id is in the clusters set, optionally filtered by status and severity,
+// newest first. A nil/empty clusters slice returns no rows (fail-closed so an
+// authorization scope with zero visible clusters never leaks data).
+func (r *GormRepository) ListByClusters(ctx context.Context, clusters []int64, status, severity string, limit int) ([]FederationDiagnosisRow, error) {
+	if len(clusters) == 0 {
+		return []FederationDiagnosisRow{}, nil
+	}
+	query := `SELECT d.id, d.cluster_id, d.rule_id, d.severity, d.resource_kind, d.resource_name, d.resource_namespace, d.status, d.summary, d.observed_at, d.resolved_at
+		FROM diagnosis_records d
+		WHERE d.cluster_id IN ?`
+	args := []any{clusters}
+	if status != "" {
+		query += " AND d.status = ?"
+		args = append(args, status)
+	}
+	if severity != "" {
+		query += " AND d.severity = ?"
+		args = append(args, severity)
+	}
+	query += " ORDER BY d.observed_at DESC, d.id DESC LIMIT ?"
+	args = append(args, limit)
+	var rows []FederationDiagnosisRow
+	if err := r.db.WithContext(ctx).Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// StatsByClusters returns aggregate diagnosis counts across the given clusters,
+// grouped by status, severity and cluster. A nil/empty clusters slice returns
+// zeroed stats.
+func (r *GormRepository) StatsByClusters(ctx context.Context, clusters []int64) (FederationDiagnosisStats, error) {
+	stats := FederationDiagnosisStats{
+		ByStatus:   map[string]int64{},
+		BySeverity: map[string]int64{},
+		ByCluster:  []FederationClusterCount{},
+	}
+	if len(clusters) == 0 {
+		return stats, nil
+	}
+	type groupRow struct {
+		Status    string
+		Severity  string
+		ClusterID int64
+		Count     int64
+	}
+	var groups []groupRow
+	if err := r.db.WithContext(ctx).Raw(`SELECT status, severity, cluster_id, COUNT(*) AS count
+		FROM diagnosis_records WHERE cluster_id IN ? GROUP BY status, severity, cluster_id`, clusters).Scan(&groups).Error; err != nil {
+		return FederationDiagnosisStats{}, err
+	}
+	clusterTotals := make(map[int64]int64)
+	for _, g := range groups {
+		stats.Total += g.Count
+		stats.ByStatus[g.Status] += g.Count
+		stats.BySeverity[g.Severity] += g.Count
+		clusterTotals[g.ClusterID] += g.Count
+	}
+	stats.ByCluster = make([]FederationClusterCount, 0, len(clusterTotals))
+	for id, count := range clusterTotals {
+		stats.ByCluster = append(stats.ByCluster, FederationClusterCount{ClusterID: id, Count: count})
+	}
+	sort.Slice(stats.ByCluster, func(i, j int) bool { return stats.ByCluster[i].ClusterID < stats.ByCluster[j].ClusterID })
+	return stats, nil
 }
 
 func decodeStoredRecord(item storedRecord) Record {

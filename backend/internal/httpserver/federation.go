@@ -282,6 +282,69 @@ func parseFederationClusterID(c *gin.Context) (int64, bool) {
 	return id, true
 }
 
+// listDiagnoses handles GET /api/v1/federation/diagnoses — cross-cluster
+// diagnosis aggregation. Filters by rule_id, severity, status and a bounded
+// limit. Authorized clusters are resolved via the authz 2D cluster scope.
+func (h federationHandler) listDiagnoses(c *gin.Context) {
+	if h.service == nil {
+		writeError(c, http.StatusServiceUnavailable, "FEDERATION_UNAVAILABLE", "federation service is not configured")
+		return
+	}
+	visible, _, err := authorizedClusterFilter(h.authz, c)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "FEDERATION_QUERY_FAILED", "unable to evaluate access scope")
+		return
+	}
+	status := c.Query("status")
+	if status != "" && status != "open" && status != "confirmed" && status != "resolved" && status != "dismissed" {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "status must be open, confirmed, resolved or dismissed")
+		return
+	}
+	severity := c.Query("severity")
+	if severity != "" && severity != "critical" && severity != "high" && severity != "medium" && severity != "low" && severity != "info" {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "severity must be critical, high, medium, low or info")
+		return
+	}
+	limit := federation.DefaultDiagnosisLimit
+	if raw := c.Query("limit"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n <= 0 {
+			writeError(c, http.StatusBadRequest, "INVALID_QUERY", "limit must be a positive integer")
+			return
+		}
+		limit = n
+	}
+	items, err := h.service.ListDiagnoses(c.Request.Context(), federation.FederationDiagnosisQuery{
+		Clusters: visible, Status: status, Severity: severity, Limit: limit,
+	})
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "FEDERATION_QUERY_FAILED", "unable to list cross-cluster diagnoses")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
+}
+
+// diagnosisStats handles GET /api/v1/federation/diagnoses/stats — aggregate
+// counts across the visible fleet. The response carries total, by_status,
+// by_severity and by_cluster breakdowns.
+func (h federationHandler) diagnosisStats(c *gin.Context) {
+	if h.service == nil {
+		writeError(c, http.StatusServiceUnavailable, "FEDERATION_UNAVAILABLE", "federation service is not configured")
+		return
+	}
+	visible, _, err := authorizedClusterFilter(h.authz, c)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "FEDERATION_QUERY_FAILED", "unable to evaluate access scope")
+		return
+	}
+	stats, err := h.service.DiagnosesStats(c.Request.Context(), visible)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "FEDERATION_QUERY_FAILED", "unable to aggregate diagnosis stats")
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
+
 // writeFederationError maps federation service errors to stable HTTP
 // responses. Anti-leakage: ErrClusterNotFound surfaces as 404 so a missing
 // cluster is indistinguishable from an unauthorized one.

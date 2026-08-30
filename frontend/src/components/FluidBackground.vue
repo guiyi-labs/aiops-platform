@@ -53,7 +53,7 @@ onBeforeUnmount(() => {
 .fluid-bg {
   position: absolute;
   inset: 0;
-  z-index: -3;
+  z-index: 0;
   pointer-events: none;
 }
 .fluid-bg canvas {

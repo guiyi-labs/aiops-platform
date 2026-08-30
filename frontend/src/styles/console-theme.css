@@ -875,14 +875,18 @@ tbody tr {
   animation: control-plane-drift 18s ease-in-out infinite alternate;
 }
 
-/* Particle canvas sits above aurora but below content; bottom-fade keeps footer zone clean */
+/* Canvases sit above aurora but below content */
+.login-intro > .fluid-bg {
+  z-index: 0;
+}
+
 .login-intro > .particle-network {
   z-index: 1;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 62%, rgba(0, 0, 0, 0.35) 84%, transparent 100%);
   mask-image: linear-gradient(180deg, #000 0%, #000 62%, rgba(0, 0, 0, 0.35) 84%, transparent 100%);
 }
 
-.login-intro > *:not(.particle-network) {
+.login-intro > *:not(.particle-network):not(.fluid-bg) {
   position: relative;
   z-index: 2;
 }

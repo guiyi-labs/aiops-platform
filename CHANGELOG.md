@@ -80,14 +80,14 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - See [change record](docs/changes/2026-08-29-login-cursor-trail-effect.md)。
 
 
-### Added - 登录页 WebGL 流体模拟特效（替换粒子网络拖尾）
+### Added - 登录页 WebGL 流体模拟特效（叠加于粒子网络之上）
 
 - 新增 `frontend/src/lib/fluidCursor.ts`：完整 WebGL 流体引擎（Navier-Stokes
   解算 + 指针追踪 + GLSL 着色器流水线），基于内网 `FluidCursor-nDArjNSB.js`
   逆向还原；`initFluidCursor(canvas, config)` 公开 API 返回 `{ destroy() }`。
 - 新增 `frontend/src/components/FluidBackground.vue`：Vue 3 封装，ResizeObserver
   延迟初始化 + try-catch 容错 + `prefers-reduced-motion` 降级。
-- `LoginView.vue`：`ParticleNetwork` → `FluidBackground`，登录页背景替换为
+- `LoginView.vue`：同时挂载 `FluidBackground`（流体底层）与 `ParticleNetwork`（粒子顶层），
   WebGL 流体模拟——鼠标移动推动彩色烟雾扩散、染料在流体场中互相晕染。
 - See [change record](docs/changes/2026-08-30-login-fluid-cursor-webgl.md)。
 ### Added - README 旗舰重写（P2b）

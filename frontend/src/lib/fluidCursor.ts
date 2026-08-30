@@ -1048,6 +1048,7 @@ function initWebGL(canvas: HTMLCanvasElement) {
   }
   if (!gl) throw new Error('WebGL not supported')
 
+  const rgba8 = isWebGL2 ? (gl as any).RGBA8 as number : gl.RGBA
   const ext: {
     formatRGBA: { internalFormat: number; format: number; type: number }
     formatRG: { internalFormat: number; format: number; type: number }
@@ -1055,9 +1056,9 @@ function initWebGL(canvas: HTMLCanvasElement) {
     halfFloatTexType: number
     supportLinearFiltering: boolean
   } = {
-    formatRGBA: { internalFormat: gl.RGBA, format: gl.RGBA, type: gl.UNSIGNED_BYTE },
-    formatRG: { internalFormat: gl.RGBA, format: gl.RGBA, type: gl.UNSIGNED_BYTE },
-    formatR: { internalFormat: gl.RGBA, format: gl.RGBA, type: gl.UNSIGNED_BYTE },
+    formatRGBA: { internalFormat: rgba8, format: gl.RGBA, type: gl.UNSIGNED_BYTE },
+    formatRG: { internalFormat: rgba8, format: gl.RGBA, type: gl.UNSIGNED_BYTE },
+    formatR: { internalFormat: rgba8, format: gl.RGBA, type: gl.UNSIGNED_BYTE },
     halfFloatTexType: gl.UNSIGNED_BYTE,
     supportLinearFiltering: false,
   }

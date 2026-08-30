@@ -99,6 +99,13 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - `pnpm typecheck` / `pnpm exec eslint src/components/DustField.vue src/views/LoginView.vue` / `pnpm build` 全通过；`dist/assets/LoginView-*.js` 44.51 kB（gzip 14.01 kB），`DustField` 增加约 1.6 kB gzip。
 - See [change record](docs/changes/2026-08-30-login-dust-field-preview.md)。
 
+### Fixed - 登录后侧边栏"点不动"经浏览器缓存复活（nginx 缓存头治理）
+
+- 根因：`frontend/nginx.conf` 此前无任何缓存控制头，浏览器对 `index.html`（HTML shell）做启发式长缓存且不主动 revalidate；重新部署后用户浏览器仍加载旧的 `index.html` + 旧哈希 JS，使已修复的"侧边栏登录后不跳转"（`3cb752f` / `40818f3`）持续复活。
+- `frontend/nginx.conf` 新增 `location /assets/` 下发 `Cache-Control: public, max-age=31536000, immutable`（哈希资源长效缓存）；`location /` 下发 `Cache-Control: no-cache, no-store, must-revalidate`（HTML shell 永不缓存）。`nginx -t` 通过，`nginx -s reload` 已热更新到运行容器 `k8s-aiops-frontend-1`。
+- 验证：响应头实测达标；全新浏览器会话 + 真实 UI 登录 + 真实鼠标点击「集群/事件/告警」均正确跳转（`/clusters`、`/events`、`/event-stream`），`window.__errs` 始终为空。已登录用户需在本次部署后硬刷新一次丢弃旧 shell，此后不再复发。
+- See [change record](docs/changes/2026-08-30-login-sidebar-cache-fix.md)。
+
 ### Added - P2d 多集群 Federation 深化 — 跨集群诊断聚合端点
 
 - 新增 `GET /api/v1/federation/diagnoses`（按 status/severity/limit 过滤，2D 集群授权可见性，最新优先）与 `GET /api/v1/federation/diagnoses/stats`（total / by_status / by_severity / by_cluster 三维统计）；均为只读聚合，背后为 SQL `WHERE cluster_id IN (visible)`（平台侧视图，无实时扇出），空集群集 fail-closed、诊断仓储未配置时降级为空。

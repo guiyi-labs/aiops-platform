@@ -20,6 +20,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = session.user
   }
 
+  // Deduplicate concurrent restore() calls triggered by the router guard
+  // (beforeEach fires on every navigation). Without this, two navigations
+  // racing while initialized === false would each call refreshSession().
+  let restorePromise: Promise<void> | null = null
+
   async function login(username: string, password: string) {
     applySession(await authAPI.login(username.trim(), password))
     // Mark session as initialized so the router guard does not immediately
@@ -30,14 +35,28 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function restore() {
     if (initialized.value) return
-    try {
-      applySession(await authAPI.refreshSession())
-    } catch {
-      accessToken.value = ''
-      user.value = null
-    } finally {
-      initialized.value = true
-    }
+    if (restorePromise) return restorePromise
+    restorePromise = (async () => {
+      try {
+        const session = await authAPI.refreshSession()
+        // If login() raced and already established a session while this
+        // refresh was in-flight, don't overwrite the fresher login session.
+        if (initialized.value && accessToken.value && user.value) return
+        applySession(session)
+      } catch {
+        // Don't clear a session that was established concurrently via login().
+        // A failed refresh should only clear state when we still have no
+        // authenticated session.
+        if (!accessToken.value || !user.value) {
+          accessToken.value = ''
+          user.value = null
+        }
+      } finally {
+        initialized.value = true
+        restorePromise = null
+      }
+    })()
+    return restorePromise
   }
 
   async function logout() {

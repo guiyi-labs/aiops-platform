@@ -114,9 +114,10 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 侧栏「分析与治理」分组新增「舰队诊断」入口（`Globe` 图标，`/fleet-diagnoses`）。
 - See [change record](docs/changes/2026-08-30-fleet-diagnoses-view.md)。
 
-### Fixed - 首次登录后侧栏导航失效（auth restore 竞态）
+### Fixed - 首次登录后侧栏导航失效（auth restore 竞态 v2）
 
-- `frontend/src/stores/auth.ts`：`login()` 成功后设置 `initialized = true`，避免 `router.replace(redirect)` 触发的守卫 `restore()` 向服务端 `refreshSession()` 竞态清掉刚写入的认证状态（初始表现为首次登录后点左侧任务栏不跳转）。
+- `frontend/src/stores/auth.ts`：新增 `restorePromise` 并发去重，阻止每次导航扇出多份 `refreshSession()`；失败路径仅在仍无认证会话时才清空 `accessToken/user`，避免把 `login()` 刚写入的会话擦掉；`restore()` inflight 期间若 `login()` 已获胜则跳过覆写。彻底修复首次登录后侧栏点不动。
+- See [change record](docs/changes/2026-08-30-fix-login-sidebar-race-v2.md)。
 - `pnpm typecheck` / `pnpm build` 通过。
 - See [change record](docs/changes/2026-08-30-fix-login-sidebar-race.md)。
 

@@ -114,12 +114,11 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 侧栏「分析与治理」分组新增「舰队诊断」入口（`Globe` 图标，`/fleet-diagnoses`）。
 - See [change record](docs/changes/2026-08-30-fleet-diagnoses-view.md)。
 
-### Fixed - 首次登录后侧栏导航失效（auth restore 竞态 v2）
+### Fixed - 首次登录后侧栏导航失效（根因修复）
 
-- `frontend/src/stores/auth.ts`：新增 `restorePromise` 并发去重，阻止每次导航扇出多份 `refreshSession()`；失败路径仅在仍无认证会话时才清空 `accessToken/user`，避免把 `login()` 刚写入的会话擦掉；`restore()` inflight 期间若 `login()` 已获胜则跳过覆写。彻底修复首次登录后侧栏点不动。
+- `router/index.ts`：`beforeEach` 改为仅在**首次页面加载**时 `await auth.restore()`（从 refresh Cookie 恢复会话），后续所有导航（侧栏点击等）直接同步判断 `isAuthenticated`，不再发 HTTP、不再 `await` Promise，彻底消除守卫阻塞导航的问题。
+- `stores/auth.ts`：精简 `restore()` 为一次性初始化（调用后即设 `initialized=true`）；新增 `clearSession()` 内部方法；`logout()` 同步清空 token/user/initialized，确保重新登录后会话状态正确。
 - See [change record](docs/changes/2026-08-30-fix-login-sidebar-race-v2.md)。
-- `pnpm typecheck` / `pnpm build` 通过。
-- See [change record](docs/changes/2026-08-30-fix-login-sidebar-race.md)。
 
 ### Added - README 旗舰重写（P2b）
 

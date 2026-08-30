@@ -222,7 +222,13 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
-  await auth.restore()
+  // Only recover from cookie on the very first navigation after page load.
+  // After that, auth state is fully in-memory; probing the network on every
+  // sidebar click can block navigation and — on failure — clobber the fresh
+  // login session (reported as "sidebar doesn't navigate after first login").
+  if (!auth.initialized) {
+    await auth.restore()
+  }
   if (!to.meta.public && !auth.isAuthenticated) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }

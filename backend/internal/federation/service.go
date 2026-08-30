@@ -77,10 +77,10 @@ type CountResult struct {
 //   - The cross-cluster diagnosis aggregation (P2d) reads the already-centralized
 //     diagnosis_records table (platform-side view); no live cluster fan-out.
 type Service struct {
-	repo         Repository
-	lister       ClusterLister
+	repo          Repository
+	lister        ClusterLister
 	diagnosisRepo FederationDiagnosisRepository
-	now          func() time.Time
+	now           func() time.Time
 }
 
 // NewService constructs a federation Service backed by repo. lister may be

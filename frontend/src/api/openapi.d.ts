@@ -3537,6 +3537,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/aiops/knowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List distilled RAG case-library entries (read-only) */
+        get: operations["listKnowledgeEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/knowledge/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Total count of distilled RAG case-library entries */
+        get: operations["getKnowledgeStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/aiops/overview": {
         parameters: {
             query?: never;
@@ -4551,6 +4585,46 @@ export interface paths {
         };
         /** Recent federation events for one cluster (newest first) */
         get: operations["listFederationClusterEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/federation/diagnoses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-cluster diagnosis aggregation (P2d)
+         * @description Returns diagnosis records across the authorized fleet. Results are scoped to the caller's 2D cluster authorization (authz) — SystemAdmin sees all enabled clusters, otherwise only the granted cluster set. Filters by status and severity are optional; limit is bounded (1-200, default 50). Results are newest first. Read-only; the backing store is the already-centralized diagnosis_records table (no live cluster fan-out). See P2d.
+         */
+        get: operations["listFederationDiagnoses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/federation/diagnoses/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Cross-cluster diagnosis stats (P2d)
+         * @description Returns aggregate diagnosis counts across the authorized fleet (total, by_status, by_severity, by_cluster). 2D cluster authorization is enforced so callers only see their granted fleet. See P2d.
+         */
+        get: operations["getFederationDiagnosisStats"];
         put?: never;
         post?: never;
         delete?: never;
@@ -7987,6 +8061,74 @@ export interface components {
         UpdateFederationStatusRequest: {
             /** @enum {string} */
             status: "registered" | "healthy" | "degraded" | "disconnected";
+        };
+        FederationDiagnosisRow: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            cluster_id: number;
+            cluster_name?: string;
+            rule_id: string;
+            /** @enum {string} */
+            severity: "critical" | "high" | "medium" | "low" | "info";
+            resource_kind: string;
+            resource_name: string;
+            resource_namespace?: string;
+            /** @enum {string} */
+            status: "open" | "confirmed" | "resolved" | "dismissed";
+            summary: string;
+            /** Format: date-time */
+            observed_at: string;
+            /** Format: date-time */
+            resolved_at?: string | null;
+        };
+        FederationDiagnosisList: {
+            items: components["schemas"]["FederationDiagnosisRow"][];
+            total: number;
+        };
+        FederationDiagnosisStats: {
+            total: number;
+            by_status: {
+                [key: string]: number;
+            };
+            by_severity: {
+                [key: string]: number;
+            };
+            by_cluster: components["schemas"]["FederationDiagnosisClusterCount"][];
+        };
+        FederationDiagnosisClusterCount: {
+            /** Format: int64 */
+            cluster_id: number;
+            cluster_name?: string;
+            count: number;
+        };
+        KnowledgeEntryList: {
+            items: components["schemas"]["KnowledgeEntry"][];
+            total: number;
+            truncated: boolean;
+        };
+        KnowledgeEntry: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            source_diagnosis_id?: number;
+            rule_id: string;
+            /** @enum {string} */
+            severity: "info" | "warning" | "high" | "critical";
+            resource_kind: string;
+            resource_namespace?: string | null;
+            resource_name?: string;
+            /** @description Bounded failure description */
+            summary: string;
+            root_causes: string[];
+            recommendations: string[];
+            /**
+             * Format: date-time
+             * @description When the source diagnosis was resolved; ranked newest first
+             */
+            noted_at: string;
+            /** @description Retrieval score; zero for the structured phase */
+            score?: number;
             message?: string;
         };
     };
@@ -12811,6 +12953,60 @@ export interface operations {
             500: components["responses"]["Error"];
         };
     };
+    listKnowledgeEntries: {
+        parameters: {
+            query?: {
+                rule_id?: string;
+                severity?: "info" | "warning" | "high" | "critical";
+                min_severity?: "info" | "warning" | "high" | "critical";
+                resource_kind?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Knowledge entries */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KnowledgeEntryList"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    getKnowledgeStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Knowledge entry count */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        total?: number;
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
     getAIOpsOverview: {
         parameters: {
             query?: {
@@ -15235,6 +15431,71 @@ export interface operations {
             };
             401: components["responses"]["Error"];
             404: components["responses"]["Error"];
+            /** @description Federation service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    listFederationDiagnoses: {
+        parameters: {
+            query?: {
+                status?: "open" | "confirmed" | "resolved" | "dismissed";
+                severity?: "critical" | "high" | "medium" | "low" | "info";
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cross-cluster diagnoses */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationDiagnosisList"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            /** @description Federation service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getFederationDiagnosisStats: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Diagnosis stats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationDiagnosisStats"];
+                };
+            };
+            401: components["responses"]["Error"];
             /** @description Federation service unavailable */
             503: {
                 headers: {

@@ -599,7 +599,7 @@ func TestFederationHandler_ResourceSummaryReturns200(t *testing.T) {
 // handlerFedDiagRepo is a thin in-memory mock implementing
 // federation.FederationDiagnosisRepository for handler-level P2d tests.
 type handlerFedDiagRepo struct {
-	rows []diagnosis.FederationDiagnosisRow
+	rows  []diagnosis.FederationDiagnosisRow
 	stats diagnosis.FederationDiagnosisStats
 }
 

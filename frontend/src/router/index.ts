@@ -209,6 +209,13 @@ const router = createRouter({
       component: () => import('../views/CopyOpsView.vue'),
       meta: { roles: ['system_admin', 'operations_admin'] },
     },
+    // P2d: 舰队诊断（跨集群诊断聚合，只读）
+    {
+      path: '/fleet-diagnoses',
+      name: 'fleet-diagnoses',
+      component: () => import('../views/FleetDiagnosesView.vue'),
+      meta: { requiresAuth: true },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 })

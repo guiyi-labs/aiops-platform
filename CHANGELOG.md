@@ -108,6 +108,12 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - `go vet ./...` 0 issues；新增 `internal/federation/diagnoses_test.go`（service 层 5 cases）与 `internal/federation/handler_test`（7 cases，含 nil 降级与枚举校验），Contract tests `TestRegisteredRoutesMatchOpenAPI` / `TestPermissionMatrixMatchesCommittedDocument` 回归绿。
 - See [change record](docs/changes/2026-08-30-p2d-fleet-diagnoses-aggregation.md)。
 
+### Added - P2d 舰队诊断前端视图
+
+- 新增 `FleetDiagnosesView.vue`：标题区汇总（total/open/resolved）、status/severity/limit 过滤、跨集群诊断表格（集群名/规则/严重度/资源/状态/观测时间），点击行深链到 `/diagnoses/:id`；小屏卡片式布局、`prefers-reduced-motion` 降级。
+- 侧栏「分析与治理」分组新增「舰队诊断」入口（`Globe` 图标，`/fleet-diagnoses`）。
+- See [change record](docs/changes/2026-08-30-fleet-diagnoses-view.md)。
+
 ### Fixed - 首次登录后侧栏导航失效（auth restore 竞态）
 
 - `frontend/src/stores/auth.ts`：`login()` 成功后设置 `initialized = true`，避免 `router.replace(redirect)` 触发的守卫 `restore()` 向服务端 `refreshSession()` 竞态清掉刚写入的认证状态（初始表现为首次登录后点左侧任务栏不跳转）。

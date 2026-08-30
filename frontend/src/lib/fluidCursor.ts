@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Ported WebGL code; extension
+   methods (WebGL2, OES_texture_half_float, etc.) lack TypeScript definitions. */
 /**
  * fluidCursor.ts — WebGL Fluid Simulation cursor effect
  *
@@ -1040,7 +1042,7 @@ function initWebGL(canvas: HTMLCanvasElement) {
   }
   let gl: WebGLRenderingContext | null =
     canvas.getContext('webgl2', opts) as any
-  let isWebGL2 = !!gl
+  const isWebGL2 = !!gl
   if (!gl) {
     gl =
       (canvas.getContext('webgl', opts) as any) ||

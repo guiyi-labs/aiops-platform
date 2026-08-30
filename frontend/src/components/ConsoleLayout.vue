@@ -100,6 +100,7 @@ const navigationGroups = computed(() => [
     label: '分析与治理',
     items: [
       { label: '智能诊断', icon: Stethoscope, route: '/diagnoses' },
+      { label: '舰队诊断', icon: Globe, route: '/fleet-diagnoses' },
       { label: '事故工作空间', icon: MessageSquareText, route: '/incidents' },
       { label: '告警规则', icon: BellRing, route: '/alerts' },
       { label: '命名空间治理', icon: LayoutGrid, route: '/namespace-posture' },

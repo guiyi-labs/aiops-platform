@@ -20,6 +20,7 @@ import {
   LifeBuoy,
   Link2,
   LogOut,
+  Moon,
   MessageSquareText,
   Network,
   Package,
@@ -31,6 +32,7 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Sun,
   Star,
   Stethoscope,
   Shuffle,
@@ -44,11 +46,13 @@ import { computed, inject, provide, ref, watch, nextTick, onMounted, onUnmounted
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
+import { useTheme } from '../composables/useTheme'
 
 const props = defineProps<{ eyebrow?: string; title?: string; shell?: boolean }>()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const { theme, toggle: toggleTheme } = useTheme()
 
 // Resolve the routed component directly from the matched route. route.matched
 // is proven-reactive (the sidebar .active highlight and the topbar title both
@@ -457,6 +461,10 @@ async function navigate(path: string) {
           <slot name="actions" />
           <div class="topbar-user"><strong>{{ auth.user?.display_name }}</strong><span>{{ roleLabel }}</span></div>
           <span class="avatar" aria-label="当前用户">{{ auth.userInitials }}</span>
+          <button type="button" class="icon-button theme-toggle" :title="theme === 'dark' ? '切换亮色主题' : '切换暗色主题'" :aria-label="theme === 'dark' ? '切换亮色主题' : '切换暗色主题'" @click="toggleTheme">
+            <Moon v-if="theme === 'light'" :size="18" />
+            <Sun v-else :size="18" />
+          </button>
           <button type="button" class="icon-button" title="账号安全" aria-label="账号安全" @click="router.push('/account/security')"><KeyRound :size="18" /></button>
           <button type="button" class="icon-button" title="退出登录" aria-label="退出登录" @click="logout"><LogOut :size="18" /></button>
         </div>

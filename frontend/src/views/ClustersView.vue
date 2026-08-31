@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { KeyRound, Plus, RefreshCw, Server, Trash2, Wifi, X } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { KeyRound, Plus, RefreshCw, Server, Trash2, Wifi, X, Boxes } from 'lucide-vue-next'
 
 import * as clusterAPI from '../api/clusters'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import EmptyState from '../components/EmptyState.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 
 const auth = useAuthStore()
+const router = useRouter()
 const clusters = ref<Cluster[]>([])
 const loading = ref(true)
 const busyID = ref<number | null>(null)
@@ -35,6 +38,7 @@ async function create() {
   try {
     await clusterAPI.createCluster(auth.accessToken, name.value.trim(), kubeconfig.value)
     name.value = ''; kubeconfig.value = ''; showForm.value = false
+    notice.value = `集群「${name.value || '新集群'}」已登记，正在探测连接...`
     await load()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '集群保存失败'
@@ -56,7 +60,7 @@ async function rotateCredential(item: Cluster) {
 
 async function probe(item: Cluster) {
   busyID.value = item.id
-  try { await clusterAPI.probeCluster(auth.accessToken, item.id); await load() }
+  try { await clusterAPI.probeCluster(auth.accessToken, item.id); notice.value = `集群「${item.name}」探测完成`; await load() }
   catch { await load(); errorMessage.value = '连接探测失败，请检查 API 地址、证书与网络' }
   finally { busyID.value = null }
 }
@@ -68,10 +72,14 @@ async function toggle(item: Cluster) {
 }
 
 async function remove(item: Cluster) {
-  if (!window.confirm(`确认移除集群“${item.name}”？凭据将一并删除。`)) return
+  if (!window.confirm(`确认移除集群"${item.name}"？凭据将一并删除。`)) return
   busyID.value = item.id
-  try { await clusterAPI.deleteCluster(auth.accessToken, item.id); await load() }
+  try { await clusterAPI.deleteCluster(auth.accessToken, item.id); notice.value = `集群「${item.name}」已移除`; await load() }
   finally { busyID.value = null }
+}
+
+function openFirstClusterGuide() {
+  showForm.value = true
 }
 
 onMounted(load)
@@ -87,6 +95,7 @@ onMounted(load)
       </div>
     </section>
 
+    <!-- Prominent onboarding form when triggered -->
     <form v-if="showForm" class="cluster-form" @submit.prevent="create">
       <div class="section-heading"><div><p class="context-label">凭据导入</p><h2>登记 Kubernetes 集群</h2></div></div>
       <label for="cluster-name">集群名称</label>
@@ -98,9 +107,29 @@ onMounted(load)
 
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
     <p v-if="notice" class="user-notice">{{ notice }}</p>
+
     <section class="cluster-list" aria-label="集群列表">
-      <div v-if="loading" class="empty-state"><RefreshCw class="spinning" :size="24" /><span>正在加载集群</span></div>
-      <div v-else-if="clusters.length === 0" class="empty-state"><Server :size="30" /><strong>尚未接入集群</strong><span>系统管理员可导入 kubeconfig 建立第一个连接</span></div>
+      <!-- Loading state -->
+      <div v-if="loading" class="empty-state">
+        <RefreshCw class="spinning" :size="24" />
+        <span>正在加载集群</span>
+      </div>
+
+      <!-- Empty state: hero variant with prominent CTA -->
+      <EmptyState
+        v-else-if="clusters.length === 0 && !showForm"
+        hero
+        :icon="Boxes"
+        title="欢迎使用 AIOps 平台"
+        description="接入你的第一个 Kubernetes 集群，开始智能运维之旅。支持任何标准 kubeconfig 的集群，包括 Kind、EKS、ACK 等。"
+      >
+        <button class="primary-button cluster-cta" type="button" @click="openFirstClusterGuide">
+          <Plus :size="18" /> 接入第一个集群
+        </button>
+        <p class="cluster-hint">或前往 <a href="#" @click.prevent="router.push('/clusters?demo=1')">体验演示集群</a></p>
+      </EmptyState>
+
+      <!-- Cluster list -->
       <article v-for="item in clusters" v-else :key="item.id" class="cluster-card">
         <div class="cluster-main"><span class="service-icon"><Server :size="19" /></span><div><strong>{{ item.name }}</strong><span>{{ item.api_server }}</span></div></div>
         <span class="status-pill" :class="item.status">{{ statusLabels[item.status] }}</span>
@@ -120,3 +149,24 @@ onMounted(load)
     </section>
   </ConsoleLayout>
 </template>
+
+<style scoped>
+.cluster-cta {
+  margin-top: 8px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+.cluster-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.cluster-hint a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-weight: 500;
+}
+.cluster-hint a:hover { text-decoration: underline; }
+</style>

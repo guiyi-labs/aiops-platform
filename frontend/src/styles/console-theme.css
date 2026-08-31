@@ -2874,6 +2874,10 @@ body,
   align-self: center;
 }
 
+.theme-toggle {
+  align-self: center;
+}
+
 .page-content {
   min-height: calc(100svh - var(--topbar-height) - 10px);
 }
@@ -3516,3 +3520,101 @@ body,
     animation: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   LIGHT THEME — activated by .theme-light on <html>
+   ═══════════════════════════════════════════════════════ */
+.theme-light .route-viewport {
+  background-color: #f8fafb;
+  background-image: none;
+}
+
+.theme-light .app-shell {
+  background-color: #f8fafb;
+  background-image: none;
+}
+
+/* Sidebar stays dark in both themes — it's the brand identity */
+/* Topbar adapts */
+.theme-light .topbar {
+  color: #1a292e;
+  background: rgba(255, 255, 255, 0.97);
+  border-bottom: 1px solid #dce5e7;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.theme-light .topbar h1 { color: #102126; }
+.theme-light .topbar .context-label { color: #607278; }
+.theme-light .topbar-user strong { color: #102126; }
+.theme-light .topbar-user span { color: #4a5d63; }
+
+.theme-light .topbar .icon-button {
+  color: #4a5d63;
+  background: #f5f8f8;
+  border-color: #dce5e7;
+}
+.theme-light .topbar .icon-button:hover {
+  color: #0f9588;
+  background: #e9fbf8;
+  border-color: #cff7f0;
+}
+
+/* Main content */
+.theme-light .main-content {
+  background: transparent;
+}
+
+/* Cards and panels */
+.theme-light .cockpit-metric,
+.theme-light .cluster-card,
+.theme-light .panel,
+.theme-light .card {
+  color: #102126;
+  background: #ffffff;
+  border-color: #dce5e7;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.theme-light .cluster-form {
+  color: #102126;
+  background: #ffffff;
+  border-color: #dce5e7;
+}
+
+.theme-light .empty-state { color: #4a5d63; }
+.theme-light .empty-title { color: #102126; }
+
+/* Tables */
+.theme-light .fleet-table th,
+.theme-light .compact-table th,
+.theme-light .global-search-table th,
+.theme-light .resource-table th {
+  color: #4a5d63;
+  background: #f5f8f8;
+}
+.theme-light .fleet-table td,
+.theme-light .compact-table td,
+.theme-light .global-search-table td,
+.theme-light .resource-table td {
+  color: #102126;
+}
+
+/* Status pills */
+.theme-light .status-pill.ready { color: #166534; background: #f0fdf4; }
+.theme-light .status-pill.unavailable { color: #991b1b; background: #fef2f2; }
+.theme-light .status-pill.unknown { color: #92400e; background: #fffbeb; }
+
+/* Error / notice messages */
+.theme-light .error-message { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
+.theme-light .user-notice { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+
+/* Form inputs */
+.theme-light .cluster-form input,
+.theme-light .cluster-form textarea,
+.theme-light .login-field input {
+  color: #102126;
+  background: #f5f8f8;
+  border-color: #bccacd;
+}
+
+/* Login page stays dark — brand identity */

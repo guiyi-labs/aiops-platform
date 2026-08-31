@@ -49,6 +49,18 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - UX 体验改善：统一空状态、Toast 通知、集群引导、主题切换
+
+- `EmptyState.vue` 增加 `hero` 变体（大图标+大标题+醒目 CTA），支持自定义图标。
+- 新增 `Toast.vue` 全局通知组件，支持 success/error/warning/info 四种类型，
+  自动消失，可通过 ref 调用 `toast.success()` 等方法。
+- 集群页空状态改用 hero EmptyState + 醒目「接入第一个集群」CTA 按钮，
+  替代原来的纯文字提示，首次使用引导更明确。
+- 新增 `useTheme` composable + 顶栏 Sun/Moon 切换按钮，
+  支持亮色/暗色主题，localStorage 持久化（`aiops.theme`）。
+  侧边栏和登录页保持暗色品牌风格。
+- See [change record](docs/changes/2026-09-01-ux-emptystate-toast-theme.md)。
+
 ### Added - 侧边栏导航增强：手风琴折叠、收藏固定、hover 浮层、Ctrl+K 命令面板
 
 - 侧边栏导航组支持手风琴折叠/展开，状态持久化至 localStorage（`aiops.sidebar.accordion`），

@@ -49,6 +49,18 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - 侧边栏导航增强：手风琴折叠、收藏固定、hover 浮层、Ctrl+K 命令面板
+
+- 侧边栏导航组支持手风琴折叠/展开，状态持久化至 localStorage（`aiops.sidebar.accordion`），
+  减少 34 个导航项的视觉噪音。
+- 新增收藏/固定功能：hover 导航项时显示 Pin 按钮，已收藏项置顶显示在侧边栏顶部"收藏"区域，
+  状态持久化至 localStorage（`aiops.sidebar.pins`）。
+- 侧边栏收缩模式（72px 图标模式）下 hover 导航图标时弹出 tooltip 浮层，
+  显示所属分组和导航项名称，避免纯图标无法辨识。
+- 新增 `Ctrl+K` / `Cmd+K` 全局快捷键打开命令面板，支持按名称或分组搜索快速跳转任意页面，
+  顶栏同步添加搜索按钮入口。
+- See [change record](docs/changes/2026-09-01-sidebar-accordion-pin-tooltip-cmdpalette.md)。
+
 ### Fixed - 登录后侧边栏导航视图不更新
 
 - `frontend/src/components/ConsoleLayout.vue` 直接从当前匹配路由解析页面组件并按完整路径更新实例，

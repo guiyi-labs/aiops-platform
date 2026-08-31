@@ -3534,8 +3534,52 @@ body,
   background-image: none;
 }
 
-/* Sidebar stays dark in both themes — it's the brand identity */
-/* Topbar adapts */
+/* ── Sidebar: light theme ── */
+.theme-light .sidebar {
+  color: #374151;
+  background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
+  border-right: 1px solid #e5e7eb;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
+}
+
+.theme-light .sidebar::before {
+  background: var(--blue-500);
+  box-shadow: 0 0 12px rgba(14, 116, 110, 0.3);
+}
+
+.theme-light .brand-copy strong { color: #111827; }
+.theme-light .brand-copy small { color: #6b7280; }
+
+.theme-light .workspace-selector {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: #e5e7eb;
+}
+.theme-light .workspace-selector:hover {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: var(--blue-400);
+}
+.theme-light .workspace-selector strong { color: #111827; }
+.theme-light .workspace-selector span { color: #6b7280; }
+
+.theme-light .nav-group-label {
+  color: #6b7280;
+}
+
+.theme-light .nav-item {
+  color: #374151;
+}
+.theme-light .nav-item:hover {
+  color: #111827;
+  background: rgba(0, 0, 0, 0.05);
+}
+.theme-light .nav-item.active {
+  color: #111827;
+  background: rgba(14, 149, 136, 0.1);
+  box-shadow: inset 3px 0 var(--blue-500);
+}
+.theme-light .nav-item.active svg { color: var(--blue-600); }
+
+/* ── Topbar: light theme ── */
 .theme-light .topbar {
   color: #1a292e;
   background: rgba(255, 255, 255, 0.97);
@@ -3559,12 +3603,12 @@ body,
   border-color: #cff7f0;
 }
 
-/* Main content */
+/* ── Main content: light theme ── */
 .theme-light .main-content {
   background: transparent;
 }
 
-/* Cards and panels */
+/* ── Cards and panels: light theme ── */
 .theme-light .cockpit-metric,
 .theme-light .cluster-card,
 .theme-light .panel,
@@ -3584,7 +3628,7 @@ body,
 .theme-light .empty-state { color: #4a5d63; }
 .theme-light .empty-title { color: #102126; }
 
-/* Tables */
+/* ── Tables: light theme ── */
 .theme-light .fleet-table th,
 .theme-light .compact-table th,
 .theme-light .global-search-table th,
@@ -3599,16 +3643,16 @@ body,
   color: #102126;
 }
 
-/* Status pills */
+/* ── Status pills: light theme ── */
 .theme-light .status-pill.ready { color: #166534; background: #f0fdf4; }
 .theme-light .status-pill.unavailable { color: #991b1b; background: #fef2f2; }
 .theme-light .status-pill.unknown { color: #92400e; background: #fffbeb; }
 
-/* Error / notice messages */
+/* ── Error / notice messages: light theme ── */
 .theme-light .error-message { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
 .theme-light .user-notice { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
 
-/* Form inputs */
+/* ── Form inputs: light theme ── */
 .theme-light .cluster-form input,
 .theme-light .cluster-form textarea,
 .theme-light .login-field input {

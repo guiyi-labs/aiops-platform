@@ -49,6 +49,15 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Fixed - 登录后侧边栏导航视图不更新
+
+- `frontend/src/components/ConsoleLayout.vue` 直接从当前匹配路由解析页面组件并按完整路径更新实例，
+  同时延迟页面操作区 Teleport，避免首次登录进入控制台时的挂载异常阻止视图替换。
+- `frontend/src/App.vue` 保留稳定的路由背景容器；`frontend/src/stores/auth.ts` 保持登出后的初始化闩锁，
+  避免 refresh cookie 在登录页跳转时重新恢复会话。
+- 新增登录后依次点击“集群”和“事件中心”的 Playwright 回归用例，桌面与移动端 smoke 共 28/28 通过。
+- See [change record](docs/changes/2026-08-31-login-sidebar-navigation.md)。
+
 ### Added - P2c RAG 案例库只读端点 + 幂等 seed 脚本
 
 - 新增 `GET /api/v1/aiops/knowledge`（按 rule_id/severity/min_severity/

@@ -35,7 +35,7 @@ import {
   Wallet,
   Workflow,
 } from 'lucide-vue-next'
-import { computed, inject, provide, ref, watch } from 'vue'
+import { computed, inject, provide, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
@@ -44,6 +44,18 @@ const props = defineProps<{ eyebrow?: string; title?: string; shell?: boolean }>
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+// Resolve the routed component directly from the matched route. route.matched
+// is proven-reactive (the sidebar .active highlight and the topbar title both
+// track it), so rendering it via <component :is> makes the console view swap
+// on every client-side navigation — without depending on <RouterView>'s
+// scoped-slot prop, which is what previously froze the view after login.
+const resolvedComponent = computed<Component | undefined>(() => {
+  const matched = route.matched
+  const last = matched[matched.length - 1]
+  return (last?.components?.default) as Component | undefined
+})
+
 const shellContextKey = Symbol.for('aiops.console-shell')
 type ShellContext = { eyebrow: typeof shellEyebrow; title: typeof shellTitle }
 const shellEyebrow = ref(props.eyebrow ?? '')
@@ -148,7 +160,7 @@ async function navigate(path: string) {
 
 <template>
   <template v-if="!props.shell">
-    <Teleport v-if="parentShellContext" to="#console-topbar-actions">
+    <Teleport v-if="parentShellContext" to="#console-topbar-actions" defer>
       <slot name="actions" />
     </Teleport>
     <slot />
@@ -206,7 +218,9 @@ async function navigate(path: string) {
           <button type="button" class="icon-button" title="退出登录" aria-label="退出登录" @click="logout"><LogOut :size="18" /></button>
         </div>
       </header>
-      <div class="page-content"><slot /></div>
+      <div class="page-content">
+        <component :is="resolvedComponent" v-if="resolvedComponent" :key="route.fullPath" />
+      </div>
     </main>
   </div>
 </template>

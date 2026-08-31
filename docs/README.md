@@ -34,6 +34,8 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 
 当前发布冻结候选归档：
 
+- `docs/changes/2026-08-31-login-sidebar-navigation.md`：登录后侧边栏路由出口、Teleport 挂载时序、
+  认证初始化闩锁修复及桌面/移动端 28 项 smoke 回归证据。
 - `docs/changes/2026-08-14-lifecycle-boundaries.md`：明确 `kubernetes-cluster-bootstrap`、
   `devops-automation` 和 `aiops-platform` 的 Day 0/1/2 生命周期边界；架构决策见 ADR 0088。
 - `docs/changes/2026-08-10-m96-frontend-scale-budget.md`：M96 前端 50k Pod 确定性 fixture、虚拟列表边界与桌面/移动端 DOM/交互 report-mode 基线。

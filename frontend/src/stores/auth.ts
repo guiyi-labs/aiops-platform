@@ -41,7 +41,14 @@ export const useAuthStore = defineStore('auth', () => {
   function clearSession() {
     accessToken.value = ''
     user.value = null
-    initialized.value = false
+    // IMPORTANT: do NOT reset `initialized` to false here.
+    // The router guard only re-runs `restore()` while `!initialized`. If we
+    // reset it, the post-logout navigation to /login triggers a fresh
+    // `refreshSession()`, which re-establishes the session from the (still
+    // valid) refresh cookie and bounces the user back to the dashboard —
+    // leaving the console rendered after "logout" instead of the login page.
+    // After logout the auth state is known (logged out), so keep `initialized`
+    // true and let the guard skip the restore probe.
   }
 
   async function logout() {

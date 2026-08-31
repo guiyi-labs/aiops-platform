@@ -140,6 +140,24 @@ test('Successful login exposes the confirmation transition before routing', asyn
   await expect(page).toHaveURL('/')
 })
 
+test('Sidebar navigates after successful login', async ({ page }) => {
+  await mockAnonymousAuth(page)
+  await mockSuccessfulLogin(page)
+  await page.goto('/login')
+  await page.locator('#username').fill('playwright-admin')
+  await page.locator('#password').fill('playwright-password')
+  await page.getByRole('button', { name: /进入控制台/ }).click()
+
+  await expect(page).toHaveURL('/')
+  await page.getByRole('button', { name: '集群', exact: true }).click()
+  await expect(page).toHaveURL('/clusters')
+  await expect(page.locator('h1')).toContainText('集群接入')
+
+  await page.getByRole('button', { name: '事件中心', exact: true }).click()
+  await expect(page).toHaveURL('/events')
+  await expect(page.locator('h1')).toContainText('事件中心')
+})
+
 test('Dashboard renders operational cards', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('h2, h1').first()).toBeVisible()

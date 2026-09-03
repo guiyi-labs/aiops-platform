@@ -339,6 +339,8 @@ async function navigate(path: string) {
             class="nav-group-header"
             :class="{ collapsed: !isGroupExpanded(group.label) }"
             :title="sidebarCollapsed ? group.label : undefined"
+            :aria-label="isGroupExpanded(group.label) ? `收起${group.label}` : `展开${group.label}`"
+            :aria-expanded="isGroupExpanded(group.label)"
             @click="sidebarCollapsed ? undefined : toggleGroup(group.label)"
           >
             <p class="nav-group-label">{{ group.label }}</p>
@@ -350,20 +352,24 @@ async function navigate(path: string) {
             />
           </button>
           <div class="nav-group-items" :class="{ hidden: !isGroupExpanded(group.label) && !sidebarCollapsed }">
-            <button
+            <div
               v-for="item in group.items"
               :key="item.label"
-              type="button"
-              class="nav-item"
-              :class="{ active: item.route === route.path }"
-              :title="item.label"
-              :aria-label="sidebarCollapsed ? item.label : undefined"
-              @click="navigate(item.route)"
-              @mouseenter="onNavHover($event, item.label, group.label, item.route)"
-              @mouseleave="onNavLeave"
+              class="nav-row"
             >
-              <component :is="item.icon" :size="18" />
-              <span>{{ item.label }}</span>
+              <button
+                type="button"
+                class="nav-item"
+                :class="{ active: item.route === route.path }"
+                :title="item.label"
+                :aria-label="sidebarCollapsed ? item.label : undefined"
+                @click="navigate(item.route)"
+                @mouseenter="onNavHover($event, item.label, group.label, item.route)"
+                @mouseleave="onNavLeave"
+              >
+                <component :is="item.icon" :size="18" />
+                <span>{{ item.label }}</span>
+              </button>
               <button
                 v-if="!sidebarCollapsed"
                 type="button"
@@ -371,12 +377,12 @@ async function navigate(path: string) {
                 :class="{ pinned: isPinned(item.route) }"
                 :title="isPinned(item.route) ? '取消收藏' : '收藏此页面'"
                 :aria-label="isPinned(item.route) ? '取消收藏' : '收藏此页面'"
-                @click.stop="togglePin(item.route)"
+                @click="togglePin(item.route)"
               >
                 <PinOff v-if="isPinned(item.route)" :size="12" />
                 <Pin v-else :size="12" />
               </button>
-            </button>
+            </div>
           </div>
         </div>
       </nav>

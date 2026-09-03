@@ -2912,6 +2912,18 @@ body,
   justify-content: center;
 }
 
+.sidebar-collapsed .nav-row {
+  justify-content: center;
+}
+
+.sidebar-collapsed .nav-row .nav-item {
+  flex: 0 0 auto;
+}
+
+.sidebar-collapsed .pin-toggle {
+  display: none;
+}
+
 .sidebar-collapsed .nav-item.active {
   box-shadow: inset 0 -2px var(--blue-400), 0 0 18px -10px rgba(45, 212, 191, 0.75);
 }
@@ -2981,6 +2993,19 @@ body,
   font-weight: 600 !important;
 }
 
+/* ─── Nav row: item + sibling pin toggle ─── */
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.nav-row .nav-item {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ─── Pin toggle button on each nav item ─── */
 .pin-toggle {
   display: flex;
@@ -2989,7 +3014,7 @@ body,
   flex: 0 0 auto;
   width: 20px;
   height: 20px;
-  margin-left: auto;
+  margin-right: 8px;
   padding: 0;
   color: transparent;
   background: none;
@@ -3000,12 +3025,12 @@ body,
   transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
 }
 
-.nav-item:hover .pin-toggle {
+.nav-row:hover .pin-toggle {
   opacity: 1;
   color: var(--gray-500);
 }
 
-.nav-item:hover .pin-toggle:hover {
+.nav-row:hover .pin-toggle:hover {
   color: var(--blue-400);
   background: rgba(50, 108, 229, 0.12);
 }
@@ -3479,11 +3504,19 @@ body,
     padding-inline: 8px;
   }
 
+  .nav-row {
+    justify-content: center;
+  }
+
   .nav-item {
     width: 44px;
     margin-inline: auto;
     padding: 0;
     justify-content: center;
+  }
+
+  .pin-toggle {
+    display: none;
   }
 
   .main-content {

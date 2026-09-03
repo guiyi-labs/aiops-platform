@@ -164,7 +164,7 @@ onMounted(load)
   color: var(--text-tertiary);
 }
 .cluster-hint a {
-  color: var(--accent-primary);
+  color: var(--accent-primary-active);
   text-decoration: none;
   font-weight: 500;
 }

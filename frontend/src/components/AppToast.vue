@@ -1,23 +1,14 @@
 <script setup lang="ts">
 import { CheckCircle2, AlertTriangle, Info, X, XCircle } from 'lucide-vue-next'
-import { ref } from 'vue'
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info'
-
-interface ToastItem {
-  id: number
-  type: ToastType
-  message: string
-  duration: number
-}
+import { useToast, type ToastType } from '../composables/useToast'
 
 defineProps<{
   /** Global position: top-right (default), top-center, bottom-right */
   position?: 'top-right' | 'top-center' | 'bottom-right'
 }>()
 
-const toasts = ref<ToastItem[]>([])
-let nextId = 0
+const { toasts, dismiss } = useToast()
 
 const icons: Record<ToastType, typeof CheckCircle2> = {
   success: CheckCircle2,
@@ -32,28 +23,6 @@ const colors: Record<ToastType, string> = {
   warning: 'toast--warning',
   info: 'toast--info',
 }
-
-function show(type: ToastType, message: string, duration = 3500) {
-  const id = nextId++
-  toasts.value.push({ id, type, message, duration })
-  if (duration > 0) {
-    setTimeout(() => dismiss(id), duration)
-  }
-  return id
-}
-
-function dismiss(id: number) {
-  const idx = toasts.value.findIndex(t => t.id === id)
-  if (idx !== -1) toasts.value.splice(idx, 1)
-}
-
-function success(message: string, duration?: number) { return show('success', message, duration) }
-function error(message: string, duration?: number) { return show('error', message, duration ?? 5000) }
-function warning(message: string, duration?: number) { return show('warning', message, duration) }
-function info(message: string, duration?: number) { return show('info', message, duration) }
-
-// Expose for parent usage
-defineExpose({ show, success, error, warning, info, dismiss })
 </script>
 
 <template>

@@ -47,6 +47,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
 import { useTheme } from '../composables/useTheme'
+import AppToast from './AppToast.vue'
 
 const props = defineProps<{ eyebrow?: string; title?: string; shell?: boolean }>()
 const route = useRoute()
@@ -479,5 +480,6 @@ async function navigate(path: string) {
         <component :is="resolvedComponent" v-if="resolvedComponent" :key="route.fullPath" />
       </div>
     </main>
+    <AppToast />
   </div>
 </template>

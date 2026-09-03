@@ -901,7 +901,7 @@ button:not(:disabled):active,
 .detail-chip-list > span { max-width: 100%; padding: 5px 7px; overflow-wrap: anywhere; color: #5d6b72; font: 9px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--gray-100); border-radius: 4px; }
 .detail-chip-list b { color: #2f675f; font-weight: 700; }
 .detail-chip-list.key-name-list > span { color: #405961; background: #edf3f4; }
-.detail-empty { width: 100%; padding: 16px; color: #8c989e; font-size: 10px; text-align: center; }
+.detail-empty { width: 100%; padding: 16px; color: #526066; font-size: 10px; text-align: center; }
 
 .detail-table { overflow: hidden; background: var(--gray-0); border: 1px solid var(--border-soft); border-radius: 6px; }
 .detail-table > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 42px; align-items: center; border-bottom: 1px solid var(--border-subtle); }
@@ -983,7 +983,7 @@ button:not(:disabled):active,
 }
 
 .event-summary-grid small {
-  color: #96a0a6;
+  color: #566267;
   font-size: 10px;
 }
 
@@ -2456,9 +2456,9 @@ h2 {
   border-radius: 6px;
 }
 
-.topology-summary-grid span { color: #74817d; font-size: 10px; font-weight: 650; }
+.topology-summary-grid span { color: #5f6d69; font-size: 10px; font-weight: 650; }
 .topology-summary-grid strong { color: #26322f; font-size: 24px; }
-.topology-summary-grid small { grid-column: 1 / -1; color: #919b98; font-size: 9px; }
+.topology-summary-grid small { grid-column: 1 / -1; color: #5d6a66; font-size: 9px; }
 .topology-summary-grid article.alert { border-top: 3px solid #bd5846; }
 .topology-summary-grid article.alert strong { color: #a44738; }
 
@@ -2556,7 +2556,7 @@ h2 {
 .resource-glyph.deployment { color: #9a6721; background: #f8efdf; }
 .resource-glyph.endpoint-slice { color: #4f6e9a; background: #e9eef6; }
 .topology-node.selected .resource-glyph { color: #205c50; background: var(--gray-0); }
-.topology-empty { display: grid; min-height: 96px; place-items: center; color: #97a19d; font-size: 9px; }
+.topology-empty { display: grid; min-height: 96px; place-items: center; color: #596561; font-size: 9px; }
 
 .topology-stack { display: grid; }
 .topology-stack-group { min-width: 0; }
@@ -2566,7 +2566,7 @@ h2 {
   padding: 0 10px;
   align-items: center;
   justify-content: space-between;
-  color: #76837e;
+  color: #55625d;
   background: #f1f5f3;
   border-bottom: 1px solid #e0e6e3;
 }

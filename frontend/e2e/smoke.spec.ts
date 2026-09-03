@@ -165,6 +165,20 @@ test('Dashboard renders operational cards', async ({ page }) => {
   await expect(page.locator('select').first()).toBeVisible()
 })
 
+test('Dashboard shows cluster onboarding CTA when no cluster is registered', async ({ page }) => {
+  await page.route('**/api/v1/clusters', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ items: [], total: 0, remaining: 0 }),
+  }))
+  await page.goto('/')
+  await expect(page.locator('.empty-title')).toContainText('尚未接入 Kubernetes 集群')
+  const cta = page.getByRole('button', { name: /去接入集群/ })
+  await expect(cta).toBeVisible()
+  await cta.click()
+  await expect(page).toHaveURL('/clusters')
+})
+
 test('Sidebar exposes navigation items', async ({ page }) => {
   await page.goto('/')
   const nav = page.locator('nav[aria-label*="导航"], nav')

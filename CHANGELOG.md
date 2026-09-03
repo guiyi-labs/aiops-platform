@@ -74,6 +74,16 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   顶栏同步添加搜索按钮入口。
 - See [change record](docs/changes/2026-09-01-sidebar-accordion-pin-tooltip-cmdpalette.md)。
 
+### Added - Toast 通知接入全局 + Dashboard 空集群引导 + 对比度修复
+
+- `useToast` composable 提供模块级共享 toast 状态，任意组件可直接调用
+  `toast.success()/error()/warning()/info()`；`AppToast` 挂载到控制台外壳全局可用。
+- 集群管理页（探测/接入/凭据替换/启停/移除）操作结果改为 Toast 反馈，替代内联提示。
+- Dashboard 无已启用集群时渲染 hero 空状态 +「去接入集群」CTA，替代空驾驶舱。
+- 修复 e2e fixture 默认返回集群后暴露的亮色卡片对比度问题（topology/events/
+  correlation 汇总文案加深至 ≥4.5:1）；窄视口可滚动区域补 `tabindex="0"`。
+- See [change record](docs/changes/2026-09-03-toast-wiring-dashboard-onboarding.md)。
+
 ### Fixed - 登录后侧边栏导航视图不更新
 
 - `frontend/src/components/ConsoleLayout.vue` 直接从当前匹配路由解析页面组件并按完整路径更新实例，

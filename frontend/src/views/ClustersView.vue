@@ -7,10 +7,12 @@ import * as clusterAPI from '../api/clusters'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { useAuthStore } from '../stores/auth'
+import { useToast } from '../composables/useToast'
 import type { Cluster } from '../types/cluster'
 
 const auth = useAuthStore()
 const router = useRouter()
+const toast = useToast()
 const clusters = ref<Cluster[]>([])
 const loading = ref(true)
 const busyID = ref<number | null>(null)
@@ -36,12 +38,14 @@ async function load() {
 async function create() {
   errorMessage.value = ''; notice.value = ''
   try {
-    await clusterAPI.createCluster(auth.accessToken, name.value.trim(), kubeconfig.value)
+    const clusterName = name.value.trim()
+    await clusterAPI.createCluster(auth.accessToken, clusterName, kubeconfig.value)
     name.value = ''; kubeconfig.value = ''; showForm.value = false
-    notice.value = `集群「${name.value || '新集群'}」已登记，正在探测连接...`
+    toast.success(`集群「${clusterName}」已登记，正在探测连接...`)
     await load()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '集群保存失败'
+    toast.error(errorMessage.value)
   }
 }
 
@@ -53,28 +57,28 @@ async function rotateCredential(item: Cluster) {
   busyID.value = item.id; errorMessage.value = ''; notice.value = ''
   try {
     await clusterAPI.updateClusterCredential(auth.accessToken, item.id, replacementKubeconfig.value)
-    rotatingID.value = null; replacementKubeconfig.value = ''; notice.value = `集群 ${item.name} 的凭据已替换，请重新执行连接探测。`; await load()
-  } catch (error) { errorMessage.value = error instanceof Error ? error.message : '凭据替换失败' }
+    rotatingID.value = null; replacementKubeconfig.value = ''; toast.success(`集群 ${item.name} 的凭据已替换，请重新执行连接探测。`); await load()
+  } catch (error) { errorMessage.value = error instanceof Error ? error.message : '凭据替换失败'; toast.error(errorMessage.value) }
   finally { busyID.value = null }
 }
 
 async function probe(item: Cluster) {
   busyID.value = item.id
-  try { await clusterAPI.probeCluster(auth.accessToken, item.id); notice.value = `集群「${item.name}」探测完成`; await load() }
-  catch { await load(); errorMessage.value = '连接探测失败，请检查 API 地址、证书与网络' }
+  try { await clusterAPI.probeCluster(auth.accessToken, item.id); toast.success(`集群「${item.name}」探测完成`); await load() }
+  catch { await load(); errorMessage.value = '连接探测失败，请检查 API 地址、证书与网络'; toast.error(errorMessage.value) }
   finally { busyID.value = null }
 }
 
 async function toggle(item: Cluster) {
   busyID.value = item.id
-  try { await clusterAPI.setClusterEnabled(auth.accessToken, item.id, !item.enabled); await load() }
+  try { await clusterAPI.setClusterEnabled(auth.accessToken, item.id, !item.enabled); toast.info(`集群「${item.name}」已${item.enabled ? '停用' : '启用'}`); await load() }
   finally { busyID.value = null }
 }
 
 async function remove(item: Cluster) {
   if (!window.confirm(`确认移除集群"${item.name}"？凭据将一并删除。`)) return
   busyID.value = item.id
-  try { await clusterAPI.deleteCluster(auth.accessToken, item.id); notice.value = `集群「${item.name}」已移除`; await load() }
+  try { await clusterAPI.deleteCluster(auth.accessToken, item.id); toast.success(`集群「${item.name}」已移除`); await load() }
   finally { busyID.value = null }
 }
 

@@ -26,6 +26,7 @@ import { APIError } from '../api/auth'
 import { evaluateMetricHistory, getMetricHistory } from '../api/metrics-history'
 import { listDeployments, listEvents, listNodeMetrics, listNodes, listPodMetrics, listPods, listServices } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
+import EmptyState from '../components/EmptyState.vue'
 import SkeletonCard from '../components/SkeletonCard.vue'
 import { useCountUp } from '../composables/useCountUp'
 import { useAuthStore } from '../stores/auth'
@@ -388,6 +389,18 @@ onBeforeUnmount(() => requestController?.abort())
       <button type="button" class="icon-button" title="刷新全部数据" aria-label="刷新全部数据" :disabled="loadState === 'loading' || resourceLoading || fleetLoading" @click="refreshAll"><RefreshCw :size="18" :class="{ spinning: loadState === 'loading' || resourceLoading || fleetLoading }" /></button>
     </template>
 
+    <EmptyState
+      v-if="loadState === 'ready' && clusters.length === 0"
+      hero
+      title="尚未接入 Kubernetes 集群"
+      description="接入第一个集群后即可在此总览集群态势、资源健康与智能诊断。支持 Kind、K3s、EKS、ACK 等任何标准 kubeconfig。"
+    >
+      <button class="primary-button dashboard-cluster-cta" type="button" @click="router.push('/clusters')">
+        <Boxes :size="18" /> 去接入集群
+      </button>
+    </EmptyState>
+
+    <template v-else>
     <section class="cockpit-context" aria-label="当前集群上下文">
       <div class="cluster-context-copy">
         <span class="live-indicator"><CircleDot :size="14" />LIVE</span>
@@ -549,5 +562,16 @@ onBeforeUnmount(() => requestController?.abort())
         </div>
       </div>
     </section>
+    </template>
   </ConsoleLayout>
 </template>
+
+<style scoped>
+.dashboard-cluster-cta {
+  margin-top: 10px;
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+}
+</style>

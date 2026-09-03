@@ -50,6 +50,16 @@ export async function mockAuthenticatedAPI(page: Page) {
       await fulfillJSON(route, authenticatedSession)
       return
     }
+    // Provide one enabled cluster by default so the dashboard renders its
+    // full cockpit; tests that need the empty state override this route.
+    if (path === '/api/v1/clusters') {
+      await fulfillJSON(route, {
+        items: [{ id: 1, name: 'demo-cluster', enabled: true, status: 'ready', api_server: 'https://demo.example', kubernetes_version: 'v1.36.0' }],
+        total: 1,
+        remaining: 0,
+      })
+      return
+    }
     await fulfillJSON(route, emptyAPIResponse)
   })
 }

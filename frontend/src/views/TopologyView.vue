@@ -209,7 +209,7 @@ onMounted(initialize)
       </section>
 
       <section class="topology-workspace" :class="{ loading }">
-        <div class="topology-canvas">
+        <div class="topology-canvas" tabindex="0">
           <header class="topology-canvas-heading">
             <div><p class="context-label">TRAFFIC &amp; WORKLOAD TOPOLOGY</p><h2>Ingress → Service → EndpointSlice → Pod ← Deployment</h2></div>
             <span>选择节点查看同 Namespace 的真实关联链路</span>

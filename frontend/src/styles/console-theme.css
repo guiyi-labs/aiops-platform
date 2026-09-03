@@ -432,7 +432,7 @@ h1 {
 
 .metric-mode button.active {
   color: var(--gray-0);
-  background: var(--accent-primary);
+  background: #0e7a70;
   box-shadow: none;
 }
 

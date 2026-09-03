@@ -223,7 +223,7 @@ onMounted(async () => {
         </div>
       </section>
 
-      <section class="resource-panel event-center-panel">
+      <section class="resource-panel event-center-panel" tabindex="0">
         <div class="section-heading"><div><p class="context-label">KUBERNETES EVENTS</p><h2>事件流 · {{ filteredEvents.length }}</h2></div><span class="event-sync-time"><Clock3 :size="14" />更新于 {{ lastSyncedLabel }}</span></div>
         <div class="event-list-header" aria-hidden="true"><span>级别 / 原因</span><span>涉及资源</span><span>消息</span><span>次数</span><span>最后出现</span></div>
         <div v-if="loading" class="empty-state event-loading"><RefreshCw class="spinning" :size="24" /><span>正在读取集群事件</span></div>

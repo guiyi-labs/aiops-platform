@@ -52,14 +52,15 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 ### Added - UX 体验改善：统一空状态、Toast 通知、集群引导、主题切换
 
 - `EmptyState.vue` 增加 `hero` 变体（大图标+大标题+醒目 CTA），支持自定义图标。
-- 新增 `Toast.vue` 全局通知组件，支持 success/error/warning/info 四种类型，
+- 新增 `AppToast.vue` 全局通知组件，支持 success/error/warning/info 四种类型，
   自动消失，可通过 ref 调用 `toast.success()` 等方法。
 - 集群页空状态改用 hero EmptyState + 醒目「接入第一个集群」CTA 按钮，
   替代原来的纯文字提示，首次使用引导更明确。
 - 新增 `useTheme` composable + 顶栏 Sun/Moon 切换按钮，
   支持亮色/暗色主题，localStorage 持久化（`aiops.theme`）。
-  侧边栏和登录页保持暗色品牌风格。
+  侧边栏跟随主题切换；登录页保持暗色品牌风格。
 - See [change record](docs/changes/2026-09-01-ux-emptystate-toast-theme.md)。
+- See [change record](docs/changes/2026-09-01-light-theme-sidebar-and-ci-lint-fixes.md)。
 
 ### Added - 侧边栏导航增强：手风琴折叠、收藏固定、hover 浮层、Ctrl+K 命令面板
 

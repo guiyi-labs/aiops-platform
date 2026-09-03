@@ -5,7 +5,7 @@ import { computed } from 'vue'
 const props = withDefaults(defineProps<{
   title: string
   description?: string
-  icon?: any
+  icon?: typeof Inbox
   iconSize?: number
   /** Show a larger "hero" variant for first-time-empty pages */
   hero?: boolean

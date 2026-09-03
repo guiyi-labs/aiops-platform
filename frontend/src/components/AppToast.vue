@@ -11,12 +11,10 @@ interface ToastItem {
   duration: number
 }
 
-const props = withDefaults(defineProps<{
+defineProps<{
   /** Global position: top-right (default), top-center, bottom-right */
   position?: 'top-right' | 'top-center' | 'bottom-right'
-}>(), {
-  position: 'top-right',
-})
+}>()
 
 const toasts = ref<ToastItem[]>([])
 let nextId = 0

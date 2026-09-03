@@ -8,7 +8,9 @@ function getInitialTheme(): Theme {
   try {
     const stored = localStorage.getItem(THEME_KEY)
     if (stored === 'dark' || stored === 'light') return stored
-  } catch {}
+  } catch {
+    // localStorage may be unavailable (private mode / disabled cookies)
+  }
   return 'dark' // default to dark (current look)
 }
 
@@ -24,7 +26,11 @@ watchEffect(() => {
     root.classList.add('theme-dark')
     root.classList.remove('theme-light')
   }
-  try { localStorage.setItem(THEME_KEY, theme.value) } catch {}
+  try {
+    localStorage.setItem(THEME_KEY, theme.value)
+  } catch {
+    // Persistence is best-effort; theme still applies for this session
+  }
 })
 
 export function useTheme() {

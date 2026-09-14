@@ -2,7 +2,7 @@
 // load-probe.mjs — functional-level HTTP latency probe for the local AIOps
 // compose stack. NOT a production benchmark: sequential-per-worker requests,
 // loopback network, dev-size dataset. Output is a lower bound reference for
-// the thesis experiment chapter (same honesty framing as experiment-summary).
+// the experiment chapter (same honesty framing as experiment-summary).
 //
 // Usage:
 //   node scripts/load-probe.mjs \

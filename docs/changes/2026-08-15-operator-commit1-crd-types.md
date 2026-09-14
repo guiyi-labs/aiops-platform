@@ -7,7 +7,7 @@
 ## Context
 
 指挥中枢批复战略任务：为 aiops-platform 增加真实可运行的 K8s Controller
-（Operator 模式），作为 K8s/云原生运维求职的深度证据与 client-go 实战。
+（Operator 模式），作为 K8s/云原生运维能力的深度证据与 client-go 实战。
 方案选型：`ControlledOperation` CRD + 纯 client-go（informer + dynamic
 typed wrapper），零新增重依赖（client-go v0.36.3 已在 go.mod）。
 

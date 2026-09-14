@@ -1,7 +1,7 @@
 # Repeatable diagnosis demo scenarios
 
 This directory creates one healthy baseline and the three deterministic failure
-scenarios used by the graduation-project demonstration:
+scenarios used by the project demonstration:
 
 | Resource | Expected state | Expected diagnosis |
 |---|---|---|

@@ -1,13 +1,13 @@
-# README 英文重写（Star 版首屏）— 落地
+# README 英文重写（旗舰首屏版）— 落地
 
 - Date: 2026-08-16
 - Status: Complete
-- Scope: P2b 按 docs/star-playbook.md 与 docs/aiops-readme-en-v1.md 骨架执行
+- Scope: P2b 按本地私有方案文档与 docs/aiops-readme-en-v1.md 骨架执行
 - DependsOn: P1 RAG 知识库（a889b2a）
 
 ## What
 
-用英文骨架完整替换 `README.md`（原 270 行中文 M115 版 → 英文 Star 版），
+用英文骨架完整替换 `README.md`（原 270 行中文 M115 版 → 英文旗舰版），
 目标：仓库首屏 30 秒看懂，直接服务 Star 冲刺。
 
 ### 1. 首屏（第一屏）
@@ -49,4 +49,4 @@
 
 - `README.md`（替换）
 - `docs/aiops-readme-en-v1.md`（骨架来源，untracked 方案文档，不提交）
-- `docs/star-playbook.md`（作战手册，untracked 方案文档，不提交）
+- 本地私有的英文骨架方案文档（untracked，不提交）

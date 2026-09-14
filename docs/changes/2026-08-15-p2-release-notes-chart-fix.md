@@ -6,7 +6,7 @@
 
 ## Context
 
-Obsidian「GitHub 项目展示优化与后续路线」P2 清单：
+「GitHub 项目展示优化与后续路线」P2 清单：
 - 为成熟仓库维护版本 Release Notes、兼容范围和升级/回滚说明（本仓库保持 RC 口径，不宣称 GA）。
 - 为代表性功能使用分支和 PR，保留至少一轮自我 Review 记录（本改动即代表样例）。
 - 统一仓库 README/元数据链接一致性（Chart.yaml home URL 指向错误仓库 `aiops/aiops-platform`）。

@@ -29,4 +29,4 @@
 - 每个项目都有独立的入口、用户问题和演示场景，减少重复建设。
 - Bootstrap 可以先作为教程/方案基线，再逐步重建为真实 Ansible 交付；不会被 AIOps 的运行期功能掩盖。
 - EasyOps 的 Kubernetes 清单只证明它自身可部署，不暗示它管理 Kubernetes 集群。
-- 跨项目 README、Obsidian 路线和简历描述必须保持 Day 0/1/2 术语一致。
+- 跨项目 README、路线图与对外介绍必须保持 Day 0/1/2 术语一致。

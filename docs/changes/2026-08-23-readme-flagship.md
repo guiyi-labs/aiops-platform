@@ -8,7 +8,7 @@
 
 仓库功能已完成 P1 RAG（`knowledge` 案例库 + `aiexplain` 引用校验 + `aiopsbench` 基准），但
 README 仍停留在 M115 基线的纯文字版：架构碎片化（`flowchart LR` 只有 6 节点）、徽章行形容词化
-（`coverage-≥70%` 未区分全局/核心门禁）、缺少可复现的演示入口与路线图索引，求职/Star 场景不具
+（`coverage-≥70%` 未区分全局/核心门禁）、缺少可复现的演示入口与路线图索引，对外展示场景不具
 “旗舰样例”说服力。
 
 ## What Changed

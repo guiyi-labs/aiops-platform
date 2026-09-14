@@ -1,7 +1,7 @@
 # Change Record: Current source startup verification
 
 - Date: 2026-07-26
-- Scope: Rebuild and start the current graduation-project source tree
+- Scope: Rebuild and start the current project source tree
 
 ## Runtime result
 

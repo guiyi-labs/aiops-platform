@@ -70,4 +70,4 @@
 - 规则覆盖率分母使用编译期 catalog（`DefaultCatalog().len`），不包含用户在运行时动态新增的 override 规则码；分母固定，分子来自结果表去重，语义清晰：平台内置规则集合中有多少比例曾产出至少一个 finding。
 - 趋势柱形图是纯 CSS 实现（无 SVG/Canvas），浏览器端无需额外依赖；窗口较大（90 天）时柱形水平滚动，不影响竖向布局。
 - `router_harness_test.go` 新增 `InspectionService` 后，所有 M52 巡检路由（此前从未纳入 OpenAPI 路由合约校验）现在均需满足 OpenAPI 文档存在，故本次一并补齐 11 条原有路由文档；这属于既有技术债修复。
-- M113 全部三个切片（M113-1 finding→runbook 导航 / M113-2 容量感知预览 / M113-3 巡检覆盖率）均已提交，后续步骤：CHANGELOG + git commit + tag + Obsidian 同步。
+- M113 全部三个切片（M113-1 finding→runbook 导航 / M113-2 容量感知预览 / M113-3 巡检覆盖率）均已提交，后续收尾步骤：CHANGELOG + git commit + tag。

@@ -23,7 +23,7 @@ Star 冲刺手册），均无对应 change-record，违反归档完整性检查�
 
 ### 转本地私有（1 个，不入库）
 
-- `docs/star-playbook.md`：Star 冲刺作战手册含个人求职策略上下文，
+- 一份含个人语境的本地方案文档（不入库）：作战手册性质，
   按本地私有材料的同等纪律加入 `.git/info/exclude`
   本地排除清单，不进入公开仓库。
 
@@ -49,5 +49,5 @@ Star 冲刺手册），均无对应 change-record，违反归档完整性检查�
 
 ## Risks / Notes
 
-- star-playbook.md 若日后决定公开，需先从 `.git/info/exclude` 移除并补独立
+- 该本地私有文档若日后决定公开，需先从 `.git/info/exclude` 移除并补独立
   change-record；在此之前任何 `git add -f` 都应被视作违规。

@@ -599,7 +599,7 @@ token expiry, stale Backup, concurrent idempotency, controller failure, restart 
 Evidence goes to `.artifacts/m31-isolated-restore-kind/`. It is evidence of an isolated logical workload-resource
 rehearsal only, not PV recovery, application consistency, production RPO/RTO or cutover.
 
-## 11. M32 - Formal Closure And Thesis/Demo Refresh
+## 11. M32 - Formal Closure And Demo Refresh
 
 M32 runs after M27-M31 are accepted and the user selects one release candidate revision. It is the only milestone
 that may declare this development route closed.

@@ -434,7 +434,7 @@ parity targets.
   include/exclude lists, and quarantine Namespace auto-cleanup are explicitly
   prohibited and documented in ADR 0047 §2/§5/§8.
 
-## M32: Formal Closure And Thesis/Demo Refresh
+## M32: Formal Closure And Demo Refresh
 
 - Status: ✅ Final local archive on 2026-07-31. Fast gate passed in 26.17s;
   full gate passed in 97.68s with evidence at

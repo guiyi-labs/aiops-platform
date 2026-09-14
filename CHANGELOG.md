@@ -49,6 +49,23 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - 公开仓库红线门禁：个人语境词的提交/推送硬阻断
+
+- 新增三道本地钩子（`pre-commit` / `commit-msg` / `pre-push`）共用同一扫描器：提交暂存内容、
+  提交信息、待推送差异三处任一命中个人语境词即阻断。词表与扫描器置于 `.git/info/`（不入库）。
+- 设计要点：只扫新增行（否则清理提交会被自己拦下）；ASCII 词按词边界匹配
+  （否则会误命中同词根的 `hypothesis`，实测波及 20+ 个文件）；词表缺失时失败关闭；
+  保留 `ALLOW_REDLINE_BYPASS=1` 显式豁免并打印警告。
+- See [change record](docs/changes/2026-09-14-public-facade-redline-guard.md)。
+
+### Changed - 公众门面个人语境措辞清理（第二轮，全库归零）
+
+- 全库扫描出 19 个文件、32 处残留的个人语境措辞（个人身份/学业交付语境 + 私人事务语境），
+  全部中性化，技术事实与结论零改动；巡检现为 **0 命中**。
+- 含一处**自我修正**：上一轮的中性化记录逐类枚举了被移除的词，等于把词又写回公开仓库；
+  本次改为不点名表述，并清理其中已迁出目录的字面路径。
+- See [change record](docs/changes/2026-09-14-public-facade-wording-neutralization.md)。
+
 ### Changed - WAL/PITR 演练临时目录压缩归档并回收本地磁盘
 
 - `scripts/wal-pitr-drill.sh` 在 2026-08-12 七次演练中遗留的 7 个临时工作目录
@@ -78,9 +95,9 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 
 ### Changed - 公众门面措辞中性化收尾
 
-- 清除公开仓库 8 个文档中遗留的个人交付语境措辞（指向课程/学位/答辩/论文的表述），
+- 清除公开仓库 8 个文档中遗留的个人交付语境措辞（与工程无关的个人语境用词），
   只替换与工程无关的用词，技术事实与结论不变。
-- 4 处指向已迁出目录 `docs/thesis/` 的路径引用改为等价的中性表述，不再指向不存在的目录。
+- 4 处指向已迁出目录的路径引用改为等价的中性表述，不再指向不存在的目录。
 - See [change record](docs/changes/2026-09-14-public-facade-wording-neutralization.md)。
 
 ### Added - UX 体验改善：统一空状态、Toast 通知、集群引导、主题切换
@@ -244,7 +261,7 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   `enhancement-operator-plan.md`、`enhancement-p1-rag-diagnosis-plan.md`、
   `enhancement-p2-flagship-roadmap.md`、`aiops-readme-en-v1.md`（英文 README
   定稿留档）；敏感扫描通过。
-- `docs/star-playbook.md` 含个人求职策略上下文，转本地私有排除
+- 一份含个人语境的本地文档（作战手册性质），转本地私有排除
   （与其它本地私有材料同等纪律），不进入公开仓库。
 - 合并 12 个散落重复的 `[Unreleased]` 小节头为唯一区块（+3/−12 行，
   条目内容零改动），保持 `[0.1.0]` 在前的时序并附说明。

@@ -3,13 +3,18 @@
 //
 // Subcommands:
 //
-//	diagnosis  replay the labeled scenario corpus (testdata/diagnosis-corpus.json)
-//	           through the compiled-in rules and report per-rule precision /
-//	           recall / F1 plus the deterministic pipeline top-1 accuracy.
-//	retrieval  measure structured-phase retrieval quality (Hit@k, MRR) of the
-//	           knowledge case memory across corpus scales.
+//	diagnosis         replay the labeled scenario corpus (testdata/diagnosis-corpus.json)
+//	                  through the compiled-in rules and report per-rule precision /
+//	                  recall / F1 plus the deterministic pipeline top-1 accuracy.
+//	retrieval         measure structured-phase retrieval quality (Hit@k, MRR) of the
+//	                  knowledge case memory across corpus scales.
+//	retrieval-hybrid  ablate the vector recall stage against exact field matching:
+//	                  structured vs hybrid, over queries aligned with and renamed
+//	                  away from the rule id the cases were stored under.
 //
-// Both modes are hermetic: no cluster, database or AI provider is contacted.
+// Every mode is hermetic: no cluster, database or AI provider is contacted.
+// The embedder behind retrieval-hybrid is the offline lexical one, so those
+// numbers reproduce on any machine with no credential and no model download.
 // Labels in the corpus are anchored to reviewed unit tests and rule
 // specifications; because this tool replays them through the same exported
 // functions used in production, any behavior change that breaks a label is a
@@ -33,6 +38,10 @@ func main() {
 		}
 	case "retrieval":
 		if err := runRetrieval(os.Args[2:]); err != nil {
+			fail(err)
+		}
+	case "retrieval-hybrid":
+		if err := runRetrievalHybrid(os.Args[2:]); err != nil {
 			fail(err)
 		}
 	case "-h", "--help", "help":
@@ -60,5 +69,10 @@ Usage:
   aiopsbench retrieval [-shortlist <n>] [-max <n>] [-json <out.json>]
       Measure structured-phase retrieval quality (Hit@k, MRR) across
       synthetic corpus scales using the production retriever semantics.
+
+  aiopsbench retrieval-hybrid [-json <out.json>]
+      Ablation: structured vs hybrid (structured + vector RRF) retrieval,
+      for queries aligned with and renamed away from the stored rule id.
+      Hermetic — uses the offline lexical embedder, re-rank disabled.
 `)
 }

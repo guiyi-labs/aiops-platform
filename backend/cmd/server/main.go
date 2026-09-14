@@ -441,8 +441,12 @@ func main() {
 	// (empty retrieval / failed ingest never block the diagnosis chain).
 	knowledgeRepository := knowledge.NewGormRepository(database.GORM())
 	knowledgeRetrieverCfg := knowledge.DefaultConfig()
-	knowledgeRetrieverCfg.RerankEnabled = false // re-rank is a Phase-2 API call; keep the default cost-free
-	knowledgeRetriever := knowledge.NewRetriever(knowledgeRepository, knowledgeRetrieverCfg)
+	knowledgeRetrieverCfg.RerankEnabled = false // the LLM re-rank is opt-in; the default retrieval path stays cost-free
+	// The vector stage runs the offline lexical embedder: no API key, no model
+	// download, and identical vectors across restarts — so the hybrid pipeline
+	// behaves the same in a demo cluster as it does in the benchmark.
+	knowledgeRetriever := knowledge.NewRetriever(knowledgeRepository, knowledgeRetrieverCfg).
+		WithEmbeddingProvider(knowledge.NewLexicalEmbeddingProvider(0))
 	diagnosisService = diagnosisService.WithKnowledgeIngester(knowledge.NewDiagnosisIngester(knowledgeRepository))
 	aiExplanationService = aiExplanationService.WithKnowledgeRetriever(knowledgeRetriever)
 	auditService := audit.NewService(audit.NewGormRepository(database.GORM()))

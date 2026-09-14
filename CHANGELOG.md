@@ -49,6 +49,20 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Added - 案例记忆的向量召回与 RRF 混合检索（Phase 2 落地）
+
+- `internal/knowledge` 补上 Phase 2：新增确定性离线嵌入器
+  （`LexicalEmbeddingProvider`，哈希 n-gram，零依赖、跨机器可复现）、向量召回阶段，
+  以及 k=60 的 Reciprocal Rank Fusion。`Retrieve` 由两阶段扩为四阶段
+  （结构化 → 向量 → RRF → 可选 LLM 精排），后三阶段均 fail-open，
+  knowledge 故障仍不阻断诊断链；未挂载嵌入器时行为与 Phase 1 完全一致（零破坏）。
+- `cmd/aiopsbench retrieval-hybrid`：2×2 消融（aligned/renamed × structured/hybrid）。
+  实测：字段可匹配时结构化 Hit@1=1.000 不受影响；规则重命名后结构化 **Hit@1=0.000**，
+  混合管线恢复到 0.917–1.000。
+- 已知边界：向量阶段在应用层打分，候选池受 `VectorCandidateSize` 与新近序截断约束，
+  超出容量时最旧条目仍不可达 —— 该规模需物化向量 + ANN 索引，届时只换 `Repository` 实现。
+- See [change record](docs/changes/2026-09-14-knowledge-hybrid-retrieval.md)。
+
 ### Added - 公开仓库红线门禁：个人语境词的提交/推送硬阻断
 
 - 新增三道本地钩子（`pre-commit` / `commit-msg` / `pre-push`）共用同一扫描器：提交暂存内容、

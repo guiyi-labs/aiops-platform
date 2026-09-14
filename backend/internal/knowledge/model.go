@@ -3,14 +3,26 @@
 // (aiexplain / aiinvestigator) retrieve verified historical cases before
 // generating an answer.
 //
-// Phase 1 retrieval is a two-stage pipeline:
+// Retrieval is a hybrid pipeline:
 //  1. structured selection from PostgreSQL (rule_id + severity + resource
-//     kind, newest first) — fast and deterministic;
-//  2. optional LLM re-rank over the shortlist when the caller enables it.
+//     kind, newest first) — fast, exact and deterministic;
+//  2. optional vector recall over a loosely-filtered pool — this is what
+//     reaches a case whose rule id or resource kind no longer matches, i.e.
+//     the recall gap the structured stage cannot close;
+//  3. Reciprocal Rank Fusion of the two ranked lists, which needs no score
+//     calibration between a rank position and a cosine similarity;
+//  4. optional LLM re-rank over the fused shortlist.
 //
-// A knowledge outage never blocks diagnosis: every public entry point
-// degrades to an empty result so callers fall back to the deterministic
-// diagnosis chain unchanged.
+// Stages 2-4 are additive and fail-open. A missing embedder, a failed
+// embedding call or a failed re-rank each fall back to the previous stage's
+// output, and every public entry point degrades to an empty result rather
+// than an error — so a knowledge outage never blocks diagnosis.
+//
+// Boundary — the vector stage scores its candidate pool in Go after fetching
+// it, so VectorCandidateSize bounds the corpus it can see. Deployments beyond
+// that scale need materialised vectors plus an approximate-nearest-neighbour
+// index (pgvector and friends); that change is confined to the repository
+// behind this interface and does not alter callers.
 package knowledge
 
 import (

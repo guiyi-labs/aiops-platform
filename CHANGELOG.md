@@ -49,6 +49,17 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Changed - WAL/PITR 演练临时目录压缩归档并回收本地磁盘
+
+- `scripts/wal-pitr-drill.sh` 在 2026-08-12 七次演练中遗留的 7 个临时工作目录
+  （`.artifacts/wal-pitr-tmp-*`，12,220 个文件 / 1.14 GiB）打包为单一归档
+  `.artifacts/wal-pitr-drill/wal-pitr-tmp-archive-20260812.tar.zst`（37.25 MiB，压缩比 3.11%）
+  后回收，`.artifacts` 体积由 4.4 GiB 降至 2.2 GiB。
+- 归档经逐文件 SHA-256 比对确认与原目录完全等价（12,220 条全等）；原始目录移入系统废纸篓而非
+  不可逆删除。演练证据 `wal-pitr-drill/report-*.json`（7 份）不受影响。
+- 根因（脚本结尾不清理临时目录）未在本条目修复，处置建议见 change record 的 Risks / Notes。
+- See [change record](docs/changes/2026-09-14-wal-pitr-drill-scratch-reclaim.md).
+
 ### Fixed - 诊断规则发现契约补齐第 12 条规则
 
 - `backend/internal/diagnosis/model.go` 的 `RuleIDs()` 补入 `node.metric_sustained_breach.v1`

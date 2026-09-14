@@ -221,6 +221,60 @@ func mustDecode(t *testing.T, raw string, target any) {
 	}
 }
 
+// TestRuleIDsMatchCompiledRules locks the analyzer discovery contract to the
+// full roster of compiled-in rules. The roster is user-visible (served through
+// the analyzer discovery endpoint and asserted by the golden replay contract),
+// so a rule that can be emitted but is missing here is a contract bug — this
+// test fails loudly instead of letting the surface silently under-report.
+func TestRuleIDsMatchCompiledRules(t *testing.T) {
+	expected := []string{
+		RuleImagePullBackOff,
+		RuleCrashLoopBackOff,
+		RulePodPending,
+		RulePodOOMKilled,
+		RuleServiceNoEndpoints,
+		RuleNodeNotReady,
+		RuleNodePressure,
+		RuleNodeSustainedMetricBreach,
+		RuleDeploymentReplicasUnavailable,
+		RulePersistentVolumeClaimPending,
+		RuleHorizontalPodAutoscalerSaturated,
+		RuleIngressBackendUnavailable,
+	}
+	got := RuleIDs()
+	if len(got) != len(expected) {
+		t.Fatalf("RuleIDs() returned %d rules, want %d: %v", len(got), len(expected), got)
+	}
+	seen := make(map[string]bool, len(got))
+	for _, id := range got {
+		if id == "" {
+			t.Fatal("RuleIDs() contains an empty rule ID")
+		}
+		if seen[id] {
+			t.Fatalf("RuleIDs() contains duplicate rule ID %q", id)
+		}
+		seen[id] = true
+	}
+	for _, id := range expected {
+		if !seen[id] {
+			t.Errorf("RuleIDs() is missing compiled rule %q", id)
+		}
+	}
+}
+
+// TestRuleIDsIncludesMetricBreachRule pins the specific regression where
+// RuleNodeSustainedMetricBreach (declared in metric_breach.go next to its
+// evaluator) was absent from the discovery roster while the engine could still
+// emit it and the annotated corpus covered it.
+func TestRuleIDsIncludesMetricBreachRule(t *testing.T) {
+	for _, id := range RuleIDs() {
+		if id == RuleNodeSustainedMetricBreach {
+			return
+		}
+	}
+	t.Fatalf("RuleIDs() must include %q", RuleNodeSustainedMetricBreach)
+}
+
 func TestEvaluateImagePullBackOffDoesNotMatchRunningPod(t *testing.T) {
 	pod := k8sgateway.Pod{}
 	pod.Metadata.Name = "healthy"

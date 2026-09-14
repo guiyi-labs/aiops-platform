@@ -49,6 +49,22 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Fixed - 诊断规则发现契约补齐第 12 条规则
+
+- `backend/internal/diagnosis/model.go` 的 `RuleIDs()` 补入 `node.metric_sustained_breach.v1`
+  （`metric_breach.go` 声明的第 12 条规则，此前未纳入 analyzer discovery 契约），现返回 **12** 条，
+  与标注语料 `diagnosis-corpus.json` 及 `bench-diagnosis.json` 的 `per_rule` 一致。
+- 新增 `TestRuleIDsMatchCompiledRules`（逐条比对完整名册 + 查重）与
+  `TestRuleIDsIncludesMetricBreachRule`（钉住本次回归）守护契约，避免名册再次静默漂移。
+- See [change record](docs/changes/2026-09-14-diagnosis-rule-roster-and-clock-pinned-test.md)。
+
+### Fixed - inspection 覆盖率用例的时钟依赖
+
+- `backend/internal/inspection/service_test.go`：`TestServiceCoverage_AggregatesWindow`
+  在构造 `Service` 后注入固定时钟，消除「固定 fixture 时间 + 墙钟 30 天窗口」导致的
+  用例自我过期（此前该用例在 HEAD 上稳定失败）。生产行为不变。
+- See [change record](docs/changes/2026-09-14-diagnosis-rule-roster-and-clock-pinned-test.md)。
+
 ### Added - UX 体验改善：统一空状态、Toast 通知、集群引导、主题切换
 
 - `EmptyState.vue` 增加 `hero` 变体（大图标+大标题+醒目 CTA），支持自定义图标。
@@ -104,7 +120,7 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   按 `seed:` 前缀精确清除 + 外键级联；`-dry-run` 不触库，`-timeout` 控总超时。
 - `docs/api/openapi.yaml` 补 `KnowledgeEntryList`/`KnowledgeEntry` schema；
   `docs/security/permission-matrix.md` 经契约测试重新生成，纳入两条新路由。
-- `docs/thesis/rag-demo-script.md`：毕设演示剧本（mock/stub，不依赖真实 LLM key）。
+- 演示剧本（本地私有材料，不入公开仓库）：mock/stub，不依赖真实 LLM key。
 - See [change record](docs/changes/2026-08-23-p2c-knowledge-readonly-seed.md)。
 
 ### Fixed - P2c 后续小修：aiopsbench/seed 报告文件权限收紧至 0600 + 格式对齐
@@ -211,7 +227,7 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   `enhancement-p2-flagship-roadmap.md`、`aiops-readme-en-v1.md`（英文 README
   定稿留档）；敏感扫描通过。
 - `docs/star-playbook.md` 含个人求职策略上下文，转本地私有排除
-  （与 `docs/thesis/` 同等纪律），不进入公开仓库。
+  （与其它本地私有材料同等纪律），不进入公开仓库。
 - 合并 12 个散落重复的 `[Unreleased]` 小节头为唯一区块（+3/−12 行，
   条目内容零改动），保持 `[0.1.0]` 在前的时序并附说明。
 - See [change record](docs/changes/2026-08-23-archive-stray-planning-docs.md)。
@@ -371,9 +387,9 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 - 单元测试 7 用例全绿（deepcopy 隔离 / unstructured round-trip / scheme / AsGVR / dryRun 默认 / nil 守卫）。
 - See [change record](docs/changes/2026-08-15-operator-commit1-crd-types.md)。
 
-### Fixed - ADR 0002 措辞中性化（毕设 → 项目）
+### Fixed - ADR 0002 措辞中性化（私有语境 → 项目口径）
 
-- `docs/adr/0002-modular-monolith-and-request-pipeline.md` 第 8 行「毕设需要」→「项目需要」，保持技术语义。
+- `docs/adr/0002-modular-monolith-and-request-pipeline.md` 第 8 行私有语境措辞 →「项目需要」，保持技术语义。
 - See [change record](docs/changes/2026-08-15-adr0002-neutralize-wording.md)。
 
 ### Added - P2 上游开源协作：kind 离线镜像文档 PR

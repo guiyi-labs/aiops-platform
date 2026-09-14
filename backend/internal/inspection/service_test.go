@@ -263,6 +263,11 @@ func TestServiceCoverage_AggregatesWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Pin the service clock to the fixture's `now` instead of wall-clock time:
+	// the fixture rows are dated relative to a fixed instant, so measuring the
+	// 30-day window against time.Now() makes the test self-expire once the
+	// fixed instant drifts more than 30 days into the past.
+	svc.now = func() time.Time { return now }
 	// Note: NewService builds the catalog internally; the coverage ratio uses
 	// it as the denominator.
 	got, err := svc.Coverage(context.Background(), 30)

@@ -18,6 +18,12 @@ const (
 
 // RuleIDs returns the compiled-in deterministic diagnosis rule IDs in a
 // stable order (used by the analyzer discovery contract).
+//
+// The list is the authoritative roster of every rule the engine can emit, so
+// it must stay in sync with the rule constants declared across this package
+// (including RuleNodeSustainedMetricBreach in metric_breach.go, which is
+// declared next to its evaluator rather than in the block above).
+// TestRuleIDsMatchCompiledRules guards the count.
 func RuleIDs() []string {
 	return []string{
 		RuleImagePullBackOff,
@@ -28,6 +34,7 @@ func RuleIDs() []string {
 		RuleNodeNotReady,
 		RuleDeploymentReplicasUnavailable,
 		RuleNodePressure,
+		RuleNodeSustainedMetricBreach,
 		RulePersistentVolumeClaimPending,
 		RuleHorizontalPodAutoscalerSaturated,
 		RuleIngressBackendUnavailable,

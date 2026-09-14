@@ -229,7 +229,7 @@ ResponsesProvider 打点可指向本机 stub），**不依赖真实 LLM key**；
 - [ ] 门禁：`go test ./...` 全绿、race 全绿、golangci-lint 0 issues、
       覆盖率 ≥ 现行门限
 - [ ] change-record 每 commit 配套 + CHANGELOG 更新
-- [ ] noreply 身份；不碰 docs/thesis；未验证不写「已验证」
+- [ ] noreply 身份；不碰本地私有材料；未验证不写「已验证」
 - [ ] P2a：CI 覆盖率门限（核心 75%）+ gosec 接入证据
 - [ ] P2b：README 旗舰重写 + 徽章行数值 + 架构图
 - [ ] P2c：seed 脚本 + 演示文档 + 截图、知识库只读端点

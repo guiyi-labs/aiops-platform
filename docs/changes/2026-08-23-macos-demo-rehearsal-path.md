@@ -2,12 +2,12 @@
 
 - Date: 2026-08-23
 - Status: Complete
-- Scope: 让答辩演示/排练全链路（verify-fast → compose 栈 → kind → demo-up）在 macOS(colima + PowerShell 7) 上原生可跑，不维护平行 bash 移植；新增无依赖压测探针产出论文用延迟曲线。
+- Scope: 让演示/排练全链路（verify-fast → compose 栈 → kind → demo-up）在 macOS(colima + PowerShell 7) 上原生可跑，不维护平行 bash 移植；新增无依赖压测探针产出实验用延迟曲线。
 
 ## Context
 
-`docs/thesis/demo-environment.md` 的演示准备脚本全部是 PowerShell
-（demo-up/down/e2e-kind/verify-fast），原答辩环境是 Windows 11。毕设需在
+演示环境文档中的演示准备脚本全部是 PowerShell
+（demo-up/down/e2e-kind/verify-fast），原演示环境是 Windows 11。本项目需在
 macOS（Apple Silicon, colima 容器运行时）上排练。两条路线对比后选择
 「安装 pwsh 直接运行原版脚本」而非移植 bash——避免 ~860 行 E2E 链路的平行
 实现漂移导致证据分叉。
@@ -29,7 +29,7 @@ macOS（Apple Silicon, colima 容器运行时）上排练。两条路线对比�
 - 输出明确标注 "functional-level reference — not a production benchmark"，
   与实验摘要的诚实边界口径一致。
 
-### 环境结论（写入论文演示文档的事实）
+### 环境结论（写入演示文档的事实）
 
 1. macOS 安装官方 PowerShell 7.4.6 tarball（brew 无 pwsh formula）；30 个
    `.ps1` 全部解析通过，运行时 Windows-ism 仅 verify-fast 两处（已修）。
@@ -56,6 +56,6 @@ macOS（Apple Silicon, colima 容器运行时）上排练。两条路线对比�
 
 ## Risks / Notes
 
-- colima/kind 的镜像预载步骤目前是手工操作；若答辩前重建集群需按本文
+- colima/kind 的镜像预载步骤目前是手工操作；若演示前重建集群需按本文
   Context 第 3 条重复。后续可固化为 `scripts/kind-preload-images.sh`。
-- load-probe 为功能级下限参考；论文表述不得写成生产基准。
+- load-probe 为功能级下限参考；文档表述不得写成生产基准。

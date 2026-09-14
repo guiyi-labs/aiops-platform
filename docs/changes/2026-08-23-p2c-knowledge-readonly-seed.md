@@ -2,15 +2,15 @@
 
 - Date: 2026-08-23
 - Status: Complete
-- Scope: 收尾 P2c 方向——补齐知识库只读查询端点（`GET /api/v1/aiops/knowledge`、`/knowledge/stats`）、幂等的 `seed-knowledge` 灌库命令与毕设演示剧本，并把游离的 P2c 改动按 AGENTS.md 归档入库。
+- Scope: 收尾 P2c 方向——补齐知识库只读查询端点（`GET /api/v1/aiops/knowledge`、`/knowledge/stats`）、幂等的 `seed-knowledge` 灌库命令与演示剧本，并把游离的 P2c 改动按 AGENTS.md 归档入库。
 
 ## Context
 
 P1 已完成 RAG 知识库（model / repository / 两段检索 / 诊断结案自动蒸馏 / aiexplain 引用注入）。P2c 的目标是把「可演示的闭环」补齐：
 
 1. 提供一个**只读** HTTP 查询面，便于演示巡检与验证（写入仍只走诊断结案钩子，杜绝经 HTTP 误写）；
-2. 提供一条**幂等**的种子脚本，向 `knowledge_entries` 灌入 10 条精心构造的已解决案例，让演示/答辩直接跑通「问题 → 检索 → AI 综合 → 带依据回答」；
-3. 补齐演示剧本与截图占位，对齐毕设论文实验章节。
+2. 提供一条**幂等**的种子脚本，向 `knowledge_entries` 灌入 10 条精心构造的已解决案例，让演示直接跑通「问题 → 检索 → AI 综合 → 带依据回答」；
+3. 补齐演示剧本与截图占位，对齐实验章节。
 
 此前工作区已有游离的 `knowledge.go` / `knowledge_test.go` 与 `router.go`/`main.go`/`memory.go`/`openapi.yaml` 改动，但缺 change-record、缺 CHANGELOG 更新、**且打破了权限矩阵契约测试**（`TestPermissionMatrixMatchesCommittedDocument`），属未完成状态。
 
@@ -45,9 +45,9 @@ P1 已完成 RAG 知识库（model / repository / 两段检索 / 诊断结案自
 - `docs/api/openapi.yaml`：新增 `/api/v1/aiops/knowledge`（`KnowledgeEntryList` / `KnowledgeEntry` schema）与 `/api/v1/aiops/knowledge/stats`（`{total}`）。
 - `docs/security/permission-matrix.md`：**重新生成**（运行 `TestPermissionMatrixMatchesCommittedDocument -update`），纳入两条新路由的 scope/audit 元数据，修复此前被打破的契约测试。
 
-### 演示文档（毕设私有，不推送）
+### 演示文档（本地私有，不入公开仓库）
 
-- `docs/thesis/rag-demo-script.md`：P2c 演示剧本（前置 / 主线 3-4 分钟 / 截图占位 / 排障）。用 mock 本地 stub，不依赖真实 LLM key。
+- P2c 演示剧本（本地私有材料）：前置 / 主线 3-4 分钟 / 截图占位 / 排障。用 mock 本地 stub，不依赖真实 LLM key。
 
 ## Verification
 

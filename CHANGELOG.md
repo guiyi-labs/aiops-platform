@@ -65,6 +65,13 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   用例自我过期（此前该用例在 HEAD 上稳定失败）。生产行为不变。
 - See [change record](docs/changes/2026-09-14-diagnosis-rule-roster-and-clock-pinned-test.md)。
 
+### Changed - 公众门面措辞中性化收尾
+
+- 清除公开仓库 8 个文档中遗留的个人交付语境措辞（指向课程/学位/答辩/论文的表述），
+  只替换与工程无关的用词，技术事实与结论不变。
+- 4 处指向已迁出目录 `docs/thesis/` 的路径引用改为等价的中性表述，不再指向不存在的目录。
+- See [change record](docs/changes/2026-09-14-public-facade-wording-neutralization.md)。
+
 ### Added - UX 体验改善：统一空状态、Toast 通知、集群引导、主题切换
 
 - `EmptyState.vue` 增加 `hero` 变体（大图标+大标题+醒目 CTA），支持自定义图标。

@@ -2,12 +2,12 @@
 
 - Date: 2026-08-23
 - Status: Complete
-- Scope: 新增 `backend/cmd/aiopsbench`（诊断标注语料回放 + 知识库检索质量度量），将 knowledge 包的 InMemoryRepository 从测试文件提升为正式实现。为毕设实验章节提供可复现、可 CI 守护的量化证据链。
+- Scope: 新增 `backend/cmd/aiopsbench`（诊断标注语料回放 + 知识库检索质量度量），将 knowledge 包的 InMemoryRepository 从测试文件提升为正式实现。为实验章节提供可复现、可 CI 守护的量化证据链。
 
 ## Context
 
-毕设打磨目标 ①「实验量化补强」：此前的工程证据是步骤级 golden 契约
-（pass/fail）与覆盖率，缺少论文实验章节需要的标准指标——分类的
+工程打磨目标 ①「实验量化补强」：此前的工程证据是步骤级 golden 契约
+（pass/fail）与覆盖率，缺少实验章节需要的标准指标——分类的
 Precision/Recall/F1 与检索的 Hit@k/MRR。同时 `internal/knowledge` 的
 InMemoryRepository 只存在于 `_test.go`，离线评测无法复用。
 

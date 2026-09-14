@@ -9,7 +9,7 @@
 AGENTS.md 铁律要求所有改动归档后方可视为完成。`git status --porcelain` 长期显示
 6 个 untracked 文档（2026-08-16 前后的 P1/P2 规划、前端分析、英文 README 草稿、
 Star 冲刺手册），均无对应 change-record，违反归档完整性检查第 1 条。
-本记录一次性收口该欠账，作为「毕设打磨」阶段的第一步（仓库卫生）。
+本记录一次性收口该欠账，作为「工程打磨」阶段的第一步（仓库卫生）。
 
 ## What Changed
 
@@ -24,7 +24,7 @@ Star 冲刺手册），均无对应 change-record，违反归档完整性检查�
 ### 转本地私有（1 个，不入库）
 
 - `docs/star-playbook.md`：Star 冲刺作战手册含个人求职策略上下文，
-  按 `docs/thesis/_LOCAL_ONLY_NOTICE.md` 同等纪律加入 `.git/info/exclude`
+  按本地私有材料的同等纪律加入 `.git/info/exclude`
   本地排除清单，不进入公开仓库。
 
 ### CHANGELOG 结构修复

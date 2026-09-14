@@ -63,6 +63,15 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   超出容量时最旧条目仍不可达 —— 该规模需物化向量 + ANN 索引，届时只换 `Repository` 实现。
 - See [change record](docs/changes/2026-09-14-knowledge-hybrid-retrieval.md)。
 
+### Added - 只读 MCP 网关：把诊断能力暴露给通用 AI Agent
+
+- 新增 `internal/mcpserver` 与 `cmd/aiops-mcp`：以 Model Context Protocol（stdio）发布 9 个
+  只读工具（诊断 / 证据 / 事件 / 案例检索 / 集群），供 Claude Desktop、Cursor 等通用 Agent 调用。
+- 暴露面写死：工具目录编译进二进制，路径不来自调用方；参数按严格白名单校验后才替换进路径；
+  未声明参数、未知工具、路径穿越与注入一律拒绝且不触达后端。协议子集手写，**零新依赖**。
+- 与 AI 调查员的约束构成一体两面：对内约束模型的引用，对外约束 Agent 的调用。
+- See [change record](docs/changes/2026-09-14-mcp-readonly-gateway.md)。
+
 ### Added - 公开仓库红线门禁：个人语境词的提交/推送硬阻断
 
 - 新增三道本地钩子（`pre-commit` / `commit-msg` / `pre-push`）共用同一扫描器：提交暂存内容、

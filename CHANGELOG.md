@@ -49,6 +49,22 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Changed - T1 核心七包覆盖率补齐：全部达到 75% 门禁线
+
+- 为课题详写的 7 个核心包补写单元测试：`aiexplain` 52.9% → **98.4%**、
+  `diagnosis` 64.8% → **95.2%**、`signal` 70.1% → **96.7%**、`correlation` 70.7% → **98.1%**
+  （`knowledge` / `mcpserver` / `finding` 本就 ≥92%，未改动）。
+- 全局语句覆盖率 **70.1% → 72.3%**；**只新增 `_test.go`，未改一行业务源码**。
+- 动因：此前覆盖率剖面与文档的三层边界**反着**——T1「详写」包反而低于 T3「不写」包
+  （`monitoring` 98.0%、`eventstream` 94.4%），终期评审时是可直接被追问的弱点。
+- 关键障碍是 repository 层（全仓未覆盖语句的 39%，覆盖率仅 5.1%）：
+  这些仓储发 Postgres 专有 SQL（`date_trunc` / `pg_advisory_xact_lock` /
+  `CAST(? AS JSONB)` / `RETURNING`），内存库无解，改用 `go-sqlmock` 驱动。
+- 新增 9 个测试文件 / 205 个测试函数；全仓测试文件 271 → **280**。
+- 顺带发现 `signal.GormRepository.DeleteExpired` 的 `batchSize` 被静默忽略
+  （`Limit` 在终结方法 `Delete` 之后调用）——本次**未修**，见变更记录。
+- See [change record](docs/changes/2026-09-15-t1-core-package-coverage.md)。
+
 ### Added - 案例记忆的向量召回与 RRF 混合检索（Phase 2 落地）
 
 - `internal/knowledge` 补上 Phase 2：新增确定性离线嵌入器

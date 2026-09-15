@@ -126,11 +126,13 @@ Postgres 专有 SQL：
     `json.Marshal` 失败分支——无依赖注入点，不可注入。
   - `signal/gorm_repository.go` 的 `occurrenceToRow` 内 `json.Marshal` 错误分支——
     `Attributes` 是 `map[string]string`、`Evidence` 仅含 string/int64，编码不可能失败。
-- **顺带发现一处既有缺陷（本次未修，仅记录）**：
-  `internal/signal/gorm_repository.go:202` 的
-  `Delete(&signalRow{}).Limit(batchSize)`——`Limit` 在 `Delete` **之后**调用，
-  而 `Delete` 是终结方法、语句已执行，故 **`batchSize` 被静默忽略，删除无上限**。
-  注意：把 `Limit` 移到 `Delete` 之前**并不能修好**，因为 Postgres 的 `DELETE`
-  不支持 `LIMIT` 子句（那是 MySQL 语法），会直接语法报错。正确修法是子查询形式
-  `DELETE ... WHERE id IN (SELECT id ... LIMIT ?)`。**留给后续单独处理**。
+- **顺带发现一处既有缺陷**：
+  `internal/signal/gorm_repository.go` 的 `Delete(&signalRow{}).Limit(batchSize)`——
+  `Limit` 在终结方法 `Delete` **之后**调用，语句已执行，故 `batchSize` 被静默忽略，
+  删除无上限，违背 `Repository` 接口「Bounded by an internal batch size」的明文契约。
+  **已在本锚点之后的 `2026-09-16-signal-delete-expired-batch-bound.md` 修复**。
+  更正一处当时写错的判断：原记录称「把 `Limit` 前移会因 Postgres 不支持
+  `DELETE ... LIMIT` 而语法报错」——**实测证明是错的**：GORM 对 Postgres 方言
+  直接丢弃 `DELETE` 上的 `Limit`，前移同样静默失效（比报错更难发现）。
+  修法只能是把界写进语句内部（CTE + 子查询）。
 - 覆盖率分母是「代码路径」，不是「生产数据分布」——对外引用时须写明测量命令与日期。

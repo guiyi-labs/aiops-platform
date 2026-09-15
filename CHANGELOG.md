@@ -49,6 +49,26 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Fixed - signal.DeleteExpired 的无界删除：batchSize 被静默忽略
+
+- `internal/signal` 的 `GormRepository.DeleteExpired` 里
+  `Delete(&signalRow{}).Limit(batchSize)` 的 `Limit` 在终结方法 `Delete` **之后**调用，
+  语句已执行，故 `batchSize` **从未进入 SQL**——「有界清理」实际退化为单条无界 `DELETE`，
+  违背 `Repository` 接口「Bounded by an internal batch size」的明文契约。
+- **更正一处先前的错误判断**：曾记录「把 `Limit` 前移会因 Postgres 不支持
+  `DELETE ... LIMIT` 而语法报错」。用 sqlmock 捕获真实语句后证明是错的——
+  GORM 对 Postgres 方言**直接丢弃** `DELETE` 上的 `Limit`，前移同样静默失效
+  （比报错更难发现）。修法只能把界写进语句内部。
+- 改为 CTE + 子查询，沿用同仓库 `metricshistory.GormRepository.DeleteExpired`
+  的既有正确范式；`ORDER BY expires_at ASC, id ASC` 让每批选取确定性；
+  单条 `Exec` 不再需要 GORM 隐式事务。
+- 三个既有测试原先**写成了匹配缺陷行为**（只断言一个参数、期待 `Begin`/`Commit`），
+  等于把 bug 锁死；已改为断言有界语句与两个参数，并新增回归用例
+  `TestGormRepositoryDeleteExpiredBoundsBatchInSQL`（修复前必然失败）。
+- **行为变更**：现在每次最多删 `batchSize` 行，调用方需多次调用才能清完积压——
+  这正是接口契约本来的意图。
+- See [change record](docs/changes/2026-09-16-signal-delete-expired-batch-bound.md)。
+
 ### Changed - T1 核心七包覆盖率补齐：全部达到 75% 门禁线
 
 - 为课题详写的 7 个核心包补写单元测试：`aiexplain` 52.9% → **98.4%**、
@@ -62,7 +82,7 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
   `CAST(? AS JSONB)` / `RETURNING`），内存库无解，改用 `go-sqlmock` 驱动。
 - 新增 9 个测试文件 / 205 个测试函数；全仓测试文件 271 → **280**。
 - 顺带发现 `signal.GormRepository.DeleteExpired` 的 `batchSize` 被静默忽略
-  （`Limit` 在终结方法 `Delete` 之后调用）——本次**未修**，见变更记录。
+  （`Limit` 在终结方法 `Delete` 之后调用）——已于次日修复，见下方 Fixed 条目。
 - See [change record](docs/changes/2026-09-15-t1-core-package-coverage.md)。
 
 ### Added - 案例记忆的向量召回与 RRF 混合检索（Phase 2 落地）

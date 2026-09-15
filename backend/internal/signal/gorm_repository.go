@@ -199,13 +199,19 @@ func (r *GormRepository) DeleteExpired(ctx context.Context, now time.Time, batch
 	if batchSize <= 0 {
 		batchSize = 500
 	}
-	result := r.db.WithContext(ctx).
-		Where("expires_at IS NOT NULL AND expires_at <= ?", now).
-		Delete(&signalRow{}).Limit(batchSize)
-	if result.Error != nil {
-		return 0, result.Error
-	}
-	return result.RowsAffected, nil
+	// The batch bound must live inside the statement: GORM's Delete drops any
+	// Limit clause for the Postgres dialect, so `Delete(...).Limit(n)` silently
+	// deletes every expired row in one unbounded statement — the opposite of
+	// what the Repository contract promises. A CTE keeps the bound explicit and
+	// orders the batch deterministically. Same shape as
+	// metricshistory.GormRepository.DeleteExpired.
+	result := r.db.WithContext(ctx).Exec(`WITH expired AS (
+		SELECT id FROM signal_occurrences
+		WHERE expires_at IS NOT NULL AND expires_at <= ?
+		ORDER BY expires_at ASC, id ASC
+		LIMIT ?
+	) DELETE FROM signal_occurrences WHERE id IN (SELECT id FROM expired)`, now, batchSize)
+	return result.RowsAffected, result.Error
 }
 
 // --- row conversion helpers ---

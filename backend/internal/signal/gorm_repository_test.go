@@ -692,16 +692,22 @@ func TestGormRepositoryCountBySignalPropagatesError(t *testing.T) {
 
 // --- GormRepository.DeleteExpired ---------------------------------------
 
+// deleteExpiredSQL is the bounded shape the statement must take. The bound has
+// to live *inside* the statement: GORM's Delete silently drops any Limit clause
+// for the Postgres dialect, so `Delete(...).Limit(n)` deletes every expired row
+// in one unbounded statement — which is exactly the bug this pins down.
+// (Whitespace is normalised by the shared matcher, so this reads as one line.)
+const deleteExpiredSQL = `WITH expired AS ( SELECT id FROM signal_occurrences WHERE expires_at IS NOT NULL AND expires_at <= $1 ORDER BY expires_at ASC, id ASC LIMIT $2 ) DELETE FROM signal_occurrences WHERE id IN (SELECT id FROM expired)`
+
 func TestGormRepositoryDeleteExpiredReturnsRowsAffected(t *testing.T) {
 	gdb, mock := newSignalMockGorm(t)
 	repo := NewGormRepository(gdb)
 	now := signalObservedAt()
 
-	mock.ExpectBegin()
-	mock.ExpectExec(`DELETE FROM "signal_occurrences" WHERE expires_at IS NOT NULL AND expires_at <= $1`).
-		WithArgs(now).
+	// Exec issues the statement directly, without GORM's implicit transaction.
+	mock.ExpectExec(deleteExpiredSQL).
+		WithArgs(now, 500).
 		WillReturnResult(sqlmock.NewResult(0, 3))
-	mock.ExpectCommit()
 
 	removed, err := repo.DeleteExpired(context.Background(), now, 500)
 	if err != nil {
@@ -713,18 +719,40 @@ func TestGormRepositoryDeleteExpiredReturnsRowsAffected(t *testing.T) {
 	expectAllMet(t, mock)
 }
 
+// TestGormRepositoryDeleteExpiredBoundsBatchInSQL is the regression test for the
+// unbounded-delete defect: a caller-supplied batch size must actually reach the
+// SQL. Before the fix the second argument was absent entirely, so the assertion
+// on WithArgs failed.
+func TestGormRepositoryDeleteExpiredBoundsBatchInSQL(t *testing.T) {
+	gdb, mock := newSignalMockGorm(t)
+	repo := NewGormRepository(gdb)
+	now := signalObservedAt()
+
+	const batchSize = 7
+	mock.ExpectExec(deleteExpiredSQL).
+		WithArgs(now, batchSize).
+		WillReturnResult(sqlmock.NewResult(0, 7))
+
+	removed, err := repo.DeleteExpired(context.Background(), now, batchSize)
+	if err != nil {
+		t.Fatalf("DeleteExpired err = %v", err)
+	}
+	if removed != int64(batchSize) {
+		t.Fatalf("DeleteExpired = %d, want %d", removed, batchSize)
+	}
+	expectAllMet(t, mock)
+}
+
 func TestGormRepositoryDeleteExpiredDefaultsBatchSize(t *testing.T) {
 	gdb, mock := newSignalMockGorm(t)
 	repo := NewGormRepository(gdb)
 	now := signalObservedAt()
 
-	// batchSize <= 0 is replaced by the 500 default; the statement still
-	// targets only rows whose expires_at has passed.
-	mock.ExpectBegin()
-	mock.ExpectExec(`DELETE FROM "signal_occurrences" WHERE expires_at IS NOT NULL AND expires_at <= $1`).
-		WithArgs(now).
+	// batchSize <= 0 is replaced by the 500 default, and that default must be
+	// the one carried into the statement's LIMIT.
+	mock.ExpectExec(deleteExpiredSQL).
+		WithArgs(now, 500).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
 
 	removed, err := repo.DeleteExpired(context.Background(), now, 0)
 	if err != nil {
@@ -742,9 +770,7 @@ func TestGormRepositoryDeleteExpiredPropagatesError(t *testing.T) {
 	now := signalObservedAt()
 	boom := errors.New("delete failed")
 
-	mock.ExpectBegin()
-	mock.ExpectExec(`DELETE FROM "signal_occurrences"`).WithArgs(now).WillReturnError(boom)
-	mock.ExpectRollback()
+	mock.ExpectExec(deleteExpiredSQL).WithArgs(now, 100).WillReturnError(boom)
 
 	removed, err := repo.DeleteExpired(context.Background(), now, 100)
 	if !errors.Is(err, boom) {

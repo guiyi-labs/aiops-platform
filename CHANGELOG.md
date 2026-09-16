@@ -49,6 +49,25 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Fixed - alert 的三处游标循环漏检 rows.Err()：部分结果以 nil 错误返回
+
+- `internal/alert` 的 `ListRules` / `ListInstances` / `ClaimDueRules` 三处
+  `for rows.Next()` 循环结束后都直接 `return ..., nil`，未检查 `rows.Err()`。
+  `rows.Next()` 返回 `false` 有两种含义——「读完了」和「中途出错」（连接中断、
+  `ctx` 取消、`scan` 失败），不检查就无法区分，于是**部分结果被当成完整结果返回**。
+- 其中 `ClaimDueRules` 影响最实际：行已在上一句 `UPDATE ... RETURNING` 里被 claim 掉，
+  静默返回部分结果会让未返回的那部分一直保持 claim 状态到租约过期才被重新拾起，
+  表现为**漏评一轮且没有任何错误信号**。
+- 修复：三处各加 `if err := rows.Err(); err != nil { return nil, err }`（+15 行）。
+- 新增 `internal/alert/gorm_repository_rows_test.go`（221 行 / 5 个测试函数）：
+  3 个「注入迭代中途失败，断言它必须冒出来」的回归用例 + 2 个阳性对照。
+  `git stash` 回退修复后重跑，3 个用例全部失败（`err = <nil>`）——确认为真实回归用例。
+- 顺带完成上一轮遗留的另外两项排查：`Updates(struct)` 零值陷阱 **0 命中**
+  （全仓 37 处均用 map 或从指针字段构建的 map）；`Save` 主键退化 **0 命中**
+  （3 处先查后存、1 处显式新建）。
+- 数字变化：全局覆盖率 **72.3% → 72.5%**；`alert` 包 **33.9% → 52.1%**。
+  详见 `docs/changes/2026-09-16-alert-rows-err-check.md`。
+
 ### Audited - 全仓 GORM 子句静默失效扫描：确认为单点疏漏
 
 - 承接上一条修复，回答「同类缺陷还有多少处」。用 `go/parser` AST 扫描器扫全仓

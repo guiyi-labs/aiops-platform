@@ -107,6 +107,12 @@ func (r *GormRepository) ListRules(ctx context.Context, filter RuleListFilter) (
 		}
 		rules = append(rules, rule)
 	}
+	// rows.Next() 返回 false 可能是"读完了"，也可能是"中途出错"（连接中断、
+	// ctx 取消、扫描失败）。不检查 rows.Err() 会把后者当成前者，以 nil 错误
+	// 返回**部分结果**——调用方无法区分"匹配 3 条"与"匹配 300 条但读到第 3 条断了"。
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return rules, nil
 }
 
@@ -269,6 +275,9 @@ func (r *GormRepository) ListInstances(ctx context.Context, filter InstanceListF
 		}
 		instances = append(instances, inst)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return instances, nil
 }
 
@@ -319,6 +328,12 @@ func (r *GormRepository) ClaimDueRules(ctx context.Context, now time.Time, batch
 			return nil, err
 		}
 		rules = append(rules, rule)
+	}
+	// 这些行在上面的 UPDATE ... RETURNING 里已经 claim 掉了。若这里静默返回部分
+	// 结果，未返回的那部分会一直被 claim 到 claimExpiry 过期才被重新拾起——
+	// 表现为"漏评一轮且没有任何错误信号"。
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return rules, nil
 }

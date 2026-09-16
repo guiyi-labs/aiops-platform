@@ -49,6 +49,24 @@ diagnosis with case memory, surfaced through a zero-setup CLI.
 > 注：本区块已合并此前散落的多个重复 `[Unreleased]` 小节（M102–P2a 时代各里程碑曾各自追加小节头）。
 > 各条目对应里程碑的实际发布载体以 git tag 为准（v0.3.0-rc.* 系列先于 v0.1.0 stable 切出，故本区块保留在 [0.1.0] 之后）。
 
+### Audited - 全仓 GORM 子句静默失效扫描：确认为单点疏漏
+
+- 承接上一条修复，回答「同类缺陷还有多少处」。用 `go/parser` AST 扫描器扫全仓
+  **342 个非测试 + 280 个测试** `.go` 文件，三段检查均为 **0 命中**：
+  A 终结方法之后挂子句、B 写库链上带 `Limit`/`Offset`/`Order`、C 变量中转的先 `Limit` 后 `Delete`。
+- 同仓库 `internal/metricshistory` 的 `DeleteExpired` **一直是正确的**（CTE + 子查询）——
+  正确范式已存在，故这是「复制时漏抄约束」的单点疏漏，不是系统性模式。
+- 顺带实测确认方言边界（sqlmock 捕获真实语句）：`DELETE`/`UPDATE` 上的
+  `Limit`/`Offset`/`Order` **一律被 Postgres 方言丢弃且与链序无关**；
+  `SELECT` 上的 `Limit` 正常生效；无 `Where` 的 `Delete` 已被
+  `ErrMissingWhereClause` 拦住。
+- 手写 SQL 另行人工排查（9 处 `DELETE FROM`、15 处 `UPDATE ... SET`）：
+  唯一无批量上限的是 `internal/aiexplain` 的 `Reserve`，**判定为有意设计、不改**——
+  该处接口无 `batchSize` 契约，且紧随其后的预算检查
+  `SUM(reserved_tokens)` 未按 `expires_at` 过滤，依赖删除的完整性；加上限会导致误报预算超限。
+- **本次零代码改动**，不产生新锚点。详见
+  `docs/changes/2026-09-16-gorm-clause-silent-failure-scan.md`。
+
 ### Fixed - signal.DeleteExpired 的无界删除：batchSize 被静默忽略
 
 - `internal/signal` 的 `GormRepository.DeleteExpired` 里

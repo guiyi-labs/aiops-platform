@@ -108,8 +108,8 @@ result := r.db.WithContext(ctx).Exec(`WITH expired AS (
   而此前会一次删光。调用方 `signal.Service.Cleanup` 需要**多次调用**才能清完积压
   （每次最多 `retentionBatch` 行）。这是接口契约本来的意图，但值得知晓。
 - **单点疏漏，非普遍问题**：`metricshistory` 的同类方法一直是对的。
-  未做全仓同类扫描——若后续要查，搜索模式是
-  `Delete(` 之后链式调用 `Limit(`/`Offset(`/`Order(`/`Select(`。
+  全仓同类扫描**已于同日完成**（`docs/changes/2026-09-16-gorm-clause-silent-failure-scan.md`）：
+  非测试 342 + 测试 280 个 `.go` 文件，三段检查均 **0 命中**，确认本处为单点疏漏。
 - **口径提醒**：覆盖率数字与本次修复无关（修复未改变覆盖率），
   仍以 `b159c31` 为覆盖率锚点。
 - 该修复位于 `b159c31` **之后**，故锚点 `b159c31` 与 `baseline-coverage-t1-20260915`

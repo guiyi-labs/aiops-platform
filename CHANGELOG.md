@@ -15,6 +15,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ### Fixed
 - `mcpserver` 测试 `TestInputSchemaIsStableAcrossCalls` 的自比断言（staticcheck SA4000），全仓 lint 归零。
+- `DiagnosesView.vue` 移除未使用声明（`evidenceHeadline` 函数与两处 `v-for` 的 `ei` 索引），修复 `pnpm build`（vue-tsc 严格模式）TS6133 导致的镜像构建失败。
 
 ## [0.1.0] - 2026-08-16
 

@@ -103,14 +103,6 @@ function formatTimestamp(raw: unknown): string {
   return Number.isNaN(date.getTime()) ? raw : new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'medium' }).format(date)
 }
 
-function evidenceHeadline(item: DiagnosisRecord['evidence'][number]): string {
-  const content = item.content
-  if (!content || typeof content !== 'object') return item.source
-  const first = Object.entries(content)[0]
-  if (!first) return item.source
-  return `${formatEvidenceValue(first[1])}`
-}
-
 async function loadRecords() {
   loading.value = true; errorMessage.value = ''
   try { records.value = (await listDiagnoses(auth.accessToken, { clusterID: selectedClusterID.value || undefined, status: statusFilter.value, overdue: overdueOnly.value ? true : undefined })).items }
@@ -458,7 +450,7 @@ onMounted(initialize)
         </article>
         <details class="raw-evidence">
           <summary>原始证据（{{ detail.evidence.length }} 条 · 可追溯）</summary>
-          <article v-for="(item, ei) in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card">
+          <article v-for="item in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card">
             <header class="evidence-card-head">
               <span class="evidence-type">{{ item.type }}</span>
               <code class="evidence-source">{{ item.source }}</code>
@@ -480,7 +472,7 @@ onMounted(initialize)
       </section>
       <template v-else>
         <h3>持久化证据 · {{ detail.evidence.length }}</h3>
-        <article v-for="(item, ei) in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card">
+        <article v-for="item in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card">
           <header class="evidence-card-head">
             <span class="evidence-type">{{ item.type }}</span>
             <code class="evidence-source">{{ item.source }}</code>

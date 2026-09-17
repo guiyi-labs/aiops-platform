@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Milestones are released as git tags of the form `baseline-mNN-YYYYMMDD`.
 Detailed change records for each milestone live under `docs/changes/`.
 
+## [Unreleased]
+
+### Changed
+- **Web console**: 诊断详情证据改为结构化标签渲染；侧边栏标签更新为「Kubernetes AIOps 平台」。
+- **Build**: `compose.yaml` 增加本地镜像标签以兼容离线构建；前端镜像构建忽略 `.env*`。
+
+### Fixed
+- `mcpserver` 测试 `TestInputSchemaIsStableAcrossCalls` 的自比断言（staticcheck SA4000），全仓 lint 归零。
+
 ## [0.1.0] - 2026-08-16
 
 First public release of the AIOps platform — deterministic Kubernetes fault

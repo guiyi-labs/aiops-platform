@@ -71,6 +71,46 @@ function slaLabel(record: DiagnosisRecord): string {
   return milliseconds < 0 ? `已逾期 ${duration}` : `剩余 ${duration}`
 }
 
+// ─── 证据内容结构化展示 ───
+// 把 evidence.content 的扁平键值对渲染为标签式清单；嵌套对象/数组递归展开。
+// 时间戳字段单独格式化；长文本截断并保留可展开。
+const EVIDENCE_TIMESTAMP_KEYS = new Set(['first_timestamp', 'last_timestamp', 'observed_at', 'occurred_at', 'started_at', 'finished_at', 'created_at', 'last_transition_time'])
+
+function isTimestampField(key: string): boolean { return EVIDENCE_TIMESTAMP_KEYS.has(key) }
+
+function formatEvidenceValue(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'boolean') return value ? '是' : '否'
+  if (typeof value === 'number') return String(value)
+  if (typeof value === 'object') {
+    try { return JSON.stringify(value) } catch { return String(value) }
+  }
+  return String(value)
+}
+
+function evidenceEntries(record: Record<string, unknown>): { key: string; value: string; isTimestamp: boolean; isObject: boolean }[] {
+  return Object.entries(record).map(([key, raw]) => ({
+    key,
+    value: isTimestampField(key) ? formatTimestamp(raw) : formatEvidenceValue(raw),
+    isTimestamp: isTimestampField(key),
+    isObject: typeof raw === 'object' && raw !== null,
+  }))
+}
+
+function formatTimestamp(raw: unknown): string {
+  if (typeof raw !== 'string' || !raw) return '—'
+  const date = new Date(raw)
+  return Number.isNaN(date.getTime()) ? raw : new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'medium' }).format(date)
+}
+
+function evidenceHeadline(item: DiagnosisRecord['evidence'][number]): string {
+  const content = item.content
+  if (!content || typeof content !== 'object') return item.source
+  const first = Object.entries(content)[0]
+  if (!first) return item.source
+  return `${formatEvidenceValue(first[1])}`
+}
+
 async function loadRecords() {
   loading.value = true; errorMessage.value = ''
   try { records.value = (await listDiagnoses(auth.accessToken, { clusterID: selectedClusterID.value || undefined, status: statusFilter.value, overdue: overdueOnly.value ? true : undefined })).items }
@@ -417,13 +457,44 @@ onMounted(initialize)
           <time>{{ item.occurred_at ? formatTime(item.occurred_at) : '时间未知' }}</time>
         </article>
         <details class="raw-evidence">
-          <summary>原始证据 JSON（可追溯）</summary>
-          <article v-for="item in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card"><strong>{{ item.type }} · {{ item.source }}</strong><pre>{{ JSON.stringify(item.content, null, 2) }}</pre></article>
+          <summary>原始证据（{{ detail.evidence.length }} 条 · 可追溯）</summary>
+          <article v-for="(item, ei) in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card">
+            <header class="evidence-card-head">
+              <span class="evidence-type">{{ item.type }}</span>
+              <code class="evidence-source">{{ item.source }}</code>
+            </header>
+            <template v-if="item.content && typeof item.content === 'object'">
+              <dl class="evidence-fields">
+                <template v-for="entry in evidenceEntries(item.content as Record<string, unknown>)" :key="entry.key">
+                  <dt>{{ entry.key }}</dt>
+                  <dd :class="{ 'is-timestamp': entry.isTimestamp }">{{ entry.value }}<span v-if="entry.isObject">（结构化）</span></dd>
+                </template>
+              </dl>
+            </template>
+            <details v-else class="evidence-raw-collapse">
+              <summary>查看原始内容</summary>
+              <pre>{{ JSON.stringify(item.content, null, 2) }}</pre>
+            </details>
+          </article>
         </details>
       </section>
       <template v-else>
         <h3>持久化证据 · {{ detail.evidence.length }}</h3>
-        <article v-for="item in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card"><strong>{{ item.type }} · {{ item.source }}</strong><pre>{{ JSON.stringify(item.content, null, 2) }}</pre></article>
+        <article v-for="(item, ei) in detail.evidence" :key="`${item.type}-${item.source}`" class="evidence-card">
+          <header class="evidence-card-head">
+            <span class="evidence-type">{{ item.type }}</span>
+            <code class="evidence-source">{{ item.source }}</code>
+          </header>
+          <template v-if="item.content && typeof item.content === 'object'">
+            <dl class="evidence-fields">
+              <template v-for="entry in evidenceEntries(item.content as Record<string, unknown>)" :key="entry.key">
+                <dt>{{ entry.key }}</dt>
+                <dd :class="{ 'is-timestamp': entry.isTimestamp }">{{ entry.value }}</dd>
+              </template>
+            </dl>
+          </template>
+          <pre v-else>{{ JSON.stringify(item.content, null, 2) }}</pre>
+        </article>
       </template>
       <section class="workflow-timeline"><h3>处置记录 · {{ detail.activities?.length ?? 0 }}</h3><article v-for="item in detail.activities" :key="item.id"><span>{{ item.from_status }} → {{ item.to_status }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article><p v-if="!detail.activities?.length" class="compact-empty">尚未开始人工处置</p></section>
       <section class="assignment-history"><h3>转派记录 · {{ detail.assignments?.length ?? 0 }}</h3><article v-for="item in detail.assignments" :key="item.id"><span>{{ item.from_assignee?.name || '未分配' }} → {{ item.to_assignee.name }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article><p v-if="!detail.assignments?.length" class="compact-empty">暂无负责人转派</p></section>
@@ -431,3 +502,69 @@ onMounted(initialize)
     </section></div>
   </ConsoleLayout>
 </template>
+
+<style scoped>
+.evidence-card {
+  display: block;
+}
+.evidence-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.evidence-type {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--gray-1, #f1f1f1);
+  color: var(--text-secondary, #444);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+.evidence-source {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--text-tertiary, #888);
+  overflow-wrap: anywhere;
+}
+.evidence-fields {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+}
+.evidence-fields dt {
+  color: var(--text-secondary, #555);
+  font-size: 12px;
+  font-weight: 500;
+}
+.evidence-fields dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-primary, #222);
+  overflow-wrap: anywhere;
+}
+.evidence-fields dd.is-timestamp {
+  color: var(--text-tertiary, #888);
+}
+.evidence-raw-collapse {
+  margin-top: 8px;
+}
+.evidence-raw-collapse summary {
+  font-size: 12px;
+  color: var(--text-tertiary, #888);
+  cursor: pointer;
+}
+.evidence-raw-collapse pre {
+  max-height: 240px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+}
+</style>

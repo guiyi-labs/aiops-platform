@@ -20,6 +20,7 @@ services:
     restart: unless-stopped
 
   backend:
+    image: k8s-aiops-backend:latest
     build:
       context: ./backend
       args:
@@ -81,6 +82,7 @@ services:
     restart: unless-stopped
 
   frontend:
+    image: k8s-aiops-frontend:latest
     build:
       context: ./frontend
     ports:

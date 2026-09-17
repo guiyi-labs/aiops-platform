@@ -93,7 +93,9 @@ func TestInputSchemaMarksRequiredArguments(t *testing.T) {
 // The schema is published to clients that cache it, so it has to be byte-stable.
 func TestInputSchemaIsStableAcrossCalls(t *testing.T) {
 	tool := DefaultTools()[0]
-	if string(tool.inputSchema()) != string(tool.inputSchema()) {
-		t.Fatal("inputSchema is not deterministic")
+	first := string(tool.inputSchema())
+	second := string(tool.inputSchema())
+	if first != second {
+		t.Fatal("inputSchema is not deterministic across calls")
 	}
 }

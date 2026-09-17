@@ -306,7 +306,7 @@ async function navigate(path: string) {
       </div>
       <div class="workspace-selector">
         <span class="environment-dot" />
-        <div><strong>本地开发环境</strong><span>API connected</span></div>
+        <div><strong>Kubernetes AIOps 平台</strong><span>API connected</span></div>
         <ChevronRight :size="14" />
       </div>
       <nav class="navigation" aria-label="主导航">

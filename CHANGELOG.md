@@ -13,6 +13,9 @@ Detailed change records for each milestone live under `docs/changes/`.
 - **Web console**: 诊断详情证据改为结构化标签渲染；侧边栏标签更新为「Kubernetes AIOps 平台」。
 - **Build**: `compose.yaml` 增加本地镜像标签以兼容离线构建；前端镜像构建忽略 `.env*`。
 
+### Added
+- `internal/cluster` 新增 hermetic 单元测试：覆盖集群注册（Create）、连接探测（Probe 成功/失败条件更新）、凭证访问拦截（Access）、kubeconfig 解析错误分支与 `insecure-skip-tls-verify` 断言；包语句覆盖率 47.8% → 57.5%。
+
 ### Fixed
 - `mcpserver` 测试 `TestInputSchemaIsStableAcrossCalls` 的自比断言（staticcheck SA4000），全仓 lint 归零。
 - `DiagnosesView.vue` 移除未使用声明（`evidenceHeadline` 函数与两处 `v-for` 的 `ei` 索引），修复 `pnpm build`（vue-tsc 严格模式）TS6133 导致的镜像构建失败。

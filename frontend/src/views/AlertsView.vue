@@ -195,181 +195,308 @@ onMounted(() => loadClusters())
 <template>
   <ConsoleLayout eyebrow="分析与治理" title="告警规则">
     <div class="alert-view">
-      <div class="alert-header">
+      <header class="alert-header">
         <div class="alert-title">
           <Bell :size="24" />
-          <h2>告警规则</h2>
+          <div>
+            <h2>告警规则</h2>
+            <p class="alert-sub">节点级指标阈值告警 · 持续时间 + 最少采样点双约束 · 可提升为事故工作区</p>
+          </div>
         </div>
         <div class="alert-actions">
-          <el-select v-model="selectedClusterID" placeholder="选择集群" style="width: 200px">
-            <el-option v-for="c in clusters" :key="c.id" :label="c.name" :value="c.id" />
-          </el-select>
-          <el-select v-model="stateFilter" placeholder="告警状态" style="width: 130px" clearable @change="loadInstances">
-            <el-option label="触发中" value="firing" />
-            <el-option label="已恢复" value="resolved" />
-          </el-select>
-          <el-button :icon="RefreshCw" circle @click="refresh" :loading="loading" />
-          <el-button v-if="canManage" type="primary" :icon="Plus" @click="showCreateDialog = true">创建规则</el-button>
+          <select v-model.number="selectedClusterID" aria-label="选择集群">
+            <option v-for="c in clusters" :key="c.id" :value="c.id">{{ c.name }}</option>
+          </select>
+          <select v-model="stateFilter" aria-label="告警状态" @change="loadInstances">
+            <option value="">全部状态</option>
+            <option value="firing">触发中</option>
+            <option value="resolved">已恢复</option>
+          </select>
+          <button class="icon-button" type="button" title="刷新" aria-label="刷新" :disabled="loading" @click="refresh">
+            <RefreshCw :size="16" />
+          </button>
+          <button v-if="canManage" class="primary-button" type="button" @click="showCreateDialog = true">
+            <Plus :size="15" /> 创建规则
+          </button>
         </div>
-      </div>
+      </header>
 
-      <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon closable @close="errorMessage = ''" />
-      <el-alert v-if="noticeMessage" :title="noticeMessage" type="success" show-icon closable style="margin-bottom: 12px" @close="noticeMessage = ''" />
+      <p v-if="errorMessage" class="alert-banner is-error">{{ errorMessage }}</p>
+      <p v-if="noticeMessage" class="alert-banner is-success">{{ noticeMessage }}</p>
 
-      <h3>告警规则</h3>
-      <el-table :data="rules" v-loading="loading" stripe empty-text="暂无告警规则">
-        <el-table-column prop="display_name" label="名称" min-width="140" />
-        <el-table-column prop="resource_name" label="节点" min-width="120" />
-        <el-table-column label="指标" width="80">
-          <template #default="{ row }">{{ metricLabel(row.metric_name) }}</template>
-        </el-table-column>
-        <el-table-column label="条件" width="180">
-          <template #default="{ row }">{{ operatorLabel(row.operator) }} {{ thresholdLabel(row) }} 持续 {{ row.for_seconds }}s</template>
-        </el-table-column>
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.enabled ? 'success' : 'info'" size="small">{{ row.enabled ? '启用' : '禁用' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="评估状态" width="110">
-          <template #default="{ row }">
-            <el-tag v-if="row.last_evaluation_state" :type="evalStateType(row.last_evaluation_state)" size="small">{{ evalStateLabel(row.last_evaluation_state) }}</el-tag>
-            <span v-else>-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
-          <template #default="{ row }">
-            <el-button v-if="canManage" :icon="row.enabled ? BellOff : Bell" circle size="small" @click="toggleEnabled(row)" :title="row.enabled ? '禁用' : '启用'" />
-            <el-button v-if="canManage" :icon="Trash2" circle size="small" type="danger" @click="handleDelete(row)" title="删除" />
-          </template>
-        </el-table-column>
-      </el-table>
+      <section class="alert-panel">
+        <div class="panel-heading">
+          <h3>规则列表</h3>
+          <span class="panel-count">{{ rules.length }} 条</span>
+        </div>
+        <div class="alert-table-scroll">
+          <table class="compact-table">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>节点</th>
+                <th>指标</th>
+                <th>条件</th>
+                <th>启用</th>
+                <th>评估状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="rule in rules" :key="rule.id">
+                <td><strong>{{ rule.display_name }}</strong></td>
+                <td class="mono">{{ rule.resource_name }}</td>
+                <td>{{ metricLabel(rule.metric_name) }}</td>
+                <td>
+                  <span class="mono">{{ operatorLabel(rule.operator) }} {{ thresholdLabel(rule) }}</span>
+                  <span class="muted-extra">持续 {{ rule.for_seconds }}s · ≥{{ rule.minimum_points }} 点</span>
+                </td>
+                <td>
+                  <span class="alert-badge" :class="rule.enabled ? 'is-success' : 'is-muted'">{{ rule.enabled ? '启用' : '禁用' }}</span>
+                </td>
+                <td>
+                  <span v-if="rule.last_evaluation_state" class="alert-badge" :class="'is-' + evalStateType(rule.last_evaluation_state)">
+                    {{ evalStateLabel(rule.last_evaluation_state) }}
+                  </span>
+                  <span v-else class="muted-extra">-</span>
+                </td>
+                <td>
+                  <button
+                    v-if="canManage"
+                    class="icon-button compact"
+                    type="button"
+                    :title="rule.enabled ? '禁用' : '启用'"
+                    :aria-label="rule.enabled ? '禁用' : '启用'"
+                    @click="toggleEnabled(rule)"
+                  >
+                    <BellOff v-if="rule.enabled" :size="14" />
+                    <Bell v-else :size="14" />
+                  </button>
+                  <button
+                    v-if="canManage"
+                    class="icon-button compact is-danger"
+                    type="button"
+                    title="删除"
+                    aria-label="删除"
+                    @click="handleDelete(rule)"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!loading && rules.length === 0">
+                <td colspan="7">
+                  <div class="resource-empty">
+                    <Bell :size="28" />
+                    <strong>暂无告警规则</strong>
+                    <span>创建节点级 CPU / 内存阈值规则后，评估结果会显示在这一列。</span>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="loading">
+                <td colspan="7" class="loading-row">加载中…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <div class="noise-panel" v-loading="overviewLoading">
-        <div class="noise-panel-heading">
+      <section class="alert-panel">
+        <div class="panel-heading">
           <div>
             <h3>告警降噪 · 规则维度聚合</h3>
-            <span class="noise-panel-sub">按规则折叠重复实例 · 有界窗口 · 关联 correlation 案例深链</span>
+            <p class="alert-sub">按规则折叠重复实例 · 有界窗口 · 关联 correlation 案例深链</p>
           </div>
-          <div class="noise-panel-controls">
-            <el-select v-model="overviewWindowMinutes" style="width: 120px" @change="loadOverview">
-              <el-option label="1 小时" :value="60" />
-              <el-option label="6 小时" :value="360" />
-              <el-option label="24 小时" :value="1440" />
-              <el-option label="7 天" :value="10080" />
-            </el-select>
-          </div>
+          <select v-model.number="overviewWindowMinutes" aria-label="聚合窗口" @change="loadOverview">
+            <option :value="60">1 小时</option>
+            <option :value="360">6 小时</option>
+            <option :value="1440">24 小时</option>
+            <option :value="10080">7 天</option>
+          </select>
         </div>
 
-        <el-alert v-if="overview?.fail_closed" :title="overview?.empty_note ?? '窗口内没有告警'" type="warning" show-icon :closable="false" style="margin: 12px 0" />
+        <p v-if="overview?.fail_closed" class="alert-banner is-warning">{{ overview?.empty_note ?? '窗口内没有告警' }}</p>
         <template v-else-if="overview">
           <div class="noise-stats">
             <div class="noise-stat"><span>聚合组</span><strong>{{ overview.groups_total }}</strong></div>
-            <div class="noise-stat"><span>触发中</span><strong class="danger-text">{{ overview.total_firing }}</strong></div>
+            <div class="noise-stat"><span>触发中</span><strong class="is-danger-text">{{ overview.total_firing }}</strong></div>
             <div class="noise-stat"><span>已恢复</span><strong>{{ overview.total_resolved }}</strong></div>
-            <div class="noise-stat"><span>关联案例</span><strong>{{ overview.groups.reduce((acc, g) => acc + (g.related_case_ids?.length ?? 0), 0) }}</strong></div>
+            <div class="noise-stat">
+              <span>关联案例</span>
+              <strong>{{ overview.groups.reduce((acc, g) => acc + (g.related_case_ids?.length ?? 0), 0) }}</strong>
+            </div>
           </div>
-          <el-table :data="overview.groups" stripe size="small" empty-text="窗口内无告警">
-            <el-table-column label="规则" min-width="150">
-              <template #default="{ row }"><strong>{{ row.display_name }}</strong><span class="noise-muted"> · {{ row.metric_name }}</span></template>
-            </el-table-column>
-            <el-table-column label="资源" min-width="130">
-              <template #default="{ row }">{{ row.resource_kind }}/{{ row.resource_name }}</template>
-            </el-table-column>
-            <el-table-column label="触发/恢复" width="110">
-              <template #default="{ row }"><el-tag :type="overviewSeverityType(row)" size="small">{{ row.firing_count }}</el-tag> / {{ row.resolved_count }}</template>
-            </el-table-column>
-            <el-table-column label="首次触发" width="160">
-              <template #default="{ row }">{{ formatTime(row.first_fired_at) }}</template>
-            </el-table-column>
-            <el-table-column label="最近触发" width="160">
-              <template #default="{ row }">{{ formatTime(row.last_fired_at) }}</template>
-            </el-table-column>
-            <el-table-column label="关联案例" width="130">
-              <template #default="{ row }">
-                <template v-if="row.related_case_ids?.length">
-                  <el-tag v-for="caseID in row.related_case_ids" :key="caseID" type="warning" size="small" style="margin-right: 4px">
-                    <a :href="`/correlation?case=${caseID}`" @click.prevent="$router.push(`/correlation?case=${caseID}`)">#{{ caseID }}</a>
-                  </el-tag>
-                </template>
-                <span v-else class="noise-muted">-</span>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div class="alert-table-scroll">
+            <table class="compact-table">
+              <thead>
+                <tr>
+                  <th>规则</th>
+                  <th>资源</th>
+                  <th>触发 / 恢复</th>
+                  <th>首次触发</th>
+                  <th>最近触发</th>
+                  <th>关联案例</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="group in overview.groups" :key="group.rule_id">
+                  <td>
+                    <strong>{{ group.display_name }}</strong>
+                    <span class="muted-extra">{{ group.metric_name }}</span>
+                  </td>
+                  <td class="mono">{{ group.resource_kind }}/{{ group.resource_name }}</td>
+                  <td>
+                    <span class="alert-badge" :class="'is-' + overviewSeverityType(group)">{{ group.firing_count }}</span>
+                    / {{ group.resolved_count }}
+                  </td>
+                  <td>{{ formatTime(group.first_fired_at) }}</td>
+                  <td>{{ formatTime(group.last_fired_at) }}</td>
+                  <td>
+                    <template v-if="group.related_case_ids?.length">
+                      <button
+                        v-for="caseID in group.related_case_ids"
+                        :key="caseID"
+                        class="case-chip"
+                        type="button"
+                        @click="$router.push(`/aiops/correlation?case=${caseID}`)"
+                      >
+                        #{{ caseID }}
+                      </button>
+                    </template>
+                    <span v-else class="muted-extra">-</span>
+                  </td>
+                </tr>
+                <tr v-if="overview.groups.length === 0">
+                  <td colspan="6"><div class="resource-empty"><span>窗口内无告警</span></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </template>
-        <el-empty v-else-if="!overviewLoading" description="暂无聚合数据" :image-size="60" />
+        <div v-else-if="!overviewLoading" class="resource-empty">
+          <span>暂无聚合数据</span>
+        </div>
+      </section>
+
+      <section class="alert-panel">
+        <div class="panel-heading">
+          <h3>告警实例</h3>
+          <span class="panel-count">{{ instances.length }} 条</span>
+        </div>
+        <div class="alert-table-scroll">
+          <table class="compact-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>规则</th>
+                <th>关联诊断</th>
+                <th>状态</th>
+                <th>首次触发</th>
+                <th>最近触发</th>
+                <th>恢复时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="inst in instances" :key="inst.id">
+                <td class="mono">#{{ inst.id }}</td>
+                <td>{{ rules.find(r => r.id === inst.rule_id)?.display_name ?? `规则 ${inst.rule_id}` }}</td>
+                <td>
+                  <button class="link-button" type="button" @click="$router.push(`/diagnoses?detail=${inst.diagnosis_id}`)">
+                    #{{ inst.diagnosis_id }}
+                  </button>
+                </td>
+                <td>
+                  <span class="alert-badge" :class="inst.state === 'firing' ? 'is-danger' : 'is-success'">
+                    {{ inst.state === 'firing' ? '触发中' : '已恢复' }}
+                  </span>
+                </td>
+                <td>{{ formatTime(inst.first_fired_at) }}</td>
+                <td>{{ formatTime(inst.last_fired_at) }}</td>
+                <td>{{ inst.resolved_at ? formatTime(inst.resolved_at) : '-' }}</td>
+                <td>
+                  <button
+                    v-if="canManage && inst.state === 'firing'"
+                    class="icon-button compact"
+                    type="button"
+                    title="创建事故工作区"
+                    aria-label="创建事故工作区"
+                    @click="promoteToIncident(inst)"
+                  >
+                    <FilePlus2 :size="14" />
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="instances.length === 0">
+                <td colspan="8">
+                  <div class="resource-empty">
+                    <span>当前筛选条件下没有告警实例</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div v-if="showCreateDialog" class="alert-overlay" @click.self="showCreateDialog = false">
+        <section class="alert-dialog">
+          <header>
+            <div>
+              <p class="context-label">NEW ALERT RULE</p>
+              <h2>创建告警规则</h2>
+            </div>
+            <button class="icon-button" type="button" aria-label="关闭" @click="showCreateDialog = false">×</button>
+          </header>
+
+          <label class="form-field">
+            <span>规则名称</span>
+            <input v-model="newRule.display_name" type="text" maxlength="128" placeholder="例：node01 CPU 持续高水位" />
+          </label>
+          <label class="form-field">
+            <span>节点名称</span>
+            <input v-model="newRule.resource_name" type="text" maxlength="253" placeholder="例：k8s-node01" />
+          </label>
+          <div class="form-row">
+            <label class="form-field">
+              <span>指标</span>
+              <select v-model="newRule.metric_name">
+                <option value="cpu">CPU</option>
+                <option value="memory">内存</option>
+              </select>
+            </label>
+            <label class="form-field">
+              <span>运算符</span>
+              <select v-model="newRule.operator">
+                <option value="gte">&gt;=</option>
+                <option value="lte">&lt;=</option>
+              </select>
+            </label>
+          </div>
+          <label class="form-field">
+            <span>阈值（纳核 / 字节）</span>
+            <input v-model.number="newRule.threshold" type="number" min="0" step="1000000000" />
+            <small>CPU: nanocores（1 核 = 1,000,000,000）；内存: bytes（1 GiB = 1,073,741,824）</small>
+          </label>
+          <div class="form-row">
+            <label class="form-field">
+              <span>持续时间（秒）</span>
+              <input v-model.number="newRule.for_seconds" type="number" min="60" max="21600" step="60" />
+            </label>
+            <label class="form-field">
+              <span>最少采样点</span>
+              <input v-model.number="newRule.minimum_points" type="number" min="2" max="360" step="1" />
+            </label>
+          </div>
+
+          <footer>
+            <button class="secondary-button" type="button" @click="showCreateDialog = false">取消</button>
+            <button class="primary-button" type="button" :disabled="!newRule.display_name || !newRule.resource_name" @click="handleCreate">
+              创建
+            </button>
+          </footer>
+        </section>
       </div>
-
-      <h3 style="margin-top: 24px">告警实例</h3>
-      <el-table :data="instances" stripe empty-text="暂无告警实例">
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column label="规则" min-width="120">
-          <template #default="{ row }">
-            {{ rules.find(r => r.id === row.rule_id)?.display_name ?? `规则 ${row.rule_id}` }}
-          </template>
-        </el-table-column>
-        <el-table-column label="关联诊断" width="100">
-          <template #default="{ row }">
-            <a :href="`/diagnoses?detail=${row.diagnosis_id}`" @click.prevent="$router.push(`/diagnoses?detail=${row.diagnosis_id}`)">#{{ row.diagnosis_id }}</a>
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.state === 'firing' ? 'danger' : 'success'" size="small">{{ row.state === 'firing' ? '触发中' : '已恢复' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="首次触发" width="160">
-          <template #default="{ row }">{{ formatTime(row.first_fired_at) }}</template>
-        </el-table-column>
-        <el-table-column label="最近触发" width="160">
-          <template #default="{ row }">{{ formatTime(row.last_fired_at) }}</template>
-        </el-table-column>
-        <el-table-column label="恢复时间" width="160">
-          <template #default="{ row }">{{ row.resolved_at ? formatTime(row.resolved_at) : '-' }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
-          <template #default="{ row }">
-            <el-button v-if="canManage && row.state === 'firing'" :icon="FilePlus2" circle size="small" type="primary" @click="promoteToIncident(row)" title="创建事故工作区" />
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-dialog v-model="showCreateDialog" title="创建告警规则" width="520px" destroy-on-close>
-        <el-form label-width="100px" :model="newRule">
-          <el-form-item label="规则名称" required>
-            <el-input v-model="newRule.display_name" placeholder="例: High CPU Alert" maxlength="128" />
-          </el-form-item>
-          <el-form-item label="节点名称" required>
-            <el-input v-model="newRule.resource_name" placeholder="例: worker-01" maxlength="253" />
-          </el-form-item>
-          <el-form-item label="指标" required>
-            <el-select v-model="newRule.metric_name" style="width: 100%">
-              <el-option label="CPU" value="cpu" />
-              <el-option label="内存" value="memory" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="运算符" required>
-            <el-select v-model="newRule.operator" style="width: 100%">
-              <el-option label=">=" value="gte" />
-              <el-option label="<=" value="lte" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="阈值" required>
-            <el-input-number v-model="newRule.threshold" :min="0" :step="1000000000" style="width: 100%" />
-            <div class="form-hint">CPU: nanocores (1核心 = 1,000,000,000); 内存: bytes (1GiB = 1,073,741,824)</div>
-          </el-form-item>
-          <el-form-item label="持续时间(秒)" required>
-            <el-input-number v-model="newRule.for_seconds" :min="60" :max="21600" :step="60" style="width: 100%" />
-          </el-form-item>
-          <el-form-item label="最少采样点" required>
-            <el-input-number v-model="newRule.minimum_points" :min="2" :max="360" :step="1" style="width: 100%" />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="showCreateDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleCreate" :disabled="!newRule.display_name || !newRule.resource_name">创建</el-button>
-        </template>
-      </el-dialog>
     </div>
   </ConsoleLayout>
 </template>
@@ -377,38 +504,226 @@ onMounted(() => loadClusters())
 <style scoped>
 .alert-view {
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
+
 .alert-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 20px;
+  gap: 16px;
   flex-wrap: wrap;
-  gap: 12px;
 }
+
 .alert-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
+
 .alert-title h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 18px;
+  color: var(--text-primary);
 }
+
+.alert-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
 .alert-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-h3 {
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  color: var(--el-text-color-primary);
+
+.alert-actions select,
+.alert-panel select,
+.form-field select {
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--gray-0);
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
 }
-.form-hint {
+
+.alert-panel {
+  padding: 16px 18px;
+  background: var(--gray-0);
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-heading h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.panel-count {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
+  color: var(--text-tertiary);
+}
+
+.alert-table-scroll {
+  overflow-x: auto;
+}
+
+.alert-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.alert-badge.is-danger { color: #b42318; background: #fef3f2; }
+.alert-badge.is-success { color: #067647; background: #ecfdf3; }
+.alert-badge.is-warning { color: #b54708; background: #fffaeb; }
+.alert-badge.is-info { color: #475467; background: var(--gray-100); }
+.alert-badge.is-muted { color: var(--text-tertiary); background: var(--gray-100); }
+
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.muted-extra { display: block; margin-top: 3px; font-size: 11px; color: var(--text-tertiary); }
+.loading-row { text-align: center; color: var(--text-tertiary); font-size: 12px; }
+
+.alert-banner {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+
+.alert-banner.is-error { color: #b42318; background: #fef3f2; border-color: #fecdca; }
+.alert-banner.is-success { color: #067647; background: #ecfdf3; border-color: #abefc6; }
+.alert-banner.is-warning { color: #b54708; background: #fffaeb; border-color: #fedf89; }
+
+.noise-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.noise-stat {
+  padding: 10px 12px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+}
+
+.noise-stat span { display: block; font-size: 11px; color: var(--text-tertiary); }
+.noise-stat strong { display: block; margin-top: 4px; font-size: 18px; color: var(--text-primary); }
+.is-danger-text { color: #b42318; }
+
+.case-chip {
+  margin-right: 4px;
+  padding: 1px 8px;
+  font-size: 11px;
+  color: #b54708;
+  background: #fffaeb;
+  border: 1px solid #fedf89;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.link-button {
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--brand-600);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.icon-button.is-danger { color: #b42318; }
+.icon-button.compact { width: 26px; height: 26px; }
+
+.alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(17, 24, 28, 0.45);
+}
+
+.alert-dialog {
+  width: min(520px, 100%);
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 20px 22px;
+  background: var(--gray-0);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.24);
+}
+
+.alert-dialog header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.alert-dialog h2 { margin: 4px 0 0; font-size: 17px; color: var(--text-primary); }
+
+.form-field {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.form-field > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.form-field input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--gray-0);
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+}
+
+.form-field small { display: block; margin-top: 6px; font-size: 11px; color: var(--text-tertiary); }
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.alert-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
 }
 </style>

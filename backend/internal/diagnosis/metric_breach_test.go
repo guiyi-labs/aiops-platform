@@ -101,8 +101,8 @@ func TestEvaluateSustainedMetricBreachMemorySeverity(t *testing.T) {
 	if !matched {
 		t.Fatal("rule should match memory firing")
 	}
-	if record.Severity != "medium" {
-		t.Fatalf("expected medium severity for memory, got %s", record.Severity)
+	if record.Severity != "high" {
+		t.Fatalf("expected high severity for memory, got %s", record.Severity)
 	}
 }
 

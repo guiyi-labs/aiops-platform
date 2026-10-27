@@ -9,6 +9,17 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed
+- **diagnosis**: `metricBreachSeverity` 对内存返回 `"medium"`，不在 `diagnosis_records_severity_check`
+  允许的 `info/warning/high/critical` 之内 → 内存类指标越界诊断无法落库，告警规则每 30 s 报一次
+  `SQLSTATE 23514` 并空转。改为 `high`（`default` 分支改为 `warning`），并修正把错误值固定为预期的单测断言
+  （见 `docs/changes/2026-10-27-metric-breach-severity.md`）。
+- **metrics history**: `metric_samples.resource_kind` 为 `VARCHAR(8)` 且 CHECK 只允许 `('Node','Pod')`，
+  而采集器自 M99-B 起写入 `Deployment`（10 字符）的 readiness 样本 → 每批插入整笔回滚，
+  指标历史长期为空，连带告警规则恒为 `insufficient_data`、SLO 恒为 `unavailable`、大盘历史趋势恒空白。
+  新增迁移 `000051` 放宽列宽至 `VARCHAR(32)` 并纳入 `Deployment` 形态与 `readiness_*`/`count` 指标
+  （见 `docs/changes/2026-10-27-metric-samples-kind-drift.md`）。
+
 ### Changed
 - **Web console**: 诊断详情证据改为结构化标签渲染；侧边栏标签更新为「Kubernetes AIOps 平台」。
 - **Build**: `compose.yaml` 增加本地镜像标签以兼容离线构建；前端镜像构建忽略 `.env*`。

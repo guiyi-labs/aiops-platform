@@ -71,9 +71,12 @@ func metricBreachSeverity(metric string, threshold int64, unit string) string {
 	case metricshistory.MetricCPU:
 		return "high"
 	case metricshistory.MetricMemory:
-		return "medium"
+		// 必须是 diagnosis 领域内的合法严重级（info/warning/high/critical）：
+		// diagnosis_records 有 CHECK 约束，此前的 "medium" 会让内存类越界诊断
+		// 在落库阶段被拒绝（SQLSTATE 23514），表现为告警规则空转 + 错误日志刷屏。
+		return "high"
 	default:
-		return "medium"
+		return "warning"
 	}
 }
 

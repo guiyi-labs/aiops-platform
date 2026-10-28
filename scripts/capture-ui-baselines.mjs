@@ -421,11 +421,18 @@ async function login(client) {
     await delay(800)
     return
   }
+  // 路由守卫在已登录时会把 /login 重定向走，而这个重定向发生在文档 load 之后。
+  // 若只等 #username，就会在「已登录、正在跳转」的窗口里超时，故改为等
+  // 「表单出现」或「已离开 /login」二者之一，再据此决定是否需要填表。
   await waitFor(
     client,
-    `document.querySelector('#username') && document.querySelector('#password')`,
-    'login form',
+    `!!(document.querySelector('#username') && document.querySelector('#password')) || location.pathname !== '/login'`,
+    'login form or authenticated redirect',
   )
+  if (await evaluate(client, `location.pathname !== '/login'`)) {
+    await delay(800)
+    return
+  }
   await evaluate(
     client,
     `(() => {

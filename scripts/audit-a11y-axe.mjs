@@ -19,10 +19,26 @@ const root = path.resolve(scriptDirectory, '..')
 const baseUrl = (process.env.AIOPS_UI_BASE || 'http://127.0.0.1:18080').replace(/\/$/, '')
 const username = process.env.AIOPS_UI_USERNAME || 'admin'
 const password = process.env.AIOPS_UI_PASSWORD || 'admin123'
-const AXE_SOURCE = fs.readFileSync(
-  path.join(root, 'frontend', 'node_modules', '.pnpm', 'axe-core@4.12.1', 'node_modules', 'axe-core', 'axe.min.js'),
-  'utf8',
-)
+// axe-core 的物理路径随 pnpm 布局与版本号变化（升级 @axe-core/playwright 会把
+// 嵌套版本从 4.12.1 换到 4.13.0）。此处动态解析，避免门禁因版本号写死而读不到文件。
+function resolveAxeSourcePath() {
+  const direct = path.join(root, 'frontend', 'node_modules', 'axe-core', 'axe.min.js')
+  if (fs.existsSync(direct)) return direct
+  const pnpmDir = path.join(root, 'frontend', 'node_modules', '.pnpm')
+  if (fs.existsSync(pnpmDir)) {
+    const candidates = fs
+      .readdirSync(pnpmDir)
+      .filter((dir) => dir.startsWith('axe-core@'))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+    for (const dir of candidates) {
+      const candidate = path.join(pnpmDir, dir, 'node_modules', 'axe-core', 'axe.min.js')
+      if (fs.existsSync(candidate)) return candidate
+    }
+  }
+  throw new Error('axe-core not found — run `pnpm install` in frontend/ first')
+}
+
+const AXE_SOURCE = fs.readFileSync(resolveAxeSourcePath(), 'utf8')
 
 const CHROME =
   process.env.AIOPS_BROWSER_PATH ||
@@ -177,7 +193,17 @@ async function login(client) {
     await delay(800)
     return
   }
-  await waitFor(client, `document.querySelector('#username') && document.querySelector('#password')`, 'login form')
+  // 已登录时路由守卫会在文档 load 之后把 /login 重定向走；只等 #username 会在
+  // 这个窗口里超时。改为等「表单出现」或「已离开 /login」二者之一。
+  await waitFor(
+    client,
+    `!!(document.querySelector('#username') && document.querySelector('#password')) || location.pathname !== '/login'`,
+    'login form or authenticated redirect',
+  )
+  if (await evaluate(client, `location.pathname !== '/login'`)) {
+    await delay(800)
+    return
+  }
   await evaluate(
     client,
     `(() => {

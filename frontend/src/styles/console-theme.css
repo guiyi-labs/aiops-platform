@@ -65,7 +65,7 @@
   /* Status colors */
   --status-success: #16a34a;
   --success-bg: #dcfce7;
-  --status-warning: #d97706;
+  --status-warning: #b45309;
   --warning-bg: #fef3c7;
   --status-danger: #b91c1c;
   --danger-bg: #fee2e2;
@@ -3510,9 +3510,17 @@ body,
 
   .nav-item {
     width: 44px;
+    /* 触摸目标 ≥44px（WCAG 2.5.5 / iOS HIG）；桌面轨道保持 38px 的密度 */
+    height: 44px;
     margin-inline: auto;
     padding: 0;
     justify-content: center;
+  }
+
+  /* 移动端轨道仅 64px、分组标签已隐藏；箭头继续渲染会变成孤立图标，
+     既是视觉噪声，也会让人误以为可点（实际该分支的点击被 sidebarCollapsed 短路） */
+  .nav-group-chevron {
+    display: none;
   }
 
   .pin-toggle {
@@ -3614,26 +3622,26 @@ body,
 
 /* ── Topbar: light theme ── */
 .theme-light .topbar {
-  color: #1a292e;
+  color: var(--gray-800);
   background: rgba(255, 255, 255, 0.97);
-  border-bottom: 1px solid #dce5e7;
+  border-bottom: 1px solid var(--border-subtle);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
-.theme-light .topbar h1 { color: #102126; }
-.theme-light .topbar .context-label { color: #607278; }
-.theme-light .topbar-user strong { color: #102126; }
-.theme-light .topbar-user span { color: #4a5d63; }
+.theme-light .topbar h1 { color: var(--text-primary); }
+.theme-light .topbar .context-label { color: var(--text-tertiary); }
+.theme-light .topbar-user strong { color: var(--text-primary); }
+.theme-light .topbar-user span { color: var(--text-secondary); }
 
 .theme-light .topbar .icon-button {
-  color: #4a5d63;
-  background: #f5f8f8;
-  border-color: #dce5e7;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-color: var(--border-subtle);
 }
 .theme-light .topbar .icon-button:hover {
-  color: #0f9588;
-  background: #e9fbf8;
-  border-color: #cff7f0;
+  color: var(--accent-primary);
+  background: var(--accent-subtle);
+  border-color: var(--accent-soft);
 }
 
 /* ── Main content: light theme ── */
@@ -3646,34 +3654,34 @@ body,
 .theme-light .cluster-card,
 .theme-light .panel,
 .theme-light .card {
-  color: #102126;
-  background: #ffffff;
-  border-color: #dce5e7;
+  color: var(--text-primary);
+  background: var(--gray-0);
+  border-color: var(--border-subtle);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .theme-light .cluster-form {
-  color: #102126;
-  background: #ffffff;
-  border-color: #dce5e7;
+  color: var(--text-primary);
+  background: var(--gray-0);
+  border-color: var(--border-subtle);
 }
 
-.theme-light .empty-state { color: #4a5d63; }
-.theme-light .empty-title { color: #102126; }
+.theme-light .empty-state { color: var(--text-secondary); }
+.theme-light .empty-title { color: var(--text-primary); }
 
 /* ── Tables: light theme ── */
 .theme-light .fleet-table th,
 .theme-light .compact-table th,
 .theme-light .global-search-table th,
 .theme-light .resource-table th {
-  color: #4a5d63;
-  background: #f5f8f8;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
 }
 .theme-light .fleet-table td,
 .theme-light .compact-table td,
 .theme-light .global-search-table td,
 .theme-light .resource-table td {
-  color: #102126;
+  color: var(--text-primary);
 }
 
 /* ── Status pills: light theme ── */
@@ -3689,9 +3697,9 @@ body,
 .theme-light .cluster-form input,
 .theme-light .cluster-form textarea,
 .theme-light .login-field input {
-  color: #102126;
-  background: #f5f8f8;
-  border-color: #bccacd;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border-color: var(--border-default);
 }
 
 /* Login page stays dark — brand identity */

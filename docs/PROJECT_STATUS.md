@@ -1,5 +1,37 @@
 # 项目进度与交接状态（Project Status & Handoff）
 
+## 2026-10-28 更新（请先读这一节；下方正文仍以 2026-08-13 为基线）
+
+| 项 | 当前值 |
+|---|---|
+| 最新提交 | `127a636`（本地，未推 origin） |
+| 运行版本 | `0.3.0-rc.6+144c569+mig51` |
+| 变更记录数 | **327 份**（下方「147 份」是 08-13 时点，未刷新） |
+| 数据库迁移 | 已到 `000051_widen_metric_resource_kind` |
+
+本轮修复的两个缺陷都是**代码与 schema 漂移**，且都已按规范补 change-record：
+
+1. `metric_samples.resource_kind` 为 `VARCHAR(8)` 且 CHECK 仅允许 `('Node','Pod')`，而采集器自 M99-B 起写入
+   `Deployment` 的 readiness 样本 → 每批插入整笔回滚，指标历史长期为空，连带告警规则恒 `insufficient_data`、
+   SLO 恒 `unavailable`、大盘历史趋势恒空白。见 `docs/changes/2026-10-27-metric-samples-kind-drift.md`。
+2. `metricBreachSeverity` 对内存返回 `"medium"`，不在 `diagnosis_records_severity_check` 的合法枚举内 →
+   内存类指标越界诊断无法落库（每 30 s 一条 `SQLSTATE 23514`）。**单测断言的正是该非法值**，CI 一直为绿。
+   见 `docs/changes/2026-10-27-metric-breach-severity.md`。
+
+同时重写了 `frontend/src/views/AlertsView.vue`：该页此前使用 `el-table` / `el-select` / `el-dialog`（70 处），
+但仓库**并无 element-plus 依赖**，标签被当作未知元素、作用域插槽收到 `undefined`，整页渲染中断。现已改用项目
+自有表格/下拉/弹窗写法，脚本逻辑未变。
+
+已知缺口（后续处理）：
+
+- 告警规则的 `for_seconds` **无修改接口**，只能删除重建；而存在未解除告警实例时删除会被拒（`409 UNRESOLVED_ALERT`）。
+  因此窗口配得过紧会导致规则在采集抖动时反复回落 `insufficient_data`。
+- `severity` 仍是裸字符串，与数据库 CHECK 各写一份；建议收敛为枚举常量并由同一处生成约束。
+
+> 下方 2026-08-13 的正文未逐段刷新。引用里程碑/规模/文档数量前，请以 `CHANGELOG.md` 与 `docs/changes/` 为准。
+
+---
+
 > 生成时间：2026-08-13 · 维护人：开发 Agent
 > 当前功能基线：M98/M99/M100 全部完成；M101 本地数据轨（WAL/PITR/备库/故障注入 8 场景）与 M89 身份轨本地预研（OIDC 登录 14 场景）、M102 本地轨道双全新环境安装演练（10/10）、跨 digest 升级/回滚（14/14）、第三环境备份恢复（16/16）、**可复现闭环演示（15/15）**、**最终交付文档（测试矩阵/已知限制/兼容范围/运维手册/安全声明）**与**离线安装包全链路演练（10/10，含可复用离线包发布）**、**M94 回放纳入演示闭环（17/17）并刷新 `v0.3.0-rc.5-replay` 离线包（10/10）**与 **rc.5-replay 双环境跨 digest 升级/回滚/备份恢复证据**、**回放浏览器通道 e2e 闭环（diagnosis-timeline 12/12、全量 e2e 68/68）**与 **离线包自包含化（迁移入包、不再依赖宿主机源码）**、**M103 告警→事故联动（demo-drill 告警提升事故 22/22，含后端富集/去重与前端入口）**、**M104 巡检结果→事故联动（demo-drill 巡检提升事故 28/28，含集群防泄漏与前端入口）**、**M105 信号归一化摄取 + 信号→事故联动（demo-drill 信号提升事故 32/32，含诊断 drain 接线与集群防泄漏）、**M106 本地体验重构（admin123 默认口令、登录全屏化、侧栏折叠基线、启用最新栈 v0.3.0-m106）**、**M107 事故协作闭环（证据时间线五源聚合+深链、SLA 提醒接入通知 webhook、批量指派、复盘叙事视图，含 incident 详情过滤与双端 E2E）**、**M108 关联归一（correlation 案例→事故提升：解析/防泄漏/严重级富集/去重 + 案例↔事故双向深链与关联事故回显 + 集群级信号关联段，demo-drill 41/41 全绿）**已归档，**M109 工程卓越收口（incident 关键旅程 E2E、覆盖率 60.9%→65.16% 并上调门禁至 65%、correlation/incident 状态机 fuzz 纳入 CI、Gate B 性能门禁 fail-closed 翻转、归档机械门禁落地）已封口**；**M110 RC 刷新（v0.3.0-rc.6）发布预检完成（本地 15 项全过，见 `docs/m110-release-preflight.md`），待用户授权 push RC tag 触发 Release**。M89/M90 组织授权轨保持 Deferred，版本保持 RC，不宣称 GA。
 

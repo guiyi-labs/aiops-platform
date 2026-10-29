@@ -100,6 +100,16 @@ TargetWhere: clause.Where{Exprs: []clause.Expression{
 `signals` 用的是普通唯一约束（可用）；`slo.InsertEvaluation`、correlation 与 alertroute 的
 写入是 `DoNothing: true` 且未指定列——Postgres 的无目标 `DO NOTHING` 不受部分索引影响。
 
+### 启动预热
+
+边表存的是「当前活跃关系」：进程重启后旧边已被关闭（`valid_to` 非空），不会重新出现在图里，
+于是重启之后图会变空，看起来像采集坏了。现在启动后 20 秒（等连接池与探活就绪）对每个
+已启用集群异步补采一次。只跑一次、失败只记日志、不阻塞启动，也不改变「靠显式触发刷新」
+的语义。
+
+实测（清空边表后重启）：`cluster 3 → 9 命名空间 / 119 边`、`cluster 2 → 6 命名空间 / 36 边`，
+边表由 0 恢复到 155 行，`partial=false`。
+
 ### 顺带修：拓扑完整性卡片读了三个不存在的字段
 
 前端 `GraphCompleteness` 写的是 `coverage` / `missing_producers` / `stale_edges`，

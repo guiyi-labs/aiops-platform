@@ -13,7 +13,8 @@ Detailed change records for each milestone live under `docs/changes/`.
 - **topology**: 装配采集器并新增 `POST /api/v1/aiops/topology/collect`（operator 及以上，
   写审计）。此前 `topology.NewService(nil, …)` 使边表恒空、图恒空；现在一次全集群采集
   写入 119 条关系（RunsOn/Owns/Selects/BackedBy/ProtectedBy）。控制台拓扑页加「采集拓扑」
-  按钮并展示「采到多少 / 写入多少 / 关闭多少陈旧关系」。
+  按钮并展示「采到多少 / 写入多少 / 关闭多少陈旧关系」。启动后异步对每个已启用集群补采
+  一次（边表只存活跃关系，重启后会变空），实测 cluster 3 → 119 边、cluster 2 → 36 边。
 - **settings**: 保存校验新增 `BUDGET_BELOW_OUTPUT_LIMIT`（单次输出上限 > 日预算时每次调用
   都会因预留不足被拒）与 `OUTPUT_LIMIT_TOO_LARGE`；`internal/aisettings` 补 11 个单测。
 

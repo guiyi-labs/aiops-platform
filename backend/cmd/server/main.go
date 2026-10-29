@@ -13,12 +13,15 @@ import (
 	"go.uber.org/zap"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
+	"k8s-aiops.local/backend/internal/aiinvestigator"
 	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/alert"
+	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/appcatalog"
 	"k8s-aiops.local/backend/internal/audit"
 	"k8s-aiops.local/backend/internal/auth"
 	"k8s-aiops.local/backend/internal/authz"
+	"k8s-aiops.local/backend/internal/automation"
 	"k8s-aiops.local/backend/internal/backup"
 	"k8s-aiops.local/backend/internal/buildinfo"
 	"k8s-aiops.local/backend/internal/capability"
@@ -54,9 +57,6 @@ import (
 	signalsvc "k8s-aiops.local/backend/internal/signal"
 	"k8s-aiops.local/backend/internal/slo"
 	"k8s-aiops.local/backend/internal/store"
-	"k8s-aiops.local/backend/internal/automation"
-	"k8s-aiops.local/backend/internal/aiinvestigator"
-	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/topology"
 	"k8s-aiops.local/backend/internal/workspace"
 	"k8s-aiops.local/backend/migrations"
@@ -567,6 +567,46 @@ func main() {
 		topology.NewGormRepository(database.GORM()),
 		topologyNamespaceLister{reader: kubernetesService},
 	)
+
+	// 启动预热：边表存的是「当前活跃关系」，进程重启后不会凭空恢复，而旧边已经
+	// 被关闭（valid_to 非空）就不再出现在图里——于是重启之后图会变空，看起来像
+	// 采集坏了。这里对每个已启用集群异步补采一次；只跑一次、失败只记日志，绝不
+	// 阻塞启动，也不改变「靠显式触发刷新」的语义。
+	backgroundWait.Add(1)
+	go func() {
+		defer backgroundWait.Done()
+		select {
+		case <-backgroundContext.Done():
+			return
+		case <-time.After(20 * time.Second):
+			// 等 api_server 连接池与集群探活就绪，避免启动瞬间把所有读取都打失败。
+		}
+		clusters, err := clusterService.List(backgroundContext)
+		if err != nil {
+			logger.Warn("topology warm-up: list clusters", zap.Error(err))
+			return
+		}
+		for _, item := range clusters {
+			if !item.Enabled {
+				continue
+			}
+			if backgroundContext.Err() != nil {
+				return
+			}
+			result, err := topologyService.CollectCluster(backgroundContext, item.ID, time.Now().UTC())
+			if err != nil {
+				logger.Warn("topology warm-up: collect", zap.Int64("cluster_id", item.ID), zap.Error(err))
+				continue
+			}
+			logger.Info("topology warm-up collected",
+				zap.Int64("cluster_id", item.ID),
+				zap.Int("namespaces", result.Namespaces),
+				zap.Int("edges_upserted", result.TotalUpserted),
+				zap.Int("edges_closed", result.TotalClosed),
+				zap.Bool("partial", result.Partial),
+			)
+		}
+	}()
 
 	// M43 bounded AI investigation. Provider is left nil on purpose: the service
 	// substitutes NopProvider, whose output is explicitly labelled

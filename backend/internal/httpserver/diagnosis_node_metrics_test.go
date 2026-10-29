@@ -184,8 +184,14 @@ func TestDiagnoseNodeMetricsHandlerDefaultMinimumPoints(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.Severity != "medium" {
-		t.Fatalf("expected severity medium for memory, got %s", record.Severity)
+	// 内存越界的严重级必须是 diagnosis_records_severity_check 允许的值
+	// （info/warning/high/critical）。此前这里断言的是 "medium"——数据库会拒绝写入，
+	// 但单测不经过约束，于是长期绿灯。
+	if record.Severity != "high" {
+		t.Fatalf("expected severity high for memory, got %s", record.Severity)
+	}
+	if !validDiagnosisSeverity(record.Severity) {
+		t.Fatalf("severity %q is not accepted by diagnosis_records_severity_check", record.Severity)
 	}
 }
 
@@ -276,5 +282,15 @@ func TestDiagnoseNodeMetricsHandlerMapsEvaluationErrors(t *testing.T) {
 				t.Fatalf("%s: expected code %s, body=%s", tc.name, tc.expectedCode, recorder.Body.String())
 			}
 		})
+	}
+}
+
+// validDiagnosisSeverity 与数据库 CHECK 约束保持一致，防止单测再次断言非法值。
+func validDiagnosisSeverity(severity string) bool {
+	switch severity {
+	case "info", "warning", "high", "critical":
+		return true
+	default:
+		return false
 	}
 }

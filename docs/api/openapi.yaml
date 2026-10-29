@@ -363,6 +363,11 @@ paths:
   /api/v1/users:
     get: { tags: [users], summary: List users, operationId: listUsers, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
     post: { tags: [users], summary: Create user, operationId: createUser, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UserWrite' } } } }, responses: { '201': { $ref: '#/components/responses/User' }, '409': { $ref: '#/components/responses/Error' } } }
+  /api/v1/settings/ai:
+    get: { tags: [settings], summary: Read model-access settings (API key never returned, only its last four digits), operationId: getAIModelSettings, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' }, '403': { $ref: '#/components/responses/Error' } } }
+    put: { tags: [settings], summary: Save model-access settings; empty api_key keeps the stored key, clear_api_key removes it (only while disabled), operationId: updateAIModelSettings, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AIModelSettingsWrite' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '403': { $ref: '#/components/responses/Error' } } }
+  /api/v1/settings/ai/test:
+    post: { tags: [settings], summary: Probe the provider with the submitted values (unsaved allowed); api_key empty falls back to the stored key, operationId: testAIModelSettings, security: [{ bearerAuth: [] }], requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AIModelSettingsProbe' } } } }, responses: { '200': { $ref: '#/components/responses/Ok' }, '400': { $ref: '#/components/responses/Error' }, '502': { $ref: '#/components/responses/Error' } } }
   /api/v1/users/assignable:
     get: { tags: [users], summary: List assignable operators, operationId: assignableUsers, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/users/{user_id}:
@@ -2962,6 +2967,32 @@ components:
     Login: { description: Login or refresh response, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
     Error: { description: Structured error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
   schemas:
+    # -------- Model access settings (console-editable LLM provider) --------
+    AIModelSettingsWrite:
+      type: object
+      additionalProperties: false
+      required: [enabled, protocol, base_url, model]
+      properties:
+        enabled: { type: boolean }
+        protocol: { type: string, enum: [responses, chat_completions], description: "responses = POST {base_url}/responses; chat_completions = POST {base_url}/chat_completions" }
+        base_url: { type: string, maxLength: 512, description: Absolute http(s) URL ending at the API root (usually /v1) }
+        model: { type: string, maxLength: 128 }
+        api_key: { type: string, writeOnly: true, description: Empty keeps the stored key; non-empty replaces it (AES-256-GCM) }
+        clear_api_key: { type: boolean, description: Remove the stored key; only allowed while disabled }
+        request_timeout_seconds: { type: integer, minimum: 1, maximum: 600 }
+        max_output_tokens: { type: integer, minimum: 1, maximum: 100000 }
+        daily_token_budget: { type: integer, format: int64, minimum: 0 }
+        max_concurrent_requests: { type: integer, minimum: 1, maximum: 64 }
+    AIModelSettingsProbe:
+      type: object
+      additionalProperties: false
+      required: [protocol, base_url, model]
+      properties:
+        protocol: { type: string, enum: [responses, chat_completions] }
+        base_url: { type: string, maxLength: 512 }
+        model: { type: string, maxLength: 128 }
+        api_key: { type: string, writeOnly: true, description: Empty falls back to the stored key }
+        request_timeout_seconds: { type: integer, minimum: 1, maximum: 600 }
     # -------- M113-2 Capacity-aware preview --------
     CapacityPreviewRequest:
       type: object

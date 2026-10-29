@@ -17,16 +17,16 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 311 |
-| 角色受限 | 87 |
-| 已审计 | 187 |
+| 路由总数 | 314 |
+| 角色受限 | 90 |
+| 已审计 | 190 |
 | scope=workspace | 13 |
 | scope=cluster | 86 |
 | scope=namespace | 32 |
-| scope=none | 180 |
+| scope=none | 183 |
 | 角色 operations_admin | 66 |
 | 角色 security_auditor | 4 |
-| 角色 system_admin | 87 |
+| 角色 system_admin | 90 |
 
 ## 路由明细（按路径排序）
 
@@ -317,6 +317,9 @@
 | POST | `/api/v1/promotions/preview` | `operations_admin`, `system_admin` | none | - |
 | POST | `/api/v1/remediations/:remediation_id/execute` | `operations_admin`, `system_admin` | none | remediation.execute |
 | POST | `/api/v1/restore-plans/:plan_id/execute` | `operations_admin`, `system_admin` | none | restore.execute |
+| GET | `/api/v1/settings/ai` | `system_admin` | none | ai_settings.read |
+| PUT | `/api/v1/settings/ai` | `system_admin` | none | ai_settings.update |
+| POST | `/api/v1/settings/ai/test` | `system_admin` | none | ai_settings.test |
 | GET | `/api/v1/users` | `system_admin` | none | - |
 | POST | `/api/v1/users` | `system_admin` | none | user.create |
 | PATCH | `/api/v1/users/:user_id` | `system_admin` | none | user.update |

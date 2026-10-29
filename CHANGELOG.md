@@ -9,7 +9,23 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added
+- **settings**: 控制台可配置模型接入（`/settings/model`，系统管理员专属）。新增单行表
+  `ai_model_settings`（迁移 `000052`）与 `internal/aisettings`；API 密钥以 AES-256-GCM
+  加密入库、只回末四位、永不回显，支持「留空保持不变」与「关闭状态下显式清除」。
+  保存后通过 `aiexplain.Service.ApplyConfig` 热更新，无需重启进程。
+- **aiexplain**: 新增 `ChatCompletionsProvider`，支持 `POST {base}/chat/completions` +
+  `response_format.json_schema` 严格模式。此前协议写死为 Responses API，导致多数
+  OpenAI 兼容端点（DeepSeek/通义/Kimi/vLLM 等）在 `/responses` 上 404、填了 key 也接不通。
+  两种协议实现同一接口，四重约束（引用校验/严格模式/预算与并发/确定性回退）完全复用。
+- **settings**: `POST /api/v1/settings/ai/test` 连通性测试，可对未保存的值先探测：
+  先 `GET {base}/models`（零 token），404 时退回极小 completion；失败按状态码给出
+  可操作提示（密钥/路径/限流）。
+
 ### Fixed
+- **diagnosis**: `diagnosis_node_metrics_test.go` 仍断言内存越界严重级为 `"medium"`，
+  与该值不在 `diagnosis_records_severity_check` 允许集合内的事实冲突（实现已改、断言漏改）。
+  改为 `"high"` 并追加与 CHECK 约束一致的合法性断言。
 - **console**: 7 个页面不可用。`TopologyService`/`AIInvestigatorService`/`AutomationService`/
   `AlertRouteService` 在 `main.go` 的 Options 中缺失，路由因此从未注册（404）；补装配后 4 个页面恢复。
   `signal.Overview` 的 nil slice 序列化为 `null`，使概览页在渲染时抛错、整页空白，改为初始化空切片。

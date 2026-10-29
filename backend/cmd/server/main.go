@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
+	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/appcatalog"
 	"k8s-aiops.local/backend/internal/audit"
@@ -443,11 +444,50 @@ func main() {
 		ClaimLease:        cfg.AlertClaimLease,
 		MinEvalInterval:   cfg.AlertMinEvaluationInterval,
 	}, alertService, alert.NewGormRepository(database.GORM()), logger)
-	var aiProvider aiexplain.Provider
-	if cfg.AIEnabled {
-		aiProvider = aiexplain.NewResponsesProvider(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel, cfg.AIRequestTimeout, cfg.AIMaxOutputTokens)
+	// 模型接入：环境变量只做「首次播种」，此后以控制台保存的库内配置为准。
+	// 修改配置会通过 onChange 回调热更新解释服务，无需重启进程。
+	aiSettingsService := aisettings.NewService(
+		aisettings.NewGormRepository(database.GORM()),
+		credentialEncryptor,
+		aisettings.Settings{
+			Enabled:               cfg.AIEnabled,
+			Protocol:              aisettings.ProtocolResponses,
+			BaseURL:               cfg.AIBaseURL,
+			Model:                 cfg.AIModel,
+			APIKey:                cfg.AIAPIKey,
+			RequestTimeout:        cfg.AIRequestTimeout,
+			MaxOutputTokens:       cfg.AIMaxOutputTokens,
+			DailyTokenBudget:      cfg.AIDailyTokenBudget,
+			MaxConcurrentRequests: cfg.AIMaxConcurrentRequests,
+		},
+	)
+	activeAISettings, err := aiSettingsService.Load(context.Background())
+	if err != nil {
+		logger.Warn("load AI model settings, falling back to environment values", zap.Error(err))
+		activeAISettings = aisettings.Settings{
+			Enabled:               cfg.AIEnabled,
+			Protocol:              aisettings.ProtocolResponses,
+			BaseURL:               cfg.AIBaseURL,
+			Model:                 cfg.AIModel,
+			APIKey:                cfg.AIAPIKey,
+			RequestTimeout:        cfg.AIRequestTimeout,
+			MaxOutputTokens:       cfg.AIMaxOutputTokens,
+			DailyTokenBudget:      cfg.AIDailyTokenBudget,
+			MaxConcurrentRequests: cfg.AIMaxConcurrentRequests,
+		}
 	}
-	aiExplanationService := aiexplain.NewService(aiexplain.ServiceConfig{Enabled: cfg.AIEnabled, ProviderName: "responses-compatible", Model: cfg.AIModel, DailyTokenBudget: cfg.AIDailyTokenBudget, MaxConcurrentRequests: cfg.AIMaxConcurrentRequests, MaxOutputTokens: cfg.AIMaxOutputTokens, ReservationTTL: cfg.AIRequestTimeout + time.Minute}, diagnosisService, aiProvider, aiexplain.NewGormRepository(database.GORM()))
+	aiProvider, aiProviderName := buildAIProvider(activeAISettings)
+	aiExplanationService := aiexplain.NewService(aiServiceConfig(activeAISettings, aiProviderName), diagnosisService, aiProvider, aiexplain.NewGormRepository(database.GORM()))
+	aiSettingsService.WithOnChange(func(updated aisettings.Settings) {
+		provider, name := buildAIProvider(updated)
+		aiExplanationService.ApplyConfig(aiServiceConfig(updated, name), provider)
+		logger.Info("AI model settings applied",
+			zap.Bool("enabled", updated.Enabled),
+			zap.String("protocol", updated.Protocol),
+			zap.String("model", updated.Model),
+			zap.String("api_key", aisettings.Mask(updated.APIKey)),
+		)
+	})
 	// P1 RAG knowledge base: resolved diagnoses are distilled into knowledge
 	// entries and re-injected as verified historical references. Wiring is
 	// enabled whenever AI is enabled; the knowledge layer degrades silently
@@ -521,19 +561,26 @@ func main() {
 	// routes are never registered and the console shows ROUTE_NOT_FOUND.
 	topologyService := topology.NewService(nil, topology.NewGormRepository(database.GORM()), nil)
 
-	// M43 bounded AI investigation. Provider is left nil on purpose: the
-	// service substitutes NopProvider (deterministic, never calls a model) when
-	// AI is disabled, which is the current deployment. Wiring the real
-	// aiexplain provider here is the switch for enabling model-backed
-	// investigations — see AI_ENABLED in the deployment env.
-	investigatorService := aiinvestigator.NewService(aiinvestigator.NewGormRepository(database.GORM()), nil, nil)
+	// M43 bounded AI investigation. Provider is left nil on purpose: the service
+	// substitutes NopProvider, whose output is explicitly labelled
+	// "AI provider is not configured" — it never fabricates an analysis. The case
+	// reader IS wired now (see case_reader_adapter.go), so an investigation can
+	// be created against a real correlation case; only the model call degrades.
+	investigatorService := aiinvestigator.NewService(
+		aiinvestigator.NewGormRepository(database.GORM()),
+		nil,
+		investigatorCaseReader{cases: correlationService},
+	)
 
 	// M33 policy-constrained automation. The Kubernetes source is the read-only
-	// gateway service; the case reader falls back to NopCaseReader because the
-	// correlation-case adapter for automation was never written. Plans can be
-	// listed and previewed against the gates, but a plan derived from a
-	// specific case needs that adapter.
-	automationService := automation.NewService(automation.NewGormRepository(database.GORM()), nil, kubernetesService)
+	// gateway service; the case reader maps a correlation case onto the action
+	// targets automation needs, so plans can be derived from a real case and
+	// validated against the case's eligible action codes.
+	automationService := automation.NewService(
+		automation.NewGormRepository(database.GORM()),
+		automationCaseReader{cases: correlationService},
+		kubernetesService,
+	)
 
 	// M44/M45 alert routing (receivers, silences, inhibits, delivery log).
 	// Same class of gap: handlers and GORM repository existed but the service
@@ -564,6 +611,7 @@ func main() {
 			Incidents:                 incidentService,
 			IncidentResolver:          incidentSourceResolver,
 			AIExplanation:             aiExplanationService,
+			AIModelSettings:           aiSettingsService,
 			Audit:                     auditService,
 			Notifications:             notificationService,
 			Remediation:               remediationService,

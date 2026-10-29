@@ -1,12 +1,14 @@
 package httpserver
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap/zaptest"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
+	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/aiinvestigator"
 	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/appcatalog"
@@ -66,6 +68,9 @@ func buildFullEngine(t *testing.T) *gin.Engine {
 		IncidentResolver: incidentSourceResolverStub{info: incident.SourceInfo{Domain: "network"}},
 		Audit:            &audit.Service{},
 		AIExplanation:    &aiexplain.Service{},
+		// 模型接入配置：非 nil 才会注册 /settings/ai 路由，使契约测试能覆盖到。
+		// 仓储与加密器用最小桩，测试只登记路由、不执行业务。
+		AIModelSettings: mustAISettingsService(t),
 		Notifications:    notification.NewService(notification.ServiceConfig{}, nil, nil),
 		Remediation:      remediation.NewService(nil, nil, nil),
 		Promotion:        promotion.NewService(nil, nil),
@@ -190,3 +195,28 @@ func mustInspectionService(t *testing.T) *inspection.Service {
 	}
 	return svc
 }
+
+// mustAISettingsService 返回一个只用于路由登记的最小配置服务。
+// 仓储返回「无记录」，加密器为恒等实现——测试不校验加解密。
+func mustAISettingsService(t *testing.T) *aisettings.Service {
+	t.Helper()
+	return aisettings.NewService(aiSettingsRepoStub{}, aiSettingsEncryptorStub{}, aisettings.Settings{})
+}
+
+type aiSettingsRepoStub struct{}
+
+func (aiSettingsRepoStub) Load(context.Context) (*aisettings.Stored, error) { return nil, nil }
+
+func (aiSettingsRepoStub) Save(context.Context, aisettings.Stored) error { return nil }
+
+type aiSettingsEncryptorStub struct{}
+
+func (aiSettingsEncryptorStub) Encrypt(plaintext []byte) ([]byte, string, error) {
+	return plaintext, "v1", nil
+}
+
+func (aiSettingsEncryptorStub) Decrypt(ciphertext []byte, _ string) ([]byte, error) {
+	return ciphertext, nil
+}
+
+func (aiSettingsEncryptorStub) ActiveVersion() string { return "v1" }

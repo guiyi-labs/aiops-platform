@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
+	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/aiinvestigator"
 	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/alertroute"
@@ -69,6 +70,9 @@ type Options struct {
 	IncidentChat     *incidentchat.Service
 	Audit            *audit.Service
 	AIExplanation    *aiexplain.Service
+	// AIModelSettings 提供「模型接入」配置的读写与连通性测试。为 nil 时不注册
+	// /settings/ai 路由（旧部署在迁移前仍可启动）。
+	AIModelSettings  *aisettings.Service
 	SecureCookies    bool
 	RefreshTTL       time.Duration
 	Version          string
@@ -240,6 +244,13 @@ func New(logger *zap.Logger, options Options) http.Handler {
 			}
 			usersAPI := userHandler{service: options.Auth}
 			reg.register(v1, RouteDescriptor{Method: "GET", Path: "/users/assignable", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: usersAPI.assignable})
+			// 模型接入：系统管理员的运行期配置。密钥只写不回显，写操作全量审计。
+			if options.AIModelSettings != nil {
+				settingsAPI := aiSettingsHandler{settings: options.AIModelSettings, runtime: options.AIExplanation}
+				reg.register(v1, RouteDescriptor{Method: "GET", Path: "/settings/ai", AuthRequired: true, RequiredRoles: rolesSystemAdmin, Handler: settingsAPI.get, AuditAction: "ai_settings.read", AuditResource: "AIModelSettings"})
+				reg.register(v1, RouteDescriptor{Method: "PUT", Path: "/settings/ai", AuthRequired: true, RequiredRoles: rolesSystemAdmin, Handler: settingsAPI.update, AuditAction: "ai_settings.update", AuditResource: "AIModelSettings"})
+				reg.register(v1, RouteDescriptor{Method: "POST", Path: "/settings/ai/test", AuthRequired: true, RequiredRoles: rolesSystemAdmin, Handler: settingsAPI.test, AuditAction: "ai_settings.test", AuditResource: "AIModelSettings"})
+			}
 			reg.register(v1, RouteDescriptor{Method: "GET", Path: "/users", AuthRequired: true, RequiredRoles: rolesSystemAdmin, Handler: usersAPI.list})
 			reg.register(v1, RouteDescriptor{Method: "POST", Path: "/users", AuthRequired: true, RequiredRoles: rolesSystemAdmin, Handler: usersAPI.create, AuditAction: "user.create", AuditResource: "User"})
 			reg.register(v1, RouteDescriptor{Method: "PATCH", Path: "/users/:user_id", AuthRequired: true, RequiredRoles: rolesSystemAdmin, Handler: usersAPI.update, AuditAction: "user.update", AuditResource: "User"})

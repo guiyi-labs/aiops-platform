@@ -121,6 +121,13 @@ const router = createRouter({
       meta: { roles: ['system_admin'] },
     },
     {
+      // 模型接入：运行期可改的 LLM 配置。仅系统管理员可见——页面涉及密钥写入。
+      path: '/settings/model',
+      name: 'settings-model',
+      component: () => import('../views/ModelAccessView.vue'),
+      meta: { roles: ['system_admin'] },
+    },
+    {
       path: '/account/security',
       name: 'account-security',
       component: () => import('../views/AccountSecurityView.vue'),

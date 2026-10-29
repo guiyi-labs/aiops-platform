@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"sync"
 	"time"
 
 	"k8s-aiops.local/backend/internal/diagnosis"
@@ -21,6 +22,9 @@ type knowledgeRetriever interface {
 }
 
 type Service struct {
+	// mu 保护下面这些「可被控制台热更新」的字段。配置保存后由 ApplyConfig 整体替换，
+	// Generate/Status 在读之前取一份快照，避免读到半更新的组合（例如新 provider 配旧 model）。
+	mu               sync.RWMutex
 	enabled          bool
 	diagnoses        diagnosisReader
 	provider         Provider
@@ -53,12 +57,18 @@ func NewService(config ServiceConfig, diagnoses diagnosisReader, provider Provid
 }
 
 func (s *Service) Generate(ctx context.Context, diagnosisID int64, actor ActorRef) (Explanation, error) {
-	if !s.enabled || s.provider == nil {
+	// 快照：配置可能在本次调用期间被控制台改写。
+	s.mu.RLock()
+	enabled, provider, semaphore := s.enabled, s.provider, s.semaphore
+	maxOutputTokens, reservationTTL, budget := s.maxOutputTokens, s.reservationTTL, s.dailyTokenBudget
+	s.mu.RUnlock()
+
+	if !enabled || provider == nil {
 		return Explanation{}, ErrDisabled
 	}
 	select {
-	case s.semaphore <- struct{}{}:
-		defer func() { <-s.semaphore }()
+	case semaphore <- struct{}{}:
+		defer func() { <-semaphore }()
 	default:
 		return Explanation{}, ErrBusy
 	}
@@ -89,12 +99,12 @@ func (s *Service) Generate(ctx context.Context, diagnosisID int64, actor ActorRe
 	if err != nil {
 		return Explanation{}, err
 	}
-	reservedTokens := estimateInputTokens(prompt) + s.maxOutputTokens
-	if err := s.repository.Reserve(ctx, Reservation{ID: reservationID, DiagnosisID: diagnosisID, ReservedTokens: reservedTokens, ExpiresAt: time.Now().UTC().Add(s.reservationTTL)}, s.dailyTokenBudget); err != nil {
+	reservedTokens := estimateInputTokens(prompt) + maxOutputTokens
+	if err := s.repository.Reserve(ctx, Reservation{ID: reservationID, DiagnosisID: diagnosisID, ReservedTokens: reservedTokens, ExpiresAt: time.Now().UTC().Add(reservationTTL)}, budget); err != nil {
 		return Explanation{}, err
 	}
 	defer s.releaseReservation(reservationID)
-	result, err := s.provider.Generate(ctx, prompt)
+	result, err := provider.Generate(ctx, prompt)
 	if err != nil {
 		return Explanation{}, err
 	}
@@ -103,6 +113,30 @@ func (s *Service) Generate(ctx context.Context, diagnosisID int64, actor ActorRe
 		return Explanation{}, err
 	}
 	return item, nil
+}
+
+// ApplyConfig 用新配置整体替换运行期状态。控制台保存「模型接入」后调用它，
+// 使改动立即生效而无需重启进程。传 nil provider 表示关闭（Generate 返回 ErrDisabled）。
+func (s *Service) ApplyConfig(config ServiceConfig, provider Provider) {
+	concurrency := config.MaxConcurrentRequests
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.enabled = config.Enabled
+	s.provider = provider
+	s.providerName = config.ProviderName
+	s.model = config.Model
+	s.dailyTokenBudget = config.DailyTokenBudget
+	s.maxOutputTokens = config.MaxOutputTokens
+	if config.ReservationTTL > 0 {
+		s.reservationTTL = config.ReservationTTL
+	}
+	// 并发上限变了才重建信号量；重建会丢失在途计数，属可接受的短暂放宽。
+	if cap(s.semaphore) != concurrency {
+		s.semaphore = make(chan struct{}, concurrency)
+	}
 }
 
 // WithKnowledgeRetriever enables RAG: resolved historical cases are injected
@@ -118,6 +152,8 @@ func (s *Service) Status(ctx context.Context) (RuntimeStatus, error) {
 	if err != nil {
 		return RuntimeStatus{}, err
 	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	status := RuntimeStatus{Enabled: s.enabled, Provider: s.providerName, Model: s.model, MaxConcurrentRequests: cap(s.semaphore), ActiveRequests: len(s.semaphore), MaxOutputTokens: s.maxOutputTokens, DailyTokenBudget: s.dailyTokenBudget, UsedTokensToday: usage.UsedTokensToday, ReservedTokens: usage.ReservedTokens, ExplanationCount: usage.ExplanationCount, LastSuccessAt: usage.LastSuccessAt}
 	if s.dailyTokenBudget > 0 {
 		remaining := max(0, s.dailyTokenBudget-usage.UsedTokensToday-usage.ReservedTokens)

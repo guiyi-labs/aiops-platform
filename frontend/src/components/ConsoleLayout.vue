@@ -38,6 +38,7 @@ import {
   Shuffle,
   Target,
   Users,
+  BrainCircuit,
   Wallet,
   Workflow,
   X,
@@ -179,6 +180,7 @@ const navigationGroups = computed(() => [
       { label: '通知投递', icon: Send, route: '/notifications', auditOnly: true },
       { label: '审计日志', icon: FileClock, route: '/audit-logs', auditOnly: true },
       { label: '用户管理', icon: Users, route: '/users', adminOnly: true },
+      { label: '模型接入', icon: BrainCircuit, route: '/settings/model', adminOnly: true },
     ],
   },
   {

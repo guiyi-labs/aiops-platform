@@ -9,8 +9,8 @@ import (
 	"go.uber.org/zap"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
-	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/aiinvestigator"
+	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/alert"
 	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/appcatalog"
@@ -67,9 +67,9 @@ type Options struct {
 	// M112-2 incident AI chat service. When nil the chat route is not
 	// registered; the provider resolves deterministically when AI is
 	// disabled (AIFallbackChat=false also disables the route).
-	IncidentChat     *incidentchat.Service
-	Audit            *audit.Service
-	AIExplanation    *aiexplain.Service
+	IncidentChat  *incidentchat.Service
+	Audit         *audit.Service
+	AIExplanation *aiexplain.Service
 	// AIModelSettings 提供「模型接入」配置的读写与连通性测试。为 nil 时不注册
 	// /settings/ai 路由（旧部署在迁移前仍可启动）。
 	AIModelSettings  *aisettings.Service
@@ -681,6 +681,8 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		topologyAPI := topologyHandler{service: options.TopologyService}
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/topology/graph", AuthRequired: true, Handler: topologyAPI.getTopologyGraph, AuditAction: "aiops.topology.graph.read", AuditResource: "TopologyGraph"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/topology/changes", AuthRequired: true, Handler: topologyAPI.listChangeEvents, AuditAction: "aiops.topology.changes.list", AuditResource: "ChangeEvent"})
+		// 采集是写操作（upsert 并关闭陈旧边），因此比读接口多一层角色限制并写审计。
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "POST", Path: "/topology/collect", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: topologyAPI.collectTopology, AuditAction: "aiops.topology.collect", AuditResource: "TopologyEdge"})
 	}
 
 	// M41 SLO, error budget and impact

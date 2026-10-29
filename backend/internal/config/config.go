@@ -281,7 +281,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	aiMaxOutputTokens, err := intFromEnv("AI_MAX_OUTPUT_TOKENS", 1200, 128, 8192)
+	// 默认 4096 而非早先的 1200：一份合规解释（summary + analysis + 3~5 条 action
+	// + 3~5 条 citation）在中文推理型模型上实测需 2400~2600 tokens，1200 会让响应
+	// 稳定停在 finish_reason=length。上限与 aisettings 的校验保持一致。
+	aiMaxOutputTokens, err := intFromEnv("AI_MAX_OUTPUT_TOKENS", 4096, 128, 32768)
 	if err != nil {
 		return Config{}, err
 	}

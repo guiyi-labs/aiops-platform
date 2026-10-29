@@ -114,11 +114,20 @@ func (r *GormRepository) UpsertEdge(ctx context.Context, edge *Edge) error {
 	}
 	// Upsert on (cluster_id, kind, source_uid, target_uid, derivation) where
 	// valid_to IS NULL. On conflict, refresh last_observed_at and review_evidence.
+	//
+	// TargetWhere 不可省：uq_topology_edges_active 是**部分唯一索引**
+	// （... WHERE valid_to IS NULL）。Postgres 只有在 ON CONFLICT 带上同样的
+	// 谓词时才会选它，否则报 42P10「no unique or exclusion constraint matching
+	// the ON CONFLICT specification」。此前缺这一项，于是每一次采集的边都写不进
+	// 库——表恒空、图恒空，而错误只出现在采集结果里，看接口 200 完全看不出来。
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{
 			{Name: "cluster_id"}, {Name: "kind"}, {Name: "source_uid"},
 			{Name: "target_uid"}, {Name: "derivation"},
 		},
+		TargetWhere: clause.Where{Exprs: []clause.Expression{
+			clause.Expr{SQL: "valid_to IS NULL"},
+		}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"last_observed_at": row.LastObservedAt,
 			"review_evidence":  row.ReviewEvidence,
@@ -189,8 +198,13 @@ func (r *GormRepository) UpsertChangeEvent(ctx context.Context, event *ChangeEve
 	if err != nil {
 		return err
 	}
+	// uq_change_events_plan 同样是部分索引（plan_id <> ''），必须带同样的谓词，
+	// 否则 Postgres 报 42P10 而写不进变更事件，时间线永远为空。
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "kind"}, {Name: "plan_id"}},
+		TargetWhere: clause.Where{Exprs: []clause.Expression{
+			clause.Expr{SQL: "plan_id <> ''"},
+		}},
 		DoUpdates: clause.Assignments(map[string]interface{}{
 			"result":      row.Result,
 			"finished_at": row.FinishedAt,

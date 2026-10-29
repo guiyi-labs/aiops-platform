@@ -1705,6 +1705,27 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }
+  /api/v1/aiops/topology/collect:
+    post:
+      tags: [aiops]
+      summary: "Collect topology edges for one namespace, or for every visible namespace when namespace is omitted"
+      description: |
+        Reads the eight supported resource kinds from the cluster, derives edges from
+        exact UID references only (never from naming or time proximity), upserts them
+        and closes edges no longer observed. A partial read still writes the edges it
+        obtained and reports `partial=true` with the failing scopes, rather than
+        discarding the whole pass.
+      operationId: collectAIOpsTopology
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+        - { name: namespace, in: query, description: "Omit to collect the whole cluster.", schema: { type: string, maxLength: 63 } }
+      responses:
+        '200': { description: Collection summary, content: { application/json: { schema: { $ref: '#/components/schemas/TopologyCollectionResult' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
   /api/v1/aiops/slos/templates:
     get:
       tags: [slo]
@@ -2966,6 +2987,20 @@ components:
     User: { description: User response without password material, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
     Login: { description: Login or refresh response, content: { application/json: { schema: { $ref: '#/components/schemas/LoginResponse' } } } }
     Error: { description: Structured error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+  schemas:
+    TopologyCollectionResult:
+      type: object
+      required: [cluster_id, edges_seen, edges_upserted, edges_closed, partial]
+      properties:
+        cluster_id: { type: integer, format: int64 }
+        namespace: { type: string, description: Present when a single namespace was collected }
+        namespaces: { type: integer, description: Present for cluster-wide collection }
+        edges_seen: { type: integer, description: Edges derived from the snapshot }
+        edges_upserted: { type: integer, description: Edges successfully persisted }
+        edges_closed: { type: integer, description: Previously active edges no longer observed }
+        partial: { type: boolean, description: True when at least one scope failed; the counts still describe what was written }
+        error: { type: string, description: Single-namespace failure detail }
+        errors: { type: array, items: { type: string }, description: Per-namespace failures for cluster-wide collection }
   schemas:
     # -------- Model access settings (console-editable LLM provider) --------
     AIModelSettingsWrite:

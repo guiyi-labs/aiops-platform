@@ -44,9 +44,11 @@ func (h aiExplanationHandler) generate(c *gin.Context) {
 	case errors.Is(err, aiexplain.ErrBusy):
 		writeError(c, http.StatusTooManyRequests, "AI_BUSY", "AI explanation concurrency limit is reached; retry later")
 	case errors.Is(err, aiexplain.ErrProviderFailure):
-		writeError(c, http.StatusBadGateway, "AI_PROVIDER_ERROR", "AI provider is temporarily unavailable; deterministic diagnosis remains available")
+		writeError(c, http.StatusBadGateway, "AI_PROVIDER_ERROR", withCause("AI provider is temporarily unavailable; deterministic diagnosis remains available", err))
 	case errors.Is(err, aiexplain.ErrInvalidOutput):
-		writeError(c, http.StatusBadGateway, "AI_INVALID_OUTPUT", "AI provider returned an explanation that failed citation validation")
+		// 前半句保持稳定文案（调用方可能按它做匹配），冒号后附上具体校验失败原因：
+		// 未知证据 / 字段为空 / 输出被截断 / JSON 不合法，处置手段完全不同。
+		writeError(c, http.StatusBadGateway, "AI_INVALID_OUTPUT", withCause("AI provider returned an explanation that failed validation", err))
 	default:
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to generate AI explanation")
 	}
@@ -128,4 +130,28 @@ func (h aiExplanationHandler) list(c *gin.Context) {
 		return
 	}
 	writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to list AI explanations")
+}
+
+// withCause 把被 errors.Is 判定过的错误细节拼到稳定文案后面。
+//
+// 存在的理由：ErrInvalidOutput / ErrProviderFailure 名下各有多条完全不同的真实原因
+// （未知证据 ID、输出被 max_output_tokens 截断、密钥失效、限流……），处置手段互不相同。
+// 只回一句笼统文案，运营者就只能靠猜；而写入 message 又必须保持前缀稳定，
+// 以免破坏按文案匹配的调用方。因此前面不动、冒号后缀原因。
+//
+// 不泄漏模型全文：aiexplain 侧的错误只带 120 字符摘要，已在生成处截断。
+func withCause(message string, err error) string {
+	detail := strings.TrimSpace(err.Error())
+	for _, prefix := range []string{
+		aiexplain.ErrInvalidOutput.Error(),
+		aiexplain.ErrProviderFailure.Error(),
+	} {
+		detail = strings.TrimSpace(strings.TrimPrefix(detail, prefix))
+	}
+	detail = strings.TrimPrefix(detail, ":")
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		return message
+	}
+	return message + ": " + detail
 }

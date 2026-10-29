@@ -7,6 +7,7 @@ import type {
   SignalListResponse,
   SignalDescriptor,
   TopologyGraph,
+  TopologyCollectionResult,
   ChangeTimelineResponse,
   SLODefinition,
   SLODefinitionListResponse,
@@ -73,6 +74,17 @@ export function getTopologyGraph(
   const sp = new URLSearchParams({ cluster_id: String(params.cluster_id) })
   if (params.namespace) sp.set('namespace', params.namespace)
   return authorizedRequest(`/api/v1/aiops/topology/graph?${sp}`, token)
+}
+
+// 触发一次拓扑采集：把当前命名空间资源间的关系派生出来并落库。
+// 没有这个入口时边表只能靠外部脚本填充，界面上永远是一张空图。
+export function collectTopology(
+  token: string,
+  params: { cluster_id: number; namespace?: string },
+): Promise<TopologyCollectionResult> {
+  const sp = new URLSearchParams({ cluster_id: String(params.cluster_id) })
+  if (params.namespace) sp.set('namespace', params.namespace)
+  return authorizedRequest(`/api/v1/aiops/topology/collect?${sp}`, token, { method: 'POST' })
 }
 
 export function listTopologyChanges(

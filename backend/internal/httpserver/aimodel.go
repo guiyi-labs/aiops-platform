@@ -170,6 +170,10 @@ func writeAISettingsError(c *gin.Context, err error) {
 		writeError(c, http.StatusBadRequest, "MISSING_MODEL", err.Error())
 	case errors.Is(err, aisettings.ErrMissingAPIKey):
 		writeError(c, http.StatusBadRequest, "MISSING_API_KEY", err.Error())
+	case errors.Is(err, aisettings.ErrBudgetBelowOutputLimit):
+		writeError(c, http.StatusBadRequest, "BUDGET_BELOW_OUTPUT_LIMIT", err.Error())
+	case errors.Is(err, aisettings.ErrOutputLimitTooLarge):
+		writeError(c, http.StatusBadRequest, "OUTPUT_LIMIT_TOO_LARGE", err.Error())
 	default:
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to save AI settings")
 	}

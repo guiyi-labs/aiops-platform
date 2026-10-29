@@ -29,10 +29,26 @@ const (
 )
 
 var (
-	ErrInvalidBaseURL = errors.New("base_url must be an absolute http(s) URL")
+	ErrInvalidBaseURL  = errors.New("base_url must be an absolute http(s) URL")
 	ErrInvalidProtocol = errors.New("protocol must be responses or chat_completions")
 	ErrMissingModel    = errors.New("model is required when the provider is enabled")
 	ErrMissingAPIKey   = errors.New("api_key is required when the provider is enabled")
+	// ErrBudgetBelowOutputLimit 拦截「单次输出上限 > 日预算」的组合：这种配置下
+	// 每一次调用都会因预留额度不足而被拒，页面表现成「AI 一用就失败」，但原因
+	// 在配置页而非运行时，必须在这里挡住。
+	ErrBudgetBelowOutputLimit = errors.New("daily_token_budget must be at least max_output_tokens, otherwise every request is rejected for insufficient budget")
+	// ErrOutputLimitTooLarge 防呆：超过 32768 的单次输出上限几乎一定是误填。
+	ErrOutputLimitTooLarge = errors.New("max_output_tokens must not exceed 32768")
+)
+
+// 默认值。MaxOutputTokens 的 1200 曾长期够用，直到接入中文推理型模型：
+// 一份合规输出（summary + analysis + 3~5 条 action + 3~5 条 citation）实测
+// 需要 2400~2600 tokens，1200 会让响应稳定停在 finish_reason=length。
+// 默认值改为 4096，覆盖典型输出并留出余量。
+const (
+	defaultMaxOutputTokens       = 4096
+	defaultMaxConcurrentRequests = 2
+	maxOutputTokensCeiling       = 32768
 )
 
 // Settings 是一份完整的接入配置。APIKey 为明文，仅在进程内存与写入路径上短暂存在，
@@ -174,8 +190,8 @@ func (r *GormRepository) Save(ctx context.Context, s Stored) error {
 type Service struct {
 	repo      Repository
 	encryptor Encryptor
-	seed      Settings          // 来自环境变量的初值
-	onChange  func(Settings)    // 写入成功后的回调（可为 nil）
+	seed      Settings       // 来自环境变量的初值
+	onChange  func(Settings) // 写入成功后的回调（可为 nil）
 }
 
 // NewService 构造 Service。seed 是环境变量提供的初值，仅在表为空时使用一次。
@@ -256,10 +272,17 @@ func (s *Service) Update(ctx context.Context, update Settings, actorID int64) (S
 		update.RequestTimeout = 30 * time.Second
 	}
 	if update.MaxOutputTokens <= 0 {
-		update.MaxOutputTokens = 1200
+		update.MaxOutputTokens = defaultMaxOutputTokens
+	}
+	if update.MaxOutputTokens > maxOutputTokensCeiling {
+		return Settings{}, ErrOutputLimitTooLarge
 	}
 	if update.MaxConcurrentRequests <= 0 {
-		update.MaxConcurrentRequests = 2
+		update.MaxConcurrentRequests = defaultMaxConcurrentRequests
+	}
+	// 预算为 0 表示不设上限（由部署方另行控制），此时不做一致性校验。
+	if update.DailyTokenBudget > 0 && update.MaxOutputTokens > update.DailyTokenBudget {
+		return Settings{}, ErrBudgetBelowOutputLimit
 	}
 
 	current, err := s.Load(ctx)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -82,6 +83,7 @@ func (p *ResponsesProvider) Generate(ctx context.Context, prompt Prompt) (Provid
 	var decoded struct {
 		ID     string `json:"id"`
 		Model  string `json:"model"`
+		Status string `json:"status"`
 		Output []struct {
 			Type    string `json:"type"`
 			Content []struct {
@@ -89,6 +91,9 @@ func (p *ResponsesProvider) Generate(ctx context.Context, prompt Prompt) (Provid
 				Text string `json:"text"`
 			} `json:"content"`
 		} `json:"output"`
+		IncompleteDetails struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Usage struct {
 			InputTokens  int `json:"input_tokens"`
 			OutputTokens int `json:"output_tokens"`
@@ -96,6 +101,11 @@ func (p *ResponsesProvider) Generate(ctx context.Context, prompt Prompt) (Provid
 	}
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return ProviderResult{}, fmt.Errorf("%w: decode response", ErrInvalidOutput)
+	}
+	// Responses API 用 status=incomplete + incomplete_details.reason 表达未跑完
+	// （最常见是 max_output_tokens）。不先判这个，截断会伪装成 malformed JSON。
+	if decoded.Status == "incomplete" {
+		return ProviderResult{}, fmt.Errorf("%w: provider reported incomplete output (reason=%s); raise max_output_tokens in model settings", ErrInvalidOutput, firstNonEmpty(decoded.IncompleteDetails.Reason, "unknown"))
 	}
 	var outputText string
 	for _, output := range decoded.Output {
@@ -114,35 +124,106 @@ func (p *ResponsesProvider) Generate(ctx context.Context, prompt Prompt) (Provid
 	return result, nil
 }
 
+// decodeStructuredOutput 校验并解析模型输出。
+//
+// 每个失败分支都必须说明**为什么**失败：早先所有分支共用「failed citation validation」
+// 一句笼统文案，导致接新模型时无从判断是该升 max_output_tokens、该修提示词、还是
+// 该换协议。校验逻辑本身（哪些算通过）没变，变的是可诊断性。
 func decodeStructuredOutput(raw string, evidenceIDs map[string]struct{}) (ProviderResult, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ProviderResult{}, fmt.Errorf("%w: provider returned empty content", ErrInvalidOutput)
+	}
+	// 容忍 ```json 围栏：json_schema 严格模式下本不该出现，但兼容端点里很常见。
+	// 拆围栏的代价远低于让整次调用失败。
+	candidate := stripCodeFence(trimmed)
+
 	var output struct {
 		Summary            string              `json:"summary"`
 		Analysis           string              `json:"analysis"`
 		RecommendedActions []RecommendedAction `json:"recommended_actions"`
 		Citations          []Citation          `json:"citations"`
 	}
-	if err := json.Unmarshal([]byte(raw), &output); err != nil {
-		return ProviderResult{}, fmt.Errorf("%w: malformed JSON", ErrInvalidOutput)
+	if err := json.Unmarshal([]byte(candidate), &output); err != nil {
+		return ProviderResult{}, fmt.Errorf("%w: malformed JSON (%s); response starts with: %s", ErrInvalidOutput, err.Error(), truncateRunes(trimmed, 120))
 	}
-	if strings.TrimSpace(output.Summary) == "" || strings.TrimSpace(output.Analysis) == "" || len(output.Citations) == 0 {
-		return ProviderResult{}, fmt.Errorf("%w: required content missing", ErrInvalidOutput)
+	var missing []string
+	if strings.TrimSpace(output.Summary) == "" {
+		missing = append(missing, "summary")
 	}
+	if strings.TrimSpace(output.Analysis) == "" {
+		missing = append(missing, "analysis")
+	}
+	if len(output.Citations) == 0 {
+		missing = append(missing, "citations")
+	}
+	if len(missing) > 0 {
+		return ProviderResult{}, fmt.Errorf("%w: required fields empty (%s)", ErrInvalidOutput, strings.Join(missing, ", "))
+	}
+
+	available := sortedEvidenceIDs(evidenceIDs)
 	for _, citation := range output.Citations {
-		if _, ok := evidenceIDs[citation.EvidenceID]; !ok || strings.TrimSpace(citation.Claim) == "" {
-			return ProviderResult{}, fmt.Errorf("%w: unknown evidence citation", ErrInvalidOutput)
+		if strings.TrimSpace(citation.Claim) == "" {
+			return ProviderResult{}, fmt.Errorf("%w: citation %q has an empty claim", ErrInvalidOutput, citation.EvidenceID)
+		}
+		if _, ok := evidenceIDs[citation.EvidenceID]; !ok {
+			return ProviderResult{}, fmt.Errorf("%w: citation references unknown evidence %q (available: %s)", ErrInvalidOutput, citation.EvidenceID, available)
 		}
 	}
 	for _, action := range output.RecommendedActions {
-		if strings.TrimSpace(action.Action) == "" || (action.Priority != "high" && action.Priority != "medium" && action.Priority != "low") {
-			return ProviderResult{}, fmt.Errorf("%w: invalid recommended action", ErrInvalidOutput)
+		if strings.TrimSpace(action.Action) == "" {
+			return ProviderResult{}, fmt.Errorf("%w: recommended action with empty text", ErrInvalidOutput)
+		}
+		if action.Priority != "high" && action.Priority != "medium" && action.Priority != "low" {
+			return ProviderResult{}, fmt.Errorf("%w: recommended action %q has invalid priority %q (must be high|medium|low)", ErrInvalidOutput, truncateRunes(action.Action, 40), action.Priority)
 		}
 		for _, id := range action.EvidenceIDs {
 			if _, ok := evidenceIDs[id]; !ok {
-				return ProviderResult{}, fmt.Errorf("%w: unknown action evidence", ErrInvalidOutput)
+				return ProviderResult{}, fmt.Errorf("%w: recommended action %q references unknown evidence %q (available: %s)", ErrInvalidOutput, truncateRunes(action.Action, 40), id, available)
 			}
 		}
 	}
 	return ProviderResult{Summary: strings.TrimSpace(output.Summary), Analysis: strings.TrimSpace(output.Analysis), RecommendedActions: output.RecommendedActions, Citations: output.Citations}, nil
+}
+
+// stripCodeFence 去掉模型常见的 ``` 围栏。只处理「整段被一个围栏包住」的情形，
+// 内容里含反引号但未包围栏时原样返回。
+func stripCodeFence(s string) string {
+	if !strings.HasPrefix(s, "```") {
+		return s
+	}
+	firstNewline := strings.IndexByte(s, '\n')
+	if firstNewline < 0 {
+		return s
+	}
+	body := s[firstNewline+1:]
+	if end := strings.LastIndex(body, "```"); end >= 0 {
+		body = body[:end]
+	}
+	return strings.TrimSpace(body)
+}
+
+// sortedEvidenceIDs 给出稳定的可用证据 ID 列表，用于错误提示。
+// 排序后再拼接，避免 map 遍历顺序让同一次失败在不同次调用里报出不同文案。
+func sortedEvidenceIDs(evidenceIDs map[string]struct{}) string {
+	ids := make([]string, 0, len(evidenceIDs))
+	for id := range evidenceIDs {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	if len(ids) == 0 {
+		return "none"
+	}
+	return strings.Join(ids, ",")
+}
+
+// truncateRunes 按字符（而非字节）截断，避免把中文切成半个字变成乱码。
+func truncateRunes(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "…"
 }
 
 func explanationSchema() map[string]any {

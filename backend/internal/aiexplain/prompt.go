@@ -27,7 +27,11 @@ func BuildPrompt(record diagnosis.Record) Prompt {
 		Summary         string                `json:"rule_summary"`
 		RootCauses      []string              `json:"root_cause_hypotheses"`
 		Recommendations []string              `json:"rule_recommendations"`
-		Evidence        []promptEvidence      `json:"evidence"`
+		// CitableEvidenceIDs 显式列出唯一合法的引用值。此前只靠模型自己对
+		// evidence 数组里 id 字段的观察来推断，接入能力较弱的模型时常编出自造 ID
+		// （EV-1、evidence_1），触发校验失败。给一份白名单比事后纠错便宜得多。
+		CitableEvidenceIDs []string         `json:"citable_evidence_ids"`
+		Evidence           []promptEvidence `json:"evidence"`
 	}
 
 	input := promptInput{RuleID: record.RuleID, Severity: record.Severity, Resource: record.Resource, Status: record.Status, Summary: record.Summary, RootCauses: record.RootCauses, Recommendations: record.Recommendations}
@@ -37,6 +41,7 @@ func BuildPrompt(record diagnosis.Record) Prompt {
 		evidence := promptEvidence{ID: id, Type: item.Type, Source: item.Source, Content: sanitizeValue(item.Content)}
 		candidate := input
 		candidate.Evidence = append(append([]promptEvidence(nil), input.Evidence...), evidence)
+		candidate.CitableEvidenceIDs = append(append([]string(nil), input.CitableEvidenceIDs...), id)
 		encoded, _ := json.Marshal(candidate)
 		if len(encoded) > maxPromptBytes {
 			break
@@ -46,8 +51,11 @@ func BuildPrompt(record diagnosis.Record) Prompt {
 	}
 	encoded, _ := json.Marshal(input)
 	return Prompt{
-		System: "你是 Kubernetes 故障诊断解释器。只能解释输入中的确定性规则结果和证据，不得声称已执行修复，不得把根因假设描述为已证实事实。每个关键判断必须引用提供的 evidence ID；如果证据不足，应明确说明需要补充验证。输出必须符合给定 JSON Schema。",
-		Input:  string(encoded), EvidenceIDs: valid,
+		System: "你是 Kubernetes 故障诊断解释器。只能解释输入中的确定性规则结果和证据，不得声称已执行修复，不得把根因假设描述为已证实事实。" +
+			"每个关键判断必须引用 evidence：citations[].evidence_id 与 recommended_actions[].evidence_ids 的取值" +
+			"只能来自 citable_evidence_ids 数组中的字符串，逐字照抄，不得改写、加前缀或自造 ID。" +
+			"如果证据不足以支撑某个结论，就在 analysis 中明确说明需要补充验证，而不是编造引用。输出必须符合给定 JSON Schema。",
+		Input: string(encoded), EvidenceIDs: valid,
 	}
 }
 

@@ -10,6 +10,30 @@ Detailed change records for each milestone live under `docs/changes/`.
 ## [Unreleased]
 
 ### Added
+- **topology**: 装配采集器并新增 `POST /api/v1/aiops/topology/collect`（operator 及以上，
+  写审计）。此前 `topology.NewService(nil, …)` 使边表恒空、图恒空；现在一次全集群采集
+  写入 119 条关系（RunsOn/Owns/Selects/BackedBy/ProtectedBy）。控制台拓扑页加「采集拓扑」
+  按钮并展示「采到多少 / 写入多少 / 关闭多少陈旧关系」。
+- **settings**: 保存校验新增 `BUDGET_BELOW_OUTPUT_LIMIT`（单次输出上限 > 日预算时每次调用
+  都会因预留不足被拒）与 `OUTPUT_LIMIT_TOO_LARGE`；`internal/aisettings` 补 11 个单测。
+
+### Fixed
+- **aiexplain**: 真实模型生成报 `AI_INVALID_OUTPUT` 时无从判断原因。根因是默认
+  `max_output_tokens=1200` 不足（实测合规输出需 2494 token）。默认值改为 4096，上限放到
+  32768；`decodeStructuredOutput` 四个失败分支分别给出具体原因（可用证据 ID 白名单、
+  缺哪个字段、priority 非法值）；识别 `finish_reason=length` 与 Responses 的
+  `status=incomplete`，不再把截断伪装成 malformed JSON；容忍 ```json 围栏；提示词显式
+  下发 `citable_evidence_ids` 白名单。失败原因经 `withCause` 透出到 API。
+- **topology**: `UpsertEdge`/`UpsertChangeEvent` 的 `ON CONFLICT` 缺 `TargetWhere`，
+  匹配不上部分唯一索引（`WHERE valid_to IS NULL` / `WHERE plan_id <> ''`），Postgres 报
+  42P10，**每一次采集的边都写不进库**。补谓词后写入正常。
+- **console**: 拓扑完整性卡片读了后端不返回的 `coverage`/`stale_edges`/`missing_producers`，
+  徽章空白、「陈旧边 条」数字为空；按 `state`/`truncated`/`remaining` 重写，并改显
+  「N 个资源 · M 条关系」。诊断详情页的 AI 错误提示改为按 code/关键词给出下一步动作
+  （截断→调高上限、引用失败→展示校验详情、未启用→去开开关）；模型接入页在「配置齐全
+  但开关关闭」时显示横幅与一键启用。
+
+### Added
 - **settings**: 控制台可配置模型接入（`/settings/model`，系统管理员专属）。新增单行表
   `ai_model_settings`（迁移 `000052`）与 `internal/aisettings`；API 密钥以 AES-256-GCM
   加密入库、只回末四位、永不回显，支持「留空保持不变」与「关闭状态下显式清除」。

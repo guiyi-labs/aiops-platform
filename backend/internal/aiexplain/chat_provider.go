@@ -38,11 +38,11 @@ func NewChatCompletionsProvider(baseURL, apiKey, model string, timeout time.Dura
 }
 
 type chatRequest struct {
-	Model          string            `json:"model"`
-	Messages       []chatMessage     `json:"messages"`
-	ResponseFormat chatResponseFmt   `json:"response_format"`
-	MaxTokens      int               `json:"max_tokens,omitempty"`
-	Temperature    float64           `json:"temperature"`
+	Model          string          `json:"model"`
+	Messages       []chatMessage   `json:"messages"`
+	ResponseFormat chatResponseFmt `json:"response_format"`
+	MaxTokens      int             `json:"max_tokens,omitempty"`
+	Temperature    float64         `json:"temperature"`
 }
 
 type chatMessage struct {
@@ -138,6 +138,12 @@ func (p *ChatCompletionsProvider) Generate(ctx context.Context, prompt Prompt) (
 	}
 	if len(decoded.Choices) == 0 {
 		return ProviderResult{}, fmt.Errorf("%w: empty choices", ErrInvalidOutput)
+	}
+	// 先看是否被输出上限截断：此时的 JSON 必然不完整，若直接进入解析，
+	// 报出来的会是「malformed JSON」——真正该做的是调高 max_output_tokens，
+	// 报错必须指向它，否则运营者会去查提示词或协议。
+	if decoded.Choices[0].FinishReason == "length" {
+		return ProviderResult{}, fmt.Errorf("%w: output truncated at max_output_tokens=%d (finish_reason=length); raise the limit in model settings", ErrInvalidOutput, p.maxOutputTokens)
 	}
 
 	result, err := decodeStructuredOutput(decoded.Choices[0].Message.Content, prompt.EvidenceIDs)

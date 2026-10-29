@@ -7,6 +7,7 @@ import {
   Gauge,
   KeyRound,
   PlugZap,
+  Power,
   RefreshCw,
   Save,
   ShieldCheck,
@@ -41,13 +42,21 @@ const form = reactive({
   model: '',
   apiKey: '',
   timeoutSeconds: 30,
-  maxOutputTokens: 1200,
+  maxOutputTokens: 4096,
   dailyTokenBudget: 100000,
   maxConcurrentRequests: 2,
 })
 
 const runtime = computed(() => current.value?.runtime ?? null)
 const apiKeyConfigured = computed(() => current.value?.api_key_set ?? false)
+
+// 配置齐全但开关关着是最容易漏的一步：保存能成功、页面不报错，但 AI 全程不生效。
+// 与其让人自己去对照「运行状态」卡，不如直接把这种状态拎到最上面并给一键启用。
+const readyButDisabled = computed(() => {
+  const s = current.value
+  if (!s) return false
+  return !s.enabled && s.base_url !== '' && s.model !== '' && s.api_key_set
+})
 
 const protocolHint = computed(() =>
   form.protocol === 'responses'
@@ -63,7 +72,7 @@ function applySettings(settings: AISettings) {
   form.model = settings.model
   form.apiKey = ''
   form.timeoutSeconds = settings.request_timeout_seconds || 30
-  form.maxOutputTokens = settings.max_output_tokens || 1200
+  form.maxOutputTokens = settings.max_output_tokens || 4096
   form.dailyTokenBudget = settings.daily_token_budget ?? 100000
   form.maxConcurrentRequests = settings.max_concurrent_requests || 2
 }
@@ -158,12 +167,18 @@ async function save() {
     testResult.value = null
     notice.value = saved.enabled
       ? '配置已保存并立即生效（无需重启）。'
-      : '配置已保存，模型接入处于关闭状态。'
+      : '配置已保存，但开关处于关闭状态——此状态下不会调用模型。'
   } catch (error) {
     errorMessage.value = describe(error, '保存失败')
   } finally {
     saving.value = false
   }
+}
+
+// 一键启用：沿用在用的配置，只把开关翻到 true 并立即保存。
+async function enableNow() {
+  form.enabled = true
+  await save()
 }
 
 function describe(error: unknown, fallback: string): string {
@@ -187,6 +202,18 @@ onMounted(load)
         <RefreshCw :size="16" :class="{ spinning: loading }" />
       </button>
     </template>
+
+    <div v-if="readyButDisabled" class="ai-enable-banner">
+      <div>
+        <strong>配置已就绪，但接入开关是关闭的</strong>
+        <p class="muted small">
+          地址、模型与密钥都已保存，当前不会调用模型——诊断详情页会回退到确定性诊断。
+        </p>
+      </div>
+      <button class="primary-button" type="button" :disabled="saving" @click="enableNow">
+        <Power :size="15" />立即启用
+      </button>
+    </div>
 
     <section class="ai-settings-status">
       <article class="ai-status-card">
@@ -265,7 +292,11 @@ onMounted(load)
 
         <label>
           单次最大输出 token
-          <input v-model.number="form.maxOutputTokens" type="number" min="1" max="100000" />
+          <input v-model.number="form.maxOutputTokens" type="number" min="1" max="32768" />
+          <span class="field-hint">
+            中文模型的合规解释实测需 2400~2600 token，建议不低于 4000；填小会被截断并报
+            「output truncated」。同时不能大于下面的日预算。
+          </span>
         </label>
 
         <label>
@@ -325,6 +356,24 @@ onMounted(load)
 </template>
 
 <style scoped>
+/* 配置齐全但开关关闭时的横幅。用左侧色条而非整块高饱和底色：
+   这是「提醒待办」不是「错误」，不该和真正的报错抢视觉权重。 */
+.ai-enable-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--status-warning, #b45309);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+.ai-enable-banner strong { display: block; margin-bottom: 2px; }
+.ai-enable-banner p { margin: 0; }
+
 .ai-settings-status {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

@@ -244,11 +244,41 @@ async function generateExplanation() {
     const item = await generateDiagnosisExplanation(auth.accessToken, detail.value.id)
     explanations.value = [item, ...explanations.value]
   } catch (error) {
-    if (error instanceof APIError && error.code === 'AI_BUDGET_EXCEEDED') aiError.value = '今日剩余 AI token 预算不足以生成本次解释，规则结论和原始证据仍然有效。'
-    else if (error instanceof APIError && error.code === 'AI_BUSY') aiError.value = 'AI 解释并发已满，请稍后重试；规则诊断不受影响。'
-    else aiError.value = 'AI 解释暂不可用，规则结论和原始证据仍然有效。请检查 Provider 配置或稍后重试。'
+    aiError.value = describeAIError(error)
   }
   finally { aiLoading.value = false; await loadAIStatus() }
+}
+
+// describeAIError 把后端的失败原因翻译成「下一步该动哪里」。
+//
+// 后端在 message 里已经给出具体原因（截断、未知证据、密钥、限流），早先这里一律
+// 覆盖成「AI 解释暂不可用，请检查 Provider 配置」，等于把唯一有用的信息扔掉——
+// 用户在界面上永远不知道该把 max_output_tokens 调大还是该换密钥。
+function describeAIError(error: unknown): string {
+  if (!(error instanceof APIError)) return 'AI 解释暂不可用，规则结论和原始证据仍然有效。'
+  const raw = error.message || ''
+  switch (error.code) {
+    case 'AI_DISABLED':
+      return '模型接入尚未启用：到「系统设置 → 模型接入」打开开关后即可生成解释。'
+    case 'AI_BUDGET_EXCEEDED':
+      return '今日剩余 AI token 预算不足以生成本次解释，规则结论和原始证据仍然有效。'
+    case 'AI_BUSY':
+      return 'AI 解释并发已满，请稍后重试；规则诊断不受影响。'
+    case 'AI_EVIDENCE_REQUIRED':
+      return '该诊断没有可引用的证据，无法生成带引用的解释。'
+    case 'AI_INVALID_OUTPUT':
+      if (/truncated|max_output_tokens/i.test(raw)) {
+        return '模型输出被单次上限截断：到「模型接入」把「单次最大输出 token」提到 4000 以上再试。'
+      }
+      if (/unknown evidence|citation/i.test(raw)) {
+        return `模型输出未通过引用校验：${raw}`
+      }
+      return `模型输出未通过校验：${raw}`
+    case 'AI_PROVIDER_ERROR':
+      return `模型提供方调用失败：${raw}`
+    default:
+      return raw || 'AI 解释暂不可用，规则结论和原始证据仍然有效。'
+  }
 }
 
 async function loadAIStatus() {

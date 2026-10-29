@@ -17,16 +17,16 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 314 |
-| 角色受限 | 90 |
-| 已审计 | 190 |
+| 路由总数 | 315 |
+| 角色受限 | 91 |
+| 已审计 | 191 |
 | scope=workspace | 13 |
 | scope=cluster | 86 |
 | scope=namespace | 32 |
-| scope=none | 183 |
-| 角色 operations_admin | 66 |
+| scope=none | 184 |
+| 角色 operations_admin | 67 |
 | 角色 security_auditor | 4 |
-| 角色 system_admin | 90 |
+| 角色 system_admin | 91 |
 
 ## 路由明细（按路径排序）
 
@@ -85,6 +85,7 @@
 | GET | `/api/v1/aiops/slos/burn-summary` | any | none | aiops.slo.burn.list |
 | GET | `/api/v1/aiops/slos/templates` | any | none | aiops.slo.templates.list |
 | GET | `/api/v1/aiops/topology/changes` | any | none | aiops.topology.changes.list |
+| POST | `/api/v1/aiops/topology/collect` | `operations_admin`, `system_admin` | none | aiops.topology.collect |
 | GET | `/api/v1/aiops/topology/graph` | any | none | aiops.topology.graph.read |
 | GET | `/api/v1/alert-routes` | any | none | - |
 | POST | `/api/v1/alert-routes` | `operations_admin`, `system_admin` | none | alert_route.route.create |

@@ -163,10 +163,13 @@ export interface TopologyNode {
   edge_count: number
 }
 
+// 与后端 topology.GraphCompleteness 一致。早先这里写的是
+// coverage / missing_producers / stale_edges，后端一个都不返回，于是
+// 「拓扑完整性」卡片上的徽章与「陈旧边 N 条」永远是空的。
 export interface GraphCompleteness {
-  coverage: SignalCoverage
-  missing_producers?: string[]
-  stale_edges: number
+  state: 'complete' | 'partial' | 'unavailable' | 'truncated'
+  truncated?: boolean
+  remaining?: number
 }
 
 export interface TopologyGraph {
@@ -176,6 +179,21 @@ export interface TopologyGraph {
   edges: TopologyEdge[]
   completeness: GraphCompleteness
   generated_at: string
+}
+
+// 一次采集的结果。partial 为 true 表示部分命名空间读取失败——
+// 边仍按可用数据写入，界面需要把「采到多少、缺多少」如实展示出来，
+// 而不是把它当成成功或失败的二值状态。
+export interface TopologyCollectionResult {
+  cluster_id: number
+  namespace?: string
+  namespaces?: number
+  edges_seen: number
+  edges_upserted: number
+  edges_closed: number
+  partial: boolean
+  error?: string
+  errors?: string[]
 }
 
 export interface ChangeEvent {

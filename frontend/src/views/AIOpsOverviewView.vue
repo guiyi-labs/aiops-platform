@@ -18,6 +18,7 @@ import {
 
 import { listClusters } from '../api/clusters'
 import {
+  collectTopology,
   getAIOpsOverview,
   getTopologyGraph,
   listSignalCatalog,
@@ -36,6 +37,7 @@ import type {
   SignalOccurrence,
   SignalOverview,
   SignalProducer,
+  TopologyCollectionResult,
   TopologyGraph,
 } from '../types/aiops'
 
@@ -259,7 +261,7 @@ const topologyLayout = computed<TopologyLayout | null>(() => {
   return { width, height, nodes: layoutNodes, edges: layoutEdges }
 })
 
-const missingProducers = computed(() => topology.value?.completeness?.missing_producers ?? [])
+
 
 function nodeKey(r: { kind: string; namespace: string; name: string }): string {
   return `${r.kind}|${r.namespace}|${r.name}`
@@ -409,6 +411,36 @@ async function changeCluster() {
   changes.value = []
   topologyStatus.value = selectedClusterID.value ? 'idle' : 'idle'
   await loadTopology()
+}
+
+// collectNow 触发一次真实采集，然后重新拉图。
+//
+// 后端的边表不会自动刷新（没有后台采集循环），所以「查询」只是在读已有边；
+// 没有这个按钮，新部署或长时间未采集时看到的永远是空图，且无法从界面自救。
+const collecting = ref(false)
+const collectResult = ref<TopologyCollectionResult | null>(null)
+
+async function collectNow() {
+  const cid = selectedClusterID.value
+  if (!cid) return
+  collecting.value = true
+  collectResult.value = null
+  try {
+    const ns = namespace.value.trim() || undefined
+    collectResult.value = await collectTopology(auth.accessToken, { cluster_id: cid, namespace: ns })
+    await loadTopology()
+  } catch (err) {
+    collectResult.value = {
+      cluster_id: cid,
+      edges_seen: 0,
+      edges_upserted: 0,
+      edges_closed: 0,
+      partial: true,
+      error: err instanceof APIError ? err.message : '采集失败',
+    }
+  } finally {
+    collecting.value = false
+  }
 }
 
 function switchToTopology() {
@@ -707,7 +739,23 @@ onMounted(initialize)
         <button type="button" class="secondary-button" :disabled="!selectedClusterID || topologyStatus === 'loading'" @click="loadTopology">
           <Search :size="14" /> 查询
         </button>
+        <button type="button" class="secondary-button" :disabled="!selectedClusterID || collecting" @click="collectNow">
+          <RefreshCw :size="14" :class="{ spinning: collecting }" />
+          {{ collecting ? '采集中…' : '采集拓扑' }}
+        </button>
       </div>
+
+      <p v-if="collectResult" class="topology-collect-result" :class="{ partial: collectResult.partial }">
+        <template v-if="collectResult.partial">
+          采集未完全成功：读到 {{ collectResult.edges_seen }} 条关系，写入 {{ collectResult.edges_upserted }} 条。
+          <span v-if="collectResult.error">（{{ collectResult.error }}）</span>
+          <span v-else-if="collectResult.errors?.length">（{{ collectResult.errors.length }} 个命名空间读取失败）</span>
+        </template>
+        <template v-else>
+          采集完成：{{ collectResult.namespaces ? `${collectResult.namespaces} 个命名空间，` : '' }}写入
+          {{ collectResult.edges_upserted }} 条关系，关闭 {{ collectResult.edges_closed }} 条陈旧关系。
+        </template>
+      </p>
 
       <div v-if="!selectedClusterID" class="aiops-empty">
         <Boxes :size="30" />
@@ -718,16 +766,17 @@ onMounted(initialize)
         <article class="aiops-card aiops-completeness">
           <div class="completeness-main">
             <span class="completeness-label">拓扑完整性</span>
-            <span v-if="topology" class="badge" :class="`badge-${topology.completeness.coverage}`">
-              {{ coverageLabel(topology.completeness.coverage) }}
+            <span v-if="topology" class="badge" :class="`badge-${topology.completeness.state}`">
+              {{ coverageLabel(topology.completeness.state) }}
             </span>
             <span v-else class="muted">未加载</span>
-            <small v-if="topology">陈旧边 {{ topology.completeness.stale_edges }} 条</small>
-          </div>
-          <div v-if="missingProducers.length" class="completeness-missing">
-            <TriangleAlert :size="14" />
-            <span>缺失生产者：</span>
-            <em v-for="p in missingProducers" :key="p">{{ p }}</em>
+            <!-- 陈旧边数在采集结果里给（edges_closed），图接口不返回该字段。 -->
+            <small v-if="topology && topology.completeness.truncated">
+              结果被截断{{ topology.completeness.remaining ? `，还有 ${topology.completeness.remaining} 条未返回` : '' }}
+            </small>
+            <small v-else-if="topology">
+              {{ topology.nodes.length }} 个资源 · {{ topology.edges.length }} 条关系
+            </small>
           </div>
         </article>
 
@@ -855,6 +904,22 @@ onMounted(initialize)
 .aiops-section {
   display: grid;
   gap: 16px;
+}
+
+/* 采集结果行：成功是中性信息，部分失败才升到警示色——两者都如实给出计数，
+   避免把「采到一部分」显示成「成功」或「失败」这种二值结论。 */
+.topology-collect-result {
+  margin: -4px 0 4px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--status-success, #0f766e);
+  background: var(--bg-tertiary);
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.topology-collect-result.partial {
+  border-left-color: var(--status-warning, #b45309);
+  color: var(--text-primary);
 }
 
 .aiops-tabs {

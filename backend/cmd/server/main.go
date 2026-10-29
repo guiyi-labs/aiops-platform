@@ -554,12 +554,19 @@ func main() {
 		correlationWorker.Run(backgroundContext)
 	}()
 
-	// M40 temporal topology: query-only wiring. The collector is deliberately
-	// nil (no background snapshot pass) — the graph projection is derived from
-	// live resource lists on demand, so this cannot leave a partially
-	// collected edge set behind. With the service nil the /aiops/topology/*
-	// routes are never registered and the console shows ROUTE_NOT_FOUND.
-	topologyService := topology.NewService(nil, topology.NewGormRepository(database.GORM()), nil)
+	// M40 temporal topology. The collector was previously wired as nil, which
+	// made the graph endpoint return an empty graph forever: the edge table was
+	// never written, so the console showed a blank canvas that read as a
+	// rendering bug. Wiring it means every edge is derived from a live list of
+	// the actual namespaced resources (never from naming or time proximity),
+	// and collection is triggered explicitly via POST /aiops/topology/collect
+	// rather than by a background loop — an operator can see "collect now, N
+	// edges" instead of guessing whether a timer is running.
+	topologyService := topology.NewService(
+		topology.NewCollector(kubernetesService, 100),
+		topology.NewGormRepository(database.GORM()),
+		topologyNamespaceLister{reader: kubernetesService},
+	)
 
 	// M43 bounded AI investigation. Provider is left nil on purpose: the service
 	// substitutes NopProvider, whose output is explicitly labelled

@@ -296,6 +296,11 @@ func (s *Service) ListActionCandidates(ctx context.Context, caseID int64) (Actio
 		}
 	}
 
+	// 空集合必须是 []，不能是 nil —— nil slice 会序列化成 null，
+	// 调用方（控制台与 automation/investigator 的适配器）都按数组消费。
+	if items == nil {
+		items = []ActionCandidate{}
+	}
 	return ActionCandidateListResponse{Items: items, Total: int64(len(items))}, nil
 }
 

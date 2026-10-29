@@ -98,3 +98,29 @@ OpenAI 兼容端点（DeepSeek、通义、Kimi、vLLM、Ollama 等）只实现 `
 - 单行表单组织部署，不支持多套配置档案（多档案会带来「哪份生效」的歧义）
 - 报告与配置均为单实例语义，未做多副本一致性（当前部署单副本）
 - 模型调用的成本统计以 Provider 返回的 usage 为准；上游不返回 usage 时按 0 计
+
+## 附：同批补齐的功能缺口
+
+### CaseReader 适配器（新增 `cmd/server/case_reader_adapter.go`）
+
+`automation` 与 `aiinvestigator` 各自定义了 `CaseReader`，但仓库里从未有实现——
+两者只能拿到 `NopCaseReader`，因此「基于某个关联用例生成计划/调查」一直不可用。
+
+适配放在装配层（`cmd/server`）而非业务包内：`automation`/`aiinvestigator` 与
+`correlation` 是同层兄弟包，让它们互相 import 会把「用例」这个共享概念耦合进两个包。
+适配器通过一个 3 方法的窄接口（`GetCase` / `ListActionCandidates`）读取用例。
+
+映射要点：
+- `automation` 只取主资源身份（Kind/Namespace/Name/UID）与根因候选 ID；
+  **未确认用例不带出候选**——候选不是结论。
+- `aiinvestigator` 必须带全因子、信号链、资源链、变更候选：模型的引用校验依赖这些 ID，
+  缺一项的后果是「模型无法引用」而不是「答得不好」。
+- `EligibleActionCodes` 只放行 `Eligible=true` 的候选；`blocked` 的一律不通。
+
+用 `cmd/server/case_reader_adapter_test.go` 固化（4 个用例：主资源映射、NotFound 传递、
+eligible 过滤、investigator 全上下文）。
+
+### 顺带修：`ActionCandidateListResponse.items` 为 null
+
+`correlation.Service.ListActionCandidates` 在无候选时返回 nil slice → JSON `null`，
+与本轮其它几处同类问题一致。已改为返回 `[]`。

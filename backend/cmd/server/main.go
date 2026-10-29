@@ -53,6 +53,9 @@ import (
 	signalsvc "k8s-aiops.local/backend/internal/signal"
 	"k8s-aiops.local/backend/internal/slo"
 	"k8s-aiops.local/backend/internal/store"
+	"k8s-aiops.local/backend/internal/automation"
+	"k8s-aiops.local/backend/internal/aiinvestigator"
+	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/topology"
 	"k8s-aiops.local/backend/internal/workspace"
 	"k8s-aiops.local/backend/migrations"
@@ -370,6 +373,16 @@ func main() {
 	goldenStorage := golden.NewFileReportStorage(".artifacts/quality-report")
 	goldenService := golden.NewService(goldenEngineContracts(), goldenStorage, logger)
 
+	// Warm the quality report at startup. The report lives in memory only, so a
+	// restart would otherwise leave GET /aiops/quality-report at 404 until an
+	// operator clicks "运行回放" — which reads as a broken page during a demo.
+	// RunReplay is async and bounded; a failure here is never fatal.
+	if taskID, err := goldenService.RunReplay(context.Background()); err != nil {
+		logger.Warn("warm golden quality report", zap.Error(err))
+	} else {
+		logger.Info("golden quality report warm-up started", zap.String("task_id", taskID))
+	}
+
 	var oidcSessionManager *oidc.SessionManager
 	var oidcPostLogoutURI string
 	if cfg.OIDC.Enabled {
@@ -501,6 +514,33 @@ func main() {
 		correlationWorker.Run(backgroundContext)
 	}()
 
+	// M40 temporal topology: query-only wiring. The collector is deliberately
+	// nil (no background snapshot pass) — the graph projection is derived from
+	// live resource lists on demand, so this cannot leave a partially
+	// collected edge set behind. With the service nil the /aiops/topology/*
+	// routes are never registered and the console shows ROUTE_NOT_FOUND.
+	topologyService := topology.NewService(nil, topology.NewGormRepository(database.GORM()), nil)
+
+	// M43 bounded AI investigation. Provider is left nil on purpose: the
+	// service substitutes NopProvider (deterministic, never calls a model) when
+	// AI is disabled, which is the current deployment. Wiring the real
+	// aiexplain provider here is the switch for enabling model-backed
+	// investigations — see AI_ENABLED in the deployment env.
+	investigatorService := aiinvestigator.NewService(aiinvestigator.NewGormRepository(database.GORM()), nil, nil)
+
+	// M33 policy-constrained automation. The Kubernetes source is the read-only
+	// gateway service; the case reader falls back to NopCaseReader because the
+	// correlation-case adapter for automation was never written. Plans can be
+	// listed and previewed against the gates, but a plan derived from a
+	// specific case needs that adapter.
+	automationService := automation.NewService(automation.NewGormRepository(database.GORM()), nil, kubernetesService)
+
+	// M44/M45 alert routing (receivers, silences, inhibits, delivery log).
+	// Same class of gap: handlers and GORM repository existed but the service
+	// was never constructed, so /alert-routes/* 404'd and the event-stream
+	// page could not render its routing panels.
+	alertRouteService := alertroute.NewService(alertroute.NewGormRepository(database.GORM()), logger)
+
 	// M60: start providers that carry background goroutines. Providers that
 	// implement Lifecycle are started in dependency order (topological sort).
 	// Start errors are logged but never fatal — a partial provider failure must
@@ -544,6 +584,10 @@ func main() {
 			EventStreamService:        eventStreamService,
 			InspectionService:         inspectionService,
 			ServiceMeshService:        serviceMeshService,
+			TopologyService:           topologyService,
+			AlertRouteService:         alertRouteService,
+			AIInvestigatorService:     investigatorService,
+			AutomationService:         automationService,
 			GoldenService:             goldenService,
 			KnowledgeRepository:       knowledgeRepository,
 			AppCatalogService:         appCatalogService,

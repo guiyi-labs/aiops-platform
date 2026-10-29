@@ -673,7 +673,9 @@ func (s *Service) ListPlans(ctx context.Context, filter ActionPlanFilter) (Actio
 	if err != nil {
 		return ActionPlanListResponse{}, err
 	}
-	resp := ActionPlanListResponse{Total: total}
+	// Always emit an array: a nil slice serialises to JSON null, and callers
+	// that treat the field as a list (filter/length/map) crash on null.
+	resp := ActionPlanListResponse{Items: make([]ActionPlanResponse, 0, len(items)), Total: total}
 	for _, p := range items {
 		resp.Items = append(resp.Items, toResponse(p))
 	}

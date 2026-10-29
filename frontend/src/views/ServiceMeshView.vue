@@ -38,6 +38,9 @@ const services = computed<ServiceMetric[]>(() => trafficMetrics.value?.services 
 const vsLoading = ref(false)
 const vsError = ref('')
 const vsTruncated = ref(false)
+// 集群未安装 Istio 属于「能力缺失」而非「查询失败」：后端返回 404
+// SERVICEMESH_NOT_INSTALLED，这里用中性提示而非红色错误条。
+const meshNotInstalled = ref(false)
 const drLoading = ref(false)
 const drError = ref('')
 const drTruncated = ref(false)
@@ -116,8 +119,14 @@ async function loadVirtualServices() {
     })
     virtualServices.value = resp.items
     vsTruncated.value = resp.truncated
+    meshNotInstalled.value = false
   } catch (err) {
-    vsError.value = err instanceof APIError ? err.message : '加载 VirtualService 失败'
+    if (err instanceof APIError && err.code === 'SERVICEMESH_NOT_INSTALLED') {
+      meshNotInstalled.value = true
+      vsError.value = ''
+    } else {
+      vsError.value = err instanceof APIError ? err.message : '加载 VirtualService 失败'
+    }
     virtualServices.value = []
   } finally {
     vsLoading.value = false
@@ -266,7 +275,11 @@ onMounted(async () => {
           <span v-if="vsTruncated" class="truncation-hint">结果已截断，仅显示前 {{ virtualServices.length }} 项</span>
         </div>
 
-        <p v-if="vsError" class="error-message">{{ vsError }}</p>
+        <div v-if="meshNotInstalled" class="panel-empty">
+          该集群未安装 Istio，因此没有 VirtualService / DestinationRule 数据。
+          这是能力缺失，不是查询失败——装入 Istio 后本页会自动出现网格资源。
+        </div>
+        <p v-else-if="vsError" class="error-message">{{ vsError }}</p>
         <div v-else-if="vsLoading" class="panel-empty">加载中…</div>
         <div v-else-if="virtualServices.length === 0" class="panel-empty">暂无 VirtualService 资源</div>
         <div v-else class="table-scroll">

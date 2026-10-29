@@ -217,10 +217,10 @@ onMounted(loadReport)
         </section>
 
         <!-- Changed components -->
-        <section v-if="report.changed_components.length > 0" class="quality-card">
+        <section v-if="(report.changed_components?.length ?? 0) > 0" class="quality-card">
           <h3 class="card-title">变更组件</h3>
           <div class="tag-list">
-            <span v-for="comp in report.changed_components" :key="comp" class="component-tag">
+            <span v-for="comp in report.changed_components ?? []" :key="comp" class="component-tag">
               {{ comp }}
             </span>
           </div>

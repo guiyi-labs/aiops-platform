@@ -476,14 +476,15 @@ export interface InvestigationCitation {
   claim: string
 }
 
+// 与 docs/api/openapi.yaml 的 InvestigatorRunbook / AutomationRunbook 一致：
+// 后端只提供这四项，没有 level / description / rollback_strategy。
 export interface Runbook {
-  id: string
-  display_name: string
-  action_codes: string[]
-  level: string
-  description: string
-  prerequisites: string[]
-  rollback_strategy: string
+  runbook_id: string
+  /** M19 受控操作编码；建议性 runbook 为空串。 */
+  action_code: string
+  title: string
+  /** 面向操作者的处置步骤，不是给模型的提示词。 */
+  steps: string[]
 }
 
 export interface Investigation {

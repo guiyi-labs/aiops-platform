@@ -388,7 +388,9 @@ async function loadTopology() {
   topologyStatus.value = 'loading'
   topologyError.value = ''
   try {
-    const ns = namespace.value.trim() || undefined
+    // 后端 /aiops/topology/graph 要求 namespace 必填（按命名空间返回子图），
+    // 输入框留空时兜底到 default，否则会拿到 400 INVALID_QUERY 并把整页打成错误态。
+    const ns = namespace.value.trim() || 'default'
     const [g, t] = await Promise.all([
       getTopologyGraph(auth.accessToken, { cluster_id: cid, namespace: ns }),
       listTopologyChanges(auth.accessToken, { cluster_id: cid, namespace: ns, limit: 50 }),

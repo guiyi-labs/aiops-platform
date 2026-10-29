@@ -12,10 +12,10 @@ import "fmt"
 // generation time — a runbook whose action code is not in the case's
 // ActionCandidate list is rejected.
 type RunbookDescriptor struct {
-	RunbookID  string // fixed, server-owned ID (e.g. "rollback_last_rollout")
-	ActionCode string // M19 controlled-operations code (e.g. "deployment.rollback")
-	Title      string
-	Steps      []string // human-readable steps (for the operator, not the AI)
+	RunbookID  string   `json:"runbook_id"`  // fixed, server-owned ID (e.g. "rollback_last_rollout")
+	ActionCode string   `json:"action_code"` // M19 controlled-operations code (e.g. "deployment.rollback")
+	Title      string   `json:"title"`
+	Steps      []string `json:"steps"` // human-readable steps (for the operator, not the AI)
 }
 
 // catalog is the compiled runbook catalog. Lookups via LookupRunbook fail

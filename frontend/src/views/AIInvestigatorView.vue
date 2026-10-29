@@ -66,17 +66,6 @@ const generating = ref(false)
 const generateError = ref('')
 const generateSuccess = ref('')
 
-const levelLabels: Record<string, string> = { L0: 'L0', L1: 'L1', L2: 'L2', L3: 'L3' }
-
-function levelClass(level: string): string {
-  switch (level) {
-    case 'L0': return 'level-green'
-    case 'L1': return 'level-blue'
-    case 'L2': return 'level-amber'
-    case 'L3': return 'level-red'
-    default: return 'level-neutral'
-  }
-}
 
 const statusLabels: Record<InvestigationStatus, string> = {
   completed: '已完成',
@@ -243,29 +232,26 @@ onMounted(() => {
       <div v-else-if="runbooksError" class="panel-empty error">{{ runbooksError }}</div>
       <div v-else-if="runbooks.length === 0" class="panel-empty muted">暂无可用 Runbook</div>
       <div v-else class="runbook-grid">
-        <article v-for="rb in runbooks" :key="rb.id" class="runbook-card">
+        <article v-for="rb in runbooks" :key="rb.runbook_id" class="runbook-card">
           <div class="runbook-card-head">
-            <strong>{{ rb.display_name }}</strong>
-            <span :class="['level-badge', levelClass(rb.level)]">{{ levelLabels[rb.level] ?? rb.level }}</span>
+            <strong>{{ rb.title }}</strong>
+            <span :class="['level-badge', rb.action_code ? 'level-executable' : 'level-advisory']">
+              {{ rb.action_code ? '可执行' : '建议性' }}
+            </span>
           </div>
-          <p class="runbook-desc">{{ rb.description }}</p>
           <div class="runbook-block">
             <p class="muted small">动作编码</p>
             <div class="chip-list">
-              <span v-for="code in rb.action_codes" :key="code" class="chip">{{ code }}</span>
-              <span v-if="rb.action_codes.length === 0" class="muted small">—</span>
+              <span v-if="rb.action_code" class="chip">{{ rb.action_code }}</span>
+              <span v-else class="muted small">—（仅建议，不绑定受控动作）</span>
             </div>
           </div>
           <div class="runbook-block">
-            <p class="muted small">前置条件</p>
+            <p class="muted small">处置步骤</p>
             <ul class="runbook-list">
-              <li v-for="(pre, idx) in rb.prerequisites" :key="`pre-${idx}`">{{ pre }}</li>
-              <li v-if="rb.prerequisites.length === 0" class="muted small">—</li>
+              <li v-for="(step, idx) in rb.steps" :key="`step-${idx}`">{{ step }}</li>
+              <li v-if="rb.steps.length === 0" class="muted small">—</li>
             </ul>
-          </div>
-          <div class="runbook-block">
-            <p class="muted small">回滚策略</p>
-            <p class="runbook-rollback">{{ rb.rollback_strategy || '—' }}</p>
           </div>
         </article>
       </div>

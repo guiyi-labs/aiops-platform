@@ -15,10 +15,10 @@ package automation
 // single source of truth for which runbooks the automation service may
 // materialize into action plans.
 type RunbookDescriptor struct {
-	RunbookID  string // fixed, server-owned ID (e.g. "rollback_last_rollout")
-	ActionCode string // M19 controlled-operations code (e.g. "deployment.rollback")
-	Title      string
-	Steps      []string // human-readable steps (for the operator)
+	RunbookID  string   `json:"runbook_id"`  // fixed, server-owned ID (e.g. "rollback_last_rollout")
+	ActionCode string   `json:"action_code"` // M19 controlled-operations code (e.g. "deployment.rollback")
+	Title      string   `json:"title"`
+	Steps      []string `json:"steps"` // human-readable steps (for the operator)
 }
 
 // catalog is the compiled executable-runbook catalog. Lookups via

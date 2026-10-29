@@ -170,6 +170,16 @@ func (s *Service) Overview(ctx context.Context, clusterID *int64, namespace stri
 		overview.ActiveDiagnoses = sources.ActiveDiagnoses(ctx, clusterID, namespace)
 	}
 
+	// JSON arrays must never be nil: a nil Go slice serialises to `null`, and
+	// the console treats these fields as arrays (`recent_changes.length`), which
+	// threw a render error that blanked the whole AIOps overview page.
+	if overview.TopSignals == nil {
+		overview.TopSignals = []OverviewSignal{}
+	}
+	if overview.RecentChanges == nil {
+		overview.RecentChanges = []OverviewChange{}
+	}
+
 	// Partial flag
 	for _, c := range overview.SourceCompleteness {
 		if c == CoverageUnavailable || c == CoveragePartial || c == CoverageTruncated {

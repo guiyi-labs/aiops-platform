@@ -10,6 +10,14 @@ Detailed change records for each milestone live under `docs/changes/`.
 ## [Unreleased]
 
 ### Fixed
+- **console**: 7 个页面不可用。`TopologyService`/`AIInvestigatorService`/`AutomationService`/
+  `AlertRouteService` 在 `main.go` 的 Options 中缺失，路由因此从未注册（404）；补装配后 4 个页面恢复。
+  `signal.Overview` 的 nil slice 序列化为 `null`，使概览页在渲染时抛错、整页空白，改为初始化空切片。
+  runbook 结构缺 json tag（输出 PascalCase），与 OpenAPI 的 `runbook_id/action_code/title/steps` 不符，
+  同时前端类型多出 `action_codes`/`prerequisites`/`level`，两端一起对齐。
+  istio GVR 不在 CRD 白名单，服务网格读请求被拒为 500，补白名单后未装 Istio 正确返回 404。
+  监控大盘缺 `from`/`to`、拓扑图缺 `namespace`，前端补默认值。质量报告仅存内存，改为启动时预热。
+  详见 `docs/changes/2026-10-29-console-page-availability.md`。
 - **diagnosis**: `metricBreachSeverity` 对内存返回 `"medium"`，不在 `diagnosis_records_severity_check`
   允许的 `info/warning/high/critical` 之内 → 内存类指标越界诊断无法落库，告警规则每 30 s 报一次
   `SQLSTATE 23514` 并空转。改为 `high`（`default` 分支改为 `warning`），并修正把错误值固定为预期的单测断言

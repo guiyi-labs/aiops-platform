@@ -120,6 +120,20 @@ TargetWhere: clause.Where{Exprs: []clause.Expression{
 
 > 注：`stale_edges` 这一概念后端并不存在，属于前端照想象补的字段。
 
+### 再补：空图不要显示成「部分」
+
+后端在「该命名空间没有任何活跃边」时也返回 `state=partial`——它无法区分「资源之间确实
+无关系」与「还没采集过」，因此保守地不给 complete。这与仓库其它地方的 fail-closed 一致，
+`service_test.go` 也明确断言了这一行为，属于有意的设计，未改动。
+
+问题在前端沿用了信号覆盖度那套标签，把 `partial` 渲染成「部分」，读起来像数据缺失。
+现改为拓扑专用标签：0 边时显示「无关系 / 未采集」，并附一行提示「刚接入集群时先点
+『采集拓扑』」。
+
+实测：cluster 3 →「完整 · 22 个资源 · 33 条关系」；kind 集群的 `default` →
+「无关系 / 未采集」+ 提示（该集群的边分布在 `kube-system` 18 / `aiops-demo` 16 /
+`local-path-storage` 2，`default` 内确实没有可派生的关系）。
+
 ## 验证
 
 | 项 | 结果 |

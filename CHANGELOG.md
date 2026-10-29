@@ -30,7 +30,8 @@ Detailed change records for each milestone live under `docs/changes/`.
   42P10，**每一次采集的边都写不进库**。补谓词后写入正常。
 - **console**: 拓扑完整性卡片读了后端不返回的 `coverage`/`stale_edges`/`missing_producers`，
   徽章空白、「陈旧边 条」数字为空；按 `state`/`truncated`/`remaining` 重写，并改显
-  「N 个资源 · M 条关系」。诊断详情页的 AI 错误提示改为按 code/关键词给出下一步动作
+  「N 个资源 · M 条关系」；0 边时不再显示成「部分」（后端空图返回 partial 是有意的保守
+  语义），改显「无关系 / 未采集」并提示先点采集。诊断详情页的 AI 错误提示改为按 code/关键词给出下一步动作
   （截断→调高上限、引用失败→展示校验详情、未启用→去开开关）；模型接入页在「配置齐全
   但开关关闭」时显示横幅与一键启用。
 

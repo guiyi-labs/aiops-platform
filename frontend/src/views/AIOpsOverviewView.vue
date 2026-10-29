@@ -288,6 +288,14 @@ function coverageLabel(c: string): string {
   )[c] ?? c
 }
 
+// 拓扑的 partial 与信号覆盖度的 partial 不是一回事：后端在「该命名空间没有任何活跃边」时
+// 也返回 partial，因为它无法区分「资源之间确实无关系」和「还没采集过」。沿用信号那套
+// 「部分采样」的说法会让人以为数据缺失，所以这里单独给标签。
+function topologyStateLabel(state: string, edgeCount: number): string {
+  if (state === 'partial' && edgeCount === 0) return '无关系 / 未采集'
+  return coverageLabel(state)
+}
+
 function coverageTitle(c: string): string {
   return ({
     complete: '数据完整',
@@ -767,12 +775,15 @@ onMounted(initialize)
           <div class="completeness-main">
             <span class="completeness-label">拓扑完整性</span>
             <span v-if="topology" class="badge" :class="`badge-${topology.completeness.state}`">
-              {{ coverageLabel(topology.completeness.state) }}
+              {{ topologyStateLabel(topology.completeness.state, topology.edges.length) }}
             </span>
             <span v-else class="muted">未加载</span>
             <!-- 陈旧边数在采集结果里给（edges_closed），图接口不返回该字段。 -->
             <small v-if="topology && topology.completeness.truncated">
               结果被截断{{ topology.completeness.remaining ? `，还有 ${topology.completeness.remaining} 条未返回` : '' }}
+            </small>
+            <small v-else-if="topology && topology.edges.length === 0">
+              该命名空间暂无资源关系；刚接入集群时先点「采集拓扑」。
             </small>
             <small v-else-if="topology">
               {{ topology.nodes.length }} 个资源 · {{ topology.edges.length }} 条关系

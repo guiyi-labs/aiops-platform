@@ -154,3 +154,58 @@ func TestValidateRunbookEligibility(t *testing.T) {
 		}
 	})
 }
+
+// AllRunbooks 必须返回稳定顺序。
+//
+// 之前的实现直接遍历 catalog map，而 Go 的 map 遍历顺序是随机的：同一份目录
+// 连续两次请求返回的次序就可能不同。后果不是崩溃，而是控制台上的卡片刷新一次
+// 就换个位置——同时也让 UI 基线截图永远无法稳定（同一份代码连拍两张差 10%）。
+// 这个测试连续取多次并比对，顺序一旦退化为 map 遍历就会立刻失败。
+func TestAllRunbooksOrderIsStable(t *testing.T) {
+	first := AllRunbooks()
+	if len(first) == 0 {
+		t.Fatal("catalog must not be empty")
+	}
+	want := make([]string, len(first))
+	for i, r := range first {
+		want[i] = r.RunbookID
+	}
+
+	for attempt := 0; attempt < 200; attempt++ {
+		got := AllRunbooks()
+		if len(got) != len(want) {
+			t.Fatalf("attempt %d: length changed %d -> %d", attempt, len(want), len(got))
+		}
+		for i := range want {
+			if got[i].RunbookID != want[i] {
+				t.Fatalf("attempt %d: order changed at index %d: want %q, got %q (full order: %v)",
+					attempt, i, want[i], got[i].RunbookID, runbookIDs(got))
+			}
+		}
+	}
+}
+
+func runbookIDs(list []RunbookDescriptor) []string {
+	out := make([]string, len(list))
+	for i, r := range list {
+		out[i] = r.RunbookID
+	}
+	return out
+}
+
+// runbookOrder 里登记的每个 ID 都必须真实存在于 catalog，否则「标准顺序」
+// 会悄悄退化成兜底排序。
+func TestRunbookOrderCoversCatalog(t *testing.T) {
+	listed := make(map[string]struct{}, len(runbookOrder))
+	for _, id := range runbookOrder {
+		if _, ok := catalog[id]; !ok {
+			t.Fatalf("runbookOrder lists %q which is not in the catalog", id)
+		}
+		listed[id] = struct{}{}
+	}
+	for id := range catalog {
+		if _, ok := listed[id]; !ok {
+			t.Fatalf("catalog has %q which is missing from runbookOrder", id)
+		}
+	}
+}

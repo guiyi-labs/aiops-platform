@@ -362,7 +362,7 @@ onMounted(async () => {
 .severity-chip.critical { color: #b91c1c; background: var(--danger-bg); }
 .severity-chip.warning { color: #92400e; background: var(--warning-bg); }
 .severity-chip.info { color: #0369a1; background: var(--info-bg); }
-.severity-chip.ok { color: #15803d; background: var(--success-bg); }
+.severity-chip.ok { color: var(--status-success); background: var(--success-bg); }
 
 
 .posture-domain-card {

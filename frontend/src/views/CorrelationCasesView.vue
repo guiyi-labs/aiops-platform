@@ -662,7 +662,7 @@ onMounted(initialize)
   cursor: not-allowed;
 }
 .linked-incident {
-  color: var(--accent-primary);
+  color: var(--accent-strong);
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
   border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
   text-decoration: none;
@@ -771,7 +771,7 @@ onMounted(initialize)
   font-size: 12px;
 }
 .factor-head .weight {
-  color: var(--accent-primary);
+  color: var(--accent-strong);
   font-size: 11px;
   font-weight: 600;
 }

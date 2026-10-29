@@ -1,5 +1,7 @@
 package automation
 
+import "sort"
+
 // Package-level catalog of executable runbooks. This mirrors the M43
 // aiinvestigator runbook catalog but only includes runbooks that have
 // a non-empty ActionCode (advisory-only runbooks cannot be materialized
@@ -47,10 +49,34 @@ func LookupRunbook(id string) (RunbookDescriptor, bool) {
 }
 
 // AllRunbooks returns the full executable-runbook catalog.
+// runbookOrder 固定目录的展示顺序（理由同 aiinvestigator/catalog.go：
+// 直接遍历 map 会让每次请求返回的次序随机，控制台卡片刷新一次就换位置）。
+// automation 只收可执行 runbook，故这里只有两条。
+var runbookOrder = []string{
+	"rollback_last_rollout",
+	"rollout_restart_pods",
+}
+
 func AllRunbooks() []RunbookDescriptor {
 	out := make([]RunbookDescriptor, 0, len(catalog))
-	for _, r := range catalog {
-		out = append(out, r)
+	seen := make(map[string]struct{}, len(catalog))
+	for _, id := range runbookOrder {
+		if r, ok := catalog[id]; ok {
+			out = append(out, r)
+			seen[id] = struct{}{}
+		}
+	}
+	rest := make([]string, 0, len(catalog)-len(out))
+	for id := range catalog {
+		if _, ok := seen[id]; !ok {
+			rest = append(rest, id)
+		}
+	}
+	if len(rest) > 0 {
+		sort.Strings(rest)
+		for _, id := range rest {
+			out = append(out, catalog[id])
+		}
 	}
 	return out
 }

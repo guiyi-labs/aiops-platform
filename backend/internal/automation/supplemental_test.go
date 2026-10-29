@@ -103,3 +103,47 @@ func TestJSONBMarshalRoundTrip(t *testing.T) {
 		t.Errorf("round trip = %q", string(got))
 	}
 }
+
+// AllRunbooks 必须返回稳定顺序。
+//
+// 原实现直接遍历 catalog map，而 Go 的 map 遍历顺序随机：同一份目录连续两次
+// 调用返回次序就可能不同，控制台上的 runbook 卡片刷新一次就换位置，UI 基线
+// 截图也因此永远不稳定。这里连续取多次并比对顺序。
+func TestAutomationRunbooksOrderIsStable(t *testing.T) {
+	first := AllRunbooks()
+	if len(first) == 0 {
+		t.Fatal("catalog must not be empty")
+	}
+	want := make([]string, len(first))
+	for i, r := range first {
+		want[i] = r.RunbookID
+	}
+	for attempt := 0; attempt < 200; attempt++ {
+		got := AllRunbooks()
+		if len(got) != len(want) {
+			t.Fatalf("attempt %d: length changed %d -> %d", attempt, len(want), len(got))
+		}
+		for i := range want {
+			if got[i].RunbookID != want[i] {
+				t.Fatalf("attempt %d: order changed at index %d: want %q, got %q", attempt, i, want[i], got[i].RunbookID)
+			}
+		}
+	}
+}
+
+// runbookOrder 与 catalog 必须一一对应：登记了不存在的 ID，说明顺序表写错了；
+// catalog 里有未登记的 ID，则会悄悄退化到兜底排序（顺序仍稳定但不可控）。
+func TestAutomationRunbookOrderMatchesCatalog(t *testing.T) {
+	listed := make(map[string]struct{}, len(runbookOrder))
+	for _, id := range runbookOrder {
+		if _, ok := catalog[id]; !ok {
+			t.Fatalf("runbookOrder lists %q which is not in the catalog", id)
+		}
+		listed[id] = struct{}{}
+	}
+	for id := range catalog {
+		if _, ok := listed[id]; !ok {
+			t.Fatalf("catalog has %q which is missing from runbookOrder", id)
+		}
+	}
+}

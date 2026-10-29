@@ -757,7 +757,7 @@ button:not(:disabled):active,
 .resource-category-tabs button.active { color: #245f56; background: #f4f8f7; }
 .resource-category-tabs button.active::after { background: #3b7d71; }
 .resource-category-tabs button span { overflow: hidden; font-size: 12px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
-.resource-category-tabs button strong { min-width: 22px; color: #8a969c; font-size: 10px; font-weight: 650; }
+.resource-category-tabs button strong { min-width: 22px; color: var(--text-tertiary); font-size: 10px; font-weight: 650; }
 .resource-category-tabs button.active strong { color: #3d7168; }
 
 .resource-kind-tabs {
@@ -793,7 +793,7 @@ button:not(:disabled):active,
 .resource-kind-tabs button:hover { color: #33454a; background: rgba(255, 255, 255, 0.58); }
 .resource-kind-tabs button.active { color: #1f6259; background: var(--gray-0); box-shadow: 0 1px 3px rgba(32, 48, 55, 0.1); }
 .resource-kind-tabs button span { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.resource-kind-tabs button strong { min-width: 24px; padding: 2px 6px; color: #77858c; font-size: 10px; background: var(--gray-100); border-radius: 9px; }
+.resource-kind-tabs button strong { min-width: 24px; padding: 2px 6px; color: var(--text-tertiary); font-size: 10px; background: var(--gray-100); border-radius: 9px; }
 .resource-kind-tabs button.active strong { color: #276d62; background: #e6f2ef; }
 
 .resource-workbench { min-height: 430px; margin-bottom: 30px; padding: 0; overflow: hidden; transition: opacity 160ms ease; }
@@ -874,7 +874,7 @@ button:not(:disabled):active,
 .detail-definition-list > div { min-width: 0; padding: 11px 13px; border-right: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
 .detail-definition-list > div:nth-child(2n) { border-right: 0; }
 .detail-definition-list > div:nth-last-child(-n + 2) { border-bottom: 0; }
-.detail-definition-list dt { color: #8a969c; font-size: 9px; }
+.detail-definition-list dt { color: var(--text-tertiary); font-size: 9px; }
 .detail-definition-list dd { margin: 5px 0 0; overflow-wrap: anywhere; color: #405058; font-size: 11px; font-weight: 650; }
 
 .detail-list, .condition-list { overflow: hidden; background: var(--gray-0); border: 1px solid var(--border-soft); border-radius: 6px; }
@@ -2267,7 +2267,7 @@ h2 {
 .metrics-consumer-row > span { display: grid; min-width: 0; gap: 3px; }
 .metrics-consumer-row strong, .metrics-consumer-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .metrics-consumer-row strong { color: #36443f; font-size: 10px; }
-.metrics-consumer-row small { color: #929c98; font-size: 8px; }
+.metrics-consumer-row small { color: var(--text-tertiary); font-size: 8px; }
 .metrics-consumer-row > svg { color: #9aa5a1; }
 .metrics-consumer-row > div { height: 5px; overflow: hidden; background: #e8edeb; border-radius: 3px; }
 .metrics-consumer-row > div i { display: block; height: 100%; background: #4a927f; border-radius: inherit; }
@@ -2531,7 +2531,7 @@ h2 {
 .topology-node em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .topology-node strong { color: #34413d; font-size: 10px; }
 .topology-node small { color: var(--text-muted); font-size: 9px; }
-.topology-node em { color: #9aa39f; font-size: 8px; font-style: normal; }
+.topology-node em { color: var(--text-tertiary); font-size: 8px; font-style: normal; }
 .topology-node.healthy { border-left-color: #399476; }
 .topology-node.warning { border-left-color: #c58a31; }
 .topology-node.critical { border-left-color: #ba5140; }
@@ -3654,7 +3654,8 @@ h2 {
   border-left: 3px solid #e0a020;
   border-radius: 4px;
   font-size: 12px;
-  color: #8a6d10;
+  /* 原 #8a6d10 在浅色提示底上只有 4.41:1，差 0.09 未达 AA，加深一档。 */
+  color: #75590c;
 }
 
 .result-banner {

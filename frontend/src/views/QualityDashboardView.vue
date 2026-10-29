@@ -507,7 +507,7 @@ onMounted(loadReport)
 .component-tag {
   padding: 4px 12px;
   background: var(--accent-subtle);
-  color: var(--accent-primary);
+  color: var(--accent-strong);
   border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 500;

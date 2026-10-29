@@ -9,6 +9,25 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed
+- **a11y**: 6 处对比度不足（axe serious）。强调色/辅助灰被直接当文字用，压在浅底上只有
+  2.58~4.45:1。新增 `--accent-strong`（#0a6f66）与 `--status-success-strong`（#146c33）
+  两个「可读版本」token：装饰性填充仍用原色，凡「它自己就是文字」或「承载白字」的场合
+  改用强色版（11 处 accent 用法 + SLO 健康徽章）。`--text-tertiary` 加深为 #596a70，
+  并把散落的 #929c98/#8a969c/#9aa39f/#77858c 收敛到该 token。
+- **runbook**: `AllRunbooks()` 直接遍历 map，Go 的 map 顺序随机 → 同一份目录每次请求
+  返回次序不同，控制台卡片刷新一次就换位置。`aiinvestigator` 与 `automation` 两处均改为
+  显式 `runbookOrder` 驱动，并对未登记条目按 ID 兜底，避免静默丢失。补 4 个回归测试。
+- **scripts**: UI 基线捕获不确定，连拍两张就有 19/62 视图不一致，导致「刚捕的基线立刻
+  验不过」。注入冻结时钟、禁用动画、隐藏 canvas 粒子背景；`Date` 用函数包装而非
+  `class extends Date`（后者会抛 TypeError 使整段注入静默失效）。`posture` 的 readyText
+  由页面标题改为只在报告渲染后出现的「累计检查」，此前会截到加载态。
+  对 `dashboard`（0.5%）与 `alerts`（2%）加 per-view 差异阈值：这两页展示实时指标与
+  告警评估状态，两次捕获天然差 0.1%~1.2%，属数据而非布局。
+  新增 `scripts/diff-baselines-debug.mjs`：对比两张基线并输出差异的包围盒与按行分布，
+  否则只能靠猜「差在哪」。
+
+
 ### Added
 - **topology**: 装配采集器并新增 `POST /api/v1/aiops/topology/collect`（operator 及以上，
   写审计）。此前 `topology.NewService(nil, …)` 使边表恒空、图恒空；现在一次全集群采集

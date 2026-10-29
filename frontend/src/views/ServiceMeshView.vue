@@ -530,7 +530,8 @@ onMounted(async () => {
   background: var(--bg-elevated);
 }
 .mesh-tab.active {
-  color: var(--accent-primary);
+  /* 作为文字必须过 AA：#0f9588 on 浅底只有 3.7:1。 */
+  color: var(--accent-strong);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-sm);
 }

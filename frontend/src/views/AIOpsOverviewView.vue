@@ -964,7 +964,8 @@ onMounted(initialize)
 
 .aiops-tabs button.active {
   color: #ffffff;
-  background: var(--accent-primary);
+  /* 白字压在 #0f9588 上只有 3.7:1，换更深的 accent-strong（约 6:1）。 */
+  background: var(--accent-strong);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1017,7 +1018,7 @@ onMounted(initialize)
 
 .partial-banner strong {
   display: block;
-  color: #8a6d10;
+  color: #75590c;
   font-size: 13px;
 }
 
@@ -1195,7 +1196,7 @@ onMounted(initialize)
 .badge-truncated { color: var(--status-warning); background: var(--warning-bg); }
 
 .badge-kind {
-  color: var(--accent-primary);
+  color: var(--accent-strong);
   background: var(--accent-subtle);
 }
 
@@ -1411,7 +1412,7 @@ onMounted(initialize)
 
 .completeness-missing em {
   padding: 2px 7px;
-  color: #8a6d10;
+  color: #75590c;
   font-style: normal;
   background: var(--warning-bg);
   border-radius: var(--radius-full);

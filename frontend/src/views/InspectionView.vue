@@ -1041,7 +1041,7 @@ onMounted(async () => {
   background: var(--accent-subtle);
   border-radius: var(--radius-full);
   font-size: 12px;
-  color: var(--accent-primary);
+  color: var(--accent-strong);
   font-weight: 600;
 }
 .icon-button.compact {

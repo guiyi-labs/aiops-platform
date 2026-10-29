@@ -1,6 +1,9 @@
 package aiinvestigator
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // RunbookDescriptor describes one server-owned runbook. The catalog is the
 // single source of truth for which runbooks exist, what action code they
@@ -55,12 +58,43 @@ func LookupRunbook(id string) (RunbookDescriptor, bool) {
 	return r, ok
 }
 
-// AllRunbooks returns the full runbook catalog. Used by the HTTP route and
-// the golden fixtures.
+// runbookOrder 固定目录的展示顺序。
+//
+// 不能直接遍历 catalog map：Go 的 map 遍历顺序是随机的，同一份目录每次请求
+// 返回的次序都不同——控制台上卡片刷新一次就换个位置，UI 基线截图因此永远
+// 无法稳定（同一份代码连拍两张就能差 10%）。顺序在这里显式写出来，新增
+// runbook 时也一并登记，审阅时能直接看出展示次序。
+var runbookOrder = []string{
+	"rollback_last_rollout",
+	"rollout_restart_pods",
+	"inspect_pvc_capacity",
+	"inspect_node_maintenance",
+}
+
+// AllRunbooks returns the full runbook catalog in a stable order. Used by the
+// HTTP route and the golden fixtures.
 func AllRunbooks() []RunbookDescriptor {
 	out := make([]RunbookDescriptor, 0, len(catalog))
-	for _, r := range catalog {
-		out = append(out, r)
+	seen := make(map[string]struct{}, len(catalog))
+	for _, id := range runbookOrder {
+		if r, ok := catalog[id]; ok {
+			out = append(out, r)
+			seen[id] = struct{}{}
+		}
+	}
+	// 兜底：登记了但未写进 runbookOrder 的条目按 ID 排序追加。
+	// 宁可顺序不理想，也不能因为漏登记就静默丢失一条 runbook。
+	rest := make([]string, 0, len(catalog)-len(out))
+	for id := range catalog {
+		if _, ok := seen[id]; !ok {
+			rest = append(rest, id)
+		}
+	}
+	if len(rest) > 0 {
+		sort.Strings(rest)
+		for _, id := range rest {
+			out = append(out, catalog[id])
+		}
 	}
 	return out
 }

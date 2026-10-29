@@ -278,7 +278,7 @@ onMounted(async () => {
 
 .capability-banner p {
   margin: 4px 0 0;
-  color: #8a6d10;
+  color: #75590c;
   font-size: 12px;
   line-height: 1.5;
 }

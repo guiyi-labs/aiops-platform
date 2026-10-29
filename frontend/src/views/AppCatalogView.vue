@@ -543,7 +543,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--accent-primary);
+  color: var(--accent-strong);
   background: transparent;
   border: 0;
   font-size: 12px;
@@ -804,7 +804,7 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--accent-primary);
+  color: var(--accent-strong);
   text-decoration: none;
 }
 

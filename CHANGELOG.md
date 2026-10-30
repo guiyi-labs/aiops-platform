@@ -10,6 +10,34 @@ Detailed change records for each milestone live under `docs/changes/`.
 ## [Unreleased]
 
 ### Added
+- **ops**: 暗色主题。此前 `.theme-dark` 在四个样式文件里规则数为 0——默认 `theme='dark'`
+  落到的其实是 `:root` 的浅色 token，于是「暗色主题」渲染成浅色，顶栏那个切换按钮点了
+  只换图标、画布纹丝不动。新增完整的暗色语义 token（surface/text/border/status/shadow）、
+  `color-scheme: dark`，默认主题改为 `light` 以保持既有外观。
+  新增 `--accent-fill`（承载白字的实心强调底）与 `--status-denied`：前者的需求在暗色下
+  与 `--accent-strong`（强调色当文字）方向相反，不能共用一个变量。
+- **ops**: 移动端表格卡片化。新增 `composables/useResponsiveTables.ts`，从 `thead`
+  读列名注入 `td[data-label]`，≤720px 时每行渲染成「标签 + 值」的卡片。
+  27 个视图一次生效，表头文案是唯一事实来源。
+- **scripts**: `audit-a11y-dark.mjs`——暗色主题的 axe 审计。ui-gate 里的 axe 只测默认
+  （浅色）主题，只测浅色就发布暗色等于有一半配色没验过。
+
+### Changed
+- **ops**: 移动端顶栏 112px → **61px**（占屏 14% → 7%）。原因是在 375px 宽下把整排
+  操作换到第二行；改为单行 + 「更多」下拉面板（绝对定位，不占行高，桌面端不渲染该按钮）。
+- **ops**: 触摸目标 ≥44×44（WCAG 2.5.5 AAA / iOS HIG）。块级控件直接撑高；行内链接
+  用伪元素扩命中区而不改排版；复选框 13px → 20px。概览页违规 6 → 0。
+- **ops**: 颜色全面 token 化，暗色能成立的前提。收敛 34 处灰色调色板文字、60 种深灰
+  字面量、90+ 处调色板背景、84 种浅色状态底、365 处深色状态文字、20 处 `#fff`；
+  另修掉 `var(--panel-bg, #ffffff)`（该 token 从未定义，一直在回落成白色）。
+  语义色（青绿选中态、configmap 图标绿）不做亮度自动映射，逐个改回强调色/成功色。
+
+### Fixed
+- **ops**: 顶栏「更多」面板的关闭用 `pointerdown` 而非 `click`：`click` 要等 `pointerup`，
+  在面板外「按下-拖走」不会触发，手感上像没反应。
+
+
+### Added
 - **topology**: 周期采集。此前只有「启动预热一次 + 界面手动触发」，预热之后新增的
   Deployment/Pod 不会进图。新增 `TOPOLOGY_COLLECT_INTERVAL`（默认 5m，设 0 则只预热），
   启动补采后按周期刷新；全程异步、失败只记日志。日志带 `phase`（warm-up/periodic）。

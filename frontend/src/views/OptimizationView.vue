@@ -1515,7 +1515,7 @@ onMounted(() => void loadClusters())
   padding: 0 10px;
   color: #43515a;
   font-size: 12px;
-  background: #ffffff;
+  background: var(--bg-elevated);
   border: 1px solid #cfd8dc;
   border-radius: 5px;
 }

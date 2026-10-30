@@ -758,7 +758,7 @@ onUnmounted(disconnect)
   display: block;
   width: 14px;
   height: 14px;
-  background: #ffffff;
+  background: var(--bg-elevated);
   border-radius: 50%;
   transition: transform var(--transition-fast);
 }

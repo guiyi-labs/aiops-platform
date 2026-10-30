@@ -42,12 +42,14 @@ import {
   Wallet,
   Workflow,
   X,
+  MoreHorizontal,
 } from 'lucide-vue-next'
 import { computed, inject, provide, ref, watch, nextTick, onMounted, onUnmounted, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '../stores/auth'
 import { useTheme } from '../composables/useTheme'
+import { useResponsiveTables } from '../composables/useResponsiveTables'
 import AppToast from './AppToast.vue'
 
 const props = defineProps<{ eyebrow?: string; title?: string; shell?: boolean }>()
@@ -55,6 +57,9 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const { theme, toggle: toggleTheme } = useTheme()
+// 移动端把表格渲染成卡片：从 thead 读列名注入 td[data-label]，
+// 由 CSS 在 ≤720px 时切布局。桌面端不启用。
+useResponsiveTables()
 
 // Resolve the routed component directly from the matched route. route.matched
 // is proven-reactive (the sidebar .active highlight and the topbar title both
@@ -234,6 +239,32 @@ function onNavLeave() {
   hoveredItem.value = null
 }
 
+// ─── Mobile topbar overflow ───
+// 移动端顶栏只有 375px 宽，放不下 5 个操作。此前靠 `grid-column: 1 / -1`
+// 把整排操作换到第二行，于是顶栏高达 112px（占屏 14%），且图标仍是 36×36
+// （低于 44px 触摸目标）。改为：顶栏保持单行，操作收进「更多」面板。
+// 只影响 ≤720px；桌面端 .topbar-more 被隐藏，行为完全不变。
+const actionsOpen = ref(false)
+
+function closeActions() {
+  actionsOpen.value = false
+}
+
+// 点击面板外部 / 按 Esc 关闭。用 capture 阶段监听，避免被面板内部按钮的
+// @click.stop 之类拦住（有些页面操作按钮会 stopPropagation）。
+function onDocumentPointerDown(e: PointerEvent) {
+  if (!actionsOpen.value) return
+  const target = e.target as Node | null
+  if (!target) return
+  const panel = document.getElementById('console-topbar-actions')
+  const trigger = document.querySelector('.topbar-more')
+  if (panel?.contains(target) || trigger?.contains(target)) return
+  closeActions()
+}
+function onDocumentKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && actionsOpen.value) closeActions()
+}
+
 // ─── Command palette (Ctrl+K) ───
 const commandPaletteOpen = ref(false)
 const commandQuery = ref('')
@@ -277,15 +308,24 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 onMounted(() => {
   document.addEventListener('keydown', onGlobalKeydown)
+  document.addEventListener('keydown', onDocumentKeydown)
+  // pointerdown 而非 click：click 要等 pointerup，在面板外「按下-拖走」
+  // 不会触发关闭，手感上像没反应。
+  document.addEventListener('pointerdown', onDocumentPointerDown)
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onGlobalKeydown)
+  document.removeEventListener('keydown', onDocumentKeydown)
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
 })
 
 async function logout() {
   await auth.logout()
   await router.push({ name: 'login' })
 }
+
+// 路由切换时收起面板：从面板里点「账号安全」跳页后，面板不该继续悬在新页面上。
+watch(() => route.fullPath, () => closeActions())
 
 async function navigate(path: string) {
   if (route.path === path) return
@@ -466,7 +506,19 @@ async function navigate(path: string) {
           </button>
         </div>
         <div class="topbar-title"><p class="context-label">{{ shellEyebrow }}</p><h1>{{ shellTitle }}</h1></div>
-        <div id="console-topbar-actions" class="topbar-actions">
+        <!-- 移动端触发按钮：桌面端由 CSS 隐藏（.topbar-more { display: none }） -->
+        <button
+          type="button"
+          class="icon-button topbar-more"
+          :aria-expanded="actionsOpen"
+          aria-controls="console-topbar-actions"
+          aria-label="更多操作"
+          @click="actionsOpen = !actionsOpen"
+        >
+          <X v-if="actionsOpen" :size="18" />
+          <MoreHorizontal v-else :size="18" />
+        </button>
+        <div id="console-topbar-actions" class="topbar-actions" :class="{ 'is-open': actionsOpen }">
           <slot name="actions" />
           <div class="topbar-user"><strong>{{ auth.user?.display_name }}</strong><span>{{ roleLabel }}</span></div>
           <span class="avatar" aria-label="当前用户">{{ auth.userInitials }}</span>

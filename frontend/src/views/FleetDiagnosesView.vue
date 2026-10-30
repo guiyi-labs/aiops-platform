@@ -447,16 +447,16 @@ onMounted(() => {
   background: var(--bg-tertiary, #eef1f3);
 }
 .severity-badge.danger {
-  color: #a43b2e;
-  background: #fbeae6;
+  color: var(--status-danger);
+  background: var(--danger-bg);
 }
 .severity-badge.warning {
-  color: #8c6225;
-  background: #fff3d8;
+  color: var(--status-warning);
+  background: var(--warning-bg);
 }
 .severity-badge.info {
   color: #3b6ea5;
-  background: #e6eef7;
+  background: var(--accent-subtle);
 }
 .workflow-status {
   display: inline-flex;
@@ -466,26 +466,26 @@ onMounted(() => {
   font-weight: 650;
 }
 .workflow-status.open {
-  color: #8c6225;
-  background: #fff3d8;
+  color: var(--status-warning);
+  background: var(--warning-bg);
 }
 .workflow-status.confirmed {
   color: #3b6ea5;
-  background: #e6eef7;
+  background: var(--accent-subtle);
 }
 .workflow-status.resolved {
   color: #2e7867;
-  background: #e3f1ed;
+  background: var(--accent-subtle);
 }
 .workflow-status.dismissed {
   color: #5a6672;
-  background: #eef1f3;
+  background: var(--bg-tertiary);
 }
 .error-message {
   margin: 0 0 12px;
   padding: 10px 12px;
-  color: #8a2a1d;
-  background: #fdf0ee;
+  color: var(--status-danger);
+  background: var(--danger-bg);
   border: 1px solid #f3c9c2;
   border-radius: 6px;
   font-size: 12px;

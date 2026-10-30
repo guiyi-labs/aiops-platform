@@ -109,3 +109,51 @@ section[class*="panel"]:hover::after {
   .workspace-selector:hover { transform: none; }
   .avatar:hover { box-shadow: var(--shadow-sm); }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   表单控件兜底：统一走语义 token
+
+   多数表单控件已经显式写了 background: var(--bg-elevated)，但总有几个漏网
+   （如告警页的集群/状态下拉）。漏掉的那些会落到浏览器默认样式：白底，
+   而 color 又继承了 token 的亮色——暗色主题下就成了「亮字白底」，实测
+   对比度只有 1.17:1。
+
+   放在文件末尾、用低特异性，让各页面自己的细化规则（如 .audit-toolbar select）
+   仍然优先。
+   ───────────────────────────────────────────────────────────────────────── */
+select,
+textarea,
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']) {
+  color: var(--text-primary);
+  background-color: var(--bg-elevated);
+  border-color: var(--border-default);
+}
+
+select option {
+  color: var(--text-primary);
+  background-color: var(--bg-elevated);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   表单控件兜底：统一走语义 token
+
+   多数表单控件已经显式写了 background: var(--bg-elevated)，但总有几个漏网
+   （如告警页的集群/状态下拉）。漏掉的那些会落到浏览器默认样式：白底，
+   而 color 又继承了 token 的亮色——暗色主题下就成了「亮字白底」，实测
+   对比度只有 1.17:1。
+
+   放在文件末尾、用低特异性，让各页面自己的细化规则（如 .audit-toolbar select）
+   仍然优先。
+   ───────────────────────────────────────────────────────────────────────── */
+select,
+textarea,
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']) {
+  color: var(--text-primary);
+  background-color: var(--bg-elevated);
+  border-color: var(--border-default);
+}
+
+select option {
+  color: var(--text-primary);
+  background-color: var(--bg-elevated);
+}

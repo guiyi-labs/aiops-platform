@@ -448,7 +448,7 @@ onMounted(loadReport)
 
 .quality-card.alert-card {
   border-color: #fecaca;
-  background: #fff5f5;
+  background: var(--danger-bg);
 }
 
 .card-title {
@@ -564,7 +564,7 @@ onMounted(loadReport)
 }
 
 .badge-muted {
-  background: var(--gray-100);
+  background: var(--bg-primary);
   color: var(--text-muted);
 }
 

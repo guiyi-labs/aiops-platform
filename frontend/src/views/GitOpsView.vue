@@ -278,13 +278,13 @@ onMounted(async () => {
 
 .capability-banner p {
   margin: 4px 0 0;
-  color: #75590c;
+  color: var(--status-warning);
   font-size: 12px;
   line-height: 1.5;
 }
 
 .capability-banner p strong {
-  color: #6b5410;
+  color: var(--status-warning);
 }
 
 .capability-ok {
@@ -300,7 +300,7 @@ onMounted(async () => {
 }
 
 .capability-ok span {
-  color: #1d7a4f;
+  color: var(--status-success-strong);
 }
 
 .gitops-panel {

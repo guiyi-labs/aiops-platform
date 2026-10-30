@@ -549,15 +549,15 @@ onMounted(() => loadClusters())
   padding: 0 10px;
   font-size: 13px;
   color: var(--text-primary);
-  background: var(--gray-0);
+  background: var(--bg-elevated);
   border: 1px solid var(--gray-300);
   border-radius: 6px;
 }
 
 .alert-panel {
   padding: 16px 18px;
-  background: var(--gray-0);
-  border: 1px solid var(--gray-200);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
 }
 
@@ -593,11 +593,11 @@ onMounted(() => loadClusters())
   white-space: nowrap;
 }
 
-.alert-badge.is-danger { color: #b42318; background: #fef3f2; }
-.alert-badge.is-success { color: #067647; background: #ecfdf3; }
-.alert-badge.is-warning { color: #b54708; background: #fffaeb; }
-.alert-badge.is-info { color: #475467; background: var(--gray-100); }
-.alert-badge.is-muted { color: var(--text-tertiary); background: var(--gray-100); }
+.alert-badge.is-danger { color: var(--status-danger); background: var(--danger-bg); }
+.alert-badge.is-success { color: var(--status-success-strong); background: var(--accent-subtle); }
+.alert-badge.is-warning { color: var(--status-warning); background: var(--warning-bg); }
+.alert-badge.is-info { color: #475467; background: var(--bg-primary); }
+.alert-badge.is-muted { color: var(--text-tertiary); background: var(--bg-primary); }
 
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .muted-extra { display: block; margin-top: 3px; font-size: 11px; color: var(--text-tertiary); }
@@ -611,9 +611,9 @@ onMounted(() => loadClusters())
   border: 1px solid transparent;
 }
 
-.alert-banner.is-error { color: #b42318; background: #fef3f2; border-color: #fecdca; }
-.alert-banner.is-success { color: #067647; background: #ecfdf3; border-color: #abefc6; }
-.alert-banner.is-warning { color: #b54708; background: #fffaeb; border-color: #fedf89; }
+.alert-banner.is-error { color: var(--status-danger); background: var(--danger-bg); border-color: #fecdca; }
+.alert-banner.is-success { color: var(--status-success-strong); background: var(--accent-subtle); border-color: #abefc6; }
+.alert-banner.is-warning { color: var(--status-warning); background: var(--warning-bg); border-color: #fedf89; }
 
 .noise-stats {
   display: grid;
@@ -624,21 +624,21 @@ onMounted(() => loadClusters())
 
 .noise-stat {
   padding: 10px 12px;
-  background: var(--gray-50);
-  border: 1px solid var(--gray-200);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
   border-radius: 8px;
 }
 
 .noise-stat span { display: block; font-size: 11px; color: var(--text-tertiary); }
 .noise-stat strong { display: block; margin-top: 4px; font-size: 18px; color: var(--text-primary); }
-.is-danger-text { color: #b42318; }
+.is-danger-text { color: var(--status-danger); }
 
 .case-chip {
   margin-right: 4px;
   padding: 1px 8px;
   font-size: 11px;
-  color: #b54708;
-  background: #fffaeb;
+  color: var(--status-warning);
+  background: var(--warning-bg);
   border: 1px solid #fedf89;
   border-radius: 999px;
   cursor: pointer;
@@ -655,7 +655,7 @@ onMounted(() => loadClusters())
   text-decoration: underline;
 }
 
-.icon-button.is-danger { color: #b42318; }
+.icon-button.is-danger { color: var(--status-danger); }
 .icon-button.compact { width: 26px; height: 26px; }
 
 .alert-overlay {
@@ -674,7 +674,7 @@ onMounted(() => loadClusters())
   max-height: 86vh;
   overflow-y: auto;
   padding: 20px 22px;
-  background: var(--gray-0);
+  background: var(--bg-elevated);
   border-radius: 12px;
   box-shadow: 0 24px 60px rgba(16, 24, 40, 0.24);
 }
@@ -707,7 +707,7 @@ onMounted(() => loadClusters())
   padding: 0 10px;
   font-size: 13px;
   color: var(--text-primary);
-  background: var(--gray-0);
+  background: var(--bg-elevated);
   border: 1px solid var(--gray-300);
   border-radius: 6px;
 }

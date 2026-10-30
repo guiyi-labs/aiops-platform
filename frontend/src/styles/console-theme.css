@@ -77,6 +77,12 @@
   --danger-bg: #fee2e2;
   --status-info: #0ea5e9;
   --info-bg: #e0f2fe;
+  /* 「拒绝」用紫，与红（失败）区分开；红已经表示真错误 */
+  --status-denied: #7b5a78;
+  /* 承载白字的实心强调底。--accent-strong 是「强调色当文字」的版本，
+     暗色下需要偏亮；而白字背景需要偏深，两者在暗色下是相反的方向，
+     所以单独一个 token，避免同一变量被要求同时满足两种相反需求。 */
+  --accent-fill: #0a6f66;
 
   /* Radius */
   --radius-sm: 4px;
@@ -188,7 +194,7 @@
 .nav-group-label {
   margin: 0;
   padding: 8px 14px 4px;
-  color: var(--gray-500);
+  color: var(--text-tertiary);
   font-size: 16px;
   font-weight: 600;
   text-transform: none;
@@ -226,7 +232,7 @@
 .topbar {
   min-height: var(--topbar-height);
   padding: 0 var(--space-5);
-  background: var(--gray-0);
+  background: var(--bg-elevated);
   border-bottom: 1px solid var(--border-subtle);
   backdrop-filter: none;
 }
@@ -506,7 +512,7 @@ h1 {
   font-size: 12px;
 }
 
-.status-pill.ready { color: #166534; background: var(--success-bg); }
+.status-pill.ready { color: var(--status-success-strong); background: var(--success-bg); }
 .status-pill.unavailable { color: var(--status-danger); background: var(--danger-bg); }
 .status-pill.disabled { color: var(--text-secondary); background: var(--bg-tertiary); }
 .status-pill.unknown { color: var(--status-warning); background: var(--warning-bg); }
@@ -2653,7 +2659,9 @@ html,
 body,
 #app {
   min-height: 100%;
-  background: var(--gray-100);
+  /* 用语义 token 而不是 --gray-100：后者是调色板常量，切到暗色主题时
+     不会跟着变，于是 <body> 留下一块浅色底（内容区已经变暗，更刺眼）。 */
+  background: var(--bg-primary);
 }
 
 .route-viewport {
@@ -2880,6 +2888,12 @@ body,
   border-color: rgba(45, 212, 191, 0.48);
 }
 
+/* 移动端顶栏溢出菜单的触发按钮；桌面端顶栏宽度充裕，操作直接平铺，
+   不渲染这个按钮（否则会多出一个无意义的「更多」）。 */
+.topbar-more {
+  display: none;
+}
+
 .sidebar-toggle {
   align-self: center;
 }
@@ -2968,7 +2982,7 @@ body,
 
 .nav-group-chevron {
   flex: 0 0 auto;
-  color: var(--gray-500);
+  color: var(--text-tertiary);
   transition: transform 200ms ease;
 }
 
@@ -3037,7 +3051,7 @@ body,
 
 .nav-row:hover .pin-toggle {
   opacity: 1;
-  color: var(--gray-500);
+  color: var(--text-tertiary);
 }
 
 .nav-row:hover .pin-toggle:hover {
@@ -3129,7 +3143,7 @@ body,
 }
 
 .command-palette-input::placeholder {
-  color: var(--gray-500);
+  color: var(--text-tertiary);
 }
 
 .command-palette-close {
@@ -3191,13 +3205,13 @@ body,
 
 .command-palette-item-group {
   flex: 0 0 auto;
-  color: var(--gray-500);
+  color: var(--text-tertiary);
   font-size: 11px;
 }
 
 .command-palette-empty {
   padding: 20px;
-  color: var(--gray-500);
+  color: var(--text-tertiary);
   font-size: 13px;
   text-align: center;
 }
@@ -3541,19 +3555,190 @@ body,
     padding: 0 12px 28px;
   }
 
+  /* 顶栏在 375px 宽下原本是「两行」：操作区用 grid-column: 1 / -1 换到第二行，
+     实测 112px，占屏 14%。改为单行三列，操作收进「更多」面板。 */
   .topbar {
-    grid-template-columns: auto minmax(0, 1fr);
+    position: relative; /* 下拉面板的定位参照 */
+    grid-template-columns: auto minmax(0, 1fr) auto;
     margin: 0 -12px 10px;
-    padding: 12px;
+    padding: 8px 12px;
+    gap: 8px;
     align-items: center;
+    min-height: 60px;
   }
 
   .topbar-title h1 {
     font-size: 17px;
   }
 
+  .topbar-more {
+    display: grid;
+  }
+
+  /* 触摸目标 44×44：WCAG 2.5.5(AAA) / iOS HIG。桌面端保持 36px 是鼠标精度下的
+     密度取舍，触屏没有这个前提，36px 会频繁误触。 */
+  .topbar .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* 操作面板：默认收起，点「更多」后从顶栏下方展开。
+     绝对定位是关键——它不参与顶栏的行高，顶栏才能稳定在 60px。 */
   .topbar-actions {
-    grid-column: 1 / -1;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 12px;
+    z-index: 60;
+    display: none;
+    grid-column: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 200px;
+    padding: 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .topbar-actions.is-open {
+    display: flex;
+  }
+
+  /* 面板内的每个入口都占满整行、44px 高，而不是挤成图标方块 */
+  .topbar-actions .icon-button {
+    display: flex;
+    width: 100%;
+    height: 44px;
+    align-items: center;
+    justify-content: flex-start;
+    padding-inline: 12px;
+    gap: 10px;
+  }
+
+  /* 图标按钮只有图标，面板里补上文字说明，否则一排无标签图标仍然要猜。
+     用 ::after 从 aria-label 取标签，避免在模板里重复写一遍文案。 */
+  .topbar-actions .icon-button::after {
+    content: attr(aria-label);
+    font-size: 13px;
+  }
+
+  .topbar-actions .topbar-user {
+    align-items: flex-start;
+    padding: 6px 12px 10px;
+    border-bottom: 1px solid var(--border-subtle);
+    text-align: left;
+  }
+
+  .topbar-actions .avatar {
+    display: none; /* 面板里已有文字身份，头像方块冗余 */
+  }
+
+  /* ── 内容区触摸目标 ≥44×44（WCAG 2.5.5 AAA / iOS HIG）──
+     桌面端 26~38px 高是鼠标精度下的密度取舍；触屏没有这个前提，
+     36px 的按钮在 375px 宽屏上误触明显。实测修复前每页 6~15 个不达标元素。 */
+  .page-content select,
+  .page-content .primary-button,
+  .page-content .secondary-button,
+  .page-content .danger-button,
+  .page-content .ghost-button,
+  .page-content .icon-button,
+  .page-content .panel-link {
+    min-height: 44px;
+  }
+
+  .page-content .icon-button {
+    min-width: 44px;
+  }
+
+  /* 复选框本身：13px 在原尺寸下几乎点不中，先放大到 20px（视觉可辨）。
+     完整解法在表格卡片化里——卡片上整行可点，不必瞄准小方框。 */
+  .page-content input[type="checkbox"],
+  .page-content input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 分段控件、列表标题、标签：直接撑高。
+     这些是块级控件，撑高只会让所在行变高——移动端行高本来就该大。 */
+  .page-content .metric-mode button,
+  .page-content .incident-title,
+  .page-content .case-chip {
+    min-height: 44px;
+  }
+
+  /* 行内链接（表格/列表里的「查看」）：不撑高，否则会把表格行整体顶开。
+     用伪元素扩命中区——点击伪元素等同于点击宿主元素。
+     只对真正孤立的行内链接这样做；相邻元素靠 8px 以上的间距避免抢点击。 */
+  .page-content .link-button {
+    position: relative;
+    /* 宽度也补到 44：22px 宽的「查看」在触屏上几乎必然点偏 */
+    min-width: 44px;
+    text-align: center;
+  }
+
+  .page-content .link-button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+
+  /* ── 内容区触摸目标 ≥44×44（WCAG 2.5.5 AAA / iOS HIG）──
+     桌面端 26~38px 高是鼠标精度下的密度取舍；触屏没有这个前提，
+     36px 的按钮在 375px 宽屏上误触明显。实测修复前每页 6~15 个不达标元素。 */
+  .page-content select,
+  .page-content .primary-button,
+  .page-content .secondary-button,
+  .page-content .danger-button,
+  .page-content .ghost-button,
+  .page-content .icon-button,
+  .page-content .panel-link {
+    min-height: 44px;
+  }
+
+  .page-content .icon-button {
+    min-width: 44px;
+  }
+
+  /* 复选框本身：13px 在原尺寸下几乎点不中，先放大到 20px（视觉可辨）。
+     完整解法在表格卡片化里——卡片上整行可点，不必瞄准小方框。 */
+  .page-content input[type="checkbox"],
+  .page-content input[type="radio"] {
+    width: 20px;
+    height: 20px;
+  }
+
+  /* 分段控件、列表标题、标签：直接撑高。
+     这些是块级控件，撑高只会让所在行变高——移动端行高本来就该大。 */
+  .page-content .metric-mode button,
+  .page-content .incident-title,
+  .page-content .case-chip {
+    min-height: 44px;
+  }
+
+  /* 行内链接（表格/列表里的「查看」）：不撑高，否则会把表格行整体顶开。
+     用伪元素扩命中区——点击伪元素等同于点击宿主元素。
+     只对真正孤立的行内链接这样做；相邻元素靠 8px 以上的间距避免抢点击。 */
+  .page-content .link-button {
+    position: relative;
+    /* 宽度也补到 44：22px 宽的「查看」在触屏上几乎必然点偏 */
+    min-width: 44px;
+    text-align: center;
+  }
+
+  .page-content .link-button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: 44px;
+    transform: translate(-50%, -50%);
   }
 
   .login-page,
@@ -3587,7 +3772,7 @@ body,
 
 /* ── Sidebar: light theme ── */
 .theme-light .sidebar {
-  color: #374151;
+  color: var(--text-secondary);
   background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
   border-right: 1px solid #e5e7eb;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.04);
@@ -3617,7 +3802,7 @@ body,
 }
 
 .theme-light .nav-item {
-  color: #374151;
+  color: var(--text-secondary);
 }
 .theme-light .nav-item:hover {
   color: #111827;
@@ -3632,7 +3817,7 @@ body,
 
 /* ── Topbar: light theme ── */
 .theme-light .topbar {
-  color: var(--gray-800);
+  color: var(--text-primary);
   background: rgba(255, 255, 255, 0.97);
   border-bottom: 1px solid var(--border-subtle);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
@@ -3665,14 +3850,14 @@ body,
 .theme-light .panel,
 .theme-light .card {
   color: var(--text-primary);
-  background: var(--gray-0);
+  background: var(--bg-elevated);
   border-color: var(--border-subtle);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .theme-light .cluster-form {
   color: var(--text-primary);
-  background: var(--gray-0);
+  background: var(--bg-elevated);
   border-color: var(--border-subtle);
 }
 
@@ -3695,13 +3880,13 @@ body,
 }
 
 /* ── Status pills: light theme ── */
-.theme-light .status-pill.ready { color: #166534; background: #f0fdf4; }
-.theme-light .status-pill.unavailable { color: #991b1b; background: #fef2f2; }
-.theme-light .status-pill.unknown { color: #92400e; background: #fffbeb; }
+.theme-light .status-pill.ready { color: var(--status-success-strong); background: var(--accent-subtle); }
+.theme-light .status-pill.unavailable { color: var(--status-danger); background: var(--danger-bg); }
+.theme-light .status-pill.unknown { color: var(--status-warning); background: var(--warning-bg); }
 
 /* ── Error / notice messages: light theme ── */
-.theme-light .error-message { color: #991b1b; background: #fef2f2; border-color: #fecaca; }
-.theme-light .user-notice { color: #166534; background: #f0fdf4; border-color: #bbf7d0; }
+.theme-light .error-message { color: var(--status-danger); background: var(--danger-bg); border-color: #fecaca; }
+.theme-light .user-notice { color: var(--status-success-strong); background: var(--accent-subtle); border-color: #bbf7d0; }
 
 /* ── Form inputs: light theme ── */
 .theme-light .cluster-form input,
@@ -3713,3 +3898,67 @@ body,
 }
 
 /* Login page stays dark — brand identity */
+
+/* ═══════════════════════════════════════════════════════
+   DARK THEME — activated by .theme-dark on <html>
+
+   在此之前 .theme-dark 没有任何规则：默认 theme 是 'dark'，但落到的
+   是 :root 上的浅色 token，于是「暗色主题」实际渲染成浅色，主题按钮
+   点了只换图标、画布纹丝不动。
+
+   这里只覆盖语义 token（surface / text / border / status / shadow），
+   不动 --blue-* 与 --gray-* 调色板：灰阶被大量硬编码直接引用
+   （徽章文字、图示填充），整体反转会让那些地方意外变色。
+   ═══════════════════════════════════════════════════════ */
+.theme-dark {
+  color-scheme: dark;
+
+  /* Surfaces：越靠上层越亮，层级靠明度而不是阴影区分 */
+  --bg-primary: #0d1315;
+  --bg-secondary: #121a1d;
+  --bg-tertiary: #162023;
+  --bg-elevated: #1a2428;
+  --bg-overlay: rgba(0, 0, 0, 0.62);
+
+  /* Text */
+  --text-primary: #e6eef0;
+  --text-secondary: #a8bcbf;
+  --text-tertiary: #8ba3a6;
+  --text-muted: #93a8ab;
+  --text-inverse: #0d1315;
+
+  /* Borders：暗底上边框承担了浅色底上阴影的分层职责，所以比常见暗色主题更实 */
+  --border-subtle: #223034;
+  --border-soft: #2a3a3f;
+  --border-default: #35474d;
+  --border-strong: #4a6068;
+
+  /* Accent：--blue-500(#326ce5) 压在深底上偏暗，提亮一档保证 4.5:1 */
+  --accent-primary: #5e93ff;
+  --accent-primary-hover: #8fb8ff;
+  --accent-primary-active: #bcd4ff;
+  --accent-subtle: #122540;
+  --accent-soft: #1a3252;
+  --accent-strong: #8fb8ff;
+
+  /* Status：色相不变、明度抬高；底色换成低饱和深色，避免整块荧光 */
+  --status-success: #4ade80;
+  --status-success-strong: #6ee7a0;
+  --success-bg: #10281b;
+  --status-warning: #fbbf24;
+  --warning-bg: #2c2211;
+  --status-danger: #f87171;
+  --danger-bg: #2e1517;
+  --status-info: #38bdf8;
+  --info-bg: #0e2432;
+  --status-denied: #c9a8c6;
+  /* 承白字的实心底：蓝-600，白字对比 4.7:1 */
+  --accent-fill: #2455b8;
+
+  /* 阴影：深底上几乎不可见，压更重以保留一点离屏层次 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.66);
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+}

@@ -74,23 +74,23 @@ const colors: Record<ToastType, string> = {
 }
 
 .toast--success {
-  color: #166534;
-  background: #f0fdf4;
+  color: var(--status-success-strong);
+  background: var(--accent-subtle);
   border: 1px solid #bbf7d0;
 }
 .toast--error {
-  color: #991b1b;
-  background: #fef2f2;
+  color: var(--status-danger);
+  background: var(--danger-bg);
   border: 1px solid #fecaca;
 }
 .toast--warning {
-  color: #92400e;
-  background: #fffbeb;
+  color: var(--status-warning);
+  background: var(--warning-bg);
   border: 1px solid #fde68a;
 }
 .toast--info {
   color: #1e40af;
-  background: #eff6ff;
+  background: var(--accent-subtle);
   border: 1px solid #bfdbfe;
 }
 

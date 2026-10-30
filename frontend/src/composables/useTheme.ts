@@ -11,7 +11,11 @@ function getInitialTheme(): Theme {
   } catch {
     // localStorage may be unavailable (private mode / disabled cookies)
   }
-  return 'dark' // default to dark (current look)
+  // 默认浅色。此前默认写的是 'dark'，而当时 .theme-dark 没有任何规则，
+  // 于是「dark」实际渲染成浅色——默认值与外观是对不上的。补了暗色规则之后
+  // 这个默认值会真的把界面变暗，所以显式改成 light：保持既有外观不变，
+  // 让用户主动选择暗色。
+  return 'light'
 }
 
 const theme = ref<Theme>(getInitialTheme())

@@ -751,7 +751,7 @@ onMounted(initialize)
   padding: 12px 13px;
   border: 1px solid var(--border-soft);
   border-radius: 9px;
-  background: var(--gray-0);
+  background: var(--bg-elevated);
 }
 .burn-card.burn-burning {
   border-color: var(--status-danger);
@@ -784,9 +784,9 @@ onMounted(initialize)
   white-space: nowrap;
   text-transform: uppercase;
 }
-.burn-status-badge.burning { color: var(--status-danger); background: #fbeae6; }
-.burn-status-badge.healthy { color: var(--status-success-strong); background: #e5f3ea; }
-.burn-status-badge.unavailable { color: var(--status-warning); background: #fdf3e3; }
+.burn-status-badge.burning { color: var(--status-danger); background: var(--danger-bg); }
+.burn-status-badge.healthy { color: var(--status-success-strong); background: var(--accent-subtle); }
+.burn-status-badge.unavailable { color: var(--status-warning); background: var(--warning-bg); }
 .burn-status-badge.no_data { color: var(--text-muted); background: var(--border-subtle); }
 .burn-card-metrics {
   display: flex;

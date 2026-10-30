@@ -228,40 +228,40 @@ watch(() => [props.accessToken, props.clusterId, props.resourceKind, props.names
 .metrics-history-header h3 { margin: 2px 0; color: #193b38; font-size: 16px; }
 .metrics-history-header small { color: #70827f; }
 .eyebrow { color: #238177; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
-.history-refresh { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #cfdcda; border-radius: 9px; color: #36635e; background: #fff; cursor: pointer; }
+.history-refresh { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #cfdcda; border-radius: 9px; color: #36635e; background: var(--bg-elevated); cursor: pointer; }
 .history-refresh:disabled { opacity: .5; cursor: default; }
 .history-controls { flex-wrap: wrap; gap: 9px; margin: 14px 0 12px; }
-.segmented-control { display: inline-flex; padding: 3px; border: 1px solid #d6e1df; border-radius: 10px; background: #edf3f2; }
+.segmented-control { display: inline-flex; padding: 3px; border: 1px solid #d6e1df; border-radius: 10px; background: var(--accent-subtle); }
 .segmented-control button { min-height: 28px; padding: 4px 11px; border: 0; border-radius: 7px; color: #60716e; background: transparent; font: inherit; font-size: 12px; cursor: pointer; }
 .segmented-control button.active { color: #fff; background: #237b72; box-shadow: 0 2px 6px rgb(35 123 114 / 20%); }
 .range-control { margin-left: auto; }
 .container-select { display: flex; min-width: 0; align-items: center; gap: 6px; color: #61726f; font-size: 12px; }
-.container-select select { max-width: 180px; min-height: 34px; border: 1px solid #d6e1df; border-radius: 9px; color: #294b47; background: #fff; padding: 0 28px 0 9px; }
-.evaluation-card { display: flex; min-width: 0; flex-wrap: wrap; align-items: end; gap: 8px; margin: 0 0 12px; border: 1px solid #d9e4e2; border-radius: 12px; background: #fff; padding: 10px; }
+.container-select select { max-width: 180px; min-height: 34px; border: 1px solid #d6e1df; border-radius: 9px; color: #294b47; background: var(--bg-elevated); padding: 0 28px 0 9px; }
+.evaluation-card { display: flex; min-width: 0; flex-wrap: wrap; align-items: end; gap: 8px; margin: 0 0 12px; border: 1px solid #d9e4e2; border-radius: 12px; background: var(--bg-elevated); padding: 10px; }
 .evaluation-copy { display: flex; min-width: 150px; flex: 1; flex-direction: column; color: #244b47; }
 .evaluation-copy small { margin-top: 2px; color: #778985; font-size: 10px; }
 .evaluation-input { display: grid; grid-template-columns: auto minmax(58px, 90px) auto; align-items: center; gap: 5px; color: #657773; font-size: 11px; }
-.evaluation-input input, .evaluation-input select { min-width: 0; height: 31px; border: 1px solid #d4dfdd; border-radius: 8px; color: #294b47; background: #fff; padding: 0 7px; }
+.evaluation-input input, .evaluation-input select { min-width: 0; height: 31px; border: 1px solid #d4dfdd; border-radius: 8px; color: #294b47; background: var(--bg-elevated); padding: 0 7px; }
 .evaluation-input em { color: #758783; font-style: normal; }
 .evaluation-button { min-height: 31px; border: 0; border-radius: 8px; color: #fff; background: #2c746d; padding: 0 10px; cursor: pointer; }
 .evaluation-button:disabled { opacity: .5; cursor: default; }
-.evaluation-result { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; border-radius: 8px; padding: 7px 9px; color: #315f59; background: #e8f3f1; font-size: 11px; }
-.evaluation-result.firing { color: #8b3329; background: #ffe5e1; }
-.evaluation-result.insufficient_data, .evaluation-result.error { color: #815b18; background: #fff0cc; }
+.evaluation-result { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; border-radius: 8px; padding: 7px 9px; color: #315f59; background: var(--accent-subtle); font-size: 11px; }
+.evaluation-result.firing { color: var(--status-danger); background: var(--danger-bg); }
+.evaluation-result.insufficient_data, .evaluation-result.error { color: var(--status-warning); background: var(--warning-bg); }
 .evaluation-result span { overflow-wrap: anywhere; text-align: right; }
 .coverage-row { min-width: 0; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .coverage-primary, .coverage-issue, .unit-label { border-radius: 999px; padding: 4px 8px; font-size: 11px; }
-.coverage-primary { color: #17665e; background: #dff3ef; font-weight: 700; }
-.coverage-primary.degraded { color: #825b11; background: #fff0c9; }
+.coverage-primary { color: #17665e; background: var(--accent-subtle); font-weight: 700; }
+.coverage-primary.degraded { color: var(--status-warning); background: var(--warning-bg); }
 .coverage-primary small { margin-left: 4px; font-weight: 500; opacity: .8; }
-.coverage-issue { color: #8b5220; background: #fff0df; }
-.coverage-issue.warning { color: #8b3a31; background: #ffe5e1; }
-.unit-label { margin-left: auto; color: #536966; background: #e8efee; }
+.coverage-issue { color: var(--status-warning); background: var(--warning-bg); }
+.coverage-issue.warning { color: var(--status-danger); background: var(--danger-bg); }
+.unit-label { margin-left: auto; color: #536966; background: var(--bg-tertiary); }
 .history-state { display: flex; min-height: 150px; align-items: center; justify-content: center; gap: 9px; border: 1px dashed #cfdddb; border-radius: 12px; color: #667b77; text-align: center; }
 .history-state.empty { flex-direction: column; }
-.history-state.error { color: #97443a; background: #fff8f7; }
+.history-state.error { color: var(--status-danger); background: var(--danger-bg); }
 .history-state.error span { display: flex; flex-direction: column; text-align: left; }
-.history-state.error button { border: 1px solid #ddb9b4; border-radius: 8px; color: #884039; background: #fff; padding: 5px 9px; cursor: pointer; }
+.history-state.error button { border: 1px solid #ddb9b4; border-radius: 8px; color: var(--status-danger); background: var(--bg-elevated); padding: 5px 9px; cursor: pointer; }
 .chart-wrap { position: relative; min-width: 0; }
 .chart-value-label { display: flex; align-items: baseline; gap: 6px; color: #214945; }
 .chart-value-label span { color: #758783; font-size: 11px; }

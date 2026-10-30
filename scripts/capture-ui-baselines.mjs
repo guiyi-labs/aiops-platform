@@ -37,6 +37,11 @@ const viewDiffThresholds = {
   // 触发中 ↔ 数据不足 会真实切换，把几行表格文字整体换掉（实测 1.2%）。
   // 这属于数据而非布局；真实布局回归通常 >5%，2% 仍能捕获。
   alerts: 0.02,
+  // 诊断列表每行带「剩余 8783小时22分」——按 SLA 截止时间实时算出来的，
+  // 两次捕获必然不同。实测稳定 0.299%，恰好越过全局 0.2%。
+  // 差异位置是散布的 10px 高细横条（x=643 起，右半部分），即行尾的时间与
+  // 状态文字，不是整块位移——属于数据漂移而非布局回归。
+  diagnoses: 0.005,
 }
 function viewThreshold(viewName) {
   return viewDiffThresholds[viewName] ?? diffThreshold

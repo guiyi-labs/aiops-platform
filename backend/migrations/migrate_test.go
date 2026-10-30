@@ -3,10 +3,30 @@ package migrations
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
+
+// embeddedMigrationCount 返回嵌入的 .up.sql 文件数。
+//
+// 测试里不能硬编码数量：之前的 `for range 50` 在新增第 51、52 个迁移后就一直失败，
+// 而失败原因（sqlmock 期望已耗尽）与「迁移逻辑坏了」毫无关系，很容易被误判。
+func embeddedMigrationCount(t *testing.T) int {
+	t.Helper()
+	entries, err := files.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read embedded migrations: %v", err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".up.sql") {
+			count++
+		}
+	}
+	return count
+}
 
 func TestApply_AlreadyApplied(t *testing.T) {
 	db, mock, err := sqlmock.New()
@@ -18,8 +38,8 @@ func TestApply_AlreadyApplied(t *testing.T) {
 
 	mock.ExpectExec(regexp.QuoteMeta(`CREATE TABLE IF NOT EXISTS schema_migrations`)).
 		WillReturnResult(sqlmock.NewResult(0, 0))
-	// All 50 embedded migrations already applied; isApplied returns true each time.
-	for range 50 {
+	// 全部已应用的迁移各查一次；数量从嵌入 FS 取，新增迁移不会让测试失败。
+	for range embeddedMigrationCount(t) {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`)).
 			WithArgs(sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
@@ -53,8 +73,8 @@ func TestApply_AppliesOneMigration(t *testing.T) {
 		WithArgs(sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
-	// Remaining 49 already applied.
-	for range 49 {
+	// 其余迁移都已应用；数量同样从嵌入 FS 取（原来写死 49）。
+	for range embeddedMigrationCount(t) - 1 {
 		mock.ExpectQuery(regexp.QuoteMeta(`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`)).
 			WithArgs(sqlmock.AnyArg()).
 			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))

@@ -105,3 +105,18 @@ Go 的 map 遍历顺序是随机的，于是同一份目录每次请求返回的
 像素基线对「展示实时数据」的页面天然不适用。本轮通过 per-view 阈值缓解，但这只是
 缓解——彻底的解法是给基线捕获注入固定 fixture（复用 `e2e/api-fixtures.ts` 的 mock 思路），
 让截图只反映 UI 结构。工作量较大，未在本轮展开。
+
+## 附：两处「测试与实现不同步」的清理
+
+跑全量后端测试时发现两个失败，都不是本轮改动引入的功能缺陷，而是**之前的改动只改了实现、
+没同步测试**，属于测试自身的脆弱性：
+
+| 测试 | 失败表现 | 真因 |
+|---|---|---|
+| `migrations/migrate_test.go` | sqlmock 报「expectations were already fulfilled」 | 测试里写死 `for range 50` / `for range 49`（注释还写着 "All 50 embedded migrations"），而迁移已经增加到 52 个。失败原因看起来像迁移逻辑坏了，实际只是期望数量对不上 |
+| `config/config_test.go` | `unexpected AI defaults` | 断言 `AIMaxOutputTokens == 1200`，而默认值已因截断问题改为 4096 |
+
+两处都改为「从真实来源取数量/值」而不是硬编码：迁移数从嵌入 FS 的 `ReadDir` 计算，
+输出上限用常量 `defaultMaxOutputTokens` 的语义（断言值 4096 并注明依据）。
+硬编码数量的测试每加一个迁移就会红一次，长期下来会训练人忽略这个包的红灯——
+和有问题的基线门禁是同一类风险。

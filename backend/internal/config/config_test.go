@@ -125,7 +125,9 @@ func TestLoadAllowsDisabledAIWithoutKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.AIEnabled || cfg.AIModel == "" || cfg.AIRequestTimeout != 30*time.Second || cfg.AIDailyTokenBudget != 100000 || cfg.AIMaxConcurrentRequests != 2 || cfg.AIMaxOutputTokens != 1200 {
+	// 默认输出上限是 4096 而非 1200：中文合规解释实测需 2400~2600 token，
+	// 1200 会让响应稳定截断在 finish_reason=length（详见 config.go 的注释）。
+	if cfg.AIEnabled || cfg.AIModel == "" || cfg.AIRequestTimeout != 30*time.Second || cfg.AIDailyTokenBudget != 100000 || cfg.AIMaxConcurrentRequests != 2 || cfg.AIMaxOutputTokens != 4096 {
 		t.Fatalf("unexpected AI defaults: %#v", cfg)
 	}
 }

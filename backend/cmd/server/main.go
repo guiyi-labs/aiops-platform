@@ -568,10 +568,15 @@ func main() {
 		topologyNamespaceLister{reader: kubernetesService},
 	)
 
-	// 启动预热：边表存的是「当前活跃关系」，进程重启后不会凭空恢复，而旧边已经
-	// 被关闭（valid_to 非空）就不再出现在图里——于是重启之后图会变空，看起来像
-	// 采集坏了。这里对每个已启用集群异步补采一次；只跑一次、失败只记日志，绝不
-	// 阻塞启动，也不改变「靠显式触发刷新」的语义。
+	// 拓扑采集：启动预热 + 周期刷新。
+	//
+	// 边表存的是「当前活跃关系」：进程重启后旧边已被关闭（valid_to 非空）就不再出现，
+	// 于是重启之后图会变空，看起来像采集坏了——所以启动后先补采一次。之后按
+	// TOPOLOGY_COLLECT_INTERVAL 周期刷新，让图跟得上部署/扩缩容；该值为 0 时只预热、
+	// 不跑循环（此时靠界面上的「采集拓扑」按需触发）。
+	//
+	// 全程异步且失败只记日志：采集要读 8 类资源 × 每个命名空间，绝不能让一次
+	// api_server 抖动影响进程可用性，也不能阻塞启动或优雅退出。
 	backgroundWait.Add(1)
 	go func() {
 		defer backgroundWait.Done()
@@ -581,30 +586,51 @@ func main() {
 		case <-time.After(20 * time.Second):
 			// 等 api_server 连接池与集群探活就绪，避免启动瞬间把所有读取都打失败。
 		}
-		clusters, err := clusterService.List(backgroundContext)
-		if err != nil {
-			logger.Warn("topology warm-up: list clusters", zap.Error(err))
+		collect := func(phase string) bool {
+			clusters, err := clusterService.List(backgroundContext)
+			if err != nil {
+				logger.Warn("topology collect: list clusters", zap.String("phase", phase), zap.Error(err))
+				return false
+			}
+			for _, item := range clusters {
+				if !item.Enabled {
+					continue
+				}
+				if backgroundContext.Err() != nil {
+					return false
+				}
+				result, collectErr := topologyService.CollectCluster(backgroundContext, item.ID, time.Now().UTC())
+				if collectErr != nil {
+					logger.Warn("topology collect",
+						zap.String("phase", phase), zap.Int64("cluster_id", item.ID), zap.Error(collectErr))
+					continue
+				}
+				logger.Info("topology collected",
+					zap.String("phase", phase),
+					zap.Int64("cluster_id", item.ID),
+					zap.Int("namespaces", result.Namespaces),
+					zap.Int("edges_upserted", result.TotalUpserted),
+					zap.Int("edges_closed", result.TotalClosed),
+					zap.Bool("partial", result.Partial),
+				)
+			}
+			return true
+		}
+
+		collect("warm-up")
+		if cfg.TopologyCollectInterval <= 0 {
+			logger.Info("topology periodic collection disabled (TOPOLOGY_COLLECT_INTERVAL<=0)")
 			return
 		}
-		for _, item := range clusters {
-			if !item.Enabled {
-				continue
-			}
-			if backgroundContext.Err() != nil {
+		ticker := time.NewTicker(cfg.TopologyCollectInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-backgroundContext.Done():
 				return
+			case <-ticker.C:
+				collect("periodic")
 			}
-			result, err := topologyService.CollectCluster(backgroundContext, item.ID, time.Now().UTC())
-			if err != nil {
-				logger.Warn("topology warm-up: collect", zap.Int64("cluster_id", item.ID), zap.Error(err))
-				continue
-			}
-			logger.Info("topology warm-up collected",
-				zap.Int64("cluster_id", item.ID),
-				zap.Int("namespaces", result.Namespaces),
-				zap.Int("edges_upserted", result.TotalUpserted),
-				zap.Int("edges_closed", result.TotalClosed),
-				zap.Bool("partial", result.Partial),
-			)
 		}
 	}()
 

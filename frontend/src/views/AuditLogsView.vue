@@ -22,6 +22,9 @@ const errorMessage = ref('')
 const detail = ref<AuditEntry | null>(null)
 const exporting = ref(false)
 const exportMessage = ref('')
+// 游标分页状态：nextBeforeID 由后端在「取满一页」时给出，缺省表示已到底。
+const nextBeforeID = ref<number | null>(null)
+const loadingMore = ref(false)
 
 function formatTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
@@ -37,8 +40,35 @@ async function loadEntries() {
   try {
     const response = await listAuditLogs(auth.accessToken, { clusterID: clusterID.value || undefined, action: action.value, result: result.value })
     entries.value = response.items; total.value = response.total
+    nextBeforeID.value = response.next_before_id ?? null
   } catch { errorMessage.value = '无法加载审计日志，请确认当前账号具有审计权限' }
   finally { loading.value = false }
+}
+
+// 加载更多：按游标追加下一页。审计表只追加，用 id 游标而不是页码，
+// 避免翻页期间新记录插到最前导致相邻页重复或遗漏。
+async function loadMore() {
+  if (nextBeforeID.value === null || loadingMore.value) return
+  loadingMore.value = true
+  errorMessage.value = ''
+  try {
+    const response = await listAuditLogs(auth.accessToken, {
+      clusterID: clusterID.value || undefined,
+      action: action.value,
+      result: result.value,
+      beforeID: nextBeforeID.value,
+    })
+    // 去重兜底：极端情况下（同一毫秒多条）后端游标是开区间 id <，不会重复，
+    // 但前端仍按 id 过滤一次，避免将来换实现时出现重复渲染。
+    const seen = new Set(entries.value.map((item) => item.id))
+    entries.value = [...entries.value, ...response.items.filter((item) => !seen.has(item.id))]
+    total.value = response.total
+    nextBeforeID.value = response.next_before_id ?? null
+  } catch {
+    errorMessage.value = '加载更多审计记录失败，请稍后重试'
+  } finally {
+    loadingMore.value = false
+  }
 }
 
 async function initialize() {
@@ -79,6 +109,23 @@ onMounted(initialize)
       <header><div><p class="context-label">IMMUTABLE AUDIT TRAIL</p><h2>操作记录 · {{ total }}</h2></div><ShieldCheck :size="21" /></header>
       <div v-if="!loading && entries.length === 0" class="resource-empty"><FileClock :size="30" /><strong>暂无审计记录</strong><span>平台关键写操作将在此处追加记录。</span></div>
       <button v-for="entry in entries" :key="entry.id" type="button" class="audit-row" @click="detail = entry"><span class="audit-action">{{ entry.action }}</span><span class="audit-resource"><strong>{{ resourceLabel(entry) }}</strong><small>{{ entry.actor.name || '匿名会话' }} · {{ entry.request_id }}</small></span><span class="audit-result" :class="entry.result">{{ entry.result }}</span><span class="audit-status">HTTP {{ entry.status_code }}</span><time>{{ formatTime(entry.created_at) }}</time></button>
+
+      <div v-if="entries.length > 0" class="audit-pager">
+        <span class="muted small">
+          已加载 {{ entries.length }} / {{ total }} 条
+        </span>
+        <button
+          v-if="nextBeforeID !== null"
+          type="button"
+          class="secondary-button"
+          :disabled="loadingMore"
+          @click="loadMore"
+        >
+          <RefreshCw :size="14" :class="{ spinning: loadingMore }" />
+          {{ loadingMore ? '加载中…' : '加载更多' }}
+        </button>
+        <span v-else class="muted small">已到底</span>
+      </div>
     </section>
 
     <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="audit-drawer"><header><div><p class="context-label">AUDIT #{{ detail.id }}</p><h2>{{ detail.action }}</h2></div><button class="icon-button" aria-label="关闭审计详情" @click="detail = null"><X :size="18" /></button></header><div class="audit-detail-summary"><span class="audit-result" :class="detail.result">{{ detail.result }}</span><strong>{{ resourceLabel(detail) }}</strong><time>{{ formatTime(detail.created_at) }}</time></div><dl><dt>操作者</dt><dd>{{ detail.actor.name || '匿名会话' }}<span v-if="detail.actor.id">#{{ detail.actor.id }}</span></dd><dt>请求 ID</dt><dd>{{ detail.request_id }}</dd><dt>HTTP 状态</dt><dd>{{ detail.status_code }}</dd><dt>来源地址</dt><dd>{{ detail.ip_address || '--' }}</dd><dt>User-Agent</dt><dd>{{ detail.user_agent || '--' }}</dd><dt>集群快照</dt><dd>{{ detail.details.cluster_id || detail.cluster_id || '--' }}</dd></dl><h3>非敏感详情</h3><pre>{{ JSON.stringify(detail.details, null, 2) }}</pre></section></div>

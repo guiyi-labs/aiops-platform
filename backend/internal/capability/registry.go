@@ -176,8 +176,8 @@ func (r *Registry) Register(desc ProviderDescriptor) error {
 	}
 	// Copy slice inputs so callers can't mutate the descriptor after
 	// registration.
-	depsCopy := append([]string(nil), desc.Dependencies...)
-	rolesCopy := append([]string(nil), desc.ClusterRoles...)
+	depsCopy := append([]string{}, desc.Dependencies...)
+	rolesCopy := append([]string{}, desc.ClusterRoles...)
 	stored := desc
 	stored.Dependencies = depsCopy
 	stored.ClusterRoles = rolesCopy
@@ -238,7 +238,7 @@ func (r *Registry) Dependencies(name string) ([]string, error) {
 	if !ok {
 		return nil, ErrProviderNotFound
 	}
-	return append([]string(nil), desc.Dependencies...), nil
+	return append([]string{}, desc.Dependencies...), nil
 }
 
 // ClusterSelector reports whether the provider is eligible to run on the
@@ -436,8 +436,8 @@ func (r *Registry) Get(name string) (ProviderInfo, error) {
 		Description:  desc.Description,
 		Version:      desc.Version,
 		Kind:         desc.Kind,
-		Dependencies: append([]string(nil), desc.Dependencies...),
-		ClusterRoles: append([]string(nil), desc.ClusterRoles...),
+		Dependencies: append([]string{}, desc.Dependencies...),
+		ClusterRoles: append([]string{}, desc.ClusterRoles...),
 		Configured:   desc.Configured,
 		State:        st.state,
 		HealthReason: st.reason,
@@ -454,6 +454,10 @@ func (r *Registry) List() []ProviderInfo {
 	names = append(names, r.order...)
 	sort.Strings(names)
 	out := make([]ProviderInfo, 0, len(names))
+	// 注意：Dependencies / ClusterRoles 用 append([]string{}, …) 而非
+	// append([]string(nil), …)。后者在描述符未设置该字段时仍是 nil slice，
+	// 会被序列化成 JSON null，而 OpenAPI 把这两个字段声明为 array——
+	// 客户端按契约消费（.map/.length）就会在 null 上崩。
 	for _, n := range names {
 		desc := r.descs[n]
 		st := r.states[n]
@@ -462,8 +466,8 @@ func (r *Registry) List() []ProviderInfo {
 			Description:  desc.Description,
 			Version:      desc.Version,
 			Kind:         desc.Kind,
-			Dependencies: append([]string(nil), desc.Dependencies...),
-			ClusterRoles: append([]string(nil), desc.ClusterRoles...),
+			Dependencies: append([]string{}, desc.Dependencies...),
+			ClusterRoles: append([]string{}, desc.ClusterRoles...),
 			Configured:   desc.Configured,
 			State:        st.state,
 			HealthReason: st.reason,

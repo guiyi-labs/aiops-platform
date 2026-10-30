@@ -16,50 +16,54 @@ const (
 )
 
 type Config struct {
-	Environment                     string
-	HTTPAddress                     string
-	DatabaseURL                     string
-	ShutdownTimeout                 time.Duration
-	ReadHeaderTimeout               time.Duration
-	ReadTimeout                     time.Duration
-	WriteTimeout                    time.Duration
-	IdleTimeout                     time.Duration
-	JWTSigningKey                   string
-	AccessTokenTTL                  time.Duration
-	RefreshTokenTTL                 time.Duration
-	BootstrapUsername               string
-	BootstrapPassword               string
-	SecureCookies                   bool
-	CredentialEncryptionKey         string
-	CredentialKeyVersion            string
-	CredentialDecryptionKeys        map[string]string
-	ClusterProbeTimeout             time.Duration
-	MetricsHistoryEnabled           bool
-	MetricsHistoryRetention         time.Duration
-	MetricsCollectionInterval       time.Duration
-	MetricsCollectionTimeout        time.Duration
-	MetricsCleanupInterval          time.Duration
-	MetricsMaxClusters              int
-	MetricsMaxConcurrency           int
-	CorrelationInterval             time.Duration
-	AIEnabled                       bool
-	AIBaseURL                       string
-	AIAPIKey                        string
-	AIModel                         string
-	AIRequestTimeout                time.Duration
-	AIDailyTokenBudget              int
-	AIMaxConcurrentRequests         int
-	AIMaxOutputTokens               int
-	NotificationEnabled             bool
-	NotificationWebhookURL          string
-	NotificationWebhookSecret       string
-	NotificationPollInterval        time.Duration
-	NotificationRequestTimeout      time.Duration
-	NotificationRetryBase           time.Duration
-	NotificationMaxAttempts         int
-	NotificationBatchSize           int
-	IncidentSLAMonitorEnabled       bool
-	IncidentSLAPollInterval         time.Duration
+	Environment                string
+	HTTPAddress                string
+	DatabaseURL                string
+	ShutdownTimeout            time.Duration
+	ReadHeaderTimeout          time.Duration
+	ReadTimeout                time.Duration
+	WriteTimeout               time.Duration
+	IdleTimeout                time.Duration
+	JWTSigningKey              string
+	AccessTokenTTL             time.Duration
+	RefreshTokenTTL            time.Duration
+	BootstrapUsername          string
+	BootstrapPassword          string
+	SecureCookies              bool
+	CredentialEncryptionKey    string
+	CredentialKeyVersion       string
+	CredentialDecryptionKeys   map[string]string
+	ClusterProbeTimeout        time.Duration
+	MetricsHistoryEnabled      bool
+	MetricsHistoryRetention    time.Duration
+	MetricsCollectionInterval  time.Duration
+	MetricsCollectionTimeout   time.Duration
+	MetricsCleanupInterval     time.Duration
+	MetricsMaxClusters         int
+	MetricsMaxConcurrency      int
+	CorrelationInterval        time.Duration
+	AIEnabled                  bool
+	AIBaseURL                  string
+	AIAPIKey                   string
+	AIModel                    string
+	AIRequestTimeout           time.Duration
+	AIDailyTokenBudget         int
+	AIMaxConcurrentRequests    int
+	AIMaxOutputTokens          int
+	NotificationEnabled        bool
+	NotificationWebhookURL     string
+	NotificationWebhookSecret  string
+	NotificationPollInterval   time.Duration
+	NotificationRequestTimeout time.Duration
+	NotificationRetryBase      time.Duration
+	NotificationMaxAttempts    int
+	NotificationBatchSize      int
+	IncidentSLAMonitorEnabled  bool
+	IncidentSLAPollInterval    time.Duration
+	// TopologyCollectInterval 是拓扑边采集的周期。0 表示只在启动时采集一次
+	// （预热），不跑循环——边采集要读 8 类资源 × 每个命名空间，对大盘和
+	// api_server 都有成本，因此允许关掉周期采集，改用界面上的「采集拓扑」按需触发。
+	TopologyCollectInterval         time.Duration
 	IncidentSLAApproachingWin       time.Duration
 	IncidentSLAFirstEscalationAfter time.Duration
 	IncidentSLAFinalEscalationAfter time.Duration
@@ -399,6 +403,11 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	// 拓扑采集默认 5 分钟：足够让图跟上一次部署/扩缩容的变化，又不会持续压 api_server。
+	topologyCollectInterval, err := durationFromEnv("TOPOLOGY_COLLECT_INTERVAL", 5*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
 	alertPollInterval, err := durationFromEnv("ALERT_POLL_INTERVAL", 15*time.Second)
 	if err != nil {
 		return Config{}, err
@@ -501,6 +510,7 @@ func Load() (Config, error) {
 		NotificationBatchSize:           notificationBatchSize,
 		IncidentSLAMonitorEnabled:       incidentSLAMonitorEnabled,
 		IncidentSLAPollInterval:         incidentSLAPollInterval,
+		TopologyCollectInterval:         topologyCollectInterval,
 		IncidentSLAApproachingWin:       incidentSLAApproachingWindow,
 		IncidentSLAFirstEscalationAfter: incidentSLAFirstEscalationAfter,
 		IncidentSLAFinalEscalationAfter: incidentSLAFinalEscalationAfter,

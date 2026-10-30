@@ -1595,6 +1595,8 @@ button:not(:disabled):active,
 .audit-list .resource-empty { margin: 0; border: 0; }
 .audit-row { display: grid; width: 100%; grid-template-columns: 190px minmax(0, 1fr) 72px 76px 160px; min-height: 72px; padding: 11px 18px; align-items: center; gap: 12px; color: inherit; text-align: left; background: var(--gray-0); border: 0; border-bottom: 1px solid var(--border-subtle); }
 .audit-row:last-child { border-bottom: 0; }
+/* 游标分页的控制条：贴在列表底部，与行同底色避免看成「另一条记录」。 */
+.audit-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--border-subtle); background: var(--gray-0); }
 .audit-row:hover { background: var(--bg-secondary); }
 .audit-action { color: #41525a; font: 11px Consolas, monospace; }
 .audit-resource { display: grid; min-width: 0; gap: 5px; }

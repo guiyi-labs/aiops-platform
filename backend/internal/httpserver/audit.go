@@ -83,7 +83,13 @@ func parseAuditFilter(c *gin.Context, defaultLimit, maxLimit int) (audit.Filter,
 		writeError(c, http.StatusBadRequest, "INVALID_QUERY", fmt.Sprintf("limit must be between 1 and %d", maxLimit))
 		return audit.Filter{}, false
 	}
-	return audit.Filter{ClusterID: clusterID, Action: action, Result: result, Limit: limit}, true
+	// 游标分页：before_id 取上一页最后一条的 id。缺省 0 表示第一页。
+	beforeID, err := strconv.ParseInt(defaultString(c.Query("before_id"), "0"), 10, 64)
+	if err != nil || beforeID < 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "before_id must be a non-negative integer")
+		return audit.Filter{}, false
+	}
+	return audit.Filter{ClusterID: clusterID, Action: action, Result: result, Limit: limit, BeforeID: beforeID}, true
 }
 
 func auditTrail(logger *zap.Logger, recorder auditRecorder) gin.HandlerFunc {

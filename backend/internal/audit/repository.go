@@ -80,6 +80,13 @@ func (r *GormRepository) List(ctx context.Context, filter Filter) (ListResponse,
 		conditions = append(conditions, "result = ?")
 		args = append(args, filter.Result)
 	}
+	// 游标条件只影响本页取数，不影响 total（total 表示「符合筛选条件的总记录数」）。
+	pageConditions := conditions
+	pageArgs := args
+	if filter.BeforeID > 0 {
+		pageConditions = append(append([]string(nil), conditions...), "id < ?")
+		pageArgs = append(append([]any(nil), args...), filter.BeforeID)
+	}
 	where := ""
 	if len(conditions) > 0 {
 		where = " WHERE " + strings.Join(conditions, " AND ")
@@ -88,12 +95,16 @@ func (r *GormRepository) List(ctx context.Context, filter Filter) (ListResponse,
 	if err := r.db.WithContext(ctx).Raw("SELECT COUNT(*) FROM audit_logs"+where, args...).Row().Scan(&total); err != nil {
 		return ListResponse{}, err
 	}
-	queryArgs := append(append([]any(nil), args...), filter.Limit)
+	pageWhere := ""
+	if len(pageConditions) > 0 {
+		pageWhere = " WHERE " + strings.Join(pageConditions, " AND ")
+	}
+	queryArgs := append(append([]any(nil), pageArgs...), filter.Limit)
 	var stored []storedEntry
 	if err := r.db.WithContext(ctx).Raw(`SELECT id, actor_user_id, actor_name, cluster_id, action,
 		COALESCE(resource_type, '') AS resource_type, COALESCE(resource_namespace, '') AS resource_namespace,
 		COALESCE(resource_name, '') AS resource_name, result, request_id, status_code, ip_address, user_agent,
-		details::text AS details, created_at FROM audit_logs`+where+` ORDER BY created_at DESC, id DESC LIMIT ?`, queryArgs...).Scan(&stored).Error; err != nil {
+		details::text AS details, created_at FROM audit_logs`+pageWhere+` ORDER BY created_at DESC, id DESC LIMIT ?`, queryArgs...).Scan(&stored).Error; err != nil {
 		return ListResponse{}, err
 	}
 	items, err := entriesFromStored(stored)
@@ -104,7 +115,12 @@ func (r *GormRepository) List(ctx context.Context, filter Filter) (ListResponse,
 	if remaining < 0 {
 		remaining = 0
 	}
-	return ListResponse{Items: items, Total: total, Remaining: remaining}, nil
+	resp := ListResponse{Items: items, Total: total, Remaining: remaining}
+	// 只有取满一页时才给游标：不足一页说明已经到底，再翻只会拿到空列表。
+	if len(items) == filter.Limit && len(items) > 0 {
+		resp.NextBeforeID = items[len(items)-1].ID
+	}
+	return resp, nil
 }
 
 // ArchiveRange returns a stable, ascending ID slice for the offline archive command.

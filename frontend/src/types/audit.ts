@@ -13,4 +13,10 @@ export interface AuditEntry {
   details: Record<string, unknown>
   created_at: string
 }
-export interface AuditListResponse { items: AuditEntry[]; total: number; remaining: number }
+export interface AuditListResponse {
+  items: AuditEntry[]
+  total: number
+  remaining: number
+  /** 下一页游标（本页最后一条的 id）；缺省表示没有更多。 */
+  next_before_id?: number
+}

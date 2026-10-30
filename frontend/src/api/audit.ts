@@ -5,13 +5,15 @@ import type { AuditListResponse, AuditResult } from '../types/audit'
 
 export interface AuditExportResult { blob: Blob; filename: string; rows: number; total: number; truncated: boolean }
 
-type AuditFilters = { clusterID?: number; action?: string; result?: AuditResult | ''; limit?: number }
+type AuditFilters = { clusterID?: number; action?: string; result?: AuditResult | ''; limit?: number; beforeID?: number }
 
 function auditQuery(filters: AuditFilters, defaultLimit: number): URLSearchParams {
   const query = new URLSearchParams({ limit: String(filters.limit ?? defaultLimit) })
   if (filters.clusterID) query.set('cluster_id', String(filters.clusterID))
   if (filters.action) query.set('action', filters.action)
   if (filters.result) query.set('result', filters.result)
+  // 游标分页：取上一页最后一条的 id，避免 OFFSET 在只追加表上出现重复/遗漏。
+  if (filters.beforeID) query.set('before_id', String(filters.beforeID))
   return query
 }
 

@@ -35,12 +35,20 @@ type Filter struct {
 	Action    string
 	Result    string
 	Limit     int
+	// BeforeID 是游标分页的锚点：只返回 id 小于它的记录。
+	//
+	// 为什么不用 OFFSET：审计表是只追加的高频表，翻页期间新记录会插到最前面，
+	// OFFSET 会让相邻两页出现重复或遗漏；而且 ORDER BY created_at DESC 的深
+	// OFFSET 每页都要扫过前面所有行。按自增 id 倒序取游标既稳定又走索引。
+	BeforeID int64
 }
 
 type ListResponse struct {
 	Items     []Entry `json:"items"`
 	Total     int64   `json:"total"`
 	Remaining int64   `json:"remaining"`
+	// NextBeforeID 是下一页的游标（本页最后一条的 id）。为 0 表示没有更多。
+	NextBeforeID int64 `json:"next_before_id,omitempty"`
 }
 
 type ExportResult struct {

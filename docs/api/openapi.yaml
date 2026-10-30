@@ -863,7 +863,25 @@ paths:
   /api/v1/notification-deliveries/{delivery_id}/retry:
     post: { tags: [notifications], summary: Retry a dead diagnosis notification, operationId: retryNotificationDelivery, security: [{ bearerAuth: [] }], parameters: [{ $ref: '#/components/parameters/DeliveryID' }], responses: { '202': { description: Retry queued }, '409': { $ref: '#/components/responses/Error' } } }
   /api/v1/audit-logs:
-    get: { tags: [audit], summary: Query audit logs, operationId: listAuditLogs, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    get:
+      tags: [audit]
+      summary: Query audit logs (newest first, cursor paginated)
+      description: |
+        Cursor pagination via `before_id`: pass the `next_before_id` returned by the
+        previous page. The table is append-only, so an id cursor avoids the duplicate
+        and missing rows that OFFSET produces when new records land between pages.
+      operationId: listAuditLogs
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, schema: { type: integer, format: int64, minimum: 0 } }
+        - { name: action, in: query, schema: { type: string, maxLength: 128 } }
+        - { name: result, in: query, schema: { type: string, enum: [success, failure, denied] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: before_id, in: query, description: "Return records with id < before_id. Omit for the first page.", schema: { type: integer, format: int64, minimum: 0 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
   /api/v1/audit-logs/export:
     get: { tags: [audit], summary: Export safe UTF-8 CSV, operationId: exportAuditLogs, security: [{ bearerAuth: [] }], responses: { '200': { description: CSV export, content: { text/csv: { schema: { type: string } } } } } }
   /api/v1/clusters/{cluster_id}/alert-rules:

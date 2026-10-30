@@ -9,6 +9,25 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added
+- **topology**: 周期采集。此前只有「启动预热一次 + 界面手动触发」，预热之后新增的
+  Deployment/Pod 不会进图。新增 `TOPOLOGY_COLLECT_INTERVAL`（默认 5m，设 0 则只预热），
+  启动补采后按周期刷新；全程异步、失败只记日志。日志带 `phase`（warm-up/periodic）。
+- **audit**: 审计日志分页。此前 `limit` 固定 100、无任何翻页入口，9074 条记录只能看最新
+  100 条。新增游标分页 `?before_id=<上一页最后一条 id>`，响应给出 `next_before_id`；
+  控制台审计页底部加「已加载 N / 总数」+「加载更多」。用 id 游标而非 OFFSET：审计表
+  只追加，翻页期间新记录会让 OFFSET 出现重复/遗漏，且深翻页需扫过前面所有行。
+
+### Fixed
+- **capability**: `ProviderInfo.Dependencies` / `ClusterRoles` 用 `append([]string(nil), …)`
+  复制，描述符未设置时仍是 nil slice → 序列化成 JSON `null`，而契约声明为 array。
+  7 处改为 `append([]string{}, …)`（在 Registry 输出处统一归一，新增 provider 不会再犯）。
+- **signal**: `SeverityPolicy.Mappings` 在只设 `Fallback` 的描述符上为 nil map → `null`。
+  加 `MarshalJSON` 统一输出 `{}`。
+  （以上两处由遍扫 201 条 GET 接口的脚本发现；`/incidents/metrics` 的时长字段为 null
+  表示「无数据」，语义正确，未改。）
+
+
 ### Fixed
 - **a11y**: 6 处对比度不足（axe serious）。强调色/辅助灰被直接当文字用，压在浅底上只有
   2.58~4.45:1。新增 `--accent-strong`（#0a6f66）与 `--status-success-strong`（#146c33）

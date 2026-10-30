@@ -1,6 +1,9 @@
 package signal
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // Producer identifies the M21-M31 system that emitted a normalized signal.
 type Producer string
@@ -117,6 +120,23 @@ type SignalDescriptor struct {
 type SeverityPolicy struct {
 	Mappings map[string]Severity `json:"mappings"`
 	Fallback Severity            `json:"fallback"`
+}
+
+// MarshalJSON 保证 mappings 永远序列化成对象而不是 null。
+//
+// 多数描述符只设了 Fallback、没设 Mappings（即「所有生产者严重级都用兜底」），
+// 而 nil map 会序列化成 null——OpenAPI 把该字段声明为 object，客户端按契约
+// 遍历就会在 null 上崩。这里统一归一，避免每个 catalog 条目各自补空 map
+// （那样新增条目还会忘）。
+func (p SeverityPolicy) MarshalJSON() ([]byte, error) {
+	mappings := p.Mappings
+	if mappings == nil {
+		mappings = map[string]Severity{}
+	}
+	return json.Marshal(struct {
+		Mappings map[string]Severity `json:"mappings"`
+		Fallback Severity            `json:"fallback"`
+	}{Mappings: mappings, Fallback: p.Fallback})
 }
 
 // IngestRequest is the internal input to the signal service. Each producer

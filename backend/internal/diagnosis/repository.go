@@ -16,6 +16,8 @@ import (
 type Repository interface {
 	Save(context.Context, *Record) error
 	List(context.Context, ListFilter) ([]Record, error)
+	// Count 返回与 List 相同筛选条件下的总记录数（不含游标），用于列表接口的 total。
+	Count(context.Context, ListFilter) (int64, error)
 	Get(context.Context, int64) (Record, error)
 	Transition(context.Context, int64, string, ActorRef, string) (Record, error)
 	AddFeedback(context.Context, int64, string, ActorRef, string) (Record, error)
@@ -117,13 +119,29 @@ func (r *GormRepository) List(ctx context.Context, filter ListFilter) ([]Record,
 	return r.list(ctx, filter, "d.created_at")
 }
 
-func (r *GormRepository) list(ctx context.Context, filter ListFilter, orderBy string) ([]Record, error) {
-	query := `SELECT d.id, d.cluster_id, d.rule_id, d.severity, d.resource_kind, d.resource_namespace, d.resource_name, d.resource_uid, d.status, d.summary,
-		d.root_causes::text AS root_causes, d.recommendations::text AS recommendations, d.assigned_to_user_id AS assignee_id,
-		u.display_name AS assignee_name, d.observed_at, d.created_at, d.updated_at, d.sla_due_at, d.resolved_at,
-		(d.status IN ('open', 'confirmed') AND d.sla_due_at < NOW()) AS overdue
-		FROM diagnosis_records d LEFT JOIN users u ON u.id = d.assigned_to_user_id`
-	conditions := make([]string, 0, 3)
+// Count 返回符合筛选条件的记录总数。
+//
+// 存在的理由：列表接口此前把 total 赋成 len(items)（本页条数）、remaining 恒为 0，
+// 于是控制台显示的「共 N 条」其实是「这一页有几条」，任何基于 remaining 的分页
+// 判断都会认为已经到底。total 必须由 COUNT 得出。
+func (r *GormRepository) Count(ctx context.Context, filter ListFilter) (int64, error) {
+	conditions, args := listConditions(filter)
+	query := "SELECT COUNT(*) FROM diagnosis_records d"
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	var total int64
+	if err := r.db.WithContext(ctx).Raw(query, args...).Row().Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// listConditions 构造与 List/Count 共用的 WHERE 条件。
+// 抽出来是为了让「本页取数」和「总数统计」永远用同一套筛选语义——
+// 两处各写一份是它们悄悄分叉的常见原因。
+func listConditions(filter ListFilter) ([]string, []any) {
+	conditions := make([]string, 0, 4)
 	args := []any{}
 	if filter.ClusterID > 0 {
 		conditions = append(conditions, "d.cluster_id = ?")
@@ -147,6 +165,22 @@ func (r *GormRepository) list(ctx context.Context, filter ListFilter, orderBy st
 	if filter.UpdatedAfter != nil {
 		conditions = append(conditions, "d.updated_at > ?")
 		args = append(args, *filter.UpdatedAfter)
+	}
+	return conditions, args
+}
+
+func (r *GormRepository) list(ctx context.Context, filter ListFilter, orderBy string) ([]Record, error) {
+	query := `SELECT d.id, d.cluster_id, d.rule_id, d.severity, d.resource_kind, d.resource_namespace, d.resource_name, d.resource_uid, d.status, d.summary,
+		d.root_causes::text AS root_causes, d.recommendations::text AS recommendations, d.assigned_to_user_id AS assignee_id,
+		u.display_name AS assignee_name, d.observed_at, d.created_at, d.updated_at, d.sla_due_at, d.resolved_at,
+		(d.status IN ('open', 'confirmed') AND d.sla_due_at < NOW()) AS overdue
+		FROM diagnosis_records d LEFT JOIN users u ON u.id = d.assigned_to_user_id`
+	conditions, args := listConditions(filter)
+	// 游标条件只作用于本页取数，不计入 Count 的筛选条件：
+	// total 表示「符合筛选条件的总记录数」，不随翻页变化。
+	if filter.BeforeID > 0 {
+		conditions = append(conditions, "d.id < ?")
+		args = append(args, filter.BeforeID)
 	}
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")

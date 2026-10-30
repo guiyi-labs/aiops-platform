@@ -34,6 +34,12 @@ func (s *diagTestRepo) Save(context.Context, *diagnosis.Record) error { return n
 func (s *diagTestRepo) List(context.Context, diagnosis.ListFilter) ([]diagnosis.Record, error) {
 	return s.list, s.listErr
 }
+
+// Count 与 List 保持一致：桩里没有独立的总数状态，用列表长度充当。
+// 生产实现的 total 来自 COUNT(*)，这里只需要满足接口与「total >= len(items)」。
+func (s *diagTestRepo) Count(context.Context, diagnosis.ListFilter) (int64, error) {
+	return int64(len(s.list)), s.listErr
+}
 func (s *diagTestRepo) Get(context.Context, int64) (diagnosis.Record, error) {
 	return s.record, s.getErr
 }

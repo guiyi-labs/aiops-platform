@@ -42,6 +42,10 @@ func (s *diagnosisRepositoryStub) List(_ context.Context, f diagnosis.ListFilter
 	return s.listResult, nil
 }
 
+func (s *diagnosisRepositoryStub) Count(_ context.Context, _ diagnosis.ListFilter) (int64, error) {
+	return int64(len(s.listResult)), nil
+}
+
 func (s *diagnosisRepositoryStub) Get(_ context.Context, id int64) (diagnosis.Record, error) {
 	if s.getErr != nil {
 		return diagnosis.Record{}, s.getErr

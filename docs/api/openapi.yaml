@@ -760,7 +760,26 @@ paths:
         '409': { $ref: '#/components/responses/Error' }
         '502': { $ref: '#/components/responses/Error' }
   /api/v1/diagnoses:
-    get: { tags: [diagnoses], summary: Diagnosis history, operationId: listDiagnoses, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
+    get:
+      tags: [diagnoses]
+      summary: Diagnosis history (newest first, cursor paginated)
+      description: |
+        `total` is a real COUNT over the filter. Cursor pagination via `before_id`:
+        pass the `next_before_id` returned by the previous page. `next_before_id` is
+        only present when the page was full, so clients must not infer "has more"
+        from `remaining` (which is total - page size and stays positive on the last page).
+      operationId: listDiagnoses
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: cluster_id, in: query, schema: { type: integer, format: int64, minimum: 0 } }
+        - { name: status, in: query, schema: { type: string, enum: [open, confirmed, resolved, dismissed] } }
+        - { name: overdue, in: query, schema: { type: boolean } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: before_id, in: query, description: "Return records with id < before_id. Omit for the first page.", schema: { type: integer, format: int64, minimum: 0 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
   /api/v1/diagnoses/summary:
     get: { tags: [diagnoses], summary: Diagnosis summary, operationId: diagnosisSummary, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/diagnoses/{diagnosis_id}:

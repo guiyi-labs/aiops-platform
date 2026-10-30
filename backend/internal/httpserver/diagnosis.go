@@ -313,10 +313,36 @@ func (h diagnosisHandler) list(c *gin.Context) {
 		}
 		overdue = &value
 	}
-	items, err := h.service.List(c.Request.Context(), diagnosis.ListFilter{ClusterID: clusterID, Status: status, Overdue: overdue, Limit: limit})
+	// 游标：before_id 取上一页最后一条的 id；缺省 0 表示第一页。
+	beforeID, err := strconv.ParseInt(defaultString(c.Query("before_id"), "0"), 10, 64)
+	if err != nil || beforeID < 0 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "before_id must be a non-negative integer")
+		return
+	}
+	// total 与 remaining 必须来自真实计数：此前 total 被赋成 len(items)、
+	// remaining 恒为 0，界面显示的「共 N 条」其实是本页条数，且任何分页判断
+	// 都会认为已经到底。Count 与 List 共用同一套筛选条件（见 listConditions）。
+	filter := diagnosis.ListFilter{ClusterID: clusterID, Status: status, Overdue: overdue, Limit: limit, BeforeID: beforeID}
+	total, err := h.service.Count(c.Request.Context(), filter)
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to count diagnoses")
+		return
+	}
+	items, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
 		writeError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "unable to list diagnoses")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items), "remaining": 0})
+	remaining := int(total) - len(items)
+	if remaining < 0 {
+		remaining = 0
+	}
+	resp := gin.H{"items": items, "total": total, "remaining": remaining}
+	// next_before_id 只在取满一页时给出。不能用 remaining 判断「还有没有下一页」：
+	// remaining = total - 本页条数，在游标分页下每一页都差不多大，最后一页也仍
+	// 大于 0，会让人一直点「加载更多」拿到空列表。
+	if limit > 0 && len(items) == limit {
+		resp["next_before_id"] = items[len(items)-1].ID
+	}
+	c.JSON(http.StatusOK, resp)
 }

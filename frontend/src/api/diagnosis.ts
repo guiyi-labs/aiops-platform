@@ -49,11 +49,17 @@ export function diagnoseHorizontalPodAutoscaler(token: string, clusterID: number
   })
 }
 
-export function listDiagnoses(token: string, filters: { clusterID?: number; status?: DiagnosisStatus | ''; overdue?: boolean; limit?: number } = {}): Promise<{ items: DiagnosisRecord[]; total: number; remaining: number }> {
+export function listDiagnoses(
+  token: string,
+  // beforeID 是游标：传上一页最后一条的 id。列表按 created_at DESC 排序且不断新增，
+  // 用 id 游标翻页不会像 OFFSET 那样在两次请求之间出现重复或遗漏。
+  filters: { clusterID?: number; status?: DiagnosisStatus | ''; overdue?: boolean; limit?: number; beforeID?: number } = {},
+): Promise<{ items: DiagnosisRecord[]; total: number; remaining: number; next_before_id?: number }> {
   const query = new URLSearchParams({ limit: String(filters.limit ?? 50) })
   if (filters.clusterID) query.set('cluster_id', String(filters.clusterID))
   if (filters.status) query.set('status', filters.status)
   if (filters.overdue !== undefined) query.set('overdue', String(filters.overdue))
+  if (filters.beforeID) query.set('before_id', String(filters.beforeID))
   return authorizedRequest(`/api/v1/diagnoses?${query}`, token)
 }
 

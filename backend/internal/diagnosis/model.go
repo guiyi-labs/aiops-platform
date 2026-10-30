@@ -108,6 +108,10 @@ type ListFilter struct {
 	// state-transition changes are both re-normalized into the signal layer.
 	UpdatedAfter *time.Time
 	Limit        int
+	// BeforeID 是列表游标：只返回 id 小于它的记录。
+	// 与审计日志同理——列表按 created_at DESC, id DESC 排序且不断新增，
+	// 用 id 游标翻页不会像 OFFSET 那样在两次请求之间出现重复或遗漏。
+	BeforeID int64
 }
 
 type Record struct {

@@ -144,6 +144,15 @@ func (m *memRepo) Summary(_ context.Context) (Summary, error) {
 	return Summary{Total: int64(len(m.records))}, nil
 }
 
+// Count 复用 List 的筛选语义，返回匹配记录数（不含 Limit 截断）。
+func (m *memRepo) Count(ctx context.Context, f ListFilter) (int64, error) {
+	items, err := m.List(ctx, f)
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(items)), nil
+}
+
 func (m *memRepo) ListByClusters(_ context.Context, clusters []int64, status, severity string, limit int) ([]FederationDiagnosisRow, error) {
 	if len(clusters) == 0 {
 		return []FederationDiagnosisRow{}, nil

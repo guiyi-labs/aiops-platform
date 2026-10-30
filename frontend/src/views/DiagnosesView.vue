@@ -26,6 +26,11 @@ const records = ref<DiagnosisRecord[]>([])
 const detail = ref<DiagnosisRecord | null>(null)
 const loading = ref(false)
 const detailLoading = ref(false)
+// 诊断列表游标分页状态。total 由后端 COUNT 得出（此前后端拿本页条数冒充，
+// 界面上的「共 N 条」其实是「这一页有几条」）。
+const recordsTotal = ref(0)
+const recordsCursor = ref<number | null>(null)
+const loadingMore = ref(false)
 const errorMessage = ref('')
 const transitionComment = ref('')
 const feedbackVerdict = ref<FeedbackVerdict>('accurate')
@@ -105,9 +110,40 @@ function formatTimestamp(raw: unknown): string {
 
 async function loadRecords() {
   loading.value = true; errorMessage.value = ''
-  try { records.value = (await listDiagnoses(auth.accessToken, { clusterID: selectedClusterID.value || undefined, status: statusFilter.value, overdue: overdueOnly.value ? true : undefined })).items }
+  try {
+    const page = await listDiagnoses(auth.accessToken, { clusterID: selectedClusterID.value || undefined, status: statusFilter.value, overdue: overdueOnly.value ? true : undefined })
+    records.value = page.items
+    recordsTotal.value = page.total
+    // 只有还剩记录时才给游标，否则底部会一直显示「加载更多」。
+    // 用后端给的 next_before_id 判断是否还有下一页。remaining 是
+    // total - 本页条数，游标分页下每页都差不多大，最后一页也仍大于 0。
+    recordsCursor.value = page.next_before_id ?? null
+  }
   catch { errorMessage.value = '无法加载诊断历史' }
   finally { loading.value = false }
+}
+
+// 加载更多：按 id 游标追加下一页。按 id 去重兜底，避免将来换实现时重复渲染。
+async function loadMoreRecords() {
+  if (recordsCursor.value === null || loadingMore.value) return
+  loadingMore.value = true
+  errorMessage.value = ''
+  try {
+    const page = await listDiagnoses(auth.accessToken, {
+      clusterID: selectedClusterID.value || undefined,
+      status: statusFilter.value,
+      overdue: overdueOnly.value ? true : undefined,
+      beforeID: recordsCursor.value,
+    })
+    const seen = new Set(records.value.map((item) => item.id))
+    records.value = [...records.value, ...page.items.filter((item) => !seen.has(item.id))]
+    recordsTotal.value = page.total
+    recordsCursor.value = page.next_before_id ?? null
+  } catch {
+    errorMessage.value = '加载更多诊断失败，请稍后重试'
+  } finally {
+    loadingMore.value = false
+  }
 }
 
 async function loadReplay(diagnosisID: number) {
@@ -372,6 +408,21 @@ onMounted(initialize)
         <span class="diagnosis-list-badges"><span class="severity-badge">{{ record.severity }}</span><span class="workflow-status" :class="record.status">{{ record.status }}</span></span>
         <time>{{ formatTime(record.observed_at) }}</time>
       </button>
+
+      <div v-if="records.length > 0" class="diagnosis-pager">
+        <span class="muted small">已加载 {{ records.length }} / {{ recordsTotal }} 条</span>
+        <button
+          v-if="recordsCursor !== null"
+          type="button"
+          class="secondary-button"
+          :disabled="loadingMore"
+          @click="loadMoreRecords"
+        >
+          <RefreshCw :size="14" :class="{ spinning: loadingMore }" />
+          {{ loadingMore ? '加载中…' : '加载更多' }}
+        </button>
+        <span v-else class="muted small">已到底</span>
+      </div>
     </section>
 
     <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span><span v-if="detail.assignee" class="assignee-badge"><UserCheck :size="13" />{{ detail.assignee.name }}</span><span class="sla-badge" :class="{ overdue: detail.overdue }">{{ slaLabel(detail) }}</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }} · 截止 {{ formatTime(detail.sla_due_at) }}</p>

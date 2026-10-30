@@ -13,6 +13,11 @@ Detailed change records for each milestone live under `docs/changes/`.
 - **topology**: 周期采集。此前只有「启动预热一次 + 界面手动触发」，预热之后新增的
   Deployment/Pod 不会进图。新增 `TOPOLOGY_COLLECT_INTERVAL`（默认 5m，设 0 则只预热），
   启动补采后按周期刷新；全程异步、失败只记日志。日志带 `phase`（warm-up/periodic）。
+- **diagnosis**: 列表接口的 `total` 此前被赋成 `len(items)`（本页条数）、`remaining` 恒为 0，
+  界面显示的「共 N 条」其实是「这一页有几条」，且无法翻页。新增 `Repository.Count`
+  （与 List 共用同一套 WHERE 条件）得出真实 total，并加 `before_id` 游标与 `next_before_id`。
+  控制台诊断列表加「已加载 N / 总数」+「加载更多」。
+  注意 `remaining` 不能用来判断是否还有下一页（游标分页下最后一页仍 >0），须看 `next_before_id`。
 - **audit**: 审计日志分页。此前 `limit` 固定 100、无任何翻页入口，9074 条记录只能看最新
   100 条。新增游标分页 `?before_id=<上一页最后一条 id>`，响应给出 `next_before_id`；
   控制台审计页底部加「已加载 N / 总数」+「加载更多」。用 id 游标而非 OFFSET：审计表

@@ -219,6 +219,11 @@ func (s *Service) List(ctx context.Context, filter ListFilter) ([]Record, error)
 	return s.repository.List(ctx, filter)
 }
 
+// Count 返回符合筛选条件的总数，供列表接口填 total（而不是拿本页条数冒充）。
+func (s *Service) Count(ctx context.Context, filter ListFilter) (int64, error) {
+	return s.repository.Count(ctx, filter)
+}
+
 func (s *Service) Get(ctx context.Context, id int64) (Record, error) {
 	record, err := s.repository.Get(ctx, id)
 	if err != nil {

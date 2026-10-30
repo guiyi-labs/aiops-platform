@@ -1536,6 +1536,8 @@ button:not(:disabled):active,
 .diagnosis-history .resource-empty { margin: 0; border: 0; }
 .diagnosis-history-row { display: grid; width: 100%; grid-template-columns: 38px minmax(0, 1fr) 120px 70px 132px; min-height: 78px; padding: 12px 16px; align-items: center; gap: 12px; color: inherit; text-align: left; background: var(--gray-0); border: 0; border-bottom: 1px solid var(--border-subtle); }
 .diagnosis-history-row:last-child { border-bottom: 0; }
+/* 游标分页控制条：与行同底色，避免被当成又一条诊断记录。 */
+.diagnosis-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--border-subtle); background: var(--gray-0); }
 .diagnosis-history-row:hover { background: var(--bg-secondary); }
 .diagnosis-rule-icon { display: grid; width: 34px; height: 34px; place-items: center; color: #6951a3; background: #f2edff; border-radius: 5px; }
 .diagnosis-history-main { display: grid; min-width: 0; gap: 6px; }

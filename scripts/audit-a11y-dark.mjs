@@ -46,12 +46,17 @@ function findAxe() {
 }
 
 // 覆盖主要布局类型：列表页、卡片仪表盘、表格页、详情密集页
+//
+// 第三项是「需要逐个点开的 tab」。这一列此前是缺的，导致拓扑图这类只在
+// tab 里渲染的面板从来没被 axe 扫过 —— 而它恰恰是暗色下问题最重的一处
+// （节点名 #1d2226 压在 #0d1315 上，对比度 1.2:1，肉眼完全看不见，
+//   审计却一直报 0 违规）。默认不点 tab 的审计等于只验了首屏。
 const VIEWS = [
   ['/diagnoses', '智能诊断'],
   ['/', '集群态势'],
   ['/nodes', '资源工作台'],
   ['/incidents', '事故工作空间'],
-  ['/aiops/overview', '智能运维概览'],
+  ['/aiops/overview', '智能运维概览', ['概览', '信号列表', '拓扑图']],
   ['/audit-logs', '审计日志'],
   ['/alerts', '告警规则'],
 ]
@@ -69,18 +74,8 @@ await page.click('button.login-submit')
 await page.waitForTimeout(2000)
 await page.evaluate(() => window.localStorage.setItem('aiops.theme', 'dark'))
 
-let total = 0
-for (const [route, name] of VIEWS) {
-  await page.goto(BASE + route, { waitUntil: 'networkidle' })
-  // 兜底：首次加载时 localStorage 可能还没被读到
-  const theme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
-  if (theme !== 'dark') {
-    await page.evaluate(() => window.localStorage.setItem('aiops.theme', 'dark'))
-    await page.reload({ waitUntil: 'networkidle' })
-  }
-  await page.waitForTimeout(2000)
+async function scan(label) {
   await page.addScriptTag({ content: AXE_SOURCE })
-
   const violations = await page.evaluate(async () => {
     const r = await window.axe.run(document, {
       runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
@@ -95,16 +90,48 @@ for (const [route, name] of VIEWS) {
         summary: (v.nodes[0]?.failureSummary || '').replace(/\s+/g, ' ').slice(0, 120),
       }))
   })
-
-  total += violations.length
   if (violations.length === 0) {
-    console.log(`✓ ${route} (${name})`)
-    continue
+    console.log(`✓ ${label}`)
+    return 0
   }
-  console.log(`● ${route} (${name}) ${violations.length} 项 [${violations.reduce((n, v) => n + v.nodes, 0)} 节点]`)
+  console.log(`● ${label} ${violations.length} 项 [${violations.reduce((n, v) => n + v.nodes, 0)} 节点]`)
   for (const v of violations.slice(0, 4)) {
     console.log(`    ${v.id} | ${v.nodes} | ${v.target}`)
     console.log(`      ${v.summary}`)
+  }
+  return violations.length
+}
+
+let total = 0
+for (const [route, name, tabs] of VIEWS) {
+  await page.goto(BASE + route, { waitUntil: 'networkidle' })
+  // 兜底：首次加载时 localStorage 可能还没被读到
+  const theme = await page.evaluate(() => document.documentElement.getAttribute('data-theme'))
+  if (theme !== 'dark') {
+    await page.evaluate(() => window.localStorage.setItem('aiops.theme', 'dark'))
+    await page.reload({ waitUntil: 'networkidle' })
+  }
+  await page.waitForTimeout(2000)
+
+  total += await scan(`${route} (${name})`)
+
+  // 逐个点开 tab 再扫：tab 内的面板在不点击时是 display:none / 未挂载，
+  // axe 看不到，而它们同样是交付物的一部分。
+  for (const tabText of tabs ?? []) {
+    const clicked = await page.evaluate((t) => {
+      const btns = [...document.querySelectorAll('[role="tab"], .aiops-tabs button, .mesh-tab, [class*="tabs"] button')]
+      const hit = btns.find((b) => (b.textContent || '').trim().includes(t))
+      if (!hit) return false
+      hit.click()
+      return true
+    }, tabText)
+    if (!clicked) {
+      console.log(`  ⚠ 未找到 tab「${tabText}」，该面板未审计`)
+      total += 1
+      continue
+    }
+    await page.waitForTimeout(1800)
+    total += await scan(`${route} → ${tabText}`)
   }
 }
 

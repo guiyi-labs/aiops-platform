@@ -2560,7 +2560,8 @@ h2 {
   border-radius: 4px;
 }
 
-.resource-glyph.ingress { color: #7d5e8f; background: var(--accent-subtle); }
+/* Ingress 的资源标识色，与拓扑图节点同源 */
+.resource-glyph.ingress { color: var(--topo-ingress); background: var(--accent-subtle); }
 .resource-glyph.pod { color: #376f8a; background: var(--accent-subtle); }
 .resource-glyph.deployment { color: var(--status-warning); background: var(--warning-bg); }
 .resource-glyph.endpoint-slice { color: #4f6e9a; background: var(--accent-subtle); }

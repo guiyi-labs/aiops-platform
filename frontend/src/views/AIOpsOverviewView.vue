@@ -110,17 +110,20 @@ const PRODUCER_LABELS: Record<SignalProducer, string> = {
   external: '外部',
 }
 
+// 节点色走 CSS 变量，而不是写死十六进制：SVG 的 fill/stroke 不继承 color，
+// 写死色值在暗色主题下会变成「深色压在深底上」（实测对比度 1.2~2.0:1）。
+// 明暗两套值定义在 console-theme.css 的 --topo-* 里。
 const NODE_COLORS: Record<string, string> = {
-  Deployment: '#326ce5',
-  Service: '#16a34a',
-  Pod: '#6b7280',
-  Ingress: '#7d5e8f',
-  EndpointSlice: '#0ea5e9',
-  StatefulSet: '#d97706',
-  DaemonSet: '#dc2626',
-  ReplicaSet: '#0d9488',
-  Node: '#374151',
-  Namespace: '#475569',
+  Deployment: 'var(--topo-deployment)',
+  Service: 'var(--topo-service)',
+  Pod: 'var(--topo-pod)',
+  Ingress: 'var(--topo-ingress)',
+  EndpointSlice: 'var(--topo-endpointslice)',
+  StatefulSet: 'var(--topo-statefulset)',
+  DaemonSet: 'var(--topo-daemonset)',
+  ReplicaSet: 'var(--topo-replicaset)',
+  Node: 'var(--topo-node)',
+  Namespace: 'var(--topo-namespace)',
 }
 
 const generatedLabel = computed(() =>
@@ -172,6 +175,8 @@ interface LayoutNode {
 interface LayoutEdge {
   key: string
   kind: string
+  sourceKey: string
+  targetKey: string
   x1: number
   y1: number
   x2: number
@@ -186,6 +191,32 @@ interface TopologyLayout {
   nodes: LayoutNode[]
   edges: LayoutEdge[]
 }
+
+// 悬停高亮：33 条边在 4 列布局上会交叉成一片，靠颜色无法分辨哪条连到哪。
+// 悬停某个节点时，只保留与它相连的边、其余淡出，让单条链路可以跟读。
+const hoveredNodeKey = ref<string | null>(null)
+
+const hoveredEdgeKeys = computed<Set<string>>(() => {
+  const key = hoveredNodeKey.value
+  const out = new Set<string>()
+  if (!key || !topologyLayout.value) return out
+  for (const e of topologyLayout.value.edges) {
+    if (e.sourceKey === key || e.targetKey === key) out.add(e.key)
+  }
+  return out
+})
+
+const hoveredNeighborKeys = computed<Set<string>>(() => {
+  const key = hoveredNodeKey.value
+  const out = new Set<string>()
+  if (!key || !topologyLayout.value) return out
+  out.add(key)
+  for (const e of topologyLayout.value.edges) {
+    if (e.sourceKey === key) out.add(e.targetKey)
+    if (e.targetKey === key) out.add(e.sourceKey)
+  }
+  return out
+})
 
 const topologyLayout = computed<TopologyLayout | null>(() => {
   const g = topology.value
@@ -248,6 +279,8 @@ const topologyLayout = computed<TopologyLayout | null>(() => {
     layoutEdges.push({
       key: String(e.id),
       kind: e.kind,
+      sourceKey: nodeKey(e.source),
+      targetKey: nodeKey(e.target),
       x1,
       y1,
       x2,
@@ -268,7 +301,7 @@ function nodeKey(r: { kind: string; namespace: string; name: string }): string {
 }
 
 function nodeColor(kind: string): string {
-  return NODE_COLORS[kind] ?? '#4b5563'
+  return NODE_COLORS[kind] ?? 'var(--topo-default)'
 }
 
 function formatTime(value?: string): string {
@@ -834,17 +867,21 @@ onMounted(initialize)
                   markerHeight="7"
                   orient="auto-start-reverse"
                 >
-                  <path d="M0,0 L10,5 L0,10 z" fill="#9ca3af" />
+                  <path d="M0,0 L10,5 L0,10 z" fill="var(--topo-edge)" />
                 </marker>
               </defs>
               <g class="topology-edges">
-                <g v-for="e in topologyLayout.edges" :key="e.kind + e.key">
+                <g
+                  v-for="e in topologyLayout.edges"
+                  :key="e.kind + e.key"
+                  :class="{ 'is-dim': hoveredNodeKey && !hoveredEdgeKeys.has(e.key) }"
+                >
                   <line
                     :x1="e.x1"
                     :y1="e.y1"
                     :x2="e.x2"
                     :y2="e.y2"
-                    stroke="#9ca3af"
+                    stroke="var(--topo-edge)"
                     stroke-width="1.5"
                     marker-end="url(#aiops-arrow)"
                   />
@@ -855,14 +892,21 @@ onMounted(initialize)
                     :width="e.labelW"
                     height="14"
                     rx="3"
-                    fill="#ffffff"
-                    fill-opacity="0.88"
+                    fill="var(--topo-label-bg)"
+                    fill-opacity="0.92"
                   />
                   <text :x="e.mx" :y="e.my + 3" text-anchor="middle" class="edge-label">{{ e.kind }}</text>
                 </g>
               </g>
               <g class="topology-nodes">
-                <g v-for="n in topologyLayout.nodes" :key="n.key" :transform="`translate(${n.x},${n.y})`">
+                <g
+                  v-for="n in topologyLayout.nodes"
+                  :key="n.key"
+                  :transform="`translate(${n.x},${n.y})`"
+                  :class="{ 'is-dim': hoveredNodeKey && !hoveredNeighborKeys.has(n.key) }"
+                  @mouseenter="hoveredNodeKey = n.key"
+                  @mouseleave="hoveredNodeKey = null"
+                >
                   <title>{{ n.kind }} / {{ n.ns || 'cluster-scoped' }} / {{ n.name }} · 关联边 {{ n.edgeCount }}</title>
                   <rect
                     :width="n.w"
@@ -1445,8 +1489,39 @@ onMounted(initialize)
   min-width: 100%;
 }
 
+/* 默认就把边压淡：33 条长直线在 4 列布局上必然交叉，全亮度会让整张图糊成一片。
+   悬停某节点时只保留与它相连的边，其余淡到几乎不可见，读单条链路才成立。 */
+.topology-edges line {
+  stroke-opacity: 0.55;
+  transition: stroke-opacity 0.15s ease;
+}
+
+.topology-edges g.is-dim line {
+  stroke-opacity: 0.07;
+  /* 箭头是 <marker> 里的独立图元，不受 line 的 stroke-opacity 影响，
+     不摘掉的话淡出的边上会留下一片漂浮的小三角。 */
+  marker-end: none;
+}
+
+.topology-edges g.is-dim rect,
+.topology-edges g.is-dim text {
+  opacity: 0.08;
+}
+
+.topology-nodes g {
+  transition: opacity 0.15s ease;
+}
+
+.topology-nodes g.is-dim {
+  opacity: 0.32;
+}
+
+.topology-nodes g:hover {
+  cursor: default;
+}
+
 .edge-label {
-  fill: #6b7280;
+  fill: var(--text-secondary);
   font-size: 9px;
   font-weight: 600;
 }
@@ -1457,13 +1532,13 @@ onMounted(initialize)
 }
 
 .node-name {
-  fill: #1d2226;
+  fill: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
 }
 
 .node-ns {
-  fill: #6b7280;
+  fill: var(--text-tertiary);
   font-size: 9px;
 }
 

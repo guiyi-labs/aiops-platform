@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "generatedAt": "2026-10-30T06:01:46.403Z",
-  "commit": "a514ec7",
+  "generatedAt": "2026-10-30T18:58:10.902Z",
+  "commit": "5221cd8",
   "baseUrl": "http://127.0.0.1:18080",
   "motion": "reduce",
   "diffThreshold": 0.002,
@@ -13,7 +13,7 @@
       "file": "images/login-desktop-1440x900.png",
       "sha256": "ae9fa4f3ef1d0d9887773dcaca44c44b66864739bd0feec05c4c8fef23b62538",
       "bytes": 464953,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": [
         {
@@ -31,7 +31,7 @@
       "file": "images/login-mobile-375x812.png",
       "sha256": "42f876a530e74d420afba4d4e2f030b74dfd5f2932106aa10fba38af968a1ce6",
       "bytes": 53924,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -40,9 +40,9 @@
       "path": "/",
       "viewport": "1440x900",
       "file": "images/dashboard-desktop-1440x900.png",
-      "sha256": "d8fb455b07a5beffe4c4fea00462f99c41ae19c2f75becc37cf5e3f52df87a81",
-      "bytes": 181125,
-      "commit": "a514ec7",
+      "sha256": "5b355f6d0bcd8e645bcb04c0547cb8c1f28e31d8cac1f2ded39fb1469388d1c9",
+      "bytes": 181195,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -51,9 +51,9 @@
       "path": "/",
       "viewport": "375x812",
       "file": "images/dashboard-mobile-375x812.png",
-      "sha256": "41700475d6ab19e9e8d02282f02f33a0e2ebb93f9e64c20027837c9eee5032bb",
-      "bytes": 52228,
-      "commit": "a514ec7",
+      "sha256": "0425a41292c3bcd80c9a83f1bd9b2040f321063b6acb0fd2556cadb92210df16",
+      "bytes": 52338,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -64,7 +64,7 @@
       "file": "images/clusters-desktop-1440x900.png",
       "sha256": "cea19476d3ba53e7416d52de669d4cddf19572422ad4cffabd796b1d5898ab86",
       "bytes": 122205,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -75,7 +75,7 @@
       "file": "images/clusters-mobile-375x812.png",
       "sha256": "7682f289196e19ec198d355c7251215003fee77d71dc3ce9ca2b98f99efc1b2c",
       "bytes": 52828,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -86,7 +86,7 @@
       "file": "images/workloads-desktop-1440x900.png",
       "sha256": "d23dc0c09c35d821dabc51101e7d3acf31d29bd81421bdc2a5f6e2751a21c79a",
       "bytes": 217048,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -97,7 +97,7 @@
       "file": "images/workloads-mobile-375x812.png",
       "sha256": "f93571fcc70cd921b70ea67690323f2dc087fc2f9411cb879adcbc6e5e615e40",
       "bytes": 61116,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -106,9 +106,9 @@
       "path": "/diagnoses",
       "viewport": "1440x900",
       "file": "images/diagnoses-desktop-1440x900.png",
-      "sha256": "b60821a7cc1ac7a8c43d81b87af7a11d00b0bfe34e008bb24f0e963147bcc80f",
-      "bytes": 311936,
-      "commit": "a514ec7",
+      "sha256": "879c9117378fb2aabfea2fa7f120987071e49140aa73a55eeb66563161b12d73",
+      "bytes": 311101,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -119,7 +119,7 @@
       "file": "images/diagnoses-mobile-375x812.png",
       "sha256": "3c25f41b285e5a972ec7260238773e326d57880171ae384a9de9a407d99cfa4e",
       "bytes": 72567,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -130,7 +130,7 @@
       "file": "images/events-desktop-1440x900.png",
       "sha256": "7e8715ae5a8dd7a47ad35a7964565200f11a4692465743ac19193324ad471392",
       "bytes": 140711,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -141,7 +141,7 @@
       "file": "images/events-mobile-375x812.png",
       "sha256": "02dcd4705c29f10177f89ad692ad67b943ec5d058c280ce0712e335f821101a2",
       "bytes": 61201,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -152,7 +152,7 @@
       "file": "images/topology-desktop-1440x900.png",
       "sha256": "9d4d0789cdd3ed60229f96ccc8480f21c115d93dc7fd1f557175f640b0f047fb",
       "bytes": 221535,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -161,9 +161,9 @@
       "path": "/topology",
       "viewport": "375x812",
       "file": "images/topology-mobile-375x812.png",
-      "sha256": "01b4181a19227dd82357215116011890dcf5f3d838b125f249c62b04310d7d3c",
+      "sha256": "28c08cc146bea9e877d613eb88415274aa4c534fee0f4b96b9f7edf484e648d9",
       "bytes": 60057,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -174,7 +174,7 @@
       "file": "images/incidents-desktop-1440x900.png",
       "sha256": "3b1f5c11bf6d63f2247baae5249ce71bdcf558310da69789d805a59b618b5d99",
       "bytes": 138131,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -185,7 +185,7 @@
       "file": "images/incidents-mobile-375x812.png",
       "sha256": "fe157980d24e68ae6ab30b11d588d4d5198bac2460b69073753b4249badd2431",
       "bytes": 61349,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -194,9 +194,9 @@
       "path": "/optimization",
       "viewport": "1440x900",
       "file": "images/optimization-desktop-1440x900.png",
-      "sha256": "24103f85dc6914ecbc8d7f2d40d648f64f61c2f97e3b7866e2cf3cede8ae0b20",
-      "bytes": 154438,
-      "commit": "a514ec7",
+      "sha256": "11c34253e354e4f1b5a781f6042db69709f291abf6cee1f43755ddd0997706a4",
+      "bytes": 154501,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -207,7 +207,7 @@
       "file": "images/optimization-mobile-375x812.png",
       "sha256": "d4fb1d566cc593b16e0026802b19191a0cb10688360a9d27abf07494b991efdd",
       "bytes": 62934,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -216,9 +216,9 @@
       "path": "/alerts",
       "viewport": "1440x900",
       "file": "images/alerts-desktop-1440x900.png",
-      "sha256": "ef0c842be8cf2ac96873da31db86c978a1516daf4c719e20dbb5aff38d4c9af6",
-      "bytes": 201984,
-      "commit": "a514ec7",
+      "sha256": "66fa3743803d7471ae32c31f458394581e8125e24a63c5281b1e057def44ffad",
+      "bytes": 202163,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -229,7 +229,7 @@
       "file": "images/alerts-mobile-375x812.png",
       "sha256": "57388354aaaf6387302c6a419ce695075d61f18cca6e2d6b3092f4d29ecac11c",
       "bytes": 70420,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -238,9 +238,9 @@
       "path": "/aiops/overview",
       "viewport": "1440x900",
       "file": "images/aiops-overview-desktop-1440x900.png",
-      "sha256": "c106b2c8951f8f670863c308acba0fa630746ed4c8d1cf4a12933c77139a5e72",
+      "sha256": "a71b683739359e8d352e3ef38beecc666c704de4c1ba185a4e955ba956f9f840",
       "bytes": 132526,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -251,7 +251,7 @@
       "file": "images/aiops-overview-mobile-375x812.png",
       "sha256": "daf9c6cdaf5d88f7a1dc12bad0f1896fa9a39671db79c9bcb7d7ab2abf6e041b",
       "bytes": 64705,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -262,7 +262,7 @@
       "file": "images/search-desktop-1440x900.png",
       "sha256": "517fe6793d2643fc7ef24fff4d4ab563bfdc578f6156397fc4f699916493bbfe",
       "bytes": 118546,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -273,7 +273,7 @@
       "file": "images/search-mobile-375x812.png",
       "sha256": "7ca02235f75d87317c5102c4054ac9f3dc5a4844f0084617b5392e79a1be5c39",
       "bytes": 52784,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -284,7 +284,7 @@
       "file": "images/monitoring-desktop-1440x900.png",
       "sha256": "bef0871f6a0fc9d5fa6b5aab319ef4e0f7ddb21e5af825ad2900df863355cb2b",
       "bytes": 137966,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -293,9 +293,9 @@
       "path": "/monitoring",
       "viewport": "375x812",
       "file": "images/monitoring-mobile-375x812.png",
-      "sha256": "775c13dbb7cba0660a6741b31bb2b7ad398a8582fb8b3799be5c729327b23fd1",
-      "bytes": 56743,
-      "commit": "a514ec7",
+      "sha256": "b429df9b490a88e5b541aa47a55baaeeed712851e367e033e9be46b5a81f2ac1",
+      "bytes": 56744,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -306,7 +306,7 @@
       "file": "images/slo-desktop-1440x900.png",
       "sha256": "33cb083b16fb6b4cdfe850b630bee77cf2f6a5ff61bf7dba4d05a0664b2e1bc6",
       "bytes": 163255,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -317,7 +317,7 @@
       "file": "images/slo-mobile-375x812.png",
       "sha256": "3188b8ad6839184e11aab126d7c85762e6fe9c595d90b6cb522c1a73aa045618",
       "bytes": 69779,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -328,7 +328,7 @@
       "file": "images/correlation-desktop-1440x900.png",
       "sha256": "d25ab98bac1948f0faac067527a62640c062733c6d1349d046360abe90ff5b52",
       "bytes": 215006,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -339,7 +339,7 @@
       "file": "images/correlation-mobile-375x812.png",
       "sha256": "17577debd96f0d35fe7f8506c93184811550c5156006bccc79cfff3a27e38586",
       "bytes": 83954,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -350,7 +350,7 @@
       "file": "images/investigator-desktop-1440x900.png",
       "sha256": "9794db8ac720dc696348d5d10f5637c5eaf20d286bf8007a1ca2f26fc8b1f6da",
       "bytes": 181966,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -361,7 +361,7 @@
       "file": "images/investigator-mobile-375x812.png",
       "sha256": "3fe10e9a5ad8d8dc095046b761ed40cf74d82eb4f00867710b33f31b60d2f2c0",
       "bytes": 64778,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -372,7 +372,7 @@
       "file": "images/inspection-desktop-1440x900.png",
       "sha256": "565fee8add4f89e5208c17b06746234919c931a53068d82160109ddd15ef4bbc",
       "bytes": 120618,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -383,7 +383,7 @@
       "file": "images/inspection-mobile-375x812.png",
       "sha256": "ddead60086525fcda4e1f0c16027e7a2e530c0eee21f8fd84349fee79ec7bd7c",
       "bytes": 47798,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -394,7 +394,7 @@
       "file": "images/quality-desktop-1440x900.png",
       "sha256": "b40052b3b82c9b27f1424fc7547e12a109d24c593b5c7e017d8d9087fdceca8b",
       "bytes": 141501,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -405,7 +405,7 @@
       "file": "images/quality-mobile-375x812.png",
       "sha256": "dd4190cf49d92f0cd2ae091353b5fc269784013faa85c44606209380ea7871ce",
       "bytes": 52799,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -416,7 +416,7 @@
       "file": "images/namespace-posture-desktop-1440x900.png",
       "sha256": "6178c5c78bacbf3698ca95e806738c35361419935dc1e0b87b8836c1a6065297",
       "bytes": 110308,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -427,7 +427,7 @@
       "file": "images/namespace-posture-mobile-375x812.png",
       "sha256": "b59ae66d43aee5fd447a65ac2facbb6e9eca77016a5289df591b3e12adc7dd3f",
       "bytes": 40882,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -436,9 +436,9 @@
       "path": "/posture",
       "viewport": "1440x900",
       "file": "images/posture-desktop-1440x900.png",
-      "sha256": "032db59f4ba417d53e82a8049e94b4be5a4d0f614ebd2c87720927673d64cb6a",
-      "bytes": 143507,
-      "commit": "a514ec7",
+      "sha256": "e17e4335720f42756c100ea8e73d19afb061a71de7875ac3e5462882ac6134b3",
+      "bytes": 143514,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -449,7 +449,7 @@
       "file": "images/posture-mobile-375x812.png",
       "sha256": "9b8dfe0aa93630f709e780f2894faf83eba74f643e0f50da2841231ce355a443",
       "bytes": 63185,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -460,7 +460,7 @@
       "file": "images/notifications-desktop-1440x900.png",
       "sha256": "e5318e54671b40b2e2645f15d75345e281305e4ac535b2161eb4e9c87c36037e",
       "bytes": 115276,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -471,7 +471,7 @@
       "file": "images/notifications-mobile-375x812.png",
       "sha256": "5c26ec1b19f51961335f97e484f879ddc66d49e0e0f6ba837a21845f77ea4b15",
       "bytes": 50256,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -480,9 +480,9 @@
       "path": "/users",
       "viewport": "1440x900",
       "file": "images/users-desktop-1440x900.png",
-      "sha256": "608420b6b20e61af6785279361e61c1d35cb8638abcfcb95bc888732e640a940",
-      "bytes": 117127,
-      "commit": "a514ec7",
+      "sha256": "5348da011277bd9a1650388ae222701e5fdf89fa4e1a1f400eeb21ee687cdd84",
+      "bytes": 117113,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -491,9 +491,9 @@
       "path": "/users",
       "viewport": "375x812",
       "file": "images/users-mobile-375x812.png",
-      "sha256": "774a7b60ebc19dc803bb2975114b1482bc246e08a5d3d488103f4b9ac3bc0b9b",
-      "bytes": 51459,
-      "commit": "a514ec7",
+      "sha256": "c1bf5dc908d3c550a2d08adb1e0df7b1ce798594e2d38c6b108db97076f2c43b",
+      "bytes": 51391,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -504,7 +504,7 @@
       "file": "images/app-catalog-desktop-1440x900.png",
       "sha256": "ca12ab3e77dd48aefd29b5c767ea249f5786861bc1829632e736e1f3ca33d776",
       "bytes": 106957,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -515,7 +515,7 @@
       "file": "images/app-catalog-mobile-375x812.png",
       "sha256": "c7e8e1b9ee83a89da1e8ea0b18cd52bd1814d061000000e29fb9703ea97db47f",
       "bytes": 41625,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -524,9 +524,9 @@
       "path": "/gitops",
       "viewport": "1440x900",
       "file": "images/gitops-desktop-1440x900.png",
-      "sha256": "7262caa36f8b348dab6f6d1275325059e5ca1cc1e00444ba10b03c2f362974ef",
-      "bytes": 106287,
-      "commit": "a514ec7",
+      "sha256": "da44fd0d0b4f167b36050aa9f47256bfb4574ca5b2441017df378c8836a140e5",
+      "bytes": 106256,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -537,7 +537,7 @@
       "file": "images/gitops-mobile-375x812.png",
       "sha256": "5a34ec37817406e4f7d0ed19afa9523a0223257b4ffbf029804f89c03cb5e124",
       "bytes": 42279,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -548,7 +548,7 @@
       "file": "images/event-stream-desktop-1440x900.png",
       "sha256": "83ed626c0757f90530bf18abb9220d3b19000af3fdd198056460723f082f272c",
       "bytes": 120247,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -559,7 +559,7 @@
       "file": "images/event-stream-mobile-375x812.png",
       "sha256": "38c31b745b75d98a1db9a2e48d5e2836271199e8d81575f44ae5b30b2e897dad",
       "bytes": 52012,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -570,7 +570,7 @@
       "file": "images/service-mesh-desktop-1440x900.png",
       "sha256": "248c32aa66ae4a88c9c9449bb41accdb053af066a71eb8b7cafba64aa5b35793",
       "bytes": 117069,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -581,7 +581,7 @@
       "file": "images/service-mesh-mobile-375x812.png",
       "sha256": "048b772a9b039bbbf9771a3bb8cfb80b4e3dd6a4bfda4f759b677046229a6faa",
       "bytes": 47601,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -590,9 +590,9 @@
       "path": "/workload-protection",
       "viewport": "1440x900",
       "file": "images/workload-protection-desktop-1440x900.png",
-      "sha256": "4dce645391766eff741bb0b2d3a8535b891842a4f34a7b7013b5cc790a3a503e",
-      "bytes": 120635,
-      "commit": "a514ec7",
+      "sha256": "435330f018f9ecde5742d7f0ddce7b7631d5150facdd3c91823045c5882aceb6",
+      "bytes": 120630,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -601,9 +601,9 @@
       "path": "/workload-protection",
       "viewport": "375x812",
       "file": "images/workload-protection-mobile-375x812.png",
-      "sha256": "f89bc3951a55c9c4f66b90086d47839363390bdaef6987712ac98c45b05e5f62",
-      "bytes": 54045,
-      "commit": "a514ec7",
+      "sha256": "d7be4d01592811259fc649ee93d203c3e3227c71b6100b96240cc4f650e111fc",
+      "bytes": 54038,
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -614,7 +614,7 @@
       "file": "images/node-maintenance-desktop-1440x900.png",
       "sha256": "7efe9ea56c403d66cad2f0082e8cfa990870feea64e4f323c2b9de3d17c7a9ae",
       "bytes": 116201,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -625,7 +625,7 @@
       "file": "images/node-maintenance-mobile-375x812.png",
       "sha256": "7fd6a36df44876e338c9e216a84694140a041e7eeb561d63247b189a522205a9",
       "bytes": 46917,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -636,7 +636,7 @@
       "file": "images/restore-rehearsal-desktop-1440x900.png",
       "sha256": "97d7ee04f1b0258e875987355dac09c2eb2e3bab2feb8bbacc621371f3686eac",
       "bytes": 136609,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -647,7 +647,7 @@
       "file": "images/restore-rehearsal-mobile-375x812.png",
       "sha256": "0c12fc878c361370e8edce6e72e6151ec9afd60f248593e98a53955cfa436935",
       "bytes": 64415,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -658,7 +658,7 @@
       "file": "images/promotions-desktop-1440x900.png",
       "sha256": "03d76754dfaf75cfec9493385d328e099b88cb693d55d9ec89abaf396e1abc39",
       "bytes": 115931,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -669,7 +669,7 @@
       "file": "images/promotions-mobile-375x812.png",
       "sha256": "39880667aa3fccc7a9c365f4d792b0be0531aa7ed47d094752c0864253f0b9d5",
       "bytes": 51126,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -680,7 +680,7 @@
       "file": "images/automation-desktop-1440x900.png",
       "sha256": "d45ca0030ff2bcaf8b1f6387bb8107f7e2a0d50244f4a612dfe90f1626e4736e",
       "bytes": 148894,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     },
@@ -691,7 +691,7 @@
       "file": "images/automation-mobile-375x812.png",
       "sha256": "74714fedfa0970d560afea4561195f87e12ee793ced9b18cb0d282381e2810ab",
       "bytes": 44593,
-      "commit": "a514ec7",
+      "commit": "5221cd8",
       "motion": "reduce",
       "masks": []
     }

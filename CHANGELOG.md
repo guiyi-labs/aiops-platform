@@ -9,6 +9,24 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Fixed
+- **console**: 暗色主题下拓扑图基本不可读。资源名写死 `#1d2226` 压在 `#0d1315` 上
+  （对比度 **1.2:1**），节点类型色（Node `#374151`）2.0:1，边标签是刺眼的白底片。
+  根因是 SVG 的 `fill` / `stroke` 写在属性里、不继承 `color`，写死十六进制就永远不跟主题走。
+  新增 13 个 `--topo-*` 变量（明暗各一套），明色尽量引用已有调色板，暗色色相不变、明度提亮；
+  节点色表、边、箭头 marker、标签底片与三处文字色全部改为变量。
+- **scripts**: 暗色 axe 审计有盲区——只 `goto` 路由后直接扫，从不点 tab，而拓扑图在
+  `/aiops/overview` 的第三个 tab 里，不点击时 DOM 中不存在那些 `<text>`，
+  于是**一个几乎全黑的图被报成 0 违规**。`VIEWS` 增加第三项「要逐个点开的 tab」，
+  点开后重扫；找不到 tab 计为违规并提示，避免 tab 改名后审计悄悄退回盲区。
+
+### Changed
+- **console**: 拓扑图加悬停高亮。33 条边在分列布局上必然交叉，全亮度下无法跟读单条链路；
+  悬停节点时其余边降到 `stroke-opacity: 0.07`、非相邻节点降到 `opacity: 0.32`，
+  默认边压到 0.55。注意箭头是 `<marker>` 独立图元、不受 `line` 的 `stroke-opacity` 影响，
+  需同时 `marker-end: none`，否则淡出的边上会留一片漂浮小三角。
+
+
 ### Added
 - **ops**: 暗色主题。此前 `.theme-dark` 在四个样式文件里规则数为 0——默认 `theme='dark'`
   落到的其实是 `:root` 的浅色 token，于是「暗色主题」渲染成浅色，顶栏那个切换按钮点了

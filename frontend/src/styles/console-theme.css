@@ -65,6 +65,25 @@
      两处 :root 都定义，避免上层主题只覆盖部分变量时该 token 丢失。 */
   --accent-strong: var(--blue-700);
 
+  /* ── 拓扑图配色 ──
+     SVG 的 fill / stroke 写在属性里，不会跟随 color 继承，所以必须走自定义属性
+     才能在切主题时一起变。此前这些值直接写死（节点名 #1d2226、Node 类型 #374151），
+     暗色主题下深色压在深底上，对比度只有 1.2~2.0:1，基本看不见。 */
+  --topo-deployment: var(--blue-500);
+  --topo-service: var(--status-success);
+  --topo-pod: var(--gray-500);
+  /* 以下四个在调色板里没有同值项，属拓扑图专用色相，保留字面量 */
+  --topo-ingress: #7d5e8f;
+  --topo-endpointslice: var(--status-info);
+  --topo-statefulset: #d97706;
+  --topo-daemonset: #dc2626;
+  --topo-replicaset: #0d9488;
+  --topo-node: var(--gray-700);
+  --topo-namespace: #475569;
+  --topo-default: var(--gray-600);
+  --topo-edge: var(--gray-400);
+  --topo-label-bg: var(--gray-0);
+
   /* Status colors */
   --status-success: #16a34a;
   /* 绿字的可读版本：--status-success 在浅绿底（#e5f3ea）上只有 4.38:1，
@@ -3954,6 +3973,21 @@ body,
   --status-denied: #c9a8c6;
   /* 承白字的实心底：蓝-600，白字对比 4.7:1 */
   --accent-fill: #2455b8;
+
+  /* 拓扑图：色相保持不变，明度整体提亮，保证在 #0d1315 上可见 */
+  --topo-deployment: #7aa7ff;
+  --topo-service: #4ade80;
+  --topo-pod: #9aa3af;
+  --topo-ingress: #b794d0;
+  --topo-endpointslice: #38bdf8;
+  --topo-statefulset: #fbbf24;
+  --topo-daemonset: #f87171;
+  --topo-replicaset: var(--blue-400);
+  --topo-node: #94a3b8;
+  --topo-namespace: #a8bcbf;
+  --topo-default: #9aa3af;
+  --topo-edge: #4a6068;
+  --topo-label-bg: #1a2428;
 
   /* 阴影：深底上几乎不可见，压更重以保留一点离屏层次 */
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);

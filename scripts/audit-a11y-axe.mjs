@@ -62,7 +62,9 @@ const views = [
   { name: 'incidents', path: '/incidents', readyText: '事故工作空间', auth: true, settle: 1600 },
   { name: 'optimization', path: '/optimization', readyText: '优化中心', auth: true, settle: 1600 },
   { name: 'alerts', path: '/alerts', readyText: '告警规则', auth: true, settle: 1600 },
-  { name: 'aiops-overview', path: '/aiops/overview', readyText: '智能运维概览', auth: true, settle: 1600 },
+  // tabs：不点击就扫不到的面板。拓扑图挂在第三个标签页里，不点开时那些 <text>
+  // 根本不在 DOM 中——只扫首屏等于把一个几乎全黑的图报成 0 违规。
+  { name: 'aiops-overview', path: '/aiops/overview', readyText: '智能运维概览', auth: true, settle: 1600, tabs: ['概览', '信号列表', '拓扑图'] },
   { name: 'search', path: '/search', readyText: '全局搜索', auth: true, settle: 1600 },
   { name: 'monitoring', path: '/monitoring', readyText: '监控大盘', auth: true, settle: 1600 },
   { name: 'slo', path: '/aiops/slo', readyText: 'SLO 仪表盘', auth: true, settle: 1600 },
@@ -269,7 +271,44 @@ async function auditView(client, view, viewport) {
   const before = classify(client.events)
   client.events.length = 0
 
-  const axeResult = await evaluate(client, AXE_RUN)
+  let axeResult = await evaluate(client, AXE_RUN)
+
+  // 逐个点开标签页再扫一遍，结果合并到同一个 violations 数组，并在 id 上标注来源。
+  // 不这么做的话，标签页里的面板（如拓扑图）永远不在审计范围内。
+  for (const tab of view.tabs ?? []) {
+    const clicked = await evaluate(
+      client,
+      `(() => {
+        const btns = [...document.querySelectorAll('[role="tab"], .aiops-tabs button, [class*="tabs"] button')]
+        const hit = btns.find((b) => (b.textContent || '').includes(${JSON.stringify(tab)}))
+        if (!hit) return false
+        hit.click()
+        return true
+      })()`,
+    )
+    if (!clicked) {
+      // 静默跳过会让审计在标签页改名后悄悄退回盲区，因此计为一条失败。
+      axeResult = {
+        ...axeResult,
+        violations: [
+          ...(axeResult.violations ?? []),
+          { id: 'tab-not-found', impact: 'serious', help: `tab "${tab}" not found`, nodes: 1, sample: view.path, summary: '' },
+        ],
+      }
+      continue
+    }
+    await delay(1200)
+    const tabResult = await evaluate(client, AXE_RUN)
+    if (tabResult.violations) {
+      axeResult = {
+        ...axeResult,
+        violations: [
+          ...(axeResult.violations ?? []),
+          ...tabResult.violations.map((v) => ({ ...v, id: `${v.id} @${tab}` })),
+        ],
+      }
+    }
+  }
 
   // 2) Errors induced by axe itself (layout-forcing scan) are reported separately.
   const after = classify(client.events)

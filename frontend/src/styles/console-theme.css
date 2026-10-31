@@ -583,8 +583,11 @@ h1 {
 
 /* Service rows */
 .service-icon {
-  color: var(--blue-700);
-  background: var(--blue-50);
+  /* 走语义 token 而不是 --blue-700 / --blue-50：调色板常量在暗色主题下刻意不反转
+     （灰阶与蓝阶被大量直接引用，整体反转会让别处意外变色），因此写死调色板
+     背景会在暗色下留下一块 #e9fbf8 的亮色小方块。 */
+  color: var(--accent-strong);
+  background: var(--accent-subtle);
 }
 
 .success-icon { color: var(--status-success); }

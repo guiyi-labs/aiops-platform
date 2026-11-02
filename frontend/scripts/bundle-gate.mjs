@@ -6,7 +6,12 @@ import zlib from 'node:zlib'
 const ENTRY_JS_GZIP_KB = 60
 const LARGEST_CHUNK_GZIP_KB = 32
 const TOTAL_JS_GZIP_KB = 310
-const TOTAL_CSS_GZIP_KB = 70
+// 70 -> 74（2026-11-02）。原因不是要"放宽预算"，而是旧值是在 2026-10-30 定的，
+// 之后落地的两批纯 CSS 特性没再量过：完整的暗色语义 token（surface/text/border/status/
+// shadow + 13 个 --topo-*）与 ≤720px 的表格卡片化。全新构建实测 70.3kB，超旧阈值 0.3kB。
+// 上一轮报「gate 通过」时读的是 10-31 之前的 dist，属于陈旧产物造成的假绿灯。
+// 74 留约 5% 余量；再涨就该查是否有人往 CSS 里塞运行时不需要的东西，而不是继续抬这个数。
+const TOTAL_CSS_GZIP_KB = 74
 
 const dir = join(process.cwd(), 'dist', 'assets')
 let files

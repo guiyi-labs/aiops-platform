@@ -3038,7 +3038,6 @@ components:
         partial: { type: boolean, description: True when at least one scope failed; the counts still describe what was written }
         error: { type: string, description: Single-namespace failure detail }
         errors: { type: array, items: { type: string }, description: Per-namespace failures for cluster-wide collection }
-  schemas:
     # -------- Model access settings (console-editable LLM provider) --------
     AIModelSettingsWrite:
       type: object

@@ -557,6 +557,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/ai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read model-access settings (API key never returned */
+        get: operations["getAIModelSettings"];
+        /** Save model-access settings; empty api_key keeps the stored key */
+        put: operations["updateAIModelSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/ai/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Probe the provider with the submitted values (unsaved allowed); api_key empty falls back to the stored key */
+        post: operations["testAIModelSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/users/assignable": {
         parameters: {
             query?: never;
@@ -2050,7 +2085,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Diagnosis history */
+        /**
+         * Diagnosis history (newest first, cursor paginated)
+         * @description `total` is a real COUNT over the filter. Cursor pagination via `before_id`:
+         *     pass the `next_before_id` returned by the previous page. `next_before_id` is
+         *     only present when the page was full, so clients must not infer "has more"
+         *     from `remaining` (which is total - page size and stays positive on the last page).
+         */
         get: operations["listDiagnoses"];
         put?: never;
         post?: never;
@@ -2771,7 +2812,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Query audit logs */
+        /**
+         * Query audit logs (newest first, cursor paginated)
+         * @description Cursor pagination via `before_id`: pass the `next_before_id` returned by the
+         *     previous page. The table is append-only, so an id cursor avoids the duplicate
+         *     and missing rows that OFFSET produces when new records land between pages.
+         */
         get: operations["listAuditLogs"];
         put?: never;
         post?: never;
@@ -3650,6 +3696,30 @@ export interface paths {
         get: operations["listAIOpsChangeEvents"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/topology/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect topology edges for one namespace, or for every visible namespace when namespace is omitted
+         * @description Reads the eight supported resource kinds from the cluster, derives edges from
+         *     exact UID references only (never from naming or time proximity), upserts them
+         *     and closes edges no longer observed. A partial read still writes the edges it
+         *     obtained and reports `partial=true` with the failing scopes, rather than
+         *     discarding the whole pass.
+         */
+        post: operations["collectAIOpsTopology"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4930,6 +5000,55 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        TopologyCollectionResult: {
+            /** Format: int64 */
+            cluster_id: number;
+            /** @description Present when a single namespace was collected */
+            namespace?: string;
+            /** @description Present for cluster-wide collection */
+            namespaces?: number;
+            /** @description Edges derived from the snapshot */
+            edges_seen: number;
+            /** @description Edges successfully persisted */
+            edges_upserted: number;
+            /** @description Previously active edges no longer observed */
+            edges_closed: number;
+            /** @description True when at least one scope failed; the counts still describe what was written */
+            partial: boolean;
+            /** @description Single-namespace failure detail */
+            error?: string;
+            /** @description Per-namespace failures for cluster-wide collection */
+            errors?: string[];
+        };
+        AIModelSettingsWrite: {
+            enabled: boolean;
+            /**
+             * @description responses = POST {base_url}/responses; chat_completions = POST {base_url}/chat_completions
+             * @enum {string}
+             */
+            protocol: "responses" | "chat_completions";
+            /** @description Absolute http(s) URL ending at the API root (usually /v1) */
+            base_url: string;
+            model: string;
+            /** @description Empty keeps the stored key; non-empty replaces it (AES-256-GCM) */
+            api_key?: string;
+            /** @description Remove the stored key; only allowed while disabled */
+            clear_api_key?: boolean;
+            request_timeout_seconds?: number;
+            max_output_tokens?: number;
+            /** Format: int64 */
+            daily_token_budget?: number;
+            max_concurrent_requests?: number;
+        };
+        AIModelSettingsProbe: {
+            /** @enum {string} */
+            protocol: "responses" | "chat_completions";
+            base_url: string;
+            model: string;
+            /** @description Empty falls back to the stored key */
+            api_key?: string;
+            request_timeout_seconds?: number;
+        };
         CapacityPreviewRequest: {
             /** Format: int64 */
             cluster_id: number;
@@ -8850,6 +8969,55 @@ export interface operations {
             409: components["responses"]["Error"];
         };
     };
+    getAIModelSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
+            403: components["responses"]["Error"];
+        };
+    };
+    updateAIModelSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIModelSettingsWrite"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Ok"];
+            400: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    testAIModelSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIModelSettingsProbe"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Ok"];
+            400: components["responses"]["Error"];
+            502: components["responses"]["Error"];
+        };
+    };
     assignableUsers: {
         parameters: {
             query?: never;
@@ -10708,7 +10876,14 @@ export interface operations {
     };
     listDiagnoses: {
         parameters: {
-            query?: never;
+            query?: {
+                cluster_id?: number;
+                status?: "open" | "confirmed" | "resolved" | "dismissed";
+                overdue?: boolean;
+                limit?: number;
+                /** @description Return records with id < before_id. Omit for the first page. */
+                before_id?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -10716,6 +10891,8 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Ok"];
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
         };
     };
     diagnosisSummary: {
@@ -11589,7 +11766,14 @@ export interface operations {
     };
     listAuditLogs: {
         parameters: {
-            query?: never;
+            query?: {
+                cluster_id?: number;
+                action?: string;
+                result?: "success" | "failure" | "denied";
+                limit?: number;
+                /** @description Return records with id < before_id. Omit for the first page. */
+                before_id?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11597,6 +11781,8 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["Ok"];
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
         };
     };
     exportAuditLogs: {
@@ -13144,6 +13330,34 @@ export interface operations {
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
             500: components["responses"]["Error"];
+        };
+    };
+    collectAIOpsTopology: {
+        parameters: {
+            query: {
+                cluster_id: number;
+                /** @description Omit to collect the whole cluster. */
+                namespace?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Collection summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopologyCollectionResult"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            503: components["responses"]["Error"];
         };
     };
     listSLITemplates: {

@@ -3014,7 +3014,10 @@ body,
 
 .nav-group-items {
   overflow: hidden;
-  max-height: 600px;
+  /* 收起动画靠 max-height 做插值，所以必须是一个够大的定值。
+     扩展能力分组有 19 项、实测内容高 722px，此前的 600px 会把末尾 3 项裁掉
+     （overflow:hidden 下既看不到也点不到）。留足余量到 900px。 */
+  max-height: 900px;
   transition: max-height 280ms cubic-bezier(0.22, 1, 0.36, 1), opacity 200ms ease;
   opacity: 1;
 }

@@ -101,12 +101,13 @@ function loadAccordionState(): Record<string, boolean> {
   } catch { return {} }
 }
 const accordionState = ref<Record<string, boolean>>(loadAccordionState())
-// All groups default to expanded; only explicitly collapsed ones are false
-function isGroupExpanded(label: string): boolean {
-  return accordionState.value[label] !== false
+// 默认展开；声明了 defaultCollapsed 的分组（扩展能力）首次进入时收起。
+// 用户手点过的状态存在 localStorage 里，优先级高于默认值。
+function isGroupExpanded(label: string, defaultCollapsed?: boolean): boolean {
+  return accordionState.value[label] ?? !defaultCollapsed
 }
-function toggleGroup(label: string) {
-  accordionState.value = { ...accordionState.value, [label]: !isGroupExpanded(label) }
+function toggleGroup(label: string, defaultCollapsed?: boolean) {
+  accordionState.value = { ...accordionState.value, [label]: !isGroupExpanded(label, defaultCollapsed) }
   window.localStorage.setItem(ACCORDION_KEY, JSON.stringify(accordionState.value))
 }
 
@@ -135,46 +136,53 @@ function togglePin(routePath: string) {
 }
 
 // ─── Navigation groups ───
+// 三层收敛，只影响呈现顺序与默认展开状态，不删路由、不删页面：
+//   核心能力 —— F1–F6 六项功能需求的实现入口，固定演示路径；
+//   平台能力 —— 日常运维会用到的平台功能，默认展开；
+//   扩展能力 —— 平台既有能力，不属于核心研究范围，默认收起。
+// 任何页面仍可直接输入地址访问，也可以被收藏（下方的 pin 机制）提到顶部。
 const navigationGroups = computed(() => [
   {
-    label: '工作台',
+    label: '核心能力',
+    hint: 'F1–F6 的实现入口',
     items: [
       { label: '总览', icon: Gauge, route: '/' },
-      { label: '集群', icon: Boxes, route: '/clusters' },
-    ],
-  },
-  {
-    label: '资源观察',
-    items: [
-      { label: '全局搜索', icon: Search, route: '/search' },
-      { label: '资源工作台', icon: BoxIcon, route: '/workloads' },
-      { label: '资源拓扑', icon: Network, route: '/topology' },
-      { label: '事件中心', icon: Bell, route: '/events' },
-      { label: '监控大盘', icon: Gauge, route: '/monitoring' },
-      { label: '事件流与告警', icon: Activity, route: '/event-stream' },
-      { label: '服务网格', icon: Globe, route: '/service-mesh' },
-    ],
-  },
-  {
-    label: '智能运维',
-    items: [
       { label: 'AIOps 概览', icon: Activity, route: '/aiops/overview' },
-      { label: 'SLO 仪表盘', icon: Target, route: '/aiops/slo' },
+      { label: '智能诊断', icon: Stethoscope, route: '/diagnoses' },
+      { label: '资源拓扑', icon: Network, route: '/topology' },
       { label: '关联案例', icon: Link2, route: '/aiops/correlation' },
-      { label: 'AI 调查', icon: Brain, route: '/aiops/investigator' },
-      { label: '自动化控制台', icon: Workflow, route: '/aiops/automation', adminOnly: true },
-      { label: '智能巡检', icon: Radar, route: '/inspection' },
-      { label: '质量仪表盘', icon: FlaskConical, route: '/aiops/quality' },
       { label: '解释覆盖率', icon: BarChart2, route: '/aiops/ai-coverage' },
     ],
   },
   {
-    label: '分析与治理',
+    label: '平台能力',
+    hint: '日常运维使用',
     items: [
-      { label: '智能诊断', icon: Stethoscope, route: '/diagnoses' },
+      { label: '集群', icon: Boxes, route: '/clusters' },
+      { label: '资源工作台', icon: BoxIcon, route: '/workloads' },
+      { label: '事件中心', icon: Bell, route: '/events' },
+      { label: '事件流与告警', icon: Activity, route: '/event-stream' },
+      { label: '告警规则', icon: BellRing, route: '/alerts' },
+      { label: '智能巡检', icon: Radar, route: '/inspection' },
+      { label: '质量仪表盘', icon: FlaskConical, route: '/aiops/quality' },
+      { label: '审计日志', icon: FileClock, route: '/audit-logs', auditOnly: true },
+      { label: '用户管理', icon: Users, route: '/users', adminOnly: true },
+      { label: '模型接入', icon: BrainCircuit, route: '/settings/model', adminOnly: true },
+    ],
+  },
+  {
+    label: '扩展能力',
+    hint: '平台既有能力，非本文研究范围',
+    defaultCollapsed: true,
+    items: [
+      { label: '全局搜索', icon: Search, route: '/search' },
+      { label: '监控大盘', icon: Gauge, route: '/monitoring' },
+      { label: '服务网格', icon: Globe, route: '/service-mesh' },
+      { label: 'SLO 仪表盘', icon: Target, route: '/aiops/slo' },
+      { label: 'AI 调查', icon: Brain, route: '/aiops/investigator' },
+      { label: '自动化控制台', icon: Workflow, route: '/aiops/automation', adminOnly: true },
       { label: '舰队诊断', icon: Globe, route: '/fleet-diagnoses' },
       { label: '事故工作空间', icon: MessageSquareText, route: '/incidents' },
-      { label: '告警规则', icon: BellRing, route: '/alerts' },
       { label: '命名空间治理', icon: LayoutGrid, route: '/namespace-posture' },
       { label: '治理态势', icon: ShieldCheck, route: '/posture' },
       { label: '优化中心', icon: Wallet, route: '/optimization' },
@@ -183,14 +191,6 @@ const navigationGroups = computed(() => [
       { label: '节点维护', icon: Hammer, route: '/node-maintenance' },
       { label: '恢复演练', icon: LifeBuoy, route: '/restore-rehearsal' },
       { label: '通知投递', icon: Send, route: '/notifications', auditOnly: true },
-      { label: '审计日志', icon: FileClock, route: '/audit-logs', auditOnly: true },
-      { label: '用户管理', icon: Users, route: '/users', adminOnly: true },
-      { label: '模型接入', icon: BrainCircuit, route: '/settings/model', adminOnly: true },
-    ],
-  },
-  {
-    label: '交付与运维',
-    items: [
       { label: 'Helm 应用目录', icon: Package, route: '/app-catalog' },
       { label: 'GitOps 应用', icon: GitBranch, route: '/gitops' },
       { label: '跨集群复制', icon: Shuffle, route: '/copyops', adminOnly: true },
@@ -380,21 +380,21 @@ async function navigate(path: string) {
           <button
             type="button"
             class="nav-group-header"
-            :class="{ collapsed: !isGroupExpanded(group.label) }"
-            :title="sidebarCollapsed ? group.label : undefined"
-            :aria-label="isGroupExpanded(group.label) ? `收起${group.label}` : `展开${group.label}`"
-            :aria-expanded="isGroupExpanded(group.label)"
-            @click="sidebarCollapsed ? undefined : toggleGroup(group.label)"
+            :class="{ collapsed: !isGroupExpanded(group.label, group.defaultCollapsed) }"
+            :title="sidebarCollapsed ? group.label : group.hint"
+            :aria-label="isGroupExpanded(group.label, group.defaultCollapsed) ? `收起${group.label}` : `展开${group.label}`"
+            :aria-expanded="isGroupExpanded(group.label, group.defaultCollapsed)"
+            @click="sidebarCollapsed ? undefined : toggleGroup(group.label, group.defaultCollapsed)"
           >
             <p class="nav-group-label">{{ group.label }}</p>
             <ChevronDown
               v-if="!sidebarCollapsed"
               :size="14"
               class="nav-group-chevron"
-              :class="{ rotated: !isGroupExpanded(group.label) }"
+              :class="{ rotated: !isGroupExpanded(group.label, group.defaultCollapsed) }"
             />
           </button>
-          <div class="nav-group-items" :class="{ hidden: !isGroupExpanded(group.label) && !sidebarCollapsed }">
+          <div class="nav-group-items" :class="{ hidden: !isGroupExpanded(group.label, group.defaultCollapsed) && !sidebarCollapsed }">
             <div
               v-for="item in group.items"
               :key="item.label"

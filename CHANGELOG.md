@@ -21,6 +21,11 @@ Detailed change records for each milestone live under `docs/changes/`.
   点开后重扫；找不到 tab 计为违规并提示，避免 tab 改名后审计悄悄退回盲区。
 
 ### Changed
+- **console**: 侧栏按研究范围分三层收敛，首屏入口从 35 项降到 16 项。原 5 组平铺改为
+  核心能力 6 项 / 平台能力 10 项 / 扩展能力 19 项（首次进入即收起）。只改呈现顺序与默认
+  展开状态，路由、页面、`adminOnly` / `auditOnly` 过滤与 pin 收藏均不变；用户手点过的
+  手风琴状态优先级仍高于默认值。顺带修掉 `.nav-group-items` 的 `max-height: 600px` 裁切：
+  扩展组 19 项实测内容高 722px，末尾 3 项原本既看不到也点不到，已提到 900px。
 - **console**: 拓扑图加悬停高亮。33 条边在分列布局上必然交叉，全亮度下无法跟读单条链路；
   悬停节点时其余边降到 `stroke-opacity: 0.07`、非相邻节点降到 `opacity: 0.32`，
   默认边压到 0.55。注意箭头是 `<marker>` 独立图元、不受 `line` 的 `stroke-opacity` 影响，

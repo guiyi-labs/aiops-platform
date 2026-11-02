@@ -19,8 +19,8 @@ type correlationCaseSource interface {
 
 // 编译期断言：两个适配器都满足各自服务的 CaseReader。
 var (
-	_ automation.CaseReader       = automationCaseReader{}
-	_ aiinvestigator.CaseReader   = investigatorCaseReader{}
+	_ automation.CaseReader     = automationCaseReader{}
+	_ aiinvestigator.CaseReader = investigatorCaseReader{}
 )
 
 // automationCaseReader 把关联用例适配成受控自动化所需的 CaseContext。

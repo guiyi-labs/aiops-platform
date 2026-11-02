@@ -2988,8 +2988,8 @@ var customResourceWhitelist = map[string]customResourceDescriptor{
 	// SERVICEMESH_FAILED because the gateway rejected the tuple before it
 	// could observe the (legitimately) missing CRD. With them whitelisted, a
 	// cluster without Istio returns 404 SERVICEMESH_NOT_INSTALLED instead.
-	"networking.istio.io/v1beta1/virtualservices":   {Namespaced: true},
-	"networking.istio.io/v1beta1/destinationrules":  {Namespaced: true},
+	"networking.istio.io/v1beta1/virtualservices":  {Namespaced: true},
+	"networking.istio.io/v1beta1/destinationrules": {Namespaced: true},
 }
 
 // IsCustomResourceBrowsable reports whether the given (group, version, resource)

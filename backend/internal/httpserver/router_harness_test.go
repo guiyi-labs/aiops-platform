@@ -8,8 +8,8 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"k8s-aiops.local/backend/internal/aiexplain"
-	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/aiinvestigator"
+	"k8s-aiops.local/backend/internal/aisettings"
 	"k8s-aiops.local/backend/internal/alertroute"
 	"k8s-aiops.local/backend/internal/appcatalog"
 	"k8s-aiops.local/backend/internal/audit"
@@ -70,7 +70,7 @@ func buildFullEngine(t *testing.T) *gin.Engine {
 		AIExplanation:    &aiexplain.Service{},
 		// 模型接入配置：非 nil 才会注册 /settings/ai 路由，使契约测试能覆盖到。
 		// 仓储与加密器用最小桩，测试只登记路由、不执行业务。
-		AIModelSettings: mustAISettingsService(t),
+		AIModelSettings:  mustAISettingsService(t),
 		Notifications:    notification.NewService(notification.ServiceConfig{}, nil, nil),
 		Remediation:      remediation.NewService(nil, nil, nil),
 		Promotion:        promotion.NewService(nil, nil),

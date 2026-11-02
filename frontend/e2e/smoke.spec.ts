@@ -225,7 +225,11 @@ test('Route navigation never exposes a white viewport', async ({ page }) => {
         state.gapDetected = true
       } else {
         const channels = getComputedStyle(viewport).backgroundColor.match(/\d+/g)?.map(Number) ?? []
-        if (channels.length >= 3 && channels[0] >= 248 && channels[1] >= 248 && channels[2] >= 248) {
+        // 判据是「闪出浏览器默认白」，不是「浅」。浅色主题下
+        // `.theme-light .route-viewport` 的底色是字面量 `#f8fafb`（248,250,251），
+        // 旧阈值「三个通道都 >=248」会把这个设计底色本身判成白屏——只要默认主题是
+        // light，这个用例就恒为假阳性。故收紧到 >=253，只认接近纯白（#ffffff）的闪现。
+        if (channels.length >= 3 && channels.every((c) => c >= 253)) {
           state.whiteDetected = true
         }
       }

@@ -128,7 +128,10 @@ test('Diagnosis detail shows root cause card and evidence timeline', async ({ pa
   await expect(timeline.locator(':scope > article')).toHaveCount(2)
   await expect(timeline.locator(':scope > article').first()).toContainText('Ready = False')
   await expect(timeline.locator(':scope > article').nth(1)).toContainText('MemoryPressure = True')
-  await expect(timeline.locator('.raw-evidence summary')).toContainText('原始证据 JSON')
+  // 摘要文案是「原始证据（N 条 · 可追溯）」。不写死条数：条数属于数据，
+  // 但这个 <summary> 必须点明它是"原始证据"且可追溯，这才是要守住的产品意图。
+  await expect(timeline.locator('.raw-evidence summary')).toContainText('原始证据')
+  await expect(timeline.locator('.raw-evidence summary')).toContainText('可追溯')
   const entryTimes = await timeline.locator(':scope > article time').allTextContents()
   expect(entryTimes).toHaveLength(2)
   expect(entryTimes[0] < entryTimes[1]).toBe(true)

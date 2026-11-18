@@ -77,12 +77,12 @@ type RetrieverConfig struct {
 // context.  Only fields with non-zero values narrow the search; zero-value
 // fields are ignored.
 type Query struct {
-	RuleID       string
-	Severity     string
-	ResourceKind string
+	RuleID       string `json:"rule_id"`
+	Severity     string `json:"severity"`
+	ResourceKind string `json:"resource_kind"`
 	// SummaryHint is the current diagnosis summary text, included for
 	// context when the re-ranker is enabled.
-	SummaryHint string
+	SummaryHint string `json:"summary_hint"`
 }
 
 // RerankRequest is the prompt payload sent to the LLM re-ranker.
@@ -159,6 +159,10 @@ func NewRetriever(repo Repository, cfg RetrieverConfig) *Retriever {
 // back to the previous stage's output, keeping the knowledge base
 // non-blocking.
 func (r *Retriever) Retrieve(ctx context.Context, query Query, reranker Reranker) ([]Entry, error) {
+	return r.retrieve(ctx, query, reranker, nil)
+}
+
+func (r *Retriever) retrieve(ctx context.Context, query Query, reranker Reranker, trace *RetrievalTrace) ([]Entry, error) {
 	// Stage 1: structured B-tree selection.
 	structured, err := r.repo.ListByFilter(ctx, Filter{
 		RuleID:       query.RuleID,
@@ -171,16 +175,30 @@ func (r *Retriever) Retrieve(ctx context.Context, query Query, reranker Reranker
 		return nil, fmt.Errorf("knowledge stage 1: %w", err)
 	}
 
+	if trace != nil {
+		trace.Structured = structured.Items
+		trace.StructuredTotal = structured.Total
+		trace.StructuredTruncated = structured.Truncated
+	}
+
 	// Stage 2: vector recall over a loosely-filtered pool. A failure here is
 	// non-blocking by design: a broken embedder degrades retrieval to the
 	// structured path rather than failing the diagnosis that asked for it.
 	var vectorHits []Entry
 	if r.vectorStageActive(query) {
-		if hits, verr := r.vectorRecall(ctx, query); verr == nil {
+		if trace != nil {
+			trace.VectorStatus = "complete"
+		}
+		if hits, verr := r.vectorRecall(ctx, query, trace); verr == nil {
 			vectorHits = hits
+		} else if trace != nil {
+			trace.VectorStatus = "unavailable"
 		}
 	}
 
+	if trace != nil {
+		trace.Vector = vectorHits
+	}
 	if len(structured.Items) == 0 && len(vectorHits) == 0 {
 		return nil, nil // empty = no match, caller degrades silently
 	}
@@ -192,6 +210,10 @@ func (r *Retriever) Retrieve(ctx context.Context, query Query, reranker Reranker
 	candidates := structured.Items
 	if len(vectorHits) > 0 {
 		candidates = fuseReciprocalRank(r.config.RRFRankConstant, structured.Items, vectorHits)
+	}
+
+	if trace != nil {
+		trace.Fused = append([]Entry(nil), candidates...)
 	}
 
 	// Stage 4: LLM re-rank (optional; failure drops back to the fusion).
@@ -244,13 +266,18 @@ func (r *Retriever) Retrieve(ctx context.Context, query Query, reranker Reranker
 // ANN index, at the cost of bounding the corpus by VectorCandidateSize. A
 // deployment beyond that scale needs materialised vectors and an index — see
 // the package documentation for the boundary.
-func (r *Retriever) vectorRecall(ctx context.Context, query Query) ([]Entry, error) {
+func (r *Retriever) vectorRecall(ctx context.Context, query Query, trace *RetrievalTrace) ([]Entry, error) {
 	pool, err := r.repo.ListByFilter(ctx, Filter{
 		MinSeverity: string(SeverityHigh),
 		Limit:       r.config.VectorCandidateSize,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("knowledge vector pool: %w", err)
+	}
+	if trace != nil {
+		trace.PoolCount = len(pool.Items)
+		trace.PoolTotal = pool.Total
+		trace.PoolTruncated = pool.Truncated
 	}
 	if len(pool.Items) == 0 {
 		return nil, nil

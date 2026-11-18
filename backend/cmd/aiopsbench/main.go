@@ -3,7 +3,7 @@
 //
 // Subcommands:
 //
-//	diagnosis         replay the labeled scenario corpus (testdata/diagnosis-corpus.json)
+//	diagnosis         replay the labeled scenario corpus (internal/diagnosisbench/testdata/diagnosis-corpus.json)
 //	                  through the compiled-in rules and report per-rule precision /
 //	                  recall / F1 plus the deterministic pipeline top-1 accuracy.
 //	retrieval         measure structured-phase retrieval quality (Hit@k, MRR) of the

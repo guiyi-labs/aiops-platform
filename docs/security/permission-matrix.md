@@ -17,13 +17,13 @@
 
 | 维度 | 值 |
 |---|---|
-| 路由总数 | 315 |
+| 路由总数 | 317 |
 | 角色受限 | 91 |
-| 已审计 | 191 |
+| 已审计 | 193 |
 | scope=workspace | 13 |
 | scope=cluster | 86 |
 | scope=namespace | 32 |
-| scope=none | 184 |
+| scope=none | 186 |
 | 角色 operations_admin | 67 |
 | 角色 security_auditor | 4 |
 | 角色 system_admin | 91 |
@@ -69,6 +69,7 @@
 | GET | `/api/v1/aiops/investigator/investigations/:id` | any | none | aiops.investigator.investigations.read |
 | GET | `/api/v1/aiops/investigator/runbooks` | any | none | aiops.investigator.runbooks.list |
 | GET | `/api/v1/aiops/knowledge` | any | none | aiops.knowledge.list |
+| GET | `/api/v1/aiops/knowledge/inspect` | any | none | aiops.knowledge.inspect |
 | GET | `/api/v1/aiops/knowledge/stats` | any | none | aiops.knowledge.stats.read |
 | GET | `/api/v1/aiops/overview` | any | none | aiops.overview.read |
 | GET | `/api/v1/aiops/quality-report` | any | none | aiops.quality_report.read |
@@ -256,6 +257,7 @@
 | POST | `/api/v1/diagnoses/:diagnosis_id/remediations/preview` | `operations_admin`, `system_admin` | none | remediation.preview |
 | GET | `/api/v1/diagnoses/:diagnosis_id/replay` | any | none | diagnosis.replay.read |
 | GET | `/api/v1/diagnoses/summary` | any | none | - |
+| GET | `/api/v1/diagnoses/validation` | any | none | diagnosis.validation.read |
 | DELETE | `/api/v1/federation/clusters/:cluster_id` | `operations_admin`, `system_admin` | cluster | federation.cluster.deregister |
 | POST | `/api/v1/federation/clusters/:cluster_id/demote` | `operations_admin`, `system_admin` | cluster | federation.cluster.demote |
 | GET | `/api/v1/federation/clusters/:cluster_id/events` | any | cluster | federation.cluster.events.list |

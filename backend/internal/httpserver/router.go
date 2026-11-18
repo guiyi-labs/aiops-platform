@@ -440,6 +440,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 					reg.register(resourceRoutes, RouteDescriptor{Method: "POST", Path: "/diagnoses/node_metrics", Handler: diagnosisAPI.diagnoseNodeMetrics})
 					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses", AuthRequired: true, Handler: diagnosisAPI.list})
 					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/summary", AuthRequired: true, Handler: diagnosisAPI.summary})
+					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/validation", AuthRequired: true, Handler: validateDiagnosis, AuditAction: "diagnosis.validation.read", AuditResource: "DiagnosisValidation"})
 					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/:diagnosis_id", AuthRequired: true, Handler: diagnosisAPI.get})
 					reg.register(v1, RouteDescriptor{Method: "GET", Path: "/diagnoses/:diagnosis_id/replay", AuthRequired: true, Handler: diagnosisAPI.replay, AuditAction: "diagnosis.replay.read", AuditResource: "Diagnosis"})
 					reg.register(v1, RouteDescriptor{Method: "PATCH", Path: "/diagnoses/:diagnosis_id", AuthRequired: true, RequiredRoles: rolesSystemOpsAdmin, Handler: diagnosisAPI.transition, AuditAction: "diagnosis.status.update", AuditResource: "Diagnosis"})
@@ -788,6 +789,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		knowledgeAPI := knowledgeHandler{repo: options.KnowledgeRepository, retriever: options.KnowledgeRetriever}
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/knowledge", AuthRequired: true, Handler: knowledgeAPI.listKnowledge, AuditAction: "aiops.knowledge.list", AuditResource: "KnowledgeEntry"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/knowledge/stats", AuthRequired: true, Handler: knowledgeAPI.knowledgeStats, AuditAction: "aiops.knowledge.stats.read", AuditResource: "KnowledgeEntry"})
+		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/knowledge/inspect", AuthRequired: true, Handler: knowledgeAPI.inspectKnowledge, AuditAction: "aiops.knowledge.inspect", AuditResource: "KnowledgeEntry"})
 	}
 
 	// M81 AIOps closed-loop runbook: maps a posture finding to its diagnosis,

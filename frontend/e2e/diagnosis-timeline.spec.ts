@@ -1,4 +1,5 @@
 import { test, expect, type Route } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 
 import { mockAuthenticatedAPI } from './api-fixtures'
 
@@ -311,4 +312,21 @@ test('Diagnosis drawer offers workloads and audit deep links', async ({ page }) 
   await expect(workloadsButton).toBeVisible()
   await workloadsButton.click()
   await expect(page).toHaveURL(/\/workloads\?cluster=1&kind=Node&name=worker-1/)
+})
+
+
+test('Diagnosis evidence export preserves the loaded record and replay', async ({ page }) => {
+  await page.goto('/diagnoses?id=42')
+  await expect(page.locator('.diagnosis-drawer')).toBeVisible()
+  await expect(page.locator('.replay-schema')).toHaveText('aiops.diagnosis-replay/v1')
+  const downloaded = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出诊断证据 JSON' }).click()
+  const file = await downloaded
+  expect(file.suggestedFilename()).toBe('diagnosis-42-evidence.json')
+  const exported = JSON.parse(await readFile((await file.path())!, 'utf8'))
+  expect(exported.schema).toBe('aiops.diagnosis-evidence/v1')
+  expect(exported.record.id).toBe(42)
+  expect(exported.record.evidence).toEqual(detail.evidence)
+  expect(exported.replay.steps).toEqual(replayView.steps)
+  expect(exported.replay_available).toBe(true)
 })

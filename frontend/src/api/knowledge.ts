@@ -23,3 +23,25 @@ export function listKnowledge(token: string, filters: { q?: string; rule_id?: st
 export function getKnowledgeStats(token: string) {
   return authorizedRequest<{ total: number }>('/api/v1/aiops/knowledge/stats', token)
 }
+
+export interface RetrievalTrace {
+  query: { summary_hint: string; rule_id: string; resource_kind: string }
+  structured: KnowledgeEntry[]
+  structured_truncated: boolean
+  vector: (KnowledgeEntry & { score?: number })[]
+  fused: (KnowledgeEntry & { score?: number })[]
+  results: KnowledgeEntry[]
+  vector_status: 'complete' | 'disabled' | 'unavailable'
+  embedder: string
+  dimension: number
+  pool_count: number
+  pool_truncated: boolean
+  shortlist_limit: number
+  vector_limit: number
+  result_limit: number
+  rank_constant: number
+}
+export function inspectKnowledge(token: string, input: { q: string; rule_id: string; resource_kind: string }) {
+  const query = new URLSearchParams(input)
+  return authorizedRequest<RetrievalTrace>(`/api/v1/aiops/knowledge/inspect?${query}`, token)
+}

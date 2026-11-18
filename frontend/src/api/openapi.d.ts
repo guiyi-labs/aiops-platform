@@ -2101,6 +2101,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/diagnoses/validation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Replay the fixed labeled corpus through production diagnosis rules without cluster access or writes */
+        get: operations["getDiagnosisValidation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/diagnoses/summary": {
         parameters: {
             query?: never;
@@ -3592,6 +3609,23 @@ export interface paths {
         };
         /** List distilled RAG case-library entries (read-only) */
         get: operations["listKnowledgeEntries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/aiops/knowledge/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect bounded structured, vector and RRF retrieval stages without model reranking or writes */
+        get: operations["inspectKnowledgeRetrieval"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10895,6 +10929,20 @@ export interface operations {
             401: components["responses"]["Error"];
         };
     };
+    getDiagnosisValidation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
+            401: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
     diagnosisSummary: {
         parameters: {
             query?: never;
@@ -13165,6 +13213,26 @@ export interface operations {
                     "application/json": components["schemas"]["KnowledgeEntryList"];
                 };
             };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+            503: components["responses"]["Error"];
+        };
+    };
+    inspectKnowledgeRetrieval: {
+        parameters: {
+            query: {
+                q: string;
+                rule_id?: string;
+                resource_kind?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
             400: components["responses"]["Error"];
             401: components["responses"]["Error"];
             500: components["responses"]["Error"];

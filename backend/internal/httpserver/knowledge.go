@@ -126,3 +126,32 @@ func (h knowledgeHandler) knowledgeStats(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"total": count})
 }
+
+// inspectKnowledge provides the bounded stages with a structured-only
+// baseline, without changing the configured production retrieval path.
+func (h knowledgeHandler) inspectKnowledge(c *gin.Context) {
+	if h.repo == nil || h.retriever == nil {
+		writeError(c, http.StatusServiceUnavailable, "KNOWLEDGE_UNAVAILABLE", "case search is not configured")
+		return
+	}
+	allowed := map[string]bool{"q": true, "rule_id": true, "resource_kind": true}
+	for key, values := range c.Request.URL.Query() {
+		if !allowed[key] || len(values) != 1 {
+			writeError(c, http.StatusBadRequest, "INVALID_QUERY", "unsupported or repeated query parameter")
+			return
+		}
+	}
+	query := strings.TrimSpace(c.Query("q"))
+	rule := strings.TrimSpace(c.Query("rule_id"))
+	kind := strings.TrimSpace(c.Query("resource_kind"))
+	if utf8.RuneCountInString(query) < 1 || utf8.RuneCountInString(query) > 500 || len(rule) > 200 || len(kind) > 100 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "q is required (1-500 characters); rule_id and resource_kind must be bounded")
+		return
+	}
+	trace, err := h.retriever.Inspect(c.Request.Context(), knowledge.Query{SummaryHint: query, RuleID: rule, ResourceKind: kind})
+	if err != nil {
+		writeError(c, http.StatusInternalServerError, "KNOWLEDGE_QUERY_FAILED", "unable to inspect case retrieval")
+		return
+	}
+	c.JSON(http.StatusOK, trace)
+}

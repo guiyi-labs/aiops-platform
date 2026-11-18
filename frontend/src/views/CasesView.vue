@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { listKnowledge, getKnowledgeStats } from '../api/knowledge'
 import type { KnowledgeEntry } from '../api/knowledge'
+import CaseRetrievalLab from '../components/CaseRetrievalLab.vue'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
+import { useCaseComparisonStore } from '../stores/case-comparison'
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+const view = computed(() => route.query.view === 'compare' ? 'compare' : 'library')
+const comparison = useCaseComparisonStore()
+const reference = computed(() => comparison.reference)
+function inspectCase(item: KnowledgeEntry) { comparison.select(item); void router.push({ path: '/cases', query: { view: 'compare' } }) }
 const query = ref('')
 const kind = ref('')
 const items = ref<KnowledgeEntry[]>([])
@@ -37,10 +46,13 @@ onMounted(() => {
 
 <template>
   <ConsoleLayout eyebrow="案例记忆" title="历史案例">
+    <nav class="workspace-tabs" aria-label="案例视图"><RouterLink to="/cases" :class="{ active: view === 'library' }" :aria-current="view === 'library' ? 'page' : undefined">案例库</RouterLink><RouterLink to="/cases?view=compare" :class="{ active: view === 'compare' }" :aria-current="view === 'compare' ? 'page' : undefined">检索对比</RouterLink></nav>
+    <CaseRetrievalLab v-show="view === 'compare'" :reference="reference" />
+    <div v-show="view === 'library'">
     <section class="page-toolbar"><div><strong>{{ total ?? '—' }}</strong><span> 条归档案例 · 已解决的诊断自动归档</span></div></section>
     <form class="case-search" @submit.prevent="load">
       <input v-model="query" maxlength="500" aria-label="故障描述" placeholder="输入故障现象，检索相似历史案例" />
-      <select v-model="kind" aria-label="资源类型提示"><option value="">不限资源类型</option><option v-for="value in ['Pod', 'Deployment', 'Node', 'Service', 'Ingress', 'PVC', 'HPA']" :key="value">{{ value }}</option></select>
+      <select v-model="kind" aria-label="资源类型提示"><option value="">不限资源类型</option><option v-for="value in ['Pod', 'Deployment', 'Node', 'Service', 'Ingress', 'PersistentVolumeClaim', 'HorizontalPodAutoscaler']" :key="value">{{ value }}</option></select>
       <button class="primary-button" :disabled="loading">{{ loading ? '检索中…' : '检索案例' }}</button>
     </form>
     <p v-if="error" class="error-message" role="alert">{{ error }}</p>
@@ -51,14 +63,17 @@ onMounted(() => {
         <p><code>{{ item.rule_id }}</code> · {{ new Date(item.noted_at).toLocaleString('zh-CN') }}</p>
         <h3>历史根因</h3><ul><li v-for="cause in item.root_causes" :key="cause">{{ cause }}</li></ul>
         <h3>处置建议</h3><ul><li v-for="step in item.recommendations" :key="step">{{ step }}</li></ul>
-        <RouterLink :to="{ path: '/diagnoses', query: { id: item.source_diagnosis_id } }">查看来源诊断与证据 →</RouterLink>
+        <div class="case-actions"><RouterLink :to="{ path: '/diagnoses', query: { id: item.source_diagnosis_id } }">查看来源诊断与证据 →</RouterLink><button class="secondary-button" @click="inspectCase(item)">查看检索过程</button></div>
       </article>
     </section>
     <p v-if="truncated" class="compact-empty">当前结果已截断，请缩小检索范围。</p>
+    </div>
   </ConsoleLayout>
 </template>
 
 <style scoped>
+.case-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 18px; }
+.case-actions button { font-size: 12px; }
 .case-search { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
 .case-search input { flex: 1; min-width: 220px; }
 .case-list { display: grid; gap: 16px; }

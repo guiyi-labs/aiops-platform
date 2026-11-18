@@ -7,6 +7,8 @@ export const consoleUIViews = [
   { name: 'correlation', path: '/diagnoses?view=correlation', readyText: '关联案例', auth: true },
   { name: 'topology', path: '/diagnoses?view=topology', readyText: '资源拓扑', auth: true },
   { name: 'cases', path: '/cases', readyText: '历史案例', auth: true },
+  { name: 'validation', path: '/diagnoses?view=validation', readyText: '规则验证与场景回放', auth: true },
+  { name: 'retrieval', path: '/cases?view=compare', readyText: '观察案例如何被召回', auth: true },
   { name: 'clusters', path: '/settings/clusters', readyText: '集群接入', auth: true },
   { name: 'model', path: '/settings/model', readyText: '模型接入', auth: true },
   { name: 'users', path: '/settings/users', readyText: '用户管理', auth: true },

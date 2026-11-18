@@ -36,6 +36,7 @@ function fallbackLabel(cell: HTMLTableCellElement): string | null {
 }
 
 function labelizeTable(table: HTMLTableElement): void {
+  if (table.dataset.responsive === 'scroll') return
   const headers = columnLabels(table)
   if (headers.length === 0) return
 

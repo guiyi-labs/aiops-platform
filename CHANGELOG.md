@@ -10,6 +10,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 ## [Unreleased]
 
 ### Added
+- **diagnosis / case memory**: 新增固定语料规则验证、正负例与证据检查、实际检索阶段对比、规则提示更名对比和诊断证据导出，整合在现有工作区；详见 [变更记录](docs/changes/2026-11-18-core-validation.md)。
 - **dashboard**: 系统概览新增资源水位仪表、节点拓扑、Pod 健康分布与用量排行、诊断分布和可切换的节点历史趋势，支持全屏集中展示与自动刷新。保留五个一级入口；详见 [变更记录](docs/changes/2026-11-18-dashboard-display.md)。
 
 ### Changed

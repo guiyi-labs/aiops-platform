@@ -145,3 +145,41 @@ func TestKnowledgeHandler_ListRejectsBadLimit(t *testing.T) {
 }
 
 var _ knowledge.Repository = knowledgeNopRepo{}
+
+func TestInspectKnowledgeValidatesAndExposesActualStages(t *testing.T) {
+	repo := knowledge.NewInMemoryRepository()
+	entry, err := repo.Insert(context.Background(), knowledge.Entry{
+		RuleID: "pod.image_pull.v1", Severity: "high", ResourceKind: "Pod", ResourceName: "web",
+		Summary: "ImagePullBackOff image registry unavailable", NotedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	retriever := knowledge.NewRetriever(repo, knowledge.DefaultConfig()).WithEmbeddingProvider(knowledge.NewLexicalEmbeddingProvider(0))
+	engine := gin.New()
+	engine.GET("/inspect", knowledgeHandler{repo: repo, retriever: retriever}.inspectKnowledge)
+	for _, query := range []string{"", "q=", "q=x&unknown=y", "q=x&q=y", "q=" + url.QueryEscape(strings.Repeat("故", 501)), "q=x&rule_id=" + strings.Repeat("x", 201)} {
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/inspect?"+query, nil))
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("invalid query accepted: %q status %d", query, response.Code)
+		}
+	}
+	query := url.Values{"q": {entry.Summary}, "rule_id": {"pod.image_pull.v2"}}
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/inspect?"+query.Encode(), nil))
+	if response.Code != 200 {
+		t.Fatalf("status %d: %s", response.Code, response.Body.String())
+	}
+	var trace knowledge.RetrievalTrace
+	if err := json.Unmarshal(response.Body.Bytes(), &trace); err != nil {
+		t.Fatal(err)
+	}
+	if len(trace.Structured) != 0 || len(trace.Results) != 1 || trace.Results[0].ID != entry.ID {
+		t.Fatalf("unexpected stages: %+v", trace)
+	}
+	count, _ := repo.Count(context.Background())
+	if count != 1 {
+		t.Fatalf("inspection changed library: %d", count)
+	}
+}

@@ -780,6 +780,16 @@ paths:
         '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
+  /api/v1/diagnoses/validation:
+    get:
+      tags: [diagnosis]
+      summary: Replay the fixed labeled corpus through production diagnosis rules without cluster access or writes
+      operationId: getDiagnosisValidation
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
   /api/v1/diagnoses/summary:
     get: { tags: [diagnoses], summary: Diagnosis summary, operationId: diagnosisSummary, security: [{ bearerAuth: [] }], responses: { '200': { $ref: '#/components/responses/Ok' } } }
   /api/v1/diagnoses/{diagnosis_id}:
@@ -1656,6 +1666,22 @@ paths:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
       responses:
         '200': { description: Knowledge entries, content: { application/json: { schema: { $ref: '#/components/schemas/KnowledgeEntryList' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '500': { $ref: '#/components/responses/Error' }
+        '503': { $ref: '#/components/responses/Error' }
+  /api/v1/aiops/knowledge/inspect:
+    get:
+      tags: [aiops]
+      summary: Inspect bounded structured, vector and RRF retrieval stages without model reranking or writes
+      operationId: inspectKnowledgeRetrieval
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1, maxLength: 500 } }
+        - { name: rule_id, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: resource_kind, in: query, schema: { type: string, maxLength: 100 } }
+      responses:
+        '200': { $ref: '#/components/responses/Ok' }
         '400': { $ref: '#/components/responses/Error' }
         '401': { $ref: '#/components/responses/Error' }
         '500': { $ref: '#/components/responses/Error' }

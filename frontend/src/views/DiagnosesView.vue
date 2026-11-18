@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Boxes, CheckCircle2, FileSearch, MessageSquareText, Pause, Play, RefreshCw, RotateCcw, SearchCheck, SkipBack, SkipForward, Sparkles, Stethoscope, X, XCircle } from 'lucide-vue-next'
+import { Boxes, CheckCircle2, Download, FileSearch, MessageSquareText, Pause, Play, RefreshCw, RotateCcw, SearchCheck, SkipBack, SkipForward, Sparkles, Stethoscope, X, XCircle } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
 import { addAIExplanationFeedback, addDiagnosisFeedback, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisReplay, listDiagnoses, listDiagnosisExplanations, transitionDiagnosis } from '../api/diagnosis'
@@ -15,6 +15,7 @@ import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, D
 
 import { useDiagnosisReplay } from '../composables/useDiagnosisReplay'
 import { fromDiagnosis } from '../utils/finding-detail'
+import { downloadJSON } from '../utils/download'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -53,6 +54,15 @@ const replayControls = reactive(useDiagnosisReplay(() => replay.value?.steps ?? 
 const clusterNames = computed(() => new Map(clusters.value.map((item) => [item.id, item.name])))
 const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
 const aiGenerationBlocked = computed(() => aiStatus.value ? !aiStatus.value.enabled || aiStatus.value.remaining_tokens === 0 : false)
+
+function exportEvidence() {
+  if (!detail.value) return
+  downloadJSON(`diagnosis-${detail.value.id}-evidence.json`, {
+    schema: 'aiops.diagnosis-evidence/v1', exported_at: new Date().toISOString(),
+    record: detail.value, explanations: explanations.value,
+    replay: replay.value, replay_available: replay.value !== null,
+  })
+}
 
 function formatTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
@@ -350,7 +360,7 @@ onMounted(initialize)
       </div>
     </section>
 
-    <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }}</p>
+    <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span></div><div class="diagnosis-export"><button class="secondary-button" @click="exportEvidence"><Download :size="14" />导出诊断证据 JSON</button><span>包含当前已读取的结论、证据、解释和回放快照</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }}</p>
       <FindingEvidencePanel :finding="fromDiagnosis(detail)" />
       <section v-if="detail.root_cause_card" class="root-cause-card">
         <header><span class="root-cause-label">根因结论</span><span class="root-cause-confidence">{{ detail.root_cause_card.confidence }}</span></header>
@@ -479,6 +489,9 @@ onMounted(initialize)
 </template>
 
 <style scoped>
+.diagnosis-export { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+.diagnosis-export button { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.diagnosis-export span { color: var(--text-secondary); font-size: 11px; }
 .evidence-card {
   display: block;
 }

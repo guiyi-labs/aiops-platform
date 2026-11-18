@@ -5,12 +5,14 @@ import ConsoleLayout from '../components/ConsoleLayout.vue'
 import DiagnosesView from './DiagnosesView.vue'
 import TopologyView from './TopologyView.vue'
 import CorrelationCasesView from './CorrelationCasesView.vue'
+import DiagnosisValidationView from './DiagnosisValidationView.vue'
 
 const route = useRoute()
 const tabs = [
   { id: 'records', label: '诊断记录', component: DiagnosesView },
   { id: 'correlation', label: '关联分析', component: CorrelationCasesView },
   { id: 'topology', label: '资源拓扑', component: TopologyView },
+  { id: 'validation', label: '规则验证', component: DiagnosisValidationView },
 ]
 const active = computed(() => tabs.find(tab => tab.id === route.query.view) ?? tabs[0]!)
 </script>

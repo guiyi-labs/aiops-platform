@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { mockAuthenticatedAPI } from './api-fixtures'
 
-const node = (name: string, ready = 'True') => ({ metadata: { name, labels: name === 'master-01' ? { 'node-role.kubernetes.io/control-plane': '' } : {} }, spec: {}, status: { conditions: [{ type: 'Ready', status: ready }], allocatable: { cpu: '4', memory: '8Gi' }, addresses: [{ type: 'InternalIP', address: '192.168.31.211' }] } })
+const node = (name: string, ready = 'True') => ({ metadata: { name, labels: name === 'master-01' ? { 'node-role.kubernetes.io/control-plane': '' } : {} }, spec: {}, status: { nodeInfo: { kubeletVersion: 'v1.31.0', osImage: 'Ubuntu 24.04', containerRuntimeVersion: 'containerd://1.7.0' }, conditions: [{ type: 'Ready', status: ready }], allocatable: { cpu: '4', memory: '8Gi' }, addresses: [{ type: 'InternalIP', address: '192.168.31.211' }] } })
 const pod = (name: string, nodeName: string, phase = 'Running') => ({ metadata: { name, namespace: 'default', uid: name }, spec: { nodeName, containers: [{ name: 'app', image: 'app:v1' }] }, status: { phase, containerStatuses: [{ name: 'app', ready: phase === 'Running', restartCount: 0, state: {} }] } })
 
 test.beforeEach(async ({ page }) => {
@@ -93,4 +93,52 @@ test('large scenes bound geometry and empty snapshots never invent healthy nodes
   await expect(scene).toContainText('节点数据暂不可用')
   await expect(scene.locator('.spatial-node-label')).toHaveCount(0)
   await expect(scene.getByRole('complementary', { name: '选中节点状态' })).toHaveCount(0)
+})
+
+test('node inspection shows all loaded pods, filters, container details and resets on node changes', async ({ page }) => {
+  const broken = pod('broken-app', 'worker-01')
+  broken.status.containerStatuses[0] = { ...broken.status.containerStatuses[0], ready: false, restartCount: 7, state: { waiting: { reason: 'CrashLoopBackOff' } } }
+  await page.route('**/api/v1/clusters/1/pods?*', route => route.fulfill({ json: { items: [pod('control-pod', 'master-01'), ...Array.from({ length: 24 }, (_, index) => pod(`app-${String(index).padStart(2, '0')}`, 'worker-01')), broken, { ...pod('app-23', 'worker-01'), metadata: { name: 'app-23', namespace: 'other', uid: 'other-app' } }], total: 27, remaining: 0 } }))
+  await page.goto('/')
+  const inspector = page.getByRole('complementary', { name: '选中节点状态' })
+  await expect(inspector).toContainText('v1.31.0')
+  await expect(inspector).toContainText('Ubuntu 24.04')
+  // The rack geometry and label share the same accessible node target.
+  await page.getByRole('button', { name: '查看节点 worker-01，Ready' }).locator('.node-hit-area').last().click()
+  const list = inspector.getByRole('list', { name: '该节点已读取的 Pod，异常优先' })
+  await expect(list.getByRole('listitem')).toHaveCount(26)
+  await expect(list.getByRole('listitem').first()).toContainText('CrashLoopBackOff')
+  await list.getByRole('button', { name: /broken-app/ }).click()
+  await expect(list).toContainText('重启 7')
+  await expect(list).toContainText('app:v1')
+  await expect(list.getByRole('link', { name: '查看 Pod 详情与日志' })).toHaveAttribute('href', '/workloads?cluster=1&kind=Pod&namespace=default&name=broken-app')
+  await inspector.getByRole('button', { name: '仅待关注' }).click()
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+  await inspector.getByRole('button', { name: '仅待关注' }).click()
+  await inspector.getByRole('searchbox', { name: '搜索节点 Pod' }).fill('other/app-23')
+  await expect(list.getByRole('listitem')).toHaveCount(1)
+  await expect(list).toContainText('other')
+  await inspector.getByRole('searchbox').fill('missing')
+  await expect(inspector).toContainText('没有符合筛选条件的 Pod')
+  await page.getByRole('button', { name: '查看节点 master-01，Ready' }).click()
+  await expect(inspector.getByRole('searchbox')).toHaveValue('')
+  await expect(inspector.getByRole('button', { name: '仅待关注' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(inspector).toContainText('control-pod')
+  await expect(inspector).not.toContainText('broken-app')
+  await page.getByRole('button', { name: '立体大屏', exact: true }).click()
+  await page.getByRole('button', { name: '查看节点 worker-01，Ready' }).click()
+  await expect(page.locator('.node-pod-list').getByRole('listitem')).toHaveCount(26)
+  await page.locator('.node-pod-list').getByRole('button', { name: /app-23 other/ }).click()
+  await expect(page.getByRole('link', { name: '查看 Pod 详情与日志' })).toHaveAttribute('href', '/workloads?cluster=1&kind=Pod&namespace=other&name=app-23')
+})
+
+test('unavailable pod data differs from an empty node', async ({ page }) => {
+  await page.route('**/api/v1/clusters/1/pods?*', route => route.fulfill({ json: { items: [], total: 0, remaining: 0 } }))
+  await page.goto('/')
+  const inspector = page.getByRole('complementary', { name: '选中节点状态' })
+  await expect(inspector).toContainText('当前样本没有该节点的 Pod')
+  await page.route('**/api/v1/clusters/1/pods?*', route => route.fulfill({ status: 503, json: { message: 'pods offline' } }))
+  await page.getByRole('button', { name: '刷新概览', exact: true }).click()
+  await expect(inspector).toContainText('Pod 数据暂不可用')
+  await expect(inspector).not.toContainText('当前样本没有该节点的 Pod')
 })

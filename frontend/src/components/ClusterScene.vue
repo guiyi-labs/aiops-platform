@@ -19,6 +19,9 @@ const emit = defineEmits<{ expand: [event: MouseEvent] }>()
 const id = useId().replace(/[^a-zA-Z0-9-]/g, '')
 const sceneElement = ref<HTMLElement | null>(null)
 const selectedName = ref('')
+const podSearch = ref('')
+const onlyIssues = ref(false)
+const selectedPod = ref('')
 const yaw = ref(.28)
 const pitch = ref(.54)
 const autoRotate = ref(false)
@@ -51,10 +54,26 @@ const sceneNodes = computed(() => (props.nodes ?? []).slice(0, 6).map((node, ind
     cpuPercent: cpu !== null && allocCPU !== null ? utilizationPercent(cpu, allocCPU) : null,
     memoryPercent: memory !== null && allocMemory !== null ? utilizationPercent(memory, allocMemory) : null,
     address: node.status.addresses?.find(item => item.type === 'InternalIP')?.address ?? '地址未返回',
-    timestamp: metric?.timestamp,
+    timestamp: metric?.timestamp, info: node.status.nodeInfo, schedulable: !node.spec.unschedulable,
   }
 }))
 const active = computed(() => sceneNodes.value.find(node => node.name === selectedName.value) ?? sceneNodes.value[0])
+const podKey = (pod: Pod) => `${pod.metadata.namespace ?? ''}/${pod.metadata.name}`
+const filteredPods = computed(() => {
+  const query = podSearch.value.trim().toLowerCase()
+  const priority = { critical: 0, warning: 1, unknown: 2, healthy: 3 }
+  return [...(active.value?.pods ?? [])].filter(pod => (!query || podKey(pod).toLowerCase().includes(query)) && (!onlyIssues.value || ['warning', 'critical'].includes(podHealth(pod))))
+    .sort((a, b) => priority[podHealth(a)] - priority[podHealth(b)] || podKey(a).localeCompare(podKey(b)))
+})
+watch(() => [props.clusterId, active.value?.name], () => { podSearch.value = ''; onlyIssues.value = false; selectedPod.value = '' })
+watch(filteredPods, pods => { if (!pods.some(pod => podKey(pod) === selectedPod.value)) selectedPod.value = '' })
+function podReason(pod: Pod) {
+  const statuses = pod.status.containerStatuses ?? []
+  return statuses.find(item => item.state.waiting?.reason)?.state.waiting?.reason || pod.status.reason || pod.status.phase || '未知'
+}
+function podRestarts(pod: Pod) { return (pod.status.containerStatuses ?? []).reduce((sum, item) => sum + item.restartCount, 0) }
+function routeForPod(pod: Pod) { return { path: '/workloads', query: { cluster: props.clusterId, kind: 'Pod', namespace: pod.metadata.namespace, name: pod.metadata.name } } }
+function togglePod(pod: Pod) { selectedPod.value = selectedPod.value === podKey(pod) ? '' : podKey(pod); touring.value = false }
 const readyCount = computed(() => props.nodes?.filter(node => node.status.conditions.some(item => item.type === 'Ready' && item.status === 'True')).length ?? null)
 const issueCount = computed(() => props.pods?.filter(pod => ['warning', 'critical'].includes(podHealth(pod))).length ?? null)
 const unassigned = computed(() => props.pods?.filter(pod => !pod.spec.nodeName).length ?? null)
@@ -204,6 +223,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
             </g>
           </g>
           <g v-for="node in labels" :key="node.name" class="spatial-node-label" :class="[node.ready, { selected: active?.name === node.name }]" role="button" tabindex="0" :aria-label="`查看节点 ${node.name}，${node.ready === 'ready' ? 'Ready' : node.ready === 'warning' ? '未就绪' : '状态未知'}`" :aria-pressed="active?.name === node.name" @click="selectNode(node.name)" @keydown.enter.prevent="selectNode(node.name)" @keydown.space.prevent="selectNode(node.name)">
+            <polygon v-for="face in cuboid(node.x, node.z, 64, 0, 105)" :key="face.key" :points="face.points" class="node-hit-area" />
             <rect :x="node.position.x - 98" :y="node.position.y + 29" width="196" height="58" rx="7" />
             <circle :cx="node.position.x - 82" :cy="node.position.y + 46" r="3" />
             <text :x="node.position.x - 72" :y="node.position.y + 51" class="node-label-name">{{ node.name.length > 23 ? node.name.slice(0, 21) + '…' : node.name }}</text>
@@ -224,11 +244,23 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
       <aside v-if="active" class="scene-inspector" aria-label="选中节点状态">
         <div class="inspector-kicker"><span>NODE INSPECTOR</span><i :class="active.ready" />{{ active.ready === 'ready' ? 'Ready' : active.ready === 'warning' ? '未就绪' : '状态未知' }}</div>
         <h3>{{ active.name }}</h3><p class="node-address">{{ active.control ? '控制平面' : '工作节点' }}<span>{{ active.address }}</span></p>
+        <dl class="inspector-node-info"><div><dt>Kubernetes</dt><dd>{{ active.info?.kubeletVersion || '未返回' }}</dd></div><div><dt>调度</dt><dd>{{ active.schedulable ? '可调度' : '已停止调度' }}</dd></div><div><dt>操作系统</dt><dd>{{ active.info?.osImage || '未返回' }}</dd></div><div><dt>容器运行时</dt><dd>{{ active.info?.containerRuntimeVersion || '未返回' }}</dd></div></dl>
         <div class="inspector-metrics">
           <div v-for="metric in [{ label: 'CPU', icon: Cpu, value: active.cpuPercent, usage: active.cpu === null ? '暂无指标' : formatCPU(active.cpu) }, { label: '内存', icon: HardDrive, value: active.memoryPercent, usage: active.memory === null ? '暂无指标' : formatMemory(active.memory) }]" :key="metric.label" class="inspector-meter"><div><span><component :is="metric.icon" :size="13" />{{ metric.label }}</span><strong>{{ metric.value === null ? '—' : `${metric.value}%` }}</strong></div><div class="inspector-track"><i :style="{ width: `${Math.max(0, Math.min(100, metric.value ?? 0))}%` }" /></div><small>{{ metric.usage }}<span>占可分配资源</span></small></div>
         </div>
         <div class="inspector-pods"><span>Pod 样本<strong>{{ active.pods?.length ?? '—' }}</strong></span><span>待关注<strong :class="{ 'has-issues': active.issues }">{{ active.issues ?? '—' }}</strong></span></div>
-        <div v-if="expanded" class="inspector-workloads"><span>节点工作负载 <small>最多展示 5 个</small></span><ul v-if="active.pods?.length"><li v-for="pod in [...active.pods].sort((a, b) => Number(['warning', 'critical'].includes(podHealth(b))) - Number(['warning', 'critical'].includes(podHealth(a)))).slice(0, 5)" :key="`${pod.metadata.namespace}/${pod.metadata.name}`"><i :class="podHealth(pod)" /><span :title="pod.metadata.name">{{ pod.metadata.name }}<small>{{ pod.metadata.namespace }}</small></span><b>{{ pod.status.phase }}</b></li></ul><p v-else>{{ active.pods === null ? 'Pod 数据暂不可用' : '当前样本没有该节点的 Pod' }}</p></div>
+        <section class="inspector-workloads" aria-label="节点 Pod 列表">
+          <div class="workloads-heading"><h4>节点上的 Pod</h4><small aria-live="polite">{{ filteredPods.length }} / {{ active.pods?.length ?? '—' }} 已读取</small></div>
+          <div v-if="active.pods?.length" class="workload-filters"><input v-model="podSearch" type="search" aria-label="搜索节点 Pod" placeholder="搜索名称 / 命名空间" @input="touring = false" /><button type="button" :aria-pressed="onlyIssues" @click="onlyIssues = !onlyIssues; touring = false">仅待关注</button></div>
+          <ul v-if="filteredPods.length" class="node-pod-list" tabindex="0" aria-label="该节点已读取的 Pod，异常优先">
+            <li v-for="pod in filteredPods" :key="podKey(pod)">
+              <button type="button" class="node-pod-toggle" :aria-expanded="selectedPod === podKey(pod)" @click="togglePod(pod)"><i :class="podHealth(pod)" /><span class="pod-identity">{{ pod.metadata.name }}<small>{{ pod.metadata.namespace }} · 就绪 {{ pod.status.containerStatuses?.filter(item => item.ready).length ?? 0 }}/{{ pod.spec.containers.length }} · 重启 {{ podRestarts(pod) }}</small></span><b :class="podHealth(pod)">{{ podReason(pod) }}</b></button>
+              <div v-if="selectedPod === podKey(pod)" class="node-pod-detail"><p>Pod IP <strong>{{ pod.status.podIP || '未分配' }}</strong></p><p v-if="pod.status.message" class="pod-message">{{ pod.status.message }}</p><div v-for="container in pod.spec.containers" :key="container.name" class="pod-container"><span>{{ container.name }}<b>{{ pod.status.containerStatuses?.find(item => item.name === container.name)?.ready ? 'Ready' : '未就绪' }}</b></span><code>{{ container.image }}</code></div><RouterLink :to="routeForPod(pod)">查看 Pod 详情与日志<ArrowUpRight :size="13" /></RouterLink></div>
+            </li>
+          </ul>
+          <p v-else>{{ active.pods === null ? 'Pod 数据暂不可用' : active.pods.length ? '没有符合筛选条件的 Pod' : '当前样本没有该节点的 Pod' }}</p>
+          <p class="workload-sample-note">按节点归属展示已读取的 Pod，包含运行中及其他状态。</p>
+        </section>
         <RouterLink :to="routeForNode(active.name)" class="scene-detail-link">查看节点证据<ArrowUpRight :size="14" /></RouterLink>
         <p v-if="expanded && active.timestamp" class="inspector-timestamp">指标源时间 {{ new Date(active.timestamp).toLocaleTimeString('zh-CN', { hour12: false }) }}</p>
       </aside>
@@ -298,6 +330,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
 .pod-cell.critical { fill: #f7788a; stroke: #ffc0c7; }
 .pod-cell.unknown { fill: #879eb9; stroke: #c4cfe0; }
 .spatial-node-label { cursor: pointer; }
+.node-hit-area { fill: transparent; stroke: none; pointer-events: all; }
 .spatial-node-label rect { fill: #0a1e30f2; stroke: #365a6d; }
 .spatial-node-label.selected rect { fill: #10313d; stroke: #75dedf; }
 .spatial-node-label circle { fill: var(--scene-green); }
@@ -319,6 +352,10 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
 .inspector-kicker span { margin-right: auto; font-size: 8px; letter-spacing: 1px; }
 .scene-inspector h3 { margin: 10px 0 6px; color: #f0faff; font: 600 14px var(--font-mono); overflow-wrap: anywhere; }
 .node-address { margin: 0; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; color: #a6c3d6; font-size: 10px; }
+.inspector-node-info { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0 0; font-size: 10px; }
+.inspector-node-info div { min-width: 0; }
+.inspector-node-info dt { color: #a6c3d6; margin-bottom: 4px; }
+.inspector-node-info dd { color: #e1f1fa; margin: 0; overflow-wrap: anywhere; }
 .inspector-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 16px; }
 .inspector-meter > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .inspector-meter span { display: inline-flex; align-items: center; gap: 5px; color: #b2cbdc; font-size: 10px; }
@@ -340,22 +377,40 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
 .scene-telemetry small { font: 11px var(--font-mono); margin-left: 9px; color: #9fbfd2; }
 .cluster-scene .has-issues { color: var(--scene-amber); }
 .inspector-workloads { margin-top: 26px; padding-top: 18px; border-top: 1px solid #305267; }
-.inspector-workloads > span { display: flex; justify-content: space-between; color: #d1e7f3; font-size: 11px; }
-.inspector-workloads > span small { color: #9dbacc; font-size: 9px; }
-.inspector-workloads ul { list-style: none; padding: 0; margin: 8px 0 0; }
-.inspector-workloads li { display: flex; align-items: center; gap: 8px; padding: 12px 0; border-bottom: 1px solid #294557; }
-.inspector-workloads li > span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d6ecfa; font: 10px var(--font-mono); }
-.inspector-workloads li small { display: block; margin-top: 5px; color: #99b9cc; font-size: 9px; }
-.inspector-workloads li > b { color: #b7d5e6; font: 9px var(--font-mono); }
-.inspector-workloads i.critical { background: #ff9aa8; }
+.workloads-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.workloads-heading h4 { margin: 0; font-size: 12px; color: #e1f1fa; }
+.workloads-heading small { color: #b0ccde; font-size: 10px; }
+.workload-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.workload-filters input { min-width: 0; flex: 1; width: 120px; border: 1px solid #426779; background: #0b2234; color: #e1f1fa; border-radius: 6px; padding: 8px; font-size: 11px; }
+.workload-filters input::placeholder { color: #a6c3d6; }
+.workload-filters input:focus-visible { outline: 2px solid var(--scene-cyan); outline-offset: 2px; }
+.node-pod-list { list-style: none; padding: 0; margin: 8px 0 0; max-height: 300px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.inspector-workloads li { border-bottom: 1px solid #294557; }
+.cluster-scene .node-pod-toggle { width: 100%; display: flex; align-items: flex-start; gap: 8px; padding: 12px 5px; text-align: left; background: transparent; border: 0; border-radius: 3px; }
+.node-pod-toggle > i { width: 6px; height: 6px; margin-top: 4px; flex-shrink: 0; border-radius: 50%; background: var(--scene-green); }
+.node-pod-toggle .pod-identity { min-width: 0; flex: 1; overflow-wrap: anywhere; color: #e1f1fa; font: 11px var(--font-mono); }
+.node-pod-toggle small { display: block; margin-top: 6px; color: #b0ccde; font-size: 10px; line-height: 1.6; }
+.node-pod-toggle > b { max-width: 34%; overflow-wrap: anywhere; color: #b7d5e6; font: 10px var(--font-mono); }
+.node-pod-toggle > b.critical { color: #ffb1be; }
+.node-pod-toggle > b.warning { color: var(--scene-amber); }
+.node-pod-toggle i.critical { background: #ff9aa8; }
+.node-pod-detail { margin: 0 5px 12px; padding: 10px; border: 1px solid #375a6e; border-radius: 6px; background: #091c2c; font-size: 11px; }
+.node-pod-detail p { margin: 0 0 10px; color: #b0ccde; overflow-wrap: anywhere; }
+.node-pod-detail strong { color: #e1f1fa; margin-left: 8px; font-weight: 400; }
+.pod-container { padding: 8px 0; border-top: 1px solid #294557; }
+.pod-container span { display: flex; justify-content: space-between; gap: 8px; color: #e1f1fa; overflow-wrap: anywhere; }
+.pod-container b { color: #b0ccde; font-size: 10px; font-weight: 400; }
+.pod-container code { display: block; margin-top: 6px; color: #b0ccde; overflow-wrap: anywhere; font-size: 10px; }
+.node-pod-detail a { display: flex; justify-content: space-between; gap: 8px; padding-top: 8px; color: var(--scene-cyan); text-decoration: none; }
+.inspector-workloads .workload-sample-note { font-size: 9px; color: #a6c3d6; margin-bottom: 0; }
 .inspector-workloads > p { font-size: 11px; color: #b7cfdf; line-height: 1.7; }
 .inspector-timestamp { font: 9px var(--font-mono); color: #a0c0d4; margin: 12px 0 0; }
 .scene-expanded { padding: 24px 28px; min-height: 680px; }
 .scene-expanded .scene-heading h2 { font-size: 20px; margin-top: 10px; letter-spacing: 2px; }
-.scene-expanded .scene-body { grid-template-columns: minmax(0, 1fr) 286px; gap: 24px; align-items: center; }
+.scene-expanded .scene-body { grid-template-columns: minmax(0, 1fr) minmax(320px, 29%); gap: 24px; align-items: center; }
 .scene-expanded .stage-coordinate { display: flex; }
 .scene-expanded .scene-inspector { padding: 22px; margin-top: 26px; }
-.scene-expanded .inspector-metrics { grid-template-columns: 1fr; gap: 22px; margin-top: 26px; }
+.scene-expanded .inspector-metrics { grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 22px; }
 .scene-expanded .inspector-meter small span { display: inline; }
 .scene-expanded .scene-inspector h3 { font-size: 16px; }
 .scene-expanded .inspector-pods { justify-content: space-between; padding-top: 20px; border-top: 1px solid #305267; margin-top: 24px; }
@@ -379,8 +434,6 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
   .scene-expanded .scene-inspector { padding: 16px; margin-top: 16px; }
   .scene-expanded .inspector-metrics { gap: 14px; margin-top: 18px; }
   .scene-expanded .inspector-workloads { margin-top: 16px; padding-top: 12px; }
-  .scene-expanded .inspector-workloads li { padding: 8px 0; }
-  .scene-expanded .inspector-workloads li:nth-child(n+4) { display: none; }
 }
 @keyframes scene-flow { to { stroke-dashoffset: -100; } }
 @keyframes scene-scan { to { stroke-dashoffset: -100; } }
@@ -391,7 +444,6 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
   .scene-expanded .scene-body { grid-template-columns: 1fr; }
   .scene-expanded .inspector-metrics { grid-template-columns: 1fr 1fr; }
   .scene-expanded .scene-inspector { margin-top: 20px; }
-  .scene-expanded .inspector-workloads { display: none; }
   .scene-expanded .spatial-map { max-height: none; min-height: 240px; }
   .scene-expanded .scene-telemetry > div { padding: 14px; gap: 8px; }
   .scene-expanded .stage-coordinate { display: none; }

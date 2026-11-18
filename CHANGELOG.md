@@ -9,6 +9,9 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Added
+- **dashboard**: 系统概览新增资源水位仪表、节点拓扑、Pod 健康分布与用量排行、诊断分布和可切换的节点历史趋势，支持全屏集中展示与自动刷新。保留五个一级入口；详见 [变更记录](docs/changes/2026-11-18-dashboard-display.md)。
+
 ### Changed
 - **console**: 本地精简版本收敛为五个一级入口，移除 26 个扩展视图、集群写操作界面与扩展服务启动接线，保留诊断、证据、案例、CLI/MCP 和评测工具。历史案例新增混合检索入口；详见 [变更记录](docs/changes/2026-11-18-console-slim.md)。精简前版本已由 `baseline-pre-slim-20261118` 备份。
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Activity, Boxes, ChevronRight, GitBranch, Network, RefreshCw, Route, Search, Server, TriangleAlert, X } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
@@ -15,6 +15,7 @@ import type { TopologyResourceKind, TopologySelection } from '../utils/resource-
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const clusters = ref<Cluster[]>([])
 const selectedClusterID = ref<number | null>(null)
 const namespaces = ref<Namespace[]>([])
@@ -120,7 +121,7 @@ function openSelectedDetail() {
 async function initialize() {
   try {
     clusters.value = (await listClusters(auth.accessToken)).items.filter((item) => item.enabled)
-    selectedClusterID.value = clusters.value[0]?.id ?? null
+    selectedClusterID.value = clusters.value.find(item => item.id === Number(route.query.cluster))?.id ?? clusters.value[0]?.id ?? null
     await changeCluster()
   } catch {
     errorMessage.value = '无法加载集群列表'

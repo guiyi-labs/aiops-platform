@@ -2,76 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVirtualList, windowRows } from '../composables/useVirtualList'
-import { Boxes, Check, ChevronRight, Clock3, Database, FileText, Gauge, Globe2, HardDrive, KeyRound, Layers, ListChecks, Network, Pause, Play, RefreshCw, Search, Server, Settings, ShieldCheck, SlidersHorizontal, Sparkles, X } from 'lucide-vue-next'
+import { Boxes, ChevronRight, Clock3, Database, FileText, Gauge, Globe2, HardDrive, KeyRound, Layers, ListChecks, Network, Pause, RefreshCw, Search, Server, Settings, ShieldCheck, Sparkles, X } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
-import { diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService, executeRemediation, getRolloutHistory, listControlledOperations, previewControlledOperation } from '../api/diagnosis'
-import {
-  getConfigMap,
-  getCronJob,
-  getDaemonSet,
-  getDeployment,
-  getHorizontalPodAutoscaler,
-  getIngress,
-  getJob,
-  getLimitRange,
-  getNode,
-  getPersistentVolumeClaim,
-  getPod,
-  getPodLogs,
-  getReplicaSet,
-  getResourceQuota,
-  getSecret,
-  getService,
-  getStatefulSet,
-  getStorageClass,
-  listConfigMaps,
-  listCronJobs,
-  listDaemonSets,
-  listDeployments,
-  listEvents,
-  listHorizontalPodAutoscalers,
-  listIngresses,
-  listJobs,
-  listLimitRanges,
-  listNamespaces,
-  listNodes,
-  listPersistentVolumeClaims,
-  listPods,
-  listReplicaSets,
-  listResourceQuotas,
-  listSecrets,
-  listServices,
-  listStatefulSets,
-  listStorageClasses,
-} from '../api/kubernetes'
+import { diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService } from '../api/diagnosis'
+import { getConfigMap, getCronJob, getDaemonSet, getDeployment, getHorizontalPodAutoscaler, getIngress, getJob, getLimitRange, getNode, getPersistentVolumeClaim, getPod, getPodLogs, getReplicaSet, getResourceQuota, getSecret, getService, getStatefulSet, getStorageClass, listConfigMaps, listCronJobs, listDaemonSets, listDeployments, listEvents, listHorizontalPodAutoscalers, listIngresses, listJobs, listLimitRanges, listNamespaces, listNodes, listPersistentVolumeClaims, listPods, listReplicaSets, listResourceQuotas, listSecrets, listServices, listStatefulSets, listStorageClasses } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import MetricsHistoryPanel from '../components/MetricsHistoryPanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { ControlledOperationRequest, DiagnosisRecord, RemediationPlan, RolloutHistory } from '../types/diagnosis'
-import type {
-  ConfigMapResource,
-  CronJobResource,
-  DaemonSetResource,
-  Deployment,
-  HorizontalPodAutoscalerResource,
-  IngressBackend,
-  IngressResource,
-  JobResource,
-  KubernetesEvent,
-  LimitRangeResource,
-  Namespace,
-  NodeResource,
-  PersistentVolumeClaim,
-  Pod,
-  ReplicaSetResource,
-  ResourceQuotaResource,
-  SecretResource,
-  ServiceResource,
-  StatefulSetResource,
-  StorageClassResource,
-} from '../types/kubernetes'
+import type { DiagnosisRecord } from '../types/diagnosis'
+import type { ConfigMapResource, CronJobResource, DaemonSetResource, Deployment, HorizontalPodAutoscalerResource, IngressBackend, IngressResource, JobResource, KubernetesEvent, LimitRangeResource, Namespace, NodeResource, PersistentVolumeClaim, Pod, ReplicaSetResource, ResourceQuotaResource, SecretResource, ServiceResource, StatefulSetResource, StorageClassResource } from '../types/kubernetes'
 import { eventTimestamp, relatedResourceEvents } from '../utils/kubernetes-events'
 import type { EventResourceKind } from '../utils/kubernetes-events'
 import { filterResourcesByName } from '../utils/resource-filter'
@@ -160,19 +101,7 @@ const logs = ref('')
 const logLoading = ref(false)
 const diagnosis = ref<DiagnosisRecord | null>(null)
 const diagnosisLoading = ref(false)
-const operationHistory = ref<RemediationPlan[]>([])
-const operationPlan = ref<RemediationPlan | null>(null)
-const operationToken = ref('')
-const operationIdempotencyKey = ref('')
-const operationConfirmed = ref(false)
-const operationBusy = ref(false)
-const operationError = ref('')
-const scaleReplicas = ref(1)
-const imageUpdateContainer = ref('')
-const imageUpdateImage = ref('')
-const rollbackRevision = ref<number | null>(null)
-const rolloutHistory = ref<RolloutHistory | null>(null)
-const rolloutHistoryLoading = ref(false)
+
 let initialized = false
 let resourceSequence = 0
 let detailSequence = 0
@@ -200,7 +129,6 @@ const selectedCategory = computed(() => resourceCategories.find((category) => ca
 const categoryKinds = computed(() => selectedCategory.value.kinds)
 const podDetail = computed(() => detailSelection.value?.kind === 'Pod' ? detail.value as Pod | null : null)
 const deploymentDetail = computed(() => detailSelection.value?.kind === 'Deployment' ? detail.value as Deployment | null : null)
-const cronJobDetail = computed(() => detailSelection.value?.kind === 'CronJob' ? detail.value as CronJobResource | null : null)
 const nodeDetail = computed(() => detailSelection.value?.kind === 'Node' ? detail.value as NodeResource | null : null)
 const serviceDetail = computed(() => detailSelection.value?.kind === 'Service' ? detail.value as ServiceResource | null : null)
 const ingressDetail = computed(() => detailSelection.value?.kind === 'Ingress' ? detail.value as IngressResource | null : null)
@@ -209,7 +137,6 @@ const storageClassDetail = computed(() => detailSelection.value?.kind === 'Stora
 const configMapDetail = computed(() => detailSelection.value?.kind === 'ConfigMap' ? detail.value as ConfigMapResource | null : null)
 const m17Detail = computed(() => detailSelection.value && isM17Kind(detailSelection.value.kind) ? detail.value as M17Resource | null : null)
 const secretDetail = computed(() => detailSelection.value?.kind === 'Secret' ? detail.value as SecretResource | null : null)
-const canOperate = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
 
 function isM17Kind(kind: ResourceKind): kind is M17ResourceKind {
   return ['StatefulSet', 'DaemonSet', 'ReplicaSet', 'Job', 'CronJob', 'HPA', 'ResourceQuota', 'LimitRange', 'Secret'].includes(kind)
@@ -537,7 +464,7 @@ async function initialize() {
     await loadResources()
     await loadDetailFromRoute()
   } catch {
-    errorMessage.value = '无法加载资源工作台，请稍后重试'
+    errorMessage.value = '无法加载集群与资源，请稍后重试'
   } finally {
     initializing.value = false
   }
@@ -609,18 +536,6 @@ function getSelectedDetail(selection: DetailSelection, clusterID: number): Promi
   return getConfigMap(auth.accessToken, clusterID, selection.namespace, selection.name)
 }
 
-function controlledOperationKind(selection: DetailSelection | null): 'Deployment' | 'CronJob' | null {
-  return selection?.kind === 'Deployment' || selection?.kind === 'CronJob' ? selection.kind : null
-}
-
-function clearOperationPreview() {
-  operationPlan.value = null
-  operationToken.value = ''
-  operationIdempotencyKey.value = ''
-  operationConfirmed.value = false
-  operationError.value = ''
-}
-
 async function loadDetailFromRoute() {
   const selection = selectionFromRoute()
   const clusterID = selectedClusterID.value
@@ -630,55 +545,22 @@ async function loadDetailFromRoute() {
   detailError.value = ''
   relatedEvents.value = []
   eventsError.value = ''
-  operationHistory.value = []
-  rolloutHistory.value = null
-  imageUpdateContainer.value = ''
-  imageUpdateImage.value = ''
-  rollbackRevision.value = null
-  clearOperationPreview()
   if (!selection || !clusterID) return
   detailLoading.value = true
   eventsLoading.value = true
-  const targetKind = controlledOperationKind(selection)
-  const operationRequest = targetKind
-    ? listControlledOperations(auth.accessToken, clusterID, selection.namespace, targetKind, selection.name)
-    : Promise.resolve({ items: [] as RemediationPlan[], total: 0, remaining: 0 })
-  const rolloutRequest = selection.kind === 'Deployment'
-    ? getRolloutHistory(auth.accessToken, clusterID, selection.namespace, selection.name)
-    : Promise.resolve(null)
-  const [detailResult, eventResult, operationResult, rolloutResult] = await Promise.allSettled([
+  const [detailResult, eventResult] = await Promise.allSettled([
     getSelectedDetail(selection, clusterID),
     listEvents(auth.accessToken, clusterID, selection.namespace, selection.name),
-    operationRequest,
-    rolloutRequest,
   ])
   if (sequence !== detailSequence) return
-  if (detailResult.status === 'fulfilled') {
-    detail.value = detailResult.value
-    if (selection.kind === 'Deployment') {
-      scaleReplicas.value = (detailResult.value as Deployment).spec.replicas ?? 1
-      const containers = (detailResult.value as Deployment).spec.template.spec.containers
-      imageUpdateContainer.value = containers[0]?.name ?? ''
-    }
-  }
+  if (detailResult.status === 'fulfilled') detail.value = detailResult.value
   else detailError.value = '资源详情读取失败。资源可能已被删除，或观察账号缺少读取权限。'
   if (eventResult.status === 'fulfilled') {
     relatedEvents.value = relatedResourceEvents(eventResult.value.items, {
-      kind: selection.kind,
-      namespace: selection.namespace,
-      name: selection.name,
+      kind: selection.kind, namespace: selection.namespace, name: selection.name,
       clusterScoped: isClusterScoped(selection.kind),
     })
-  } else {
-    eventsError.value = '关联事件暂时不可用'
-  }
-  if (operationResult.status === 'fulfilled') operationHistory.value = operationResult.value.items
-  if (rolloutResult.status === 'fulfilled' && rolloutResult.value) {
-    rolloutHistory.value = rolloutResult.value
-    const previous = rolloutResult.value.revisions.find((rev) => !rev.current)
-    rollbackRevision.value = previous?.revision ?? null
-  }
-  rolloutHistoryLoading.value = false
+  } else eventsError.value = '关联事件暂时不可用'
   detailLoading.value = false
   eventsLoading.value = false
 }
@@ -741,8 +623,6 @@ async function closeDetail() {
   detailSelection.value = null
   detail.value = null
   relatedEvents.value = []
-  operationHistory.value = []
-  clearOperationPreview()
   await router.push({ path: '/workloads', query: baseRouteQuery() })
 }
 
@@ -804,109 +684,9 @@ async function runDiagnosis(kind: DiagnosableKind, item: ResourceDetail) {
   }
 }
 
-async function createOperationPreview(request: ControlledOperationRequest) {
-  if (!selectedClusterID.value || operationBusy.value) return
-  operationBusy.value = true
-  operationError.value = ''
-  try {
-    const plan = await previewControlledOperation(auth.accessToken, selectedClusterID.value, request)
-    operationPlan.value = plan
-    operationToken.value = plan.confirmation_token ?? ''
-    operationIdempotencyKey.value = `operation-${crypto.randomUUID()}`
-    operationConfirmed.value = false
-    operationHistory.value = [plan, ...operationHistory.value.filter((item) => item.id !== plan.id)]
-  } catch (error) {
-    operationError.value = error instanceof Error ? error.message : '无法生成受控操作计划'
-  } finally {
-    operationBusy.value = false
-  }
-}
-
-function previewDeploymentScale() {
-  const target = deploymentDetail.value
-  if (!target?.metadata.namespace || !Number.isInteger(scaleReplicas.value) || scaleReplicas.value < 0 || scaleReplicas.value > 1000) {
-    operationError.value = '副本数必须是 0 到 1000 之间的整数'
-    return
-  }
-  void createOperationPreview({ action: 'deployment.scale', namespace: target.metadata.namespace, target_name: target.metadata.name, desired_replicas: scaleReplicas.value })
-}
-
-function previewDeploymentImageUpdate() {
-  const target = deploymentDetail.value
-  const containerName = imageUpdateContainer.value.trim()
-  const desiredImage = imageUpdateImage.value.trim()
-  if (!target?.metadata.namespace || !containerName || !desiredImage) {
-    operationError.value = '请选择容器并填写目标镜像'
-    return
-  }
-  if (desiredImage.length > 512) {
-    operationError.value = '镜像引用长度不能超过 512 个字符'
-    return
-  }
-  const current = target.spec.template.spec.containers.find((c) => c.name === containerName)
-  if (current && current.image === desiredImage) {
-    operationError.value = '目标镜像与当前镜像一致'
-    return
-  }
-  void createOperationPreview({ action: 'deployment.image_update', namespace: target.metadata.namespace, target_name: target.metadata.name, container_name: containerName, desired_image: desiredImage })
-}
-
-function previewDeploymentRollback() {
-  const target = deploymentDetail.value
-  if (!target?.metadata.namespace || rollbackRevision.value == null) {
-    operationError.value = '请选择要回滚的历史版本'
-    return
-  }
-  void createOperationPreview({ action: 'deployment.rollback', namespace: target.metadata.namespace, target_name: target.metadata.name, rollback_revision: rollbackRevision.value })
-}
-
-function previewCronJobOperation(action: 'cronjob.suspend' | 'cronjob.resume') {
-  const target = cronJobDetail.value
-  if (!target?.metadata.namespace) return
-  void createOperationPreview({ action, namespace: target.metadata.namespace, target_name: target.metadata.name })
-}
-
-async function confirmOperation() {
-  if (!operationPlan.value || !operationToken.value || !operationConfirmed.value || operationBusy.value) return
-  operationBusy.value = true
-  operationError.value = ''
-  try {
-    const result = await executeRemediation(auth.accessToken, operationPlan.value.id, operationToken.value, operationIdempotencyKey.value)
-    operationHistory.value = operationHistory.value.map((item) => item.id === result.id ? result : item)
-    operationPlan.value = null
-    operationToken.value = ''
-    operationConfirmed.value = false
-    await Promise.all([loadResources(), loadDetailFromRoute()])
-  } catch (error) {
-    operationError.value = error instanceof Error ? error.message : '受控操作执行失败'
-  } finally {
-    operationBusy.value = false
-  }
-}
-
-function operationActionLabel(action: RemediationPlan['action']): string {
-  if (action === 'deployment.scale') return '调整副本数'
-  if (action === 'deployment.image_update') return '更新镜像'
-  if (action === 'deployment.rollback') return '回滚版本'
-  if (action === 'cronjob.suspend') return '暂停调度'
-  if (action === 'cronjob.resume') return '恢复调度'
-  return '滚动重启'
-}
-
-function operationStatusLabel(status: RemediationPlan['status']): string {
-  return { awaiting_confirmation: '待确认', executing: '执行中', succeeded: '已完成', failed: '失败', expired: '已过期' }[status]
-}
-
-function operationValue(value: string | number | boolean | undefined): string {
-  if (value === undefined) return '--'
-  if (typeof value === 'boolean') return value ? '暂停' : '运行'
-  return String(value)
-}
-
 function onEscape(event: KeyboardEvent) {
 	if (event.key !== 'Escape') return
-	if (operationPlan.value && !operationBusy.value) clearOperationPreview()
-	else if (diagnosis.value) diagnosis.value = null
+		else if (diagnosis.value) diagnosis.value = null
   else if (logTitle.value) logTitle.value = ''
   else if (detailSelection.value) void closeDetail()
 }
@@ -917,7 +697,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
 </script>
 
 <template>
-  <ConsoleLayout eyebrow="集群资源" title="资源工作台">
+  <ConsoleLayout eyebrow="集群资源" title="集群与资源">
     <section class="resource-toolbar workload-toolbar">
       <select v-model="selectedClusterID" aria-label="选择集群" @change="changeCluster"><option :value="null" disabled>选择已启用集群</option><option v-for="item in clusters" :key="item.id" :value="item.id">{{ item.name }}</option></select>
       <select v-model="namespace" aria-label="Namespace" :disabled="isClusterScoped(selectedKind)" @change="changeNamespace"><option value="">全部 Namespace</option><option v-for="item in namespaces" :key="item.metadata.name" :value="item.metadata.name">{{ item.metadata.name }}</option></select>
@@ -1085,31 +865,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
           </template>
 
           <template v-else-if="deploymentDetail">
-            <div class="drawer-action-bar"><div v-if="canOperate" class="scale-control"><label for="deployment-replicas">副本</label><input id="deployment-replicas" v-model.number="scaleReplicas" type="number" min="0" max="1000" step="1" inputmode="numeric" /><button class="secondary-button" type="button" :disabled="operationBusy || !Number.isInteger(scaleReplicas) || scaleReplicas === (deploymentDetail.spec.replicas ?? 1)" @click="previewDeploymentScale"><SlidersHorizontal :size="15" />预览调整</button></div><button class="diagnose-button" type="button" :disabled="diagnosisLoading" @click="runDiagnosis('Deployment', deploymentDetail)"><Sparkles :size="15" />运行诊断</button></div>
+            <div class="drawer-action-bar"><button class="diagnose-button" type="button" :disabled="diagnosisLoading" @click="runDiagnosis('Deployment', deploymentDetail)"><Sparkles :size="15" />运行诊断</button></div>
             <dl class="resource-detail-stats six"><div><dt>Desired</dt><dd>{{ deploymentDetail.spec.replicas ?? 1 }}</dd></div><div><dt>Current</dt><dd>{{ deploymentDetail.status.replicas }}</dd></div><div><dt>Updated</dt><dd>{{ deploymentDetail.status.updatedReplicas }}</dd></div><div><dt>Ready</dt><dd>{{ deploymentDetail.status.readyReplicas }}</dd></div><div><dt>Available</dt><dd>{{ deploymentDetail.status.availableReplicas }}</dd></div><div><dt>Unavailable</dt><dd :class="{ danger: deploymentDetail.status.unavailableReplicas > 0 }">{{ deploymentDetail.status.unavailableReplicas }}</dd></div></dl>
             <section class="detail-section"><h3>容器镜像</h3><div class="detail-list"><article v-for="container in deploymentDetail.spec.template.spec.containers" :key="container.name" class="container-row"><span><strong>{{ container.name }}</strong><small>{{ container.image }}</small></span></article></div></section>
-            <section v-if="canOperate" class="detail-section release-control-section">
-              <h3>发布管理</h3>
-              <div class="release-control-group">
-                <label class="release-control-label">更新镜像</label>
-                <div class="release-control-row">
-                  <select v-model="imageUpdateContainer" aria-label="选择容器"><option v-for="container in deploymentDetail.spec.template.spec.containers" :key="container.name" :value="container.name">{{ container.name }}</option></select>
-                  <input v-model.trim="imageUpdateImage" type="text" placeholder="例如 nginx:1.27.1" maxlength="512" />
-                  <button class="secondary-button" type="button" :disabled="operationBusy || !imageUpdateContainer || !imageUpdateImage" @click="previewDeploymentImageUpdate"><SlidersHorizontal :size="15" />预览更新</button>
-                </div>
-              </div>
-              <div class="release-control-group">
-                <label class="release-control-label">回滚版本</label>
-                <div class="release-control-row">
-                  <select v-model.number="rollbackRevision" aria-label="选择历史版本" :disabled="!rolloutHistory || rolloutHistory.revisions.filter((r) => !r.current).length === 0">
-                    <option :value="null" disabled>选择历史版本</option>
-                    <option v-for="rev in (rolloutHistory?.revisions ?? []).filter((r) => !r.current)" :key="rev.revision" :value="rev.revision">Revision {{ rev.revision }} · {{ (rev.images.join(', ') || '--').slice(0, 40) }}</option>
-                  </select>
-                  <button class="secondary-button" type="button" :disabled="operationBusy || rollbackRevision == null" @click="previewDeploymentRollback"><RefreshCw :size="15" />预览回滚</button>
-                </div>
-                <small v-if="rolloutHistory && rolloutHistory.revisions.filter((r) => !r.current).length === 0" class="release-control-hint">没有可回滚的历史版本</small>
-              </div>
-            </section>
+
             <section class="detail-section"><h3>Selector</h3><div class="detail-chip-list"><span v-for="([key, value]) in sortedEntries(deploymentDetail.spec.selector.matchLabels)" :key="key"><b>{{ key }}</b>= {{ value }}</span><div v-if="!sortedEntries(deploymentDetail.spec.selector.matchLabels).length" class="detail-empty">没有 Selector</div></div></section>
             <section class="detail-section"><h3>Labels</h3><div class="detail-chip-list"><span v-for="([key, value]) in sortedEntries(deploymentDetail.metadata.labels)" :key="key"><b>{{ key }}</b>= {{ value }}</span><div v-if="!sortedEntries(deploymentDetail.metadata.labels).length" class="detail-empty">没有 Labels</div></div></section>
           </template>
@@ -1161,19 +920,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
           </template>
 
           <template v-else-if="m17Detail && isM17Kind(detailSelection.kind)">
-            <div v-if="(detailSelection.kind === 'HPA' && m17HPASaturated(m17Detail)) || (detailSelection.kind === 'CronJob' && canOperate)" class="drawer-action-bar"><button v-if="detailSelection.kind === 'CronJob' && !(cronJobDetail?.spec.suspend ?? false)" class="secondary-button" type="button" :disabled="operationBusy" @click="previewCronJobOperation('cronjob.suspend')"><Pause :size="15" />暂停调度</button><button v-if="detailSelection.kind === 'CronJob' && (cronJobDetail?.spec.suspend ?? false)" class="secondary-button" type="button" :disabled="operationBusy" @click="previewCronJobOperation('cronjob.resume')"><Play :size="15" />恢复调度</button><button v-if="detailSelection.kind === 'HPA'" class="diagnose-button" type="button" :disabled="diagnosisLoading" @click="runDiagnosis('HPA', m17Detail)"><Sparkles :size="15" />检查扩容</button></div>
+            <div v-if="detailSelection.kind === 'HPA' && m17HPASaturated(m17Detail)" class="drawer-action-bar"><button v-if="detailSelection.kind === 'HPA'" class="diagnose-button" type="button" :disabled="diagnosisLoading" @click="runDiagnosis('HPA', m17Detail)"><Sparkles :size="15" />检查扩容</button></div>
             <dl class="resource-detail-stats"><div v-for="entry in m17DetailStats(detailSelection.kind, m17Detail)" :key="entry.label"><dt>{{ entry.label }}</dt><dd>{{ entry.value }}</dd></div></dl>
             <section class="detail-section"><h3>配置与状态</h3><dl class="detail-definition-list"><div v-for="entry in m17DetailValues(detailSelection.kind, m17Detail)" :key="entry.label"><dt>{{ entry.label }}</dt><dd>{{ entry.value }}</dd></div><div v-if="m17DetailValues(detailSelection.kind, m17Detail).length === 0" class="detail-empty">没有可展示字段</div></dl></section>
             <section v-if="secretDetail" class="detail-section"><h3>Data key names</h3><div class="detail-chip-list key-name-list"><span v-for="key in secretDetail.dataKeys" :key="key">{{ key }}</span><div v-if="secretDetail.dataKeys.length === 0" class="detail-empty">没有 Data key</div></div></section>
             <section v-if="m17Conditions(detailSelection.kind, m17Detail).length" class="detail-section"><h3>Conditions</h3><div class="condition-list"><article v-for="condition in m17Conditions(detailSelection.kind, m17Detail)" :key="condition.type"><span :class="['condition-indicator', condition.status === 'True' ? 'true' : 'false']" /><div><strong>{{ condition.type }} · {{ condition.status }}</strong><small>{{ condition.reason || 'No reason' }}</small><p>{{ condition.message || '没有附加消息' }}</p></div></article></div></section>
             <section v-if="detailSelection.kind !== 'Secret'" class="detail-section"><h3>Labels</h3><div class="detail-chip-list"><span v-for="([key, value]) in sortedEntries(m17Detail.metadata.labels)" :key="key"><b>{{ key }}</b>= {{ value }}</span><div v-if="!sortedEntries(m17Detail.metadata.labels).length" class="detail-empty">没有 Labels</div></div></section>
           </template>
-
-          <p v-if="operationError && !operationPlan" class="operation-inline-error">{{ operationError }}</p>
-          <section v-if="controlledOperationKind(detailSelection)" class="detail-section operation-history-section">
-            <div class="detail-section-heading"><h3>受控操作记录</h3><span>{{ operationHistory.length }}</span></div>
-            <div class="operation-history-list"><article v-for="plan in operationHistory" :key="plan.id"><span class="remediation-status" :class="plan.status">{{ operationStatusLabel(plan.status) }}</span><div><strong>{{ operationActionLabel(plan.action) }}</strong><small>{{ formatTime(plan.created_at) }} · {{ plan.requested_by.name }}</small><p v-if="plan.change">{{ plan.change.field }}: {{ operationValue(plan.change.before) }} → {{ operationValue(plan.change.after) }}</p><p v-if="plan.last_error">{{ plan.last_error }}</p></div></article><div v-if="operationHistory.length === 0" class="detail-empty">暂无受控操作记录</div></div>
-          </section>
 
           <section class="detail-section related-events-section">
             <div class="detail-section-heading"><h3>关联事件</h3><span>{{ relatedEvents.length }}</span></div>
@@ -1190,8 +943,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         </template>
       </section>
     </div>
-
-    <div v-if="operationPlan" class="log-overlay operation-overlay" @click.self="!operationBusy && clearOperationPreview()"><section class="operation-confirmation-dialog" role="dialog" aria-modal="true" aria-label="确认受控操作"><header><div><p class="context-label">SERVER-SIDE DRY-RUN PASSED</p><h2>{{ operationActionLabel(operationPlan.action) }}</h2></div><button class="icon-button" type="button" title="取消操作" aria-label="取消操作" :disabled="operationBusy" @click="clearOperationPreview"><X :size="18" /></button></header><dl><div><dt>目标</dt><dd>{{ operationPlan.target.kind }}/{{ operationPlan.target.namespace }}/{{ operationPlan.target.name }}</dd></div><div><dt>资源版本</dt><dd>{{ operationPlan.target.resource_version }}</dd></div><div><dt>变更</dt><dd>{{ operationPlan.change?.field }}: {{ operationValue(operationPlan.change?.before) }} → {{ operationValue(operationPlan.change?.after) }}</dd></div><div><dt>有效期至</dt><dd>{{ formatTime(operationPlan.expires_at) }}</dd></div></dl><p v-if="operationError" class="operation-inline-error">{{ operationError }}</p><label class="operation-confirm-check"><input v-model="operationConfirmed" type="checkbox" />我确认仅对上述固定资源和字段执行该操作。</label><footer><button class="secondary-button" type="button" :disabled="operationBusy" @click="clearOperationPreview">取消</button><button class="primary-button" type="button" :disabled="operationBusy || !operationConfirmed || !operationToken" @click="confirmOperation"><Check :size="15" />{{ operationBusy ? '执行中' : '确认执行' }}</button></footer></section></div>
 
     <div v-if="logTitle" class="log-overlay" @click.self="logTitle = ''"><section class="log-drawer" role="dialog" aria-modal="true" aria-label="Pod 日志"><header><div><p class="context-label">POD LOGS</p><h2>{{ logTitle }}</h2></div><button class="icon-button" aria-label="关闭日志" @click="logTitle = ''"><X :size="18" /></button></header><pre>{{ logLoading ? '正在读取日志…' : logs }}</pre></section></div>
     <div v-if="diagnosis" class="log-overlay" @click.self="diagnosis = null"><section class="diagnosis-drawer" role="dialog" aria-modal="true" aria-label="规则诊断"><header><div><p class="context-label">RULE DIAGNOSIS</p><h2>{{ diagnosis.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="diagnosis = null"><X :size="18" /></button></header><span class="severity-badge">{{ diagnosis.severity }}</span><p class="diagnosis-summary">{{ diagnosis.summary }}</p><h3>可能根因</h3><ol><li v-for="item in diagnosis.root_causes" :key="item">{{ item }}</li></ol><h3>处理建议</h3><ol><li v-for="item in diagnosis.recommendations" :key="item">{{ item }}</li></ol><h3>证据</h3><article v-for="item in diagnosis.evidence" :key="`${item.type}-${item.source}`" class="evidence-card"><strong>{{ item.type }} · {{ item.source }}</strong><pre>{{ JSON.stringify(item.content, null, 2) }}</pre></article></section></div>

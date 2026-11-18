@@ -9,6 +9,7 @@ export default defineConfig({
   timeout: 30_000,
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
+    ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
     baseURL,
     locale: 'zh-CN',
     timezoneId: 'Asia/Shanghai',

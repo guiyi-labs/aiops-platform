@@ -5,8 +5,7 @@ import { Boxes, Filter, GitBranch, Link2, RefreshCw, Sparkles, X, Zap } from 'lu
 
 import { listClusters } from '../api/clusters'
 import { getCorrelationCase, listCorrelationActions, listCorrelationCases } from '../api/aiops'
-import { APIError } from '../api/auth'
-import { createIncident } from '../api/incidents'
+
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
@@ -30,7 +29,6 @@ const actionsLoading = ref(false)
 const errorMessage = ref('')
 const detailError = ref('')
 const noticeMessage = ref('')
-const promoting = ref(false)
 
 const hasCases = computed(() => cases.value.length > 0)
 
@@ -152,35 +150,6 @@ async function openCase(item: CorrelationCase) {
   } finally {
     detailLoading.value = false
     actionsLoading.value = false
-  }
-}
-
-async function promoteToIncident() {
-  if (!selectedCaseID.value || !caseView.value?.case) return
-  const c = caseView.value.case
-  noticeMessage.value = ''
-  detailError.value = ''
-  promoting.value = true
-  try {
-    const incident = await createIncident(auth.accessToken!, {
-      source_type: 'correlation',
-      source_ref: `correlation:${c.id}`,
-      cluster_id: c.cluster_id,
-      title: `关联案例事故 ${c.case_key}`,
-      summary: `从关联案例 #${c.id} 提升的事故工作区`,
-    })
-    if (caseView.value) {
-      caseView.value.incident = { id: incident.id, number: incident.number, title: incident.title, status: incident.status }
-    }
-    noticeMessage.value = `已创建事故工作区 ${incident.number}`
-  } catch (err) {
-    if (err instanceof APIError && err.code === 'SOURCE_ALREADY_USED') {
-      noticeMessage.value = '该关联案例已存在关联的事故工作区'
-    } else {
-      detailError.value = err instanceof APIError ? err.message : '创建事故工作区失败'
-    }
-  } finally {
-    promoting.value = false
   }
 }
 
@@ -316,7 +285,7 @@ onMounted(initialize)
         <div v-if="!selectedCaseID" class="resource-empty detail-empty">
           <Sparkles :size="30" />
           <strong>选择左侧案例查看详情</strong>
-          <span>详情包含归因因子、信号链路、资源关系、变更候选与可执行动作。</span>
+          <span>详情包含归因因子、信号链路、资源关系、变更候选与处置建议。</span>
         </div>
         <template v-else>
           <header class="case-detail-header">
@@ -328,9 +297,7 @@ onMounted(initialize)
               <small v-if="caseView?.case">{{ caseView.case.primary_resource.namespace }} · 规则 {{ caseView.case.rule_id }} · 引擎 {{ caseView.case.correlation_version }}</small>
             </div>
             <div class="case-detail-actions">
-              <button class="action-button" type="button" :disabled="promoting || !caseView?.case" @click="promoteToIncident">
-                <Zap :size="15" />{{ promoting ? '提升中…' : '提升事故' }}
-              </button>
+
               <button class="icon-button" type="button" title="关闭详情" aria-label="关闭详情" @click="closeDetail"><X :size="16" /></button>
             </div>
           </header>
@@ -344,7 +311,7 @@ onMounted(initialize)
             <span class="mini-badge neutral">证据完整度 {{ completenessPercent(caseView.case.evidence_completeness) }}</span>
             <span class="mini-badge neutral">首次观察 {{ formatTime(caseView.case.first_observed_at) }}</span>
             <span class="mini-badge neutral">最近观察 {{ formatTime(caseView.case.last_observed_at) }}</span>
-            <a v-if="caseView.incident" class="mini-badge linked-incident" :href="'/incidents'">已关联事故 {{ caseView.incident.number }} ↗</a>
+
           </div>
 
           <section v-if="caseView" class="detail-section">
@@ -422,13 +389,13 @@ onMounted(initialize)
           </section>
 
           <section class="detail-section">
-            <h3><Zap :size="15" />可执行动作候选<span v-if="actionsLoading"> · 加载中…</span></h3>
-            <p v-if="!actionsLoading && actions.length === 0" class="compact-empty">暂无可执行动作候选</p>
+            <h3><Zap :size="15" />处置建议候选<span v-if="actionsLoading"> · 加载中…</span></h3>
+            <p v-if="!actionsLoading && actions.length === 0" class="compact-empty">暂无处置建议候选</p>
             <ul v-else class="action-list">
               <li v-for="(action, idx) in actions" :key="idx">
                 <div class="action-head">
                   <strong>{{ action.code }}</strong>
-                  <span class="mini-badge" :class="{ eligible: action.eligible, blocked: !action.eligible }">{{ action.eligible ? '可执行' : '已阻塞' }}</span>
+                  <span class="mini-badge" :class="{ eligible: action.eligible, blocked: !action.eligible }">{{ action.eligible ? '供人工参考' : '条件未满足' }}</span>
                 </div>
                 <small>目标：{{ resourceLabel(action.target) }} · 来源案例 #{{ action.source_case_id }}<span v-if="action.source_candidate_id"> · 候选 #{{ action.source_candidate_id }}</span></small>
                 <p v-if="action.blocked_reasons.length" class="action-blocked">阻塞原因：{{ action.blocked_reasons.join('；') }}</p>

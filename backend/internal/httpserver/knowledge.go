@@ -3,6 +3,8 @@ package httpserver
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 
@@ -18,14 +20,15 @@ import (
 //	GET /api/v1/aiops/knowledge         — list/filter distilled cases
 //	GET /api/v1/aiops/knowledge/stats   — total count (library observability)
 type knowledgeHandler struct {
-	repo knowledge.Repository
+	repo      knowledge.Repository
+	retriever *knowledge.Retriever
 }
 
 // listKnowledge handles GET /api/v1/aiops/knowledge.
 //
 // Query params (all optional):
 //
-//	rule_id, severity, resource_kind, min_severity, limit.
+//	q, rule_id, severity, resource_kind, min_severity, limit.
 //
 // severity filters exactly; min_severity keeps entries at or above the given
 // rank (info < warning < high < critical). limit is clamped to [1,100] with a
@@ -69,6 +72,38 @@ func (h knowledgeHandler) listKnowledge(c *gin.Context) {
 		limit = n
 	}
 	filter.Limit = limit
+	query := strings.TrimSpace(c.Query("q"))
+	if utf8.RuneCountInString(query) > 500 {
+		writeError(c, http.StatusBadRequest, "INVALID_QUERY", "q must not exceed 500 characters")
+		return
+	}
+	if query != "" {
+		if h.retriever == nil {
+			writeError(c, http.StatusServiceUnavailable, "KNOWLEDGE_UNAVAILABLE", "case search is not configured")
+			return
+		}
+		if filter.MinSeverity != "" {
+			writeError(c, http.StatusBadRequest, "INVALID_QUERY", "min_severity cannot be combined with q")
+			return
+		}
+		items, err := h.retriever.Retrieve(c.Request.Context(), knowledge.Query{
+			RuleID: filter.RuleID, Severity: filter.Severity,
+			ResourceKind: filter.ResourceKind, SummaryHint: query,
+		}, nil)
+		if err != nil {
+			writeError(c, http.StatusInternalServerError, "KNOWLEDGE_QUERY_FAILED", "failed to search knowledge entries")
+			return
+		}
+		if items == nil {
+			items = []knowledge.Entry{}
+		}
+		truncated := len(items) > limit
+		if truncated {
+			items = items[:limit]
+		}
+		c.JSON(http.StatusOK, knowledge.ListResponse{Items: items, Total: int64(len(items)), Truncated: truncated})
+		return
+	}
 
 	resp, err := h.repo.ListByFilter(c.Request.Context(), filter)
 	if err != nil {

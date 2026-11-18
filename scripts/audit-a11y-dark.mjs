@@ -1,3 +1,4 @@
+import { consoleUIViews } from './console-ui-views.mjs'
 /**
  * 暗色主题可访问性审计（axe-core）。
  *
@@ -51,15 +52,7 @@ function findAxe() {
 // tab 里渲染的面板从来没被 axe 扫过 —— 而它恰恰是暗色下问题最重的一处
 // （节点名 #1d2226 压在 #0d1315 上，对比度 1.2:1，肉眼完全看不见，
 //   审计却一直报 0 违规）。默认不点 tab 的审计等于只验了首屏。
-const VIEWS = [
-  ['/diagnoses', '智能诊断'],
-  ['/', '集群态势'],
-  ['/nodes', '资源工作台'],
-  ['/incidents', '事故工作空间'],
-  ['/aiops/overview', '智能运维概览', ['概览', '信号列表', '拓扑图']],
-  ['/audit-logs', '审计日志'],
-  ['/alerts', '告警规则'],
-]
+const VIEWS = consoleUIViews.filter(view => view.auth).map(view => [view.path, view.readyText])
 
 const AXE_SOURCE = readFileSync(findAxe(), 'utf8')
 

@@ -316,8 +316,8 @@ async function submit() {
             @mouseleave="activeCapability = null"
           >
             <i class="capability-pip pip-green" aria-hidden="true"></i>
-            <span>多集群治理</span>
-            <strong>统一视图</strong>
+            <span>集群资源</span>
+            <strong>状态采集</strong>
           </div>
           <div
             :class="['login-capability', { 'is-active': activeCapability === 'diagnosis' }]"
@@ -336,8 +336,8 @@ async function submit() {
             @mouseleave="activeCapability = null"
           >
             <i class="capability-pip pip-violet" aria-hidden="true"></i>
-            <span>变更控制</span>
-            <strong>审计闭环</strong>
+            <span>案例记忆</span>
+            <strong>经验复用</strong>
           </div>
         </div>
 
@@ -353,7 +353,7 @@ async function submit() {
         <span class="login-card-frame" aria-hidden="true"></span>
         <span class="login-icon"><LockKeyhole :size="22" /></span>
         <p class="context-label">安全访问</p>
-        <h2>登录运维控制台</h2>
+        <h2>登录故障诊断系统</h2>
         <p class="form-hint">使用平台账号继续</p>
         <p v-if="passwordChanged" class="login-success">密码已更新，请使用新密码重新登录。</p>
 

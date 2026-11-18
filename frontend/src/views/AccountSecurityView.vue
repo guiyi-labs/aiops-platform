@@ -80,3 +80,7 @@ onMounted(loadSessions)
     </section>
   </ConsoleLayout>
 </template>
+
+<style scoped>
+.session-list article span { color: var(--text-secondary); }
+</style>

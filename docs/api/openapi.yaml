@@ -1645,6 +1645,10 @@ paths:
       operationId: listKnowledgeEntries
       security: [{ bearerAuth: [] }]
       parameters:
+        - name: q
+          in: query
+          description: Optional fault description for hybrid case retrieval; rule_id and resource_kind act as retrieval hints. Cannot be combined with min_severity.
+          schema: { type: string, maxLength: 500 }
         - { name: rule_id, in: query, schema: { type: string } }
         - { name: severity, in: query, schema: { type: string, enum: [info, warning, high, critical] } }
         - { name: min_severity, in: query, schema: { type: string, enum: [info, warning, high, critical] } }

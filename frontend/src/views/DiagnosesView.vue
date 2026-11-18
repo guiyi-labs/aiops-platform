@@ -1,27 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { Boxes, CheckCircle2, FileSearch, MessageSquareText, Pause, Play, RefreshCw, RotateCcw, SearchCheck, SkipBack, SkipForward, Sparkles, Stethoscope, UserCheck, X, XCircle } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { Boxes, CheckCircle2, FileSearch, MessageSquareText, Pause, Play, RefreshCw, RotateCcw, SearchCheck, SkipBack, SkipForward, Sparkles, Stethoscope, X, XCircle } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
-import { addAIExplanationFeedback, addDiagnosisFeedback, assignDiagnosis, executeRemediation, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisReplay, listDiagnoses, listDiagnosisExplanations, listRemediationPlans, previewRemediation, transitionDiagnosis } from '../api/diagnosis'
+import { addAIExplanationFeedback, addDiagnosisFeedback, generateDiagnosisExplanation, getAIQualitySummary, getAIRuntimeStatus, getDiagnosis, getDiagnosisReplay, listDiagnoses, listDiagnosisExplanations, transitionDiagnosis } from '../api/diagnosis'
 import { APIError } from '../api/auth'
-import { listAssignableUsers } from '../api/users'
+
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import FindingEvidencePanel from '../components/FindingEvidencePanel.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, DiagnosisActionItem, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisReplayView, DiagnosisStatus, FeedbackVerdict, RemediationPlan } from '../types/diagnosis'
-import type { UserProfile } from '../types/auth'
+import type { AIExplanationFeedbackVerdict, AIQualitySummary, AIRuntimeStatus, DiagnosisAIExplanation, DiagnosisRecord, DiagnosisReplayView, DiagnosisStatus, FeedbackVerdict } from '../types/diagnosis'
+
 import { useDiagnosisReplay } from '../composables/useDiagnosisReplay'
 import { fromDiagnosis } from '../utils/finding-detail'
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const clusters = ref<Cluster[]>([])
 const selectedClusterID = ref(0)
 const statusFilter = ref<DiagnosisStatus | ''>('')
-const overdueOnly = ref(false)
+
 const records = ref<DiagnosisRecord[]>([])
 const detail = ref<DiagnosisRecord | null>(null)
 const loading = ref(false)
@@ -36,9 +37,7 @@ const transitionComment = ref('')
 const feedbackVerdict = ref<FeedbackVerdict>('accurate')
 const feedbackComment = ref('')
 const saving = ref(false)
-const assignableUsers = ref<UserProfile[]>([])
-const assignmentUserID = ref(0)
-const assignmentComment = ref('')
+
 const explanations = ref<DiagnosisAIExplanation[]>([])
 const aiLoading = ref(false)
 const aiError = ref('')
@@ -46,14 +45,7 @@ const aiStatus = ref<AIRuntimeStatus | null>(null)
 const aiQuality = ref<AIQualitySummary | null>(null)
 const aiFeedbackComments = ref<Record<number, string>>({})
 const aiFeedbackSaving = ref(0)
-const remediationPlans = ref<RemediationPlan[]>([])
-const remediationTarget = ref('')
-const pendingRemediation = ref<RemediationPlan | null>(null)
-const remediationToken = ref('')
-const remediationIdempotencyKey = ref('')
-const remediationConfirmed = ref(false)
-const remediationBusy = ref(false)
-const remediationError = ref('')
+
 const replay = ref<DiagnosisReplayView | null>(null)
 const replayLoadError = ref('')
 const replayControls = reactive(useDiagnosisReplay(() => replay.value?.steps ?? []))
@@ -64,16 +56,6 @@ const aiGenerationBlocked = computed(() => aiStatus.value ? !aiStatus.value.enab
 
 function formatTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
-}
-
-function slaLabel(record: DiagnosisRecord): string {
-  if (record.status === 'resolved' || record.status === 'dismissed') return 'SLA 已关闭'
-  const milliseconds = new Date(record.sla_due_at).getTime() - Date.now()
-  const absoluteMinutes = Math.max(1, Math.round(Math.abs(milliseconds) / 60000))
-  const hours = Math.floor(absoluteMinutes / 60)
-  const minutes = absoluteMinutes % 60
-  const duration = hours > 0 ? `${hours}小时${minutes > 0 ? `${minutes}分` : ''}` : `${minutes}分钟`
-  return milliseconds < 0 ? `已逾期 ${duration}` : `剩余 ${duration}`
 }
 
 // ─── 证据内容结构化展示 ───
@@ -111,7 +93,7 @@ function formatTimestamp(raw: unknown): string {
 async function loadRecords() {
   loading.value = true; errorMessage.value = ''
   try {
-    const page = await listDiagnoses(auth.accessToken, { clusterID: selectedClusterID.value || undefined, status: statusFilter.value, overdue: overdueOnly.value ? true : undefined })
+    const page = await listDiagnoses(auth.accessToken, { clusterID: selectedClusterID.value || undefined, status: statusFilter.value })
     records.value = page.items
     recordsTotal.value = page.total
     // 只有还剩记录时才给游标，否则底部会一直显示「加载更多」。
@@ -132,7 +114,7 @@ async function loadMoreRecords() {
     const page = await listDiagnoses(auth.accessToken, {
       clusterID: selectedClusterID.value || undefined,
       status: statusFilter.value,
-      overdue: overdueOnly.value ? true : undefined,
+
       beforeID: recordsCursor.value,
     })
     const seen = new Set(records.value.map((item) => item.id))
@@ -160,63 +142,16 @@ async function loadReplay(diagnosisID: number) {
 async function openDetail(record: DiagnosisRecord) {
   detailLoading.value = true; errorMessage.value = ''
   try {
-    const [recordDetail, explanationResponse, remediationResponse] = await Promise.all([getDiagnosis(auth.accessToken, record.id), listDiagnosisExplanations(auth.accessToken, record.id), listRemediationPlans(auth.accessToken, record.id)])
+    const [recordDetail, explanationResponse] = await Promise.all([getDiagnosis(auth.accessToken, record.id), listDiagnosisExplanations(auth.accessToken, record.id)])
     detail.value = recordDetail
     explanations.value = explanationResponse.items
-    remediationPlans.value = remediationResponse.items
-    pendingRemediation.value = null; remediationToken.value = ''; remediationConfirmed.value = false; remediationError.value = ''
+
     aiError.value = ''
-    assignmentUserID.value = detail.value.assignee?.id ?? assignableUsers.value[0]?.id ?? 0
+
     loadReplay(record.id)
   }
   catch { errorMessage.value = '无法加载诊断证据详情' }
   finally { detailLoading.value = false }
-}
-
-async function createRemediationPreview() {
-  if (!detail.value || !remediationTarget.value.trim()) return
-  remediationBusy.value = true; remediationError.value = ''
-  try {
-    const plan = await previewRemediation(auth.accessToken, detail.value.id, 'deployment.rollout_restart', remediationTarget.value.trim())
-    pendingRemediation.value = plan
-    remediationToken.value = plan.confirmation_token || ''
-    remediationIdempotencyKey.value = `remediation-${crypto.randomUUID()}`
-    remediationConfirmed.value = false
-    remediationPlans.value = [plan, ...remediationPlans.value]
-  } catch (error) {
-    remediationError.value = error instanceof APIError && error.code === 'REMEDIATION_TARGET_MISMATCH'
-      ? '目标 Deployment 的 selector 与当前诊断 Pod 不匹配。'
-      : 'dry-run 未通过；未创建可执行修复计划。'
-  } finally { remediationBusy.value = false }
-}
-
-async function confirmRemediation() {
-  if (!pendingRemediation.value || !remediationToken.value || !remediationConfirmed.value) return
-  remediationBusy.value = true; remediationError.value = ''
-  try {
-    const result = await executeRemediation(auth.accessToken, pendingRemediation.value.id, remediationToken.value, remediationIdempotencyKey.value)
-    remediationPlans.value = remediationPlans.value.map((item) => item.id === result.id ? result : item)
-    pendingRemediation.value = null; remediationToken.value = ''; remediationConfirmed.value = false
-  } catch (error) {
-    remediationError.value = error instanceof APIError ? `执行失败：${error.message}` : '执行失败，请检查集群状态和审计记录。'
-    if (detail.value) remediationPlans.value = (await listRemediationPlans(auth.accessToken, detail.value.id).catch(() => ({ items: remediationPlans.value, total: 0, remaining: 0 }))).items
-  } finally { remediationBusy.value = false }
-}
-
-function remediationStatusLabel(status: RemediationPlan['status']): string {
-  return ({ awaiting_confirmation: '等待确认', executing: '执行中', succeeded: '成功', failed: '失败', expired: '已过期' } as const)[status]
-}
-
-function actionKindLabel(kind: DiagnosisActionItem['kind']): string {
-  return kind === 'advisory' ? '只读建议' : '受控动作'
-}
-
-function actionAreaHint(detail: DiagnosisRecord): { level: 'advisory' | 'unavailable' | 'permission' | 'dependency'; text: string } {
-  const hasControlled = detail.actions?.some((item) => item.kind === 'controlled_action') ?? false
-  if (!hasControlled) return { level: 'advisory', text: '当前诊断仅提供只读建议，无受控动作。' }
-  if (!canManage.value) return { level: 'permission', text: '受控动作需要 system_admin / operations_admin 权限。' }
-  if (detail.status !== 'confirmed') return { level: 'dependency', text: '受控动作要求诊断处于 confirmed 状态，且集群 dry-run 可用。' }
-  return { level: 'advisory', text: '' }
 }
 
 const workloadsKindMap: Record<string, string> = {
@@ -364,28 +299,18 @@ async function submitFeedback() {
   finally { saving.value = false }
 }
 
-async function transferAssignment() {
-  if (!detail.value || !assignmentUserID.value) return
-  saving.value = true; errorMessage.value = ''
-  try {
-    detail.value = await assignDiagnosis(auth.accessToken, detail.value.id, assignmentUserID.value, assignmentComment.value.trim())
-    assignmentComment.value = ''
-    await loadRecords()
-  } catch { errorMessage.value = '负责人转派失败，请确认目标账号可用且不是当前负责人' }
-  finally { saving.value = false }
-}
-
 async function initialize() {
   try {
-    const [clusterResponse, userResponse] = await Promise.all([listClusters(auth.accessToken), canManage.value ? listAssignableUsers(auth.accessToken) : Promise.resolve({ items: [], total: 0, remaining: 0 })])
-    clusters.value = clusterResponse.items; assignableUsers.value = userResponse.items
-  }
-  catch { errorMessage.value = '无法加载集群列表' }
-  await Promise.all([loadAIStatus(), loadAIQuality()])
-  await loadRecords()
+    clusters.value = (await listClusters(auth.accessToken)).items
+    const requested = Number(route.query.cluster)
+    selectedClusterID.value = clusters.value.find(item => item.id === requested)?.id ?? clusters.value.find(item => item.enabled)?.id ?? clusters.value[0]?.id ?? 0
+  } catch { errorMessage.value = '无法加载集群列表' }
+  await Promise.all([loadAIStatus(), loadAIQuality(), loadRecords()])
+  const id = Number(route.query.id)
+  if (Number.isSafeInteger(id) && id > 0) await openDetail({ id } as DiagnosisRecord)
 }
 
-watch([selectedClusterID, statusFilter, overdueOnly], loadRecords)
+watch([selectedClusterID, statusFilter], loadRecords)
 onMounted(initialize)
 </script>
 
@@ -394,7 +319,7 @@ onMounted(initialize)
     <section class="diagnosis-toolbar">
       <div><strong>诊断历史</strong><span>规则结论与原始证据分离保存，可追溯每次判断依据。</span></div>
       <div class="toolbar-actions">
-        <select v-model="selectedClusterID" aria-label="按集群筛选"><option :value="0">全部集群</option><option v-for="item in clusters" :key="item.id" :value="item.id">{{ item.name }}</option></select><select v-model="statusFilter" aria-label="按状态筛选"><option value="">全部状态</option><option value="open">open</option><option value="confirmed">confirmed</option><option value="resolved">resolved</option><option value="dismissed">dismissed</option></select><label class="overdue-filter"><input v-model="overdueOnly" type="checkbox" />仅看逾期</label>
+        <select v-model="selectedClusterID" aria-label="按集群筛选"><option v-for="item in clusters" :key="item.id" :value="item.id">{{ item.name }}</option></select><select v-model="statusFilter" aria-label="按状态筛选"><option value="">全部状态</option><option value="open">open</option><option value="confirmed">confirmed</option><option value="resolved">resolved</option><option value="dismissed">dismissed</option></select>
         <button class="secondary-button" type="button" :disabled="loading" @click="loadRecords"><RefreshCw :size="15" :class="{ spinning: loading }" />刷新</button>
       </div>
     </section>
@@ -403,7 +328,7 @@ onMounted(initialize)
       <div v-if="!loading && records.length === 0" class="resource-empty"><Stethoscope :size="30" /><strong>暂无诊断记录</strong><span>请在工作负载页面对异常 Pod 或 Service 发起诊断。</span></div>
       <button v-for="record in records" :key="record.id" type="button" class="diagnosis-history-row" :disabled="detailLoading" @click="openDetail(record)">
         <span class="diagnosis-rule-icon"><FileSearch :size="18" /></span>
-        <span class="diagnosis-history-main"><strong>{{ record.summary }}</strong><small>{{ record.rule_id }} · {{ record.resource.kind }}/{{ record.resource.namespace }}/{{ record.resource.name }} · {{ slaLabel(record) }}</small></span>
+        <span class="diagnosis-history-main"><strong>{{ record.summary }}</strong><small>{{ record.rule_id }} · {{ record.resource.kind }}/{{ record.resource.namespace }}/{{ record.resource.name }}</small></span>
         <span class="diagnosis-cluster">{{ clusterNames.get(record.cluster_id) || `集群 #${record.cluster_id}` }}</span>
         <span class="diagnosis-list-badges"><span class="severity-badge">{{ record.severity }}</span><span class="workflow-status" :class="record.status">{{ record.status }}</span></span>
         <time>{{ formatTime(record.observed_at) }}</time>
@@ -425,7 +350,7 @@ onMounted(initialize)
       </div>
     </section>
 
-    <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span><span v-if="detail.assignee" class="assignee-badge"><UserCheck :size="13" />{{ detail.assignee.name }}</span><span class="sla-badge" :class="{ overdue: detail.overdue }">{{ slaLabel(detail) }}</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }} · 截止 {{ formatTime(detail.sla_due_at) }}</p>
+    <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }}</p>
       <FindingEvidencePanel :finding="fromDiagnosis(detail)" />
       <section v-if="detail.root_cause_card" class="root-cause-card">
         <header><span class="root-cause-label">根因结论</span><span class="root-cause-confidence">{{ detail.root_cause_card.confidence }}</span></header>
@@ -455,34 +380,11 @@ onMounted(initialize)
           </div>
         </article>
       </section>
-      <section v-if="canManage" class="assignment-panel"><h3>负责人转派</h3><div><select v-model="assignmentUserID" aria-label="选择负责人"><option v-for="item in assignableUsers" :key="item.id" :value="item.id">{{ item.display_name }} · {{ item.username }}</option></select><input v-model="assignmentComment" maxlength="2000" placeholder="转派原因（可选）" /><button class="secondary-button" :disabled="saving || !assignmentUserID || assignmentUserID === detail.assignee?.id" @click="transferAssignment"><UserCheck :size="14" />转派</button></div></section>
-      <section v-if="canManage" class="workflow-panel"><h3>处置操作</h3><textarea v-model="transitionComment" maxlength="2000" placeholder="记录复现情况、处置结果或驳回原因（可选）" /><div class="workflow-actions"><button v-if="detail.status === 'open'" class="primary-button" :disabled="saving" @click="changeStatus('confirmed')"><CheckCircle2 :size="14" />确认异常</button><button v-if="detail.status === 'confirmed'" class="primary-button" :disabled="saving" @click="changeStatus('resolved')"><CheckCircle2 :size="14" />标记已解决</button><button v-if="['open', 'confirmed'].includes(detail.status)" class="secondary-button" :disabled="saving" @click="changeStatus('dismissed')"><XCircle :size="14" />驳回</button><button v-if="['resolved', 'dismissed'].includes(detail.status)" class="secondary-button" :disabled="saving" @click="changeStatus('open')"><RotateCcw :size="14" />重新打开</button></div></section>
-      <section class="remediation-panel">
-        <div class="remediation-heading"><div><h3>受控修复</h3><small>仅允许对匹配当前 Pod 的 Deployment 执行 rollout restart；先由 Kubernetes dry-run 验证。</small></div></div>
-        <div v-if="canManage && detail.status === 'confirmed' && detail.resource.kind === 'Pod'" class="remediation-preview-form"><input v-model="remediationTarget" maxlength="253" placeholder="目标 Deployment 名称" aria-label="目标 Deployment 名称" /><button class="secondary-button" :disabled="remediationBusy || !remediationTarget.trim()" @click="createRemediationPreview">生成 dry-run 计划</button></div>
-        <p v-else-if="canManage" class="compact-empty">只有 confirmed 状态的 Pod 诊断可以生成修复计划。</p>
-        <p v-if="remediationError" class="error-message">{{ remediationError }}</p>
-        <div v-if="pendingRemediation" class="remediation-confirmation"><strong>dry-run 已通过：{{ pendingRemediation.target.kind }}/{{ pendingRemediation.target.namespace }}/{{ pendingRemediation.target.name }}</strong><small>计划 {{ pendingRemediation.id }} · 资源版本 {{ pendingRemediation.target.resource_version }} · {{ formatTime(pendingRemediation.expires_at) }} 前有效</small><label><input v-model="remediationConfirmed" type="checkbox" />我确认对上述固定资源执行 rollout restart，并理解这会创建新的 Pod。</label><button class="primary-button" :disabled="remediationBusy || !remediationConfirmed" @click="confirmRemediation">确认并执行</button></div>
-        <div class="remediation-history"><article v-for="plan in remediationPlans" :key="plan.id"><span class="remediation-status" :class="plan.status">{{ remediationStatusLabel(plan.status) }}</span><strong>{{ plan.target.kind }}/{{ plan.target.namespace }}/{{ plan.target.name }}</strong><time>{{ formatTime(plan.created_at) }}</time><small>{{ plan.requested_by.name }} · {{ plan.id }}</small><p v-if="plan.last_error">{{ plan.last_error }}</p></article><p v-if="!remediationPlans.length" class="compact-empty">暂无受控修复计划。</p></div>
-      </section>
+
+      <section v-if="canManage" class="workflow-panel"><h3>人工处理与结案</h3><textarea v-model="transitionComment" maxlength="2000" placeholder="记录复现情况、处置结果或驳回原因（可选）" /><div class="workflow-actions"><button v-if="detail.status === 'open'" class="primary-button" :disabled="saving" @click="changeStatus('confirmed')"><CheckCircle2 :size="14" />确认异常</button><button v-if="detail.status === 'confirmed'" class="primary-button" :disabled="saving" @click="changeStatus('resolved')"><CheckCircle2 :size="14" />标记已解决</button><button v-if="['open', 'confirmed'].includes(detail.status)" class="secondary-button" :disabled="saving" @click="changeStatus('dismissed')"><XCircle :size="14" />驳回</button><button v-if="['resolved', 'dismissed'].includes(detail.status)" class="secondary-button" :disabled="saving" @click="changeStatus('open')"><RotateCcw :size="14" />重新打开</button></div></section>
+
       <h3>可能根因</h3><ol><li v-for="item in detail.root_causes" :key="item">{{ item }}</li></ol><h3>处理建议</h3><ol><li v-for="item in detail.recommendations" :key="item">{{ item }}</li></ol>
-      <section class="action-area">
-        <h3>行动区 · {{ detail.actions?.length ?? 0 }}</h3>
-        <div v-if="detail.actions?.length" class="action-area-list">
-          <article v-for="item in detail.actions" :key="item.title" :class="['action-item', item.kind]">
-            <span class="action-kind" :class="item.kind">{{ actionKindLabel(item.kind) }}</span>
-            <div class="action-body">
-              <strong>{{ item.title }}</strong>
-              <p v-if="item.detail">{{ item.detail }}</p>
-              <small v-if="item.requires_dry_run">先由 Kubernetes dry-run 验证；确认后才会执行。</small>
-            </div>
-          </article>
-        </div>
-        <div v-if="detail.actions?.some((item) => item.kind === 'controlled_action') && !(canManage && detail.status === 'confirmed')" class="action-area-note">
-          <span class="notice-badge">{{ actionAreaHint(detail).level }}</span>
-          {{ actionAreaHint(detail).text }}
-        </div>
-      </section>
+
       <section class="deep-links" aria-label="关联入口">
         <h3>关联入口</h3>
         <div class="deep-link-row">
@@ -570,7 +472,7 @@ onMounted(initialize)
         </article>
       </template>
       <section class="workflow-timeline"><h3>处置记录 · {{ detail.activities?.length ?? 0 }}</h3><article v-for="item in detail.activities" :key="item.id"><span>{{ item.from_status }} → {{ item.to_status }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article><p v-if="!detail.activities?.length" class="compact-empty">尚未开始人工处置</p></section>
-      <section class="assignment-history"><h3>转派记录 · {{ detail.assignments?.length ?? 0 }}</h3><article v-for="item in detail.assignments" :key="item.id"><span>{{ item.from_assignee?.name || '未分配' }} → {{ item.to_assignee.name }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article><p v-if="!detail.assignments?.length" class="compact-empty">暂无负责人转派</p></section>
+
       <section v-if="canManage" class="feedback-panel"><h3>规则准确性反馈</h3><div><select v-model="feedbackVerdict" aria-label="反馈结论"><option value="accurate">准确</option><option value="inaccurate">不准确</option><option value="uncertain">暂不确定</option></select><input v-model="feedbackComment" maxlength="2000" placeholder="补充判断依据（可选）" /><button class="secondary-button" :disabled="saving" @click="submitFeedback"><MessageSquareText :size="14" />提交反馈</button></div></section><section class="feedback-history"><article v-for="item in detail.feedback" :key="item.id"><span class="feedback-verdict" :class="item.verdict">{{ item.verdict }}</span><strong>{{ item.actor.name }}</strong><time>{{ formatTime(item.created_at) }}</time><p v-if="item.comment">{{ item.comment }}</p></article></section>
     </section></div>
   </ConsoleLayout>

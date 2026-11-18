@@ -107,34 +107,12 @@ test.afterEach(() => {
   expect(consoleErrors).toEqual([])
 })
 
-test('M108 deep link: ?case_id= focuses case detail and promotes to incident', async ({ page }) => {
+test('Correlation deep link opens evidence within diagnosis without incident controls', async ({ page }) => {
   await page.goto('/aiops/correlation?case_id=42')
+  await expect(page).toHaveURL(/\/diagnoses\?.*view=correlation/)
   await expect(page.locator('.case-detail-title .context-label')).toContainText('CASE #42')
   await expect(page.locator('.case-detail-title h2')).toContainText('Pod/web-0')
   await expect(page.locator('.case-detail-panel')).toContainText('sig-oom-1')
   await expect(page.locator('.case-detail-panel')).toContainText('kubelet')
-
-  const promote = page.locator('.case-detail-actions .action-button')
-  await expect(promote).toBeEnabled()
-  await promote.click()
-  await expect(page.locator('.notice-message')).toContainText('已创建事故工作区 INC-000009')
-  await expect(page.locator('.linked-incident')).toContainText('已关联事故 INC-000009')
-
-  // bidirectional deep link: incident workspace entry navigates to /incidents
-  await page.locator('.linked-incident').click()
-  await expect(page).toHaveURL(/\/incidents/)
-})
-
-test('M108 promote dedup: SOURCE_ALREADY_USED surfaces stable notice', async ({ page }) => {
-  await page.route('**/api/v1/incidents', (route) => fulfillJSON(route, {
-    code: 'SOURCE_ALREADY_USED',
-    message: 'correlation:42 already linked to an incident workspace',
-    request_id: 'req-dup-1',
-  }, 409))
-
-  await page.goto('/aiops/correlation?case_id=42')
-  await expect(page.locator('.case-detail-title .context-label')).toContainText('CASE #42')
-  await page.locator('.case-detail-actions .action-button').click()
-  await expect(page.locator('.notice-message')).toContainText('该关联案例已存在关联的事故工作区')
-  await expect(page.locator('.linked-incident')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /提升事故/ })).toHaveCount(0)
 })

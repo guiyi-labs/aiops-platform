@@ -9,6 +9,9 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+### Changed
+- **console**: 本地精简版本收敛为五个一级入口，移除 26 个扩展视图、集群写操作界面与扩展服务启动接线，保留诊断、证据、案例、CLI/MCP 和评测工具。历史案例新增混合检索入口；详见 [变更记录](docs/changes/2026-11-18-console-slim.md)。精简前版本已由 `baseline-pre-slim-20261118` 备份。
+
 ### Fixed
 - **console**: 暗色主题下拓扑图基本不可读。资源名写死 `#1d2226` 压在 `#0d1315` 上
   （对比度 **1.2:1**），节点类型色（Node `#374151`）2.0:1，边标签是刺眼的白底片。

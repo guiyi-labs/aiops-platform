@@ -32,9 +32,9 @@ test('Login page presents auth form when unauthenticated', async ({ page }) => {
   await expect(page.locator('button[type="submit"], button:has-text("登录")').first()).toBeVisible()
   const capabilities = page.locator('.login-capabilities')
   await expect(capabilities).toHaveAttribute('aria-label', '平台核心能力')
-  await expect(capabilities).toContainText('多集群治理')
+  await expect(capabilities).toContainText('集群资源')
   await expect(capabilities).toContainText('证据优先')
-  await expect(capabilities).toContainText('审计闭环')
+  await expect(capabilities).toContainText('经验复用')
   await expect(capabilities).not.toContainText(/12|186|99|实时概况/)
 
   const loginPage = page.locator('main.login-page')
@@ -149,19 +149,19 @@ test('Sidebar navigates after successful login', async ({ page }) => {
   await page.getByRole('button', { name: /进入控制台/ }).click()
 
   await expect(page).toHaveURL('/')
-  await page.getByRole('button', { name: '集群', exact: true }).click()
-  await expect(page).toHaveURL('/clusters')
-  await expect(page.locator('h1')).toContainText('集群接入')
+  await page.getByRole('button', { name: '集群与资源', exact: true }).click()
+  await expect(page).toHaveURL('/workloads')
+  await expect(page.locator('h1')).toContainText('集群与资源')
 
-  await page.getByRole('button', { name: '事件中心', exact: true }).click()
-  await expect(page).toHaveURL('/events')
-  await expect(page.locator('h1')).toContainText('事件中心')
+  await page.getByRole('button', { name: '故障诊断', exact: true }).click()
+  await expect(page).toHaveURL('/diagnoses')
+  await expect(page.locator('h1')).toContainText('诊断')
 })
 
 test('Dashboard renders operational cards', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('h2, h1').first()).toBeVisible()
-  await expect(page.locator('h2, h1').first()).toContainText(/集群|态势|总览|健康|AIOps/)
+  await expect(page.locator('h2, h1').first()).toContainText(/概览|集群|态势|总览|健康|AIOps/)
   await expect(page.locator('select').first()).toBeVisible()
 })
 
@@ -172,11 +172,11 @@ test('Dashboard shows cluster onboarding CTA when no cluster is registered', asy
     body: JSON.stringify({ items: [], total: 0, remaining: 0 }),
   }))
   await page.goto('/')
-  await expect(page.locator('.empty-title')).toContainText('尚未接入 Kubernetes 集群')
-  const cta = page.getByRole('button', { name: /去接入集群/ })
+  await expect(page.locator('.overview-panel h2')).toContainText('接入实验集群')
+  const cta = page.getByRole('link', { name: /配置集群连接/ })
   await expect(cta).toBeVisible()
   await cta.click()
-  await expect(page).toHaveURL('/clusters')
+  await expect(page).toHaveURL('/settings/clusters')
 })
 
 test('Sidebar exposes navigation items', async ({ page }) => {
@@ -198,11 +198,11 @@ test('Sidebar collapse state persists and remains reversible', async ({ page }) 
   await expect(page.locator('.brand-copy')).toBeHidden()
   await expect(page.locator('.nav-item span').first()).toBeHidden()
 
-  await page.goto('/clusters')
-  await expect(page).toHaveURL('/clusters')
+  await page.goto('/workloads')
+  await expect(page).toHaveURL('/workloads')
   await expect(shell).toHaveClass(/sidebar-collapsed/)
   await expect(page.locator('header.topbar')).toHaveCount(1)
-  await expect(page.locator('h1')).toContainText('集群接入')
+  await expect(page.locator('h1')).toContainText('集群与资源')
 
   await page.reload()
   await expect(shell).toHaveClass(/sidebar-collapsed/)
@@ -242,8 +242,8 @@ test('Route navigation never exposes a white viewport', async ({ page }) => {
     requestAnimationFrame(sample)
   })
 
-  await page.getByRole('button', { name: '集群', exact: true }).click()
-  await expect(page).toHaveURL('/clusters')
+  await page.getByRole('button', { name: '集群与资源', exact: true }).click()
+  await expect(page).toHaveURL('/workloads')
   await expect(page.locator('.app-shell').last()).toBeVisible()
   await expect.poll(() => page.evaluate(() => {
     return (window as typeof window & { __routePaintState?: { running: boolean } }).__routePaintState?.running
@@ -259,18 +259,11 @@ test('Route navigation never exposes a white viewport', async ({ page }) => {
   expect(paintState?.samples).toBeGreaterThan(1)
 })
 
-test('Optimization page renders a heading', async ({ page }) => {
-  await page.goto('/optimization')
-  const heading = page.locator('h2, h1').first()
-  await expect(heading).toBeVisible()
-  await expect(heading).toContainText(/优化|FinOps|CIS|API/)
-})
-
-test('Posture page renders aggregate posture', async ({ page }) => {
-  await page.goto('/posture')
-  const heading = page.locator('h2, h1').first()
-  await expect(heading).toBeVisible()
-  await expect(heading).toContainText(/治理|态势|Posture|集群/)
+test('Removed platform routes show a missing page', async ({ page }) => {
+  for (const path of ['/optimization', '/posture', '/incidents', '/aiops/automation']) {
+    await page.goto(path)
+    await expect(page.locator('h1')).toContainText('页面不存在')
+  }
 })
 
 test('Topology page renders without crashing', async ({ page }) => {

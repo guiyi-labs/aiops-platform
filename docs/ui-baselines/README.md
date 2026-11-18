@@ -41,23 +41,13 @@ node scripts/capture-ui-baselines.mjs --verify
 
 ## 已收录视图
 
-| view | route | readyText | 鉴权 |
-|---|---|---|---|
-| login | `/login` | 进入控制台 | 否（时钟区掩码） |
-| dashboard | `/` | 集群态势 | 是 |
-| clusters | `/clusters` | 多集群管理 | 是 |
-| workloads | `/workloads` | 资源工作台 | 是 |
-| diagnoses | `/diagnoses` | 故障分析 | 是 |
+精简版本由 `scripts/console-ui-views.mjs` 统一维护当前路由清单：
+系统概览、资源、诊断记录、关联分析、拓扑、历史案例，以及集群/模型/用户/审计/账号设置和登录页。
+每页包含桌面（1440×900）与移动（375×812）两种视口，共 24 张截图。
 
-## 新增视图基线
+主菜单共五项，二级标签不作为独立业务模块计数。
+截图使用真实本地 API 数据；诊断记录、审计、登录会话及资源状态变化会影响像素比较。
+截图生成成功不代表未来任意时刻的真实数据都能通过像素一致性检查。
 
-在脚本 `views` 数组中追加 `{ name, path, readyText, auth?, masks? }` 条目即可；
-`auth: true` 会先以 `AIOPS_UI_USERNAME`/`AIOPS_UI_PASSWORD`（默认 admin/admin123）
-幂等登录（已认证则跳过）。`viewportSet` 默认 Desktop 1440×900 / Mobile 375×812 两档。
-
-## 已知边界
-
-- 服务端健康状态文本（`/api/v1/health/live`）被假定稳定；若后端返回变化，
-  需要把对应 DOM 追加到 `masks`。
-- 对比基于 `sips` 转 BMP 后的 RGB 像素；sips 为 macOS 工具，跨平台基线对比
-  需换用等价 PNG 解码（保留接口即可）。
+新增或合并界面时，应同步更新共享清单并重新生成基线。
+精简前截图可从 `baseline-pre-slim-20261118` 标签恢复。

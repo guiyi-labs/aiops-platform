@@ -2,9 +2,13 @@ package httpserver
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,6 +19,54 @@ type knowledgeNopRepo struct{}
 
 func (knowledgeNopRepo) Insert(ctx context.Context, entry knowledge.Entry) (knowledge.Entry, error) {
 	return entry, nil
+}
+
+func TestKnowledgeSearchRecallsCaseAfterRuleRename(t *testing.T) {
+	repo := knowledge.NewInMemoryRepository()
+	entry, err := repo.Insert(context.Background(), knowledge.Entry{
+		RuleID: "pod.image_pull.v1", Severity: "high", ResourceKind: "Pod",
+		ResourceName: "broken", Summary: "ImagePullBackOff image registry unavailable",
+		RootCauses: []string{"image registry unavailable"}, NotedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	retriever := knowledge.NewRetriever(repo, knowledge.DefaultConfig()).WithEmbeddingProvider(knowledge.NewLexicalEmbeddingProvider(0))
+	handler := knowledgeHandler{repo: repo, retriever: retriever}
+	engine := gin.New()
+	engine.GET("/knowledge", handler.listKnowledge)
+	query := url.Values{"q": {entry.Summary}, "rule_id": {"pod.image_pull.v2"}, "limit": {"1"}}
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/knowledge?"+query.Encode(), nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", response.Code, response.Body.String())
+	}
+	var result knowledge.ListResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Items) != 1 || result.Items[0].ID != entry.ID {
+		t.Fatalf("renamed rule lost historical case: %+v", result)
+	}
+}
+
+func TestKnowledgeSearchValidatesQueryAndUnavailableRetriever(t *testing.T) {
+	for _, tc := range []struct {
+		query string
+		want  int
+	}{
+		{"q=" + url.QueryEscape(strings.Repeat("故", 501)), http.StatusBadRequest},
+		{"q=故障", http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.query[:8], func(t *testing.T) {
+			engine := newKnowledgeTestEngine(t, knowledgeNopRepo{})
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/aiops/knowledge?"+tc.query, nil))
+			if response.Code != tc.want {
+				t.Fatalf("want %d, got %d", tc.want, response.Code)
+			}
+		})
+	}
 }
 func (knowledgeNopRepo) ListByFilter(ctx context.Context, filter knowledge.Filter) (knowledge.ListResponse, error) {
 	return knowledge.ListResponse{Items: []knowledge.Entry{}, Total: 0}, nil

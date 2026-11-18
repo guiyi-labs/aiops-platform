@@ -90,7 +90,7 @@ onMounted(load)
 </script>
 
 <template>
-  <ConsoleLayout eyebrow="多集群管理" title="集群接入">
+  <ConsoleLayout eyebrow="集群连接配置" title="集群接入">
     <section class="page-toolbar">
       <div><strong>{{ clusters.length }}</strong><span> 个已登记集群</span></div>
       <div class="toolbar-actions">

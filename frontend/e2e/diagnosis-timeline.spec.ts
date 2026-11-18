@@ -136,11 +136,10 @@ test('Diagnosis detail shows root cause card and evidence timeline', async ({ pa
   expect(entryTimes).toHaveLength(2)
   expect(entryTimes[0] < entryTimes[1]).toBe(true)
 
-  const actionArea = drawer.locator('.action-area')
-  await expect(actionArea).toBeVisible()
-  await expect(actionArea.locator('.action-item')).toHaveCount(1)
-  await expect(actionArea.locator('.action-kind')).toHaveText('只读建议')
-  await expect(actionArea).toContainText('检查 Ready Condition')
+  await expect(drawer.locator('.action-area')).toHaveCount(0)
+  await expect(drawer.locator('.remediation-panel')).toHaveCount(0)
+  await expect(drawer.getByRole('button', { name: /标记已解决|确认异常/ }).first()).toBeVisible()
+
 })
 
 
@@ -261,7 +260,7 @@ const podDetail = {
   updated_at: '2026-07-17T02:10:00Z',
 }
 
-test('Diagnosis with controlled action surfaces the degraded dependency note', async ({ page }) => {
+test('Diagnosis offers manual confirmation without cluster write controls', async ({ page }) => {
   await page.route('**/api/v1/diagnoses**', async (route) => {
     const path = new URL(route.request().url()).pathname
     if (route.request().method() === 'GET' && path === '/api/v1/diagnoses') {
@@ -279,15 +278,10 @@ test('Diagnosis with controlled action surfaces the degraded dependency note', a
 
   const drawer = page.locator('.diagnosis-drawer')
   await expect(drawer).toBeVisible()
-  const actionArea = drawer.locator('.action-area')
-  await expect(actionArea.locator('.action-item')).toHaveCount(2)
-  await expect(actionArea.locator('.action-kind.controlled_action')).toHaveText('受控动作')
-  await expect(actionArea.locator('.action-item.controlled_action')).toContainText('Rollout restart 目标 Deployment')
-  // open status → dependency note (未 confirmed)
-  const note = actionArea.locator('.action-area-note')
-  await expect(note).toBeVisible()
-  await expect(note).toContainText('confirmed 状态')
-  await expect(drawer.locator('.remediation-preview-form')).toHaveCount(0)
+  await expect(drawer.locator('.action-area')).toHaveCount(0)
+  await expect(drawer.locator('.remediation-panel')).toHaveCount(0)
+  await expect(drawer.getByRole('button', { name: '确认异常', exact: true })).toBeVisible()
+
 })
 
 

@@ -1,49 +1,5 @@
 <script setup lang="ts">
-import {
-  Activity,
-  BarChart2,
-  Bell,
-  BellRing,
-  Boxes,
-  BoxIcon,
-  Brain,
-  ChevronDown,
-  ChevronRight,
-  FileClock,
-  FlaskConical,
-  Gauge,
-  GitBranch,
-  Globe,
-  Hammer,
-  KeyRound,
-  LayoutGrid,
-  LifeBuoy,
-  Link2,
-  LogOut,
-  Moon,
-  MessageSquareText,
-  Network,
-  Package,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Pin,
-  PinOff,
-  Radar,
-  Search,
-  Send,
-  ShieldCheck,
-  Sun,
-  Star,
-  Stethoscope,
-  Shuffle,
-  Target,
-  Users,
-  BrainCircuit,
-  Wallet,
-  Workflow,
-  X,
-  MoreHorizontal,
-} from 'lucide-vue-next'
+import { BookOpen, Boxes, ChevronDown, ChevronRight, Gauge, KeyRound, LogOut, Moon, MoreHorizontal, PanelLeftClose, PanelLeftOpen, Pin, PinOff, Search, Settings, Star, Stethoscope, Sun, X } from 'lucide-vue-next'
 import { computed, inject, provide, ref, watch, nextTick, onMounted, onUnmounted, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -135,73 +91,24 @@ function togglePin(routePath: string) {
   }
 }
 
-// ─── Navigation groups ───
-// 三层收敛，只影响呈现顺序与默认展开状态，不删路由、不删页面：
-//   核心能力 —— F1–F6 六项功能需求的实现入口，固定演示路径；
-//   平台能力 —— 日常运维会用到的平台功能，默认展开；
-//   扩展能力 —— 平台既有能力，不属于核心研究范围，默认收起。
-// 任何页面仍可直接输入地址访问，也可以被收藏（下方的 pin 机制）提到顶部。
-const navigationGroups = computed(() => [
-  {
-    label: '核心能力',
-    hint: 'F1–F6 的实现入口',
-    items: [
-      { label: '总览', icon: Gauge, route: '/' },
-      { label: 'AIOps 概览', icon: Activity, route: '/aiops/overview' },
-      { label: '智能诊断', icon: Stethoscope, route: '/diagnoses' },
-      { label: '资源拓扑', icon: Network, route: '/topology' },
-      { label: '关联案例', icon: Link2, route: '/aiops/correlation' },
-      { label: '解释覆盖率', icon: BarChart2, route: '/aiops/ai-coverage' },
-    ],
-  },
-  {
-    label: '平台能力',
-    hint: '日常运维使用',
-    items: [
-      { label: '集群', icon: Boxes, route: '/clusters' },
-      { label: '资源工作台', icon: BoxIcon, route: '/workloads' },
-      { label: '事件中心', icon: Bell, route: '/events' },
-      { label: '事件流与告警', icon: Activity, route: '/event-stream' },
-      { label: '告警规则', icon: BellRing, route: '/alerts' },
-      { label: '智能巡检', icon: Radar, route: '/inspection' },
-      { label: '质量仪表盘', icon: FlaskConical, route: '/aiops/quality' },
-      { label: '审计日志', icon: FileClock, route: '/audit-logs', auditOnly: true },
-      { label: '用户管理', icon: Users, route: '/users', adminOnly: true },
-      { label: '模型接入', icon: BrainCircuit, route: '/settings/model', adminOnly: true },
-    ],
-  },
-  {
-    label: '扩展能力',
-    hint: '平台既有能力，非本文研究范围',
-    defaultCollapsed: true,
-    items: [
-      { label: '全局搜索', icon: Search, route: '/search' },
-      { label: '监控大盘', icon: Gauge, route: '/monitoring' },
-      { label: '服务网格', icon: Globe, route: '/service-mesh' },
-      { label: 'SLO 仪表盘', icon: Target, route: '/aiops/slo' },
-      { label: 'AI 调查', icon: Brain, route: '/aiops/investigator' },
-      { label: '自动化控制台', icon: Workflow, route: '/aiops/automation', adminOnly: true },
-      { label: '舰队诊断', icon: Globe, route: '/fleet-diagnoses' },
-      { label: '事故工作空间', icon: MessageSquareText, route: '/incidents' },
-      { label: '命名空间治理', icon: LayoutGrid, route: '/namespace-posture' },
-      { label: '治理态势', icon: ShieldCheck, route: '/posture' },
-      { label: '优化中心', icon: Wallet, route: '/optimization' },
-      { label: '跨集群 Promotion', icon: Shuffle, route: '/promotions', adminOnly: true },
-      { label: '工作负载保护', icon: ShieldCheck, route: '/workload-protection' },
-      { label: '节点维护', icon: Hammer, route: '/node-maintenance' },
-      { label: '恢复演练', icon: LifeBuoy, route: '/restore-rehearsal' },
-      { label: '通知投递', icon: Send, route: '/notifications', auditOnly: true },
-      { label: 'Helm 应用目录', icon: Package, route: '/app-catalog' },
-      { label: 'GitOps 应用', icon: GitBranch, route: '/gitops' },
-      { label: '跨集群复制', icon: Shuffle, route: '/copyops', adminOnly: true },
-    ],
-  },
-].map((group) => ({
-  ...group,
-  items: group.items.filter((item) =>
-    (!item.auditOnly || auth.user?.roles.some((role) => role === 'system_admin' || role === 'security_auditor'))
-    && (!item.adminOnly || auth.user?.roles.includes('system_admin'))),
-})).filter((group) => group.items.length > 0))
+// The focused console has five primary work areas.
+const navigationGroups = computed(() => [{
+  label: '故障诊断系统',
+  hint: '采集、诊断、取证与案例复用',
+  defaultCollapsed: false,
+  items: [
+    { label: '系统概览', icon: Gauge, route: '/' },
+    { label: '集群与资源', icon: Boxes, route: '/workloads' },
+    { label: '故障诊断', icon: Stethoscope, route: '/diagnoses' },
+    { label: '历史案例', icon: BookOpen, route: '/cases' },
+    { label: '系统设置', icon: Settings, route: '/settings' },
+  ],
+}])
+function isNavActive(path: string): boolean {
+  if (path === '/') return route.path === '/'
+  if (path === '/workloads') return route.path === '/workloads' || route.path.startsWith('/clusters/')
+  return route.path === path || route.path.startsWith(`${path}/`)
+}
 
 // Build a flat list for command palette search
 const allNavItems = computed(() => {
@@ -344,11 +251,11 @@ async function navigate(path: string) {
     <aside id="primary-sidebar" class="sidebar">
       <div class="brand">
         <span class="brand-mark"><Boxes :size="20" /></span>
-        <span class="brand-copy"><strong>K8s AIOps</strong><small>Operations Console</small></span>
+        <span class="brand-copy"><strong>K8s AIOps</strong><small>Fault Diagnosis</small></span>
       </div>
       <div class="workspace-selector">
         <span class="environment-dot" />
-        <div><strong>Kubernetes AIOps 平台</strong><span>API connected</span></div>
+        <div><strong>K8s 故障诊断系统</strong><span>采集 · 诊断 · 案例复用</span></div>
         <ChevronRight :size="14" />
       </div>
       <nav class="navigation" aria-label="主导航">
@@ -363,7 +270,7 @@ async function navigate(path: string) {
             :key="'pin-' + item.route"
             type="button"
             class="nav-item"
-            :class="{ active: item.route === route.path }"
+            :class="{ active: isNavActive(item.route) }"
             :title="item.label"
             :aria-label="sidebarCollapsed ? item.label : undefined"
             @click="navigate(item.route)"
@@ -403,7 +310,7 @@ async function navigate(path: string) {
               <button
                 type="button"
                 class="nav-item"
-                :class="{ active: item.route === route.path }"
+                :class="{ active: isNavActive(item.route) }"
                 :title="item.label"
                 :aria-label="sidebarCollapsed ? item.label : undefined"
                 @click="navigate(item.route)"
@@ -467,7 +374,7 @@ async function navigate(path: string) {
               :key="item.route"
               type="button"
               class="command-palette-item"
-              :class="{ active: item.route === route.path }"
+              :class="{ active: isNavActive(item.route) }"
               @click="commandNavigate(item.route)"
             >
               <component :is="item.icon" :size="16" />

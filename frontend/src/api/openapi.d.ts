@@ -13142,6 +13142,8 @@ export interface operations {
     listKnowledgeEntries: {
         parameters: {
             query?: {
+                /** @description Optional fault description for hybrid case retrieval; rule_id and resource_kind act as retrieval hints. Cannot be combined with min_severity. */
+                q?: string;
                 rule_id?: string;
                 severity?: "info" | "warning" | "high" | "critical";
                 min_severity?: "info" | "warning" | "high" | "critical";

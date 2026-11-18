@@ -1,4 +1,14 @@
-# AIOps Platform
+# K8s 故障诊断系统（诊断控制台精简版）
+
+本地 独立精简分支聚焦“采集—关联—诊断—取证—归档—复用”。Web 保留系统概览、集群与资源、故障诊断、历史案例、系统设置五个一级入口；拓扑和关联分析归入诊断，事件与指标归入资源详情。
+
+后端主服务不再装配修复、发布、备份、治理优化、联邦、事故协作、通知和巡检等扩展服务。CLI、MCP、实验工具及诊断所需依赖继续保留。每次针对选定集群诊断，既有集群登记与数据不删除；本阶段未强制限制数据库只能登记一套集群。
+
+精简前完整版本已备份到 GitHub 标签 `baseline-pre-slim-20261118`。本分支保留历史迁移与尚未清理的扩展后端源码，因此以下原版平台说明仅供追溯，当前可运行范围以 [本次变更记录](docs/changes/2026-11-18-console-slim.md) 为准。
+
+---
+
+# 原版平台说明
 
 **Kubernetes fault diagnosis with case memory.** Deterministic rule-based root-cause
 diagnosis, automatically distilled into a searchable case library — so the next time the

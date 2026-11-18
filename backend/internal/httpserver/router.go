@@ -150,6 +150,8 @@ type Options struct {
 	// /knowledge read-only routes are not registered. Writes happen only
 	// through the diagnosis resolution hook, never via HTTP.
 	KnowledgeRepository knowledge.Repository
+	// KnowledgeRetriever reuses the diagnosis hybrid retrieval pipeline for case search.
+	KnowledgeRetriever *knowledge.Retriever
 	// M57 Helm application catalog service. When nil the app-catalog routes
 	// are not registered. Exposes Helm repository CRUD, chart listing/detail
 	// (read-only index.yaml fetch), and M19 controlled-operation deploy
@@ -783,7 +785,7 @@ func New(logger *zap.Logger, options Options) http.Handler {
 	// only; writes happen through the diagnosis resolution hook. The library
 	// degrades silently (empty list / zero count) when the repository is nil.
 	if options.KnowledgeRepository != nil {
-		knowledgeAPI := knowledgeHandler{repo: options.KnowledgeRepository}
+		knowledgeAPI := knowledgeHandler{repo: options.KnowledgeRepository, retriever: options.KnowledgeRetriever}
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/knowledge", AuthRequired: true, Handler: knowledgeAPI.listKnowledge, AuditAction: "aiops.knowledge.list", AuditResource: "KnowledgeEntry"})
 		reg.register(aiopsRoutes, RouteDescriptor{Method: "GET", Path: "/knowledge/stats", AuthRequired: true, Handler: knowledgeAPI.knowledgeStats, AuditAction: "aiops.knowledge.stats.read", AuditResource: "KnowledgeEntry"})
 	}

@@ -1,3 +1,4 @@
+import { consoleUIViews } from './console-ui-views.mjs'
 /**
  * Accessibility audit (axe-core) + console-error audit for covered views.
  *
@@ -51,42 +52,7 @@ if (!CHROME) throw new Error('Google Chrome or Microsoft Edge not found')
 
 const viewFilter = process.argv.filter((a) => a.startsWith('--view=')).map((a) => a.split('=')[1])
 
-const views = [
-  { name: 'login', path: '/login', readyText: '进入控制台', auth: false, settle: 1400 },
-  { name: 'dashboard', path: '/', readyText: '集群态势', auth: true, settle: 1600 },
-  { name: 'clusters', path: '/clusters', readyText: '多集群管理', auth: true, settle: 1400 },
-  { name: 'workloads', path: '/workloads', readyText: '资源工作台', auth: true, settle: 1400 },
-  { name: 'diagnoses', path: '/diagnoses', readyText: '故障分析', auth: true, settle: 1400 },
-  { name: 'events', path: '/events', readyText: '事件中心', auth: true, settle: 1600 },
-  { name: 'topology', path: '/topology', readyText: '资源拓扑', auth: true, settle: 1800 },
-  { name: 'incidents', path: '/incidents', readyText: '事故工作空间', auth: true, settle: 1600 },
-  { name: 'optimization', path: '/optimization', readyText: '优化中心', auth: true, settle: 1600 },
-  { name: 'alerts', path: '/alerts', readyText: '告警规则', auth: true, settle: 1600 },
-  // tabs：不点击就扫不到的面板。拓扑图挂在第三个标签页里，不点开时那些 <text>
-  // 根本不在 DOM 中——只扫首屏等于把一个几乎全黑的图报成 0 违规。
-  { name: 'aiops-overview', path: '/aiops/overview', readyText: '智能运维概览', auth: true, settle: 1600, tabs: ['概览', '信号列表', '拓扑图'] },
-  { name: 'search', path: '/search', readyText: '全局搜索', auth: true, settle: 1600 },
-  { name: 'monitoring', path: '/monitoring', readyText: '监控大盘', auth: true, settle: 1600 },
-  { name: 'slo', path: '/aiops/slo', readyText: 'SLO 仪表盘', auth: true, settle: 1600 },
-  { name: 'correlation', path: '/aiops/correlation', readyText: '关联案例', auth: true, settle: 1600 },
-  { name: 'investigator', path: '/aiops/investigator', readyText: 'AI 调查', auth: true, settle: 1600 },
-  { name: 'inspection', path: '/inspection', readyText: '智能巡检', auth: true, settle: 1600 },
-  { name: 'quality', path: '/aiops/quality', readyText: '质量仪表盘', auth: true, settle: 1600 },
-  { name: 'namespace-posture', path: '/namespace-posture', readyText: '命名空间治理态势', auth: true, settle: 1600 },
-  { name: 'posture', path: '/posture', readyText: '集群治理态势', auth: true, settle: 1600 },
-  { name: 'audit-logs', path: '/audit-logs', readyText: '审计日志', auth: true, settle: 1600 },
-  { name: 'notifications', path: '/notifications', readyText: 'Webhook 投递', auth: true, settle: 1600 },
-  { name: 'users', path: '/users', readyText: '用户管理', auth: true, settle: 1600 },
-  { name: 'app-catalog', path: '/app-catalog', readyText: 'Helm 应用目录', auth: true, settle: 1600 },
-  { name: 'gitops', path: '/gitops', readyText: 'GitOps 应用', auth: true, settle: 1600 },
-  { name: 'event-stream', path: '/event-stream', readyText: '事件流与告警', auth: true, settle: 1600 },
-  { name: 'service-mesh', path: '/service-mesh', readyText: '服务网格', auth: true, settle: 1600 },
-  { name: 'workload-protection', path: '/workload-protection', readyText: '工作负载保护', auth: true, settle: 1600 },
-  { name: 'node-maintenance', path: '/node-maintenance', readyText: '节点维护', auth: true, settle: 1600 },
-  { name: 'restore-rehearsal', path: '/restore-rehearsal', readyText: '恢复演练', auth: true, settle: 1600 },
-  { name: 'promotions', path: '/promotions', readyText: 'Promotion 向导', auth: true, settle: 1600 },
-  { name: 'automation', path: '/aiops/automation', readyText: '自动化控制台', auth: true, settle: 1600 },
-]
+const views = consoleUIViews.map(view => ({ ...view, settle: 1600 }))
 const viewports = [
   { name: 'desktop-1440x900', width: 1440, height: 900 },
   { name: 'mobile-375x812', width: 375, height: 812 },
@@ -384,7 +350,7 @@ async function main() {
     console.log(`\n${failed ? 'FAIL: critical/serious violations or app errors present' : 'PASS: 0 critical/serious, 0 app errors (axe-induced noise separately attributed)'}`)
   } finally {
     chrome.kill()
-    fs.rmSync(path.join(root, '.tools', `axe-profile-${process.pid}`), { recursive: true, force: true })
+    fs.rmSync(path.join(root, '.tools', `axe-profile-${process.pid}`), { recursive: true, force: true, maxRetries: 3, retryDelay: 250 })
   }
 }
 

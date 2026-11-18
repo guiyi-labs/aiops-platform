@@ -5,24 +5,21 @@ import ConsoleLayout from '../components/ConsoleLayout.vue';
 import ResourceManifestViewer from '../components/ResourceManifestViewer.vue';
 import PodLogsViewer from '../components/PodLogsViewer.vue';
 import { getConfigMap, getPod, getPersistentVolume, getPersistentVolumeClaim, getPodDisruptionBudget, getNetworkPolicy, getServiceAccount, getService, getDeployment, getIngress, getNode, listEvents } from '../api/kubernetes';
-import { diagnosePod, diagnoseDeployment, diagnoseNode, diagnoseService, diagnoseIngress, diagnosePersistentVolumeClaim, diagnoseHorizontalPodAutoscaler, getRolloutHistory, getRolloutStatus } from '../api/diagnosis';
+import { diagnosePod, diagnoseDeployment, diagnoseNode, diagnoseService, diagnoseIngress, diagnosePersistentVolumeClaim, diagnoseHorizontalPodAutoscaler } from '../api/diagnosis';
 import { useAuthStore } from '../stores/auth';
 import type { KubernetesEvent } from '../types/kubernetes';
-import type { RolloutHistory, RolloutStatus } from '../types/diagnosis';
+
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const activeTab = ref<'overview' | 'spec' | 'status' | 'events' | 'logs' | 'manifest' | 'tasks' | 'rollout'>('overview');
+const activeTab = ref<'overview' | 'spec' | 'status' | 'events' | 'logs' | 'manifest' | 'tasks'>('overview');
 const loading = ref(false);
 const error = ref<string | null>(null);
 const resource = ref<Record<string, unknown> | null>(null);
 const events = ref<KubernetesEvent[]>([]);
 const diagnosisLoading = ref(false);
 const diagnosisResult = ref<string | null>(null);
-const rolloutHistory = ref<RolloutHistory | null>(null);
-const rolloutStatus = ref<RolloutStatus | null>(null);
-const rolloutLoading = ref(false);
-const rolloutError = ref<string | null>(null);
+
 const clusterId = computed(() => Number(route.params.clusterId) || 0);
 const kind = computed(() => String(route.params.kind || ''));
 const namespace = computed(() => String(route.params.namespace || ''));
@@ -31,7 +28,7 @@ const isPod = computed(() => kind.value === 'Pod');
 const isLoggable = computed(() => isPod.value);
 const showManifest = computed(() => ['Pod', 'Deployment', 'Service', 'Ingress', 'PersistentVolumeClaim', 'PersistentVolume', 'PodDisruptionBudget', 'NetworkPolicy', 'ServiceAccount', 'Role', 'ClusterRole'].includes(kind.value));
 const showTasks = computed(() => ['Pod', 'Deployment', 'Node', 'Service', 'Ingress', 'PersistentVolumeClaim', 'HPA'].includes(kind.value));
-const showRollout = computed(() => kind.value === 'Deployment');
+
 async function loadResource() {
  if (!clusterId.value || !kind.value || !name.value)
  return;
@@ -88,33 +85,11 @@ async function loadResource() {
  loading.value = false;
  }
 }
-async function loadRollout() {
-  if (!clusterId.value || !namespace.value || !name.value) return;
-  rolloutLoading.value = true;
-  rolloutError.value = null;
-  try {
-    const token = auth.accessToken;
-    const [history, status] = await Promise.allSettled([
-      getRolloutHistory(token, clusterId.value, namespace.value, name.value),
-      getRolloutStatus(token, clusterId.value, namespace.value, name.value),
-    ]);
-    rolloutHistory.value = history.status === 'fulfilled' ? history.value : null;
-    rolloutStatus.value = status.status === 'fulfilled' ? status.value : null;
-    if (history.status === 'rejected' && status.status === 'rejected') {
-      rolloutError.value = '无法读取发布历史或状态';
-    }
-  } finally {
-    rolloutLoading.value = false;
-  }
-}
+
 watch([clusterId, kind, namespace, name], () => {
  loadResource();
 }, { immediate: true });
-watch(activeTab, (tab) => {
-  if (tab === 'rollout' && showRollout.value && !rolloutHistory.value && !rolloutStatus.value && !rolloutLoading.value) {
-    loadRollout();
-  }
-});
+
 async function runDiagnosis() {
  if (!clusterId.value || !kind.value)
  return;
@@ -217,16 +192,7 @@ function goBack() {
             ]"
             @click="activeTab = 'tasks'"
           >Tasks</button>
-          <button
-            v-if="showRollout"
-            :class="[
-              'px-3 py-2 text-sm font-medium border-b-2 transition-colors',
-              activeTab === 'rollout'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700',
-            ]"
-            @click="activeTab = 'rollout'"
-          >Rollout</button>
+
         </div>
 
         <div class="tab-content">
@@ -309,61 +275,6 @@ function goBack() {
             </div>
           </div>
 
-          <div v-else-if="activeTab === 'rollout' && showRollout" class="bg-white border border-slate-200 rounded p-4 space-y-4">
-            <div v-if="rolloutLoading" class="text-sm text-slate-500">正在读取发布状态...</div>
-            <div v-else-if="rolloutError" class="text-sm text-red-600">{{ rolloutError }}</div>
-            <template v-else>
-              <section v-if="rolloutStatus" class="space-y-2">
-                <h3 class="text-sm font-medium text-slate-700">Rollout Status</h3>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div class="bg-slate-50 border border-slate-200 rounded p-2"><div class="text-slate-500">Phase</div><div class="font-mono">{{ rolloutStatus.phase }}</div></div>
-                  <div class="bg-slate-50 border border-slate-200 rounded p-2"><div class="text-slate-500">Current Revision</div><div class="font-mono">{{ rolloutStatus.current_revision }}</div></div>
-                  <div class="bg-slate-50 border border-slate-200 rounded p-2"><div class="text-slate-500">Desired / Ready</div><div class="font-mono">{{ rolloutStatus.desired_replicas }} / {{ rolloutStatus.ready_replicas }}</div></div>
-                  <div class="bg-slate-50 border border-slate-200 rounded p-2"><div class="text-slate-500">Updated / Available</div><div class="font-mono">{{ rolloutStatus.updated_replicas }} / {{ rolloutStatus.available_replicas }}</div></div>
-                </div>
-                <div v-if="rolloutStatus.unavailable_replicas > 0" class="text-xs text-amber-600">Unavailable: {{ rolloutStatus.unavailable_replicas }}</div>
-                <div v-if="rolloutStatus.reason || rolloutStatus.message" class="text-xs text-slate-600 border border-slate-200 rounded p-2">
-                  <span class="font-mono">{{ rolloutStatus.reason || '--' }}</span>: {{ rolloutStatus.message || '--' }}
-                </div>
-                <div v-if="rolloutStatus.conditions?.length" class="space-y-1">
-                  <div class="text-xs text-slate-500">Conditions</div>
-                  <div v-for="cond in rolloutStatus.conditions" :key="cond.type" class="text-xs border border-slate-200 rounded p-2 flex items-center gap-2">
-                    <span :class="['h-2 w-2 rounded-full', cond.status === 'True' ? 'bg-emerald-500' : 'bg-slate-300']" />
-                    <span class="font-mono">{{ cond.type }} · {{ cond.status }}</span>
-                    <span class="text-slate-500">{{ cond.reason || '' }}</span>
-                  </div>
-                </div>
-              </section>
-              <section v-if="rolloutHistory" class="space-y-2">
-                <h3 class="text-sm font-medium text-slate-700">Revision History</h3>
-                <div v-if="!rolloutHistory.revisions.length" class="text-xs text-slate-500">没有历史版本</div>
-                <div v-else class="overflow-x-auto">
-                  <table class="w-full text-xs border border-slate-200">
-                    <thead class="bg-slate-50">
-                      <tr>
-                        <th class="text-left p-2 font-medium text-slate-600">Revision</th>
-                        <th class="text-left p-2 font-medium text-slate-600">ReplicaSet</th>
-                        <th class="text-left p-2 font-medium text-slate-600">Images</th>
-                        <th class="text-left p-2 font-medium text-slate-600">Replicas</th>
-                        <th class="text-left p-2 font-medium text-slate-600">Created</th>
-                        <th class="text-left p-2 font-medium text-slate-600">State</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="rev in rolloutHistory.revisions" :key="rev.revision" :class="rev.current ? 'bg-emerald-50' : ''">
-                        <td class="p-2 font-mono">{{ rev.revision }}</td>
-                        <td class="p-2 font-mono">{{ rev.replicaset_name }}</td>
-                        <td class="p-2 font-mono break-all">{{ rev.images.join(', ') || '--' }}</td>
-                        <td class="p-2 font-mono">{{ rev.ready_replicas }}/{{ rev.replicas }}</td>
-                        <td class="p-2 font-mono">{{ rev.created_at || '--' }}</td>
-                        <td class="p-2"><span v-if="rev.current" class="px-1.5 py-0.5 text-emerald-700 bg-emerald-100 rounded">当前</span><span v-else class="text-slate-400">历史</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </template>
-          </div>
         </div>
       </div>
     </div>

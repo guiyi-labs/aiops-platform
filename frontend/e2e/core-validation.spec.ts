@@ -76,6 +76,7 @@ test('case memory compares actual stages for aligned and renamed query and expor
   await page.goto('/cases')
   await page.getByRole('button', { name: '查看检索过程' }).click()
   await expect(page).toHaveURL('/cases?view=compare')
+  await page.getByText('自定义检索参数', { exact: true }).click()
   await expect(page.getByLabel('检索对比规则 ID')).toHaveValue(ruleID)
   await page.getByRole('button', { name: '运行检索对比' }).click()
   await expect(page.locator('.retrieval-comparison section').first()).toContainText('第 1 名')
@@ -83,6 +84,7 @@ test('case memory compares actual stages for aligned and renamed query and expor
   await page.getByRole('button', { name: '运行检索对比' }).click()
   await expect(page.locator('.retrieval-comparison section').first()).toContainText('未进入返回结果')
   await expect(page.locator('.retrieval-comparison section').last()).toContainText('第 1 名')
+  await page.getByText('查看融合排序明细与计算说明', { exact: true }).click()
   await expect(page.locator('.retrieval-ranking')).toContainText('1/(60+1)')
   await expect(page.locator('.retrieval-ranking table')).toHaveAttribute('data-responsive', 'scroll')
   await expect(page.locator('.retrieval-ranking thead')).toBeVisible()
@@ -102,4 +104,47 @@ test('case memory compares actual stages for aligned and renamed query and expor
   await expect(page.getByRole('alert')).toBeVisible()
   await expect(page.getByRole('button', { name: '导出对比', exact: true })).toHaveCount(0)
   await expect(page.locator('.navigation .nav-row')).toHaveCount(5)
+})
+
+
+test('direct comparison chooses a real case, preserves both runs and clears results on failure', async ({ page }) => {
+  await mockAuthenticatedAPI(page)
+  await page.route('**/api/v1/aiops/knowledge?*', route => route.fulfill({ json: { items: [entry], total: 1 } }))
+  const calls: string[] = []
+  await page.route('**/api/v1/aiops/knowledge/inspect?*', route => {
+    const query = new URL(route.request().url()).searchParams
+    const rule = query.get('rule_id') || ''
+    calls.push(rule)
+    const renamed = rule.endsWith('.renamed')
+    return route.fulfill({ json: { query: { summary_hint: query.get('q'), rule_id: rule, resource_kind: query.get('resource_kind') }, structured: renamed ? [] : [entry], vector: [entry], fused: [entry], results: [entry], vector_status: 'complete', embedder: 'lexical-hash-v1', dimension: 256, pool_count: 1, pool_truncated: false, structured_truncated: false, shortlist_limit: 10, vector_limit: 10, result_limit: 3, rank_constant: 60 } })
+  })
+  await page.goto('/cases?view=compare')
+  await expect(page.getByLabel('参考案例', { exact: true })).toHaveValue('7')
+  await expect(page.locator('.retrieval-custom')).not.toHaveAttribute('open')
+  await page.getByRole('button', { name: '一键演示更名前后对比' }).click()
+  await expect(page.locator('.rename-comparison tbody tr')).toHaveCount(2)
+  expect(calls.sort()).toEqual([ruleID, ruleID + '.renamed'].sort())
+  await expect(page.locator('.retrieval-conclusion')).toContainText('混合检索将它召回到第 1 名')
+  const downloaded = page.waitForEvent('download')
+  await page.getByRole('button', { name: '导出对比', exact: true }).click()
+  const data = JSON.parse(await readFile((await (await downloaded).path())!, 'utf8'))
+  expect(data.aligned_trace.query.rule_id).toBe(ruleID)
+  expect(data.trace.query.rule_id).toBe(ruleID + '.renamed')
+  await page.getByText('自定义检索参数', { exact: true }).click()
+  await page.getByLabel('检索对比故障描述').fill('修改后的条件')
+  await expect(page.locator('.retrieval-conclusion')).toContainText('参数已修改')
+  await page.getByRole('button', { name: '恢复参考案例参数' }).click()
+  await expect(page.locator('.retrieval-conclusion')).toHaveCount(0)
+  await page.route('**/api/v1/aiops/knowledge/inspect?*', route => route.fulfill({ status: 503, json: { message: 'offline' } }))
+  await page.getByRole('button', { name: '一键演示更名前后对比' }).click()
+  await expect(page.getByRole('alert')).toContainText('offline')
+  await expect(page.getByRole('button', { name: '导出对比', exact: true })).toHaveCount(0)
+})
+
+test('empty case library gives a usable next step without fabricating samples', async ({ page }) => {
+  await mockAuthenticatedAPI(page)
+  await page.goto('/cases?view=compare')
+  await expect(page.getByLabel('参考案例', { exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '一键演示更名前后对比' })).toBeDisabled()
+  await expect(page.getByRole('link', { name: '前往诊断记录 →' })).toHaveAttribute('href', '/diagnoses')
 })

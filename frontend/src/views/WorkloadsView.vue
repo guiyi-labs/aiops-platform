@@ -9,6 +9,7 @@ import { diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, d
 import { getConfigMap, getCronJob, getDaemonSet, getDeployment, getHorizontalPodAutoscaler, getIngress, getJob, getLimitRange, getNode, getPersistentVolumeClaim, getPod, getPodLogs, getReplicaSet, getResourceQuota, getSecret, getService, getStatefulSet, getStorageClass, listConfigMaps, listCronJobs, listDaemonSets, listDeployments, listEvents, listHorizontalPodAutoscalers, listIngresses, listJobs, listLimitRanges, listNamespaces, listNodes, listPersistentVolumeClaims, listPods, listReplicaSets, listResourceQuotas, listSecrets, listServices, listStatefulSets, listStorageClasses } from '../api/kubernetes'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import MetricsHistoryPanel from '../components/MetricsHistoryPanel.vue'
+import { APIError } from '../api/auth'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
 import type { DiagnosisRecord } from '../types/diagnosis'
@@ -677,8 +678,8 @@ async function runDiagnosis(kind: DiagnosableKind, item: ResourceDetail) {
       diagnosis.value = await diagnoseHorizontalPodAutoscaler(auth.accessToken, selectedClusterID.value, hpa.metadata.namespace, hpa.metadata.name)
     }
     if (kind === 'Node') diagnosis.value = await diagnoseNode(auth.accessToken, selectedClusterID.value, (item as NodeResource).metadata.name)
-  } catch {
-    errorMessage.value = `${kind} 未命中已启用规则，或证据采集失败`
+  } catch (err) {
+    errorMessage.value = err instanceof APIError && err.code === 'NO_RULE_MATCH' ? `${kind} 本次未命中已启用规则，未生成诊断记录。` : `${kind} 证据采集或诊断请求失败，请检查资源与集群连接。`
   } finally {
     diagnosisLoading.value = false
   }

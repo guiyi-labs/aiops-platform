@@ -1529,19 +1529,23 @@ func (s *Service) ClusterRoleBinding(ctx context.Context, clusterID int64, name 
 }
 
 var manifestAllowlist = map[string]bool{
-	"Pod":                   true,
-	"Deployment":            true,
-	"Service":               true,
-	"Ingress":               true,
-	"PersistentVolumeClaim": true,
-	"PersistentVolume":      true,
-	"PodDisruptionBudget":   true,
-	"NetworkPolicy":         true,
-	"ServiceAccount":        true,
-	"Role":                  true,
-	"ClusterRole":           true,
-	"RoleBinding":           true,
-	"ClusterRoleBinding":    true,
+	"Node":                    true,
+	"ConfigMap":               true,
+	"StorageClass":            true,
+	"HorizontalPodAutoscaler": true,
+	"Pod":                     true,
+	"Deployment":              true,
+	"Service":                 true,
+	"Ingress":                 true,
+	"PersistentVolumeClaim":   true,
+	"PersistentVolume":        true,
+	"PodDisruptionBudget":     true,
+	"NetworkPolicy":           true,
+	"ServiceAccount":          true,
+	"Role":                    true,
+	"ClusterRole":             true,
+	"RoleBinding":             true,
+	"ClusterRoleBinding":      true,
 }
 
 var manifestSensitiveFields = map[string]bool{
@@ -1579,6 +1583,14 @@ func (s *Service) Manifest(ctx context.Context, clusterID int64, kind, namespace
 
 func manifestPath(kind, namespace, name string) string {
 	switch kind {
+	case "Node":
+		return "/api/v1/nodes/" + url.PathEscape(name)
+	case "ConfigMap":
+		return namespacedDetailPath("/api/v1", namespace, "configmaps", name)
+	case "StorageClass":
+		return "/apis/storage.k8s.io/v1/storageclasses/" + url.PathEscape(name)
+	case "HorizontalPodAutoscaler":
+		return namespacedDetailPath("/apis/autoscaling/v2", namespace, "horizontalpodautoscalers", name)
 	case "Pod":
 		return "/api/v1/namespaces/" + url.PathEscape(namespace) + "/pods/" + url.PathEscape(name)
 	case "Service":
@@ -1629,7 +1641,7 @@ func redactManifest(obj map[string]interface{}, prefix string) {
 			obj[key] = "<redacted>"
 			continue
 		}
-		if key == "data" || key == "stringData" {
+		if key == "data" || key == "stringData" || key == "binaryData" || key == "kubectl.kubernetes.io/last-applied-configuration" {
 			obj[key] = "<redacted>"
 			continue
 		}

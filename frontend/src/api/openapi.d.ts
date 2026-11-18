@@ -318,6 +318,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/integrations/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the shared read-only MCP tool catalogue */
+        get: operations["listIntegrationTools"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/integrations/tools/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate a tool call using gateway rules without executing it */
+        post: operations["validateIntegrationTool"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/live": {
         parameters: {
             query?: never;
@@ -8771,6 +8805,42 @@ export interface operations {
                     "text/plain": string;
                 };
             };
+        };
+    };
+    listIntegrationTools: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Ok"];
+            401: components["responses"]["Error"];
+        };
+    };
+    validateIntegrationTool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tool: string;
+                    arguments: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Ok"];
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
         };
     };
     healthLive: {

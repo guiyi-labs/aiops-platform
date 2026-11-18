@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { CheckCircle2, Download, FlaskConical, Play, Search, ShieldCheck, XCircle } from 'lucide-vue-next'
 import { getDiagnosisValidation } from '../api/validation'
 import type { ValidationReport } from '../api/validation'
@@ -20,6 +20,7 @@ const outcomes = computed(() => (report.value?.outcomes ?? []).filter(item =>
   (!resultFilter.value || (resultFilter.value === 'failed' ? !item.passed || (item.kind === 'Pod' && !item.pipeline_passed) : resultFilter.value === 'positive' ? item.expected : !item.expected)) &&
   `${item.id} ${item.note} ${diagnosisRuleName(item.rule_id)}`.toLowerCase().includes(search.value.toLowerCase()),
 ))
+watch(outcomes, items => { if (!items.some(item => item.id === activeID.value)) activeID.value = items[0]?.id ?? '' })
 const active = computed(() => report.value?.outcomes.find(item => item.id === activeID.value))
 const passed = computed(() => report.value?.outcomes.filter(item => item.passed && (item.kind !== 'Pod' || item.pipeline_passed)).length ?? 0)
 const format = (value: number) => value.toFixed(3)

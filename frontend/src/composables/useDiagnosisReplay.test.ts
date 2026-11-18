@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { effectScope, nextTick } from 'vue'
 import { useDiagnosisReplay } from './useDiagnosisReplay'
 import type { DiagnosisReplayStep } from '../types/diagnosis'
 
@@ -61,6 +61,18 @@ describe('useDiagnosisReplay', () => {
     expect(replay.current.value).toBeNull()
     replay.reset()
     expect(replay.total.value).toBe(3)
+  })
+
+  it('starts with next and releases playback when its view scope ends', () => {
+    const scope = effectScope()
+    const replay = scope.run(() => useDiagnosisReplay(() => steps(), 100))!
+    replay.next()
+    expect(replay.current.value?.summary).toBe('创建')
+    replay.play()
+    expect(vi.getTimerCount()).toBe(1)
+    scope.stop()
+    expect(vi.getTimerCount()).toBe(0)
+    expect(replay.playing.value).toBe(false)
   })
 
   it('toggle pauses an active playback', () => {

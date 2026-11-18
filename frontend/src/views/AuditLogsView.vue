@@ -9,7 +9,7 @@ import { useAuthStore } from '../stores/auth'
 import type { AuditEntry, AuditResult } from '../types/audit'
 import type { Cluster } from '../types/cluster'
 
-const actions = ['auth.login', 'auth.refresh', 'auth.logout', 'cluster.create', 'cluster.enabled.update', 'cluster.probe', 'cluster.delete', 'diagnosis.run', 'diagnosis.status.update', 'diagnosis.feedback.create', 'diagnosis.assignment.update', 'diagnosis.ai_explanation.create', 'ai_explanation.feedback.create', 'audit.export']
+const actions = ['auth.login', 'auth.refresh', 'auth.logout', 'cluster.create', 'cluster.enabled.update', 'cluster.probe', 'cluster.delete', 'diagnosis.run', 'diagnosis.status.update', 'diagnosis.feedback.create', 'diagnosis.assignment.update', 'diagnosis.ai_explanation.create', 'ai_explanation.feedback.create', 'audit.export', 'diagnosis.validation.read', 'aiops.knowledge.inspect', 'integration.tools.read', 'integration.arguments.validate']
 const auth = useAuthStore()
 const clusters = ref<Cluster[]>([])
 const clusterID = ref(0)

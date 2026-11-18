@@ -16,6 +16,7 @@ const router = createRouter({
     { path: '/settings/model', name: 'settings-model', component: () => import('../views/SettingsView.vue'), meta: { tab: 'model', roles: ['system_admin'] } },
     { path: '/settings/users', name: 'settings-users', component: () => import('../views/SettingsView.vue'), meta: { tab: 'users', roles: ['system_admin'] } },
     { path: '/settings/audit', name: 'settings-audit', component: () => import('../views/SettingsView.vue'), meta: { tab: 'audit', roles: ['system_admin', 'security_auditor'] } },
+    { path: '/settings/tools', name: 'settings-tools', component: () => import('../views/SettingsView.vue'), meta: { tab: 'tools' } },
     { path: '/settings/account', name: 'settings-account', component: () => import('../views/SettingsView.vue'), meta: { tab: 'account' } },
     // Preserve existing links only for features merged into a retained work area.
     { path: '/clusters', redirect: '/settings/clusters' },

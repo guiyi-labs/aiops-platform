@@ -17,9 +17,9 @@ const caseItem = {
   primary_resource: { cluster_id: 1, namespace: 'default', kind: 'Pod', name: 'web-0' },
   status: 'active',
   confidence: 'confirmed',
-  evidence_completeness: 0.92,
+  evidence_completeness: 'insufficient',
   factors: [
-    { dimension: 'signal', weight: 0.6, evidence_refs: ['signal:1'], reason: 'OOMKilled 信号与重启事件同窗口' },
+    { kind: 'signal_freshness', weight: 0, value: 'no_change_in_window' },
   ],
   first_observed_at: '2026-08-12T08:00:00Z',
   last_observed_at: '2026-08-12T08:05:00Z',
@@ -86,7 +86,7 @@ test.beforeEach(async ({ page }) => {
       return
     }
     if (method === 'GET' && path === '/api/v1/aiops/correlation/cases/42/actions') {
-      await fulfillJSON(route, { items: [], total: 0, remaining: 0 })
+      await fulfillJSON(route, { items: [{ code: 'pod.inspect', target: caseItem.primary_resource, eligible: true, source_case_id: 42 }], total: 1 })
       return
     }
     await fulfillJSON(route, { items: [], total: 0, remaining: 0 })
@@ -115,4 +115,13 @@ test('Correlation deep link opens evidence within diagnosis without incident con
   await expect(page.locator('.case-detail-panel')).toContainText('sig-oom-1')
   await expect(page.locator('.case-detail-panel')).toContainText('kubelet')
   await expect(page.getByRole('button', { name: /提升事故/ })).toHaveCount(0)
+})
+
+test('Correlation renders real factor fields and omitted optional evidence', async ({ page }) => {
+  await page.goto('/diagnoses?view=correlation&case_id=42')
+  await expect(page.locator('.case-detail-panel')).toContainText('证据完整度 证据不足')
+  await expect(page.locator('.factor-list')).toContainText('信号新鲜度')
+  await expect(page.locator('.factor-list')).toContainText('no_change_in_window')
+  await expect(page.locator('.action-list')).toContainText('pod.inspect')
+  await expect(page.locator('.case-detail-panel')).not.toContainText('NaN%')
 })

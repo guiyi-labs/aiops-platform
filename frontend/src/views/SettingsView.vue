@@ -7,6 +7,7 @@ import ModelAccessView from './ModelAccessView.vue'
 import UsersView from './UsersView.vue'
 import AuditLogsView from './AuditLogsView.vue'
 import AccountSecurityView from './AccountSecurityView.vue'
+import IntegrationToolsView from './IntegrationToolsView.vue'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -16,6 +17,7 @@ const tabs = computed(() => [
   { id: 'model', label: '模型配置', path: '/settings/model', component: ModelAccessView, roles: ['system_admin'] },
   { id: 'users', label: '用户管理', path: '/settings/users', component: UsersView, roles: ['system_admin'] },
   { id: 'audit', label: '审计记录', path: '/settings/audit', component: AuditLogsView, roles: ['system_admin', 'security_auditor'] },
+  { id: 'tools', label: '运行与工具', path: '/settings/tools', component: IntegrationToolsView },
   { id: 'account', label: '账号安全', path: '/settings/account', component: AccountSecurityView },
 ].filter(tab => !tab.roles || auth.user?.roles.some(role => tab.roles!.includes(role))))
 const active = computed(() => tabs.value.find(tab => tab.id === route.meta.tab) ?? tabs.value[0]!)

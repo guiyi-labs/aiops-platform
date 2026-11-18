@@ -108,6 +108,7 @@ func TestCasesServerDegrades(t *testing.T) {
 }
 
 func TestCasesServerServesEntries(t *testing.T) {
+	t.Setenv("AIOPS_API_TOKEN", "test-token")
 	entry := knowledge.Entry{
 		ID: 42, SourceDiagnosisID: 9,
 		RuleID: ruleIDCrashLoopBackOff, Severity: "high", ResourceKind: "Pod",
@@ -115,7 +116,10 @@ func TestCasesServerServesEntries(t *testing.T) {
 		Summary: "CrashLoopBackOff in production", RootCauses: []string{"bad config"}, Recommendations: []string{"fix config"},
 	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !strings.Contains(r.URL.Path, "/api/v1/knowledge/entries") {
+		if r.Header.Get("Authorization") != "Bearer test-token" || r.URL.Query().Get("q") != "crashloop" || r.URL.Query().Get("query") != "" {
+			t.Errorf("server contract mismatch: %s", r.URL.String())
+		}
+		if !strings.Contains(r.URL.Path, "/api/v1/aiops/knowledge") {
 			http.NotFound(w, r)
 			return
 		}
@@ -146,5 +150,24 @@ func TestEntryMatchesKeywords(t *testing.T) {
 	}
 	if entryMatches(entry, "postgres") {
 		t.Error("entry should not match postgres")
+	}
+}
+
+func TestCasesServerMinimumSeverityKeepsHigherSeverity(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("severity") != "" {
+			t.Error("exact severity must not replace minimum severity")
+		}
+		if r.URL.Query().Get("q") == "" && r.URL.Query().Get("min_severity") != "high" {
+			t.Error("missing minimum severity")
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []knowledge.Entry{{ID: 1, Severity: "warning"}, {ID: 2, Severity: "critical"}, {ID: 3, Severity: "high"}}})
+	}))
+	defer server.Close()
+	for _, query := range []string{"", "failure"} {
+		entries, ok := fetchServerCases(server.URL, query, "high", 10)
+		if !ok || len(entries) != 2 || entries[0].Severity != "critical" {
+			t.Fatalf("minimum severity lost: %+v", entries)
+		}
 	}
 }

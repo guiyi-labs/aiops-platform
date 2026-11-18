@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mockAnonymousAuth, mockAuthenticatedAPI } from './api-fixtures'
 
 const consoleErrors: string[] = []
-const scannedRoutes = ['/', '/workloads', '/diagnoses', '/diagnoses?view=topology', '/diagnoses?view=validation', '/cases?view=compare', '/cases', '/settings/clusters', '/settings/model', '/settings/users', '/settings/audit']
+const scannedRoutes = ['/', '/workloads', '/diagnoses', '/diagnoses?view=topology', '/diagnoses?view=validation', '/cases?view=compare', '/cases', '/settings/clusters', '/settings/model', '/settings/tools', '/settings/users', '/settings/audit']
 
 async function expectNoSeriousViolations(page: Page) {
   await expect(page.locator('body')).toBeVisible()

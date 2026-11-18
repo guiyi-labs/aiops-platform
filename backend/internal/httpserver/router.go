@@ -212,6 +212,8 @@ func New(logger *zap.Logger, options Options) http.Handler {
 		reg.register(v1, RouteDescriptor{Method: "GET", Path: "/health/live", Handler: health.live})
 		reg.register(v1, RouteDescriptor{Method: "GET", Path: "/health/ready", Handler: health.ready})
 		if options.Auth != nil {
+			reg.register(v1, RouteDescriptor{Method: "GET", Path: "/integrations/tools", AuthRequired: true, Handler: listIntegrationTools, AuditAction: "integration.tools.read", AuditResource: "ToolCatalog"})
+			reg.register(v1, RouteDescriptor{Method: "POST", Path: "/integrations/tools/validate", AuthRequired: true, Handler: validateIntegrationTool, AuditAction: "integration.arguments.validate", AuditResource: "ToolValidation"})
 			if options.Fleet != nil {
 				fleetAPI := fleetHandler{service: options.Fleet, authz: options.Authz}
 				reg.register(v1, RouteDescriptor{Method: "GET", Path: "/fleet/health", AuthRequired: true, Handler: fleetAPI.health})

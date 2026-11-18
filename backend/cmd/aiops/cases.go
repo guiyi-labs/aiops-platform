@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -186,8 +187,8 @@ func runCases(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "aiops cases: -o must be text or json, got %q\n", format)
 		return 2
 	}
-	if limit <= 0 {
-		fmt.Fprintf(stderr, "aiops cases: --limit must be positive\n")
+	if limit <= 0 || limit > 100 {
+		fmt.Fprintf(stderr, "aiops cases: --limit must be in [1,100]\n")
 		return 2
 	}
 	if severity != "" && !validSeverity(severity) {
@@ -261,35 +262,50 @@ func entryMatches(entry knowledge.Entry, term string) bool {
 	return strings.Contains(haystack, term)
 }
 
-// fetchServerCases calls GET {server}/api/v1/knowledge/entries. The endpoint
-// is not part of the v0.1.0 platform API surface yet; when it becomes
-// available the CLI upgrades automatically, and until then any failure returns
-// ok=false so the caller degrades.
+// fetchServerCases uses the same authenticated endpoint as the Web console.
+// Query retrieval returns a bounded shortlist; minimum severity is applied
+// locally because the query endpoint accepts exact severity, not a minimum.
 func fetchServerCases(server, query, severity string, limit int) ([]knowledge.Entry, bool) {
-	endpoint := strings.TrimRight(server, "/") + "/api/v1/knowledge/entries?limit=" + url.QueryEscape(fmt.Sprint(limit))
+	params := url.Values{"limit": {fmt.Sprint(limit)}}
 	if query != "" {
-		endpoint += "&query=" + url.QueryEscape(query)
+		params.Set("q", query)
+	} else if severity != "" {
+		params.Set("min_severity", severity)
 	}
-	if severity != "" {
-		endpoint += "&severity=" + url.QueryEscape(severity)
+	endpoint := strings.TrimRight(server, "/") + "/api/v1/aiops/knowledge?" + params.Encode()
+	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, false
 	}
-	// #nosec G107 -- endpoint is a user-supplied --server URL that the CLI
-	// intentionally requests; no proxy/redirect review applies to a CLI tool.
-	response, err := http.Get(endpoint)
-	if err != nil || response.StatusCode < 200 || response.StatusCode >= 300 {
-		if response != nil {
-			_ = response.Body.Close()
-		}
+	request.Header.Set("Accept", "application/json")
+	if token := strings.TrimSpace(os.Getenv("AIOPS_API_TOKEN")); token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
 		return nil, false
 	}
 	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, false
+	}
 	var body struct {
 		Items []knowledge.Entry `json:"items"`
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&body); err != nil {
 		return nil, false
 	}
-	return body.Items, true
+	entries := make([]knowledge.Entry, 0, len(body.Items))
+	for _, entry := range body.Items {
+		if severity == "" || severityRank(entry.Severity) >= severityRank(severity) {
+			entries = append(entries, entry)
+		}
+		if len(entries) >= limit {
+			break
+		}
+	}
+	return entries, true
 }
 
 func writeCasesText(w io.Writer, result casesResult, stderr io.Writer) {

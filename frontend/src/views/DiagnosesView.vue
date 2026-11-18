@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Boxes, CheckCircle2, Download, FileSearch, MessageSquareText, Pause, Play, RefreshCw, RotateCcw, SearchCheck, SkipBack, SkipForward, Sparkles, Stethoscope, X, XCircle } from 'lucide-vue-next'
 
@@ -50,6 +50,10 @@ const aiFeedbackSaving = ref(0)
 const replay = ref<DiagnosisReplayView | null>(null)
 const replayLoadError = ref('')
 const replayControls = reactive(useDiagnosisReplay(() => replay.value?.steps ?? []))
+let detailSequence = 0
+let recordsSequence = 0
+const explanationsLoaded = ref(false)
+const replayLoading = ref(false)
 
 const clusterNames = computed(() => new Map(clusters.value.map((item) => [item.id, item.name])))
 const canManage = computed(() => auth.user?.roles.some((role) => role === 'system_admin' || role === 'operations_admin') ?? false)
@@ -59,7 +63,7 @@ function exportEvidence() {
   if (!detail.value) return
   downloadJSON(`diagnosis-${detail.value.id}-evidence.json`, {
     schema: 'aiops.diagnosis-evidence/v1', exported_at: new Date().toISOString(),
-    record: detail.value, explanations: explanations.value,
+    record: detail.value, explanations: explanations.value, explanations_available: explanationsLoaded.value,
     replay: replay.value, replay_available: replay.value !== null,
   })
 }
@@ -101,9 +105,12 @@ function formatTimestamp(raw: unknown): string {
 }
 
 async function loadRecords() {
+  const request = ++recordsSequence
+  recordsCursor.value = null
   loading.value = true; errorMessage.value = ''
   try {
     const page = await listDiagnoses(auth.accessToken, { clusterID: selectedClusterID.value || undefined, status: statusFilter.value })
+    if (request !== recordsSequence) return
     records.value = page.items
     recordsTotal.value = page.total
     // 只有还剩记录时才给游标，否则底部会一直显示「加载更多」。
@@ -111,13 +118,14 @@ async function loadRecords() {
     // total - 本页条数，游标分页下每页都差不多大，最后一页也仍大于 0。
     recordsCursor.value = page.next_before_id ?? null
   }
-  catch { errorMessage.value = '无法加载诊断历史' }
-  finally { loading.value = false }
+  catch { if (request === recordsSequence) { records.value = []; recordsTotal.value = 0; errorMessage.value = '无法加载诊断历史' } }
+  finally { if (request === recordsSequence) loading.value = false }
 }
 
 // 加载更多：按 id 游标追加下一页。按 id 去重兜底，避免将来换实现时重复渲染。
 async function loadMoreRecords() {
   if (recordsCursor.value === null || loadingMore.value) return
+  const request = recordsSequence
   loadingMore.value = true
   errorMessage.value = ''
   try {
@@ -127,41 +135,55 @@ async function loadMoreRecords() {
 
       beforeID: recordsCursor.value,
     })
+    if (request !== recordsSequence) return
     const seen = new Set(records.value.map((item) => item.id))
     records.value = [...records.value, ...page.items.filter((item) => !seen.has(item.id))]
     recordsTotal.value = page.total
     recordsCursor.value = page.next_before_id ?? null
   } catch {
-    errorMessage.value = '加载更多诊断失败，请稍后重试'
+    if (request === recordsSequence) errorMessage.value = '加载更多诊断失败，请稍后重试'
   } finally {
     loadingMore.value = false
   }
 }
 
-async function loadReplay(diagnosisID: number) {
-  replayLoadError.value = ''
-  try {
-    replay.value = await getDiagnosisReplay(auth.accessToken, diagnosisID)
-    replayControls.reset()
-  } catch {
-    replay.value = null
-    replayLoadError.value = '回放模式不可用（当前后端可能未启用诊断回放）'
-  }
+function closeDetail() {
+  detailSequence++
+  detail.value = null
+  detailLoading.value = false; replayLoading.value = false
+  replayControls.reset()
+  replay.value = null
 }
-
-async function openDetail(record: DiagnosisRecord) {
-  detailLoading.value = true; errorMessage.value = ''
+function onEscape(event: KeyboardEvent) { if (event.key === 'Escape') closeDetail() }
+onBeforeUnmount(() => { detailSequence++; recordsSequence++; replayControls.reset(); window.removeEventListener('keydown', onEscape) })
+async function loadReplay(diagnosisID: number, request: number) {
+  replayLoading.value = true
   try {
-    const [recordDetail, explanationResponse] = await Promise.all([getDiagnosis(auth.accessToken, record.id), listDiagnosisExplanations(auth.accessToken, record.id)])
+    const result = await getDiagnosisReplay(auth.accessToken, diagnosisID)
+    if (request === detailSequence) { replay.value = result; replayControls.reset() }
+  } catch {
+    if (request === detailSequence) { replay.value = null; replayLoadError.value = '回放读取失败，原始证据仍可查看。' }
+  } finally { if (request === detailSequence) replayLoading.value = false }
+}
+async function loadExplanations(diagnosisID: number, request: number) {
+  try {
+    const response = await listDiagnosisExplanations(auth.accessToken, diagnosisID)
+    if (request === detailSequence) { explanations.value = response.items; explanationsLoaded.value = true }
+  } catch { if (request === detailSequence) aiError.value = '历史 AI 解释读取失败，规则结论和原始证据仍然有效。' }
+}
+async function openDetail(record: DiagnosisRecord) {
+  const request = ++detailSequence
+  detailLoading.value = true; errorMessage.value = ''
+  detail.value = null; replay.value = null; replayLoadError.value = ''; explanations.value = []; explanationsLoaded.value = false
+  replayControls.reset(); aiError.value = ''; aiLoading.value = false; transitionComment.value = ''; feedbackComment.value = ''
+  try {
+    const recordDetail = await getDiagnosis(auth.accessToken, record.id)
+    if (request !== detailSequence) return
     detail.value = recordDetail
-    explanations.value = explanationResponse.items
-
-    aiError.value = ''
-
-    loadReplay(record.id)
-  }
-  catch { errorMessage.value = '无法加载诊断证据详情' }
-  finally { detailLoading.value = false }
+    void loadExplanations(record.id, request)
+    void loadReplay(record.id, request)
+  } catch { if (request === detailSequence) errorMessage.value = '无法加载诊断证据详情' }
+  finally { if (request === detailSequence) detailLoading.value = false }
 }
 
 const workloadsKindMap: Record<string, string> = {
@@ -220,14 +242,18 @@ function percent(value: number): string {
 
 async function generateExplanation() {
   if (!detail.value) return
+  const request = detailSequence
+  const diagnosisID = detail.value.id
   aiLoading.value = true; aiError.value = ''
   try {
-    const item = await generateDiagnosisExplanation(auth.accessToken, detail.value.id)
+    const item = await generateDiagnosisExplanation(auth.accessToken, diagnosisID)
+    if (request !== detailSequence) return
+    explanationsLoaded.value = true
     explanations.value = [item, ...explanations.value]
   } catch (error) {
-    aiError.value = describeAIError(error)
+    if (request === detailSequence) aiError.value = describeAIError(error)
   }
-  finally { aiLoading.value = false; await loadAIStatus() }
+  finally { if (request === detailSequence) aiLoading.value = false; await loadAIStatus() }
 }
 
 // describeAIError 把后端的失败原因翻译成「下一步该动哪里」。
@@ -240,7 +266,7 @@ function describeAIError(error: unknown): string {
   const raw = error.message || ''
   switch (error.code) {
     case 'AI_DISABLED':
-      return '模型接入尚未启用：到「系统设置 → 模型接入」打开开关后即可生成解释。'
+      return '模型接入尚未启用：到「系统设置 → 模型配置」打开开关后即可生成解释。'
     case 'AI_BUDGET_EXCEEDED':
       return '今日剩余 AI token 预算不足以生成本次解释，规则结论和原始证据仍然有效。'
     case 'AI_BUSY':
@@ -321,7 +347,7 @@ async function initialize() {
 }
 
 watch([selectedClusterID, statusFilter], loadRecords)
-onMounted(initialize)
+onMounted(() => { window.addEventListener('keydown', onEscape); void initialize() })
 </script>
 
 <template>
@@ -360,7 +386,7 @@ onMounted(initialize)
       </div>
     </section>
 
-    <div v-if="detail" class="log-overlay" @click.self="detail = null"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="detail = null"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span></div><div class="diagnosis-export"><button class="secondary-button" @click="exportEvidence"><Download :size="14" />导出诊断证据 JSON</button><span>包含当前已读取的结论、证据、解释和回放快照</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }}</p>
+    <div v-if="detail" class="log-overlay" @click.self="closeDetail"><section class="diagnosis-drawer"><header><div><p class="context-label">DIAGNOSIS #{{ detail.id }}</p><h2>{{ detail.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="closeDetail"><X :size="18" /></button></header><div class="diagnosis-detail-badges"><span class="severity-badge">{{ detail.severity }}</span><span class="workflow-status" :class="detail.status">{{ detail.status }}</span></div><div class="diagnosis-export"><button class="secondary-button" @click="exportEvidence"><Download :size="14" />导出诊断证据 JSON</button><span>包含当前已读取的结论、证据、解释和回放快照</span></div><p class="diagnosis-summary">{{ detail.summary }}</p><p class="diagnosis-resource-ref">{{ detail.resource.kind }} · {{ detail.resource.namespace }}/{{ detail.resource.name }} · 观察 {{ formatTime(detail.observed_at) }}</p>
       <FindingEvidencePanel :finding="fromDiagnosis(detail)" />
       <section v-if="detail.root_cause_card" class="root-cause-card">
         <header><span class="root-cause-label">根因结论</span><span class="root-cause-confidence">{{ detail.root_cause_card.confidence }}</span></header>
@@ -422,13 +448,14 @@ onMounted(initialize)
             <strong>{{ replayControls.current.summary }}</strong>
             <small>{{ replayControls.current.type }} · {{ replayControls.current.ref }}</small>
             <p v-if="replayControls.current.missing" class="timeline-missing">证据缺失 · {{ replayControls.current.missing_reason || '对象未报告该状态' }}</p>
-            <pre v-if="replayControls.current.detail && Object.keys(replayControls.current.detail).length" class="replay-detail">{{ JSON.stringify(replayControls.current.detail, null, 2) }}</pre>
+            <pre v-if="replayControls.current.detail && Object.keys(replayControls.current.detail).length" class="replay-detail" tabindex="0" aria-label="回放原始内容">{{ JSON.stringify(replayControls.current.detail, null, 2) }}</pre>
           </div>
           <time>{{ replayControls.current.occurred_at ? formatTime(replayControls.current.occurred_at) : '时间未知' }}</time>
         </article>
         <p v-else-if="replayControls.total === 0" class="compact-empty">该诊断暂无回放步骤</p>
         <p v-else class="compact-empty">按 ▶ 播放，或使用上一步/下一步/进度条开始回放</p>
       </section>
+      <p v-else-if="replayLoading" role="status">正在读取回放快照…</p>
       <p v-else-if="replayLoadError" class="replay-error">{{ replayLoadError }}</p>
       <section v-if="detail.timeline?.length" class="evidence-timeline">
         <h3>证据时间线 · {{ detail.timeline.length }}</h3>

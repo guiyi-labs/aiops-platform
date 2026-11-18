@@ -227,7 +227,7 @@ test('Diagnosis replay degrades gracefully when the replay API is unavailable', 
 
   const drawer = page.locator('.diagnosis-drawer')
   await expect(drawer).toBeVisible()
-  await expect(drawer.locator('.replay-error')).toContainText('回放模式不可用')
+  await expect(drawer.locator('.replay-error')).toContainText('回放读取失败')
   // 其余详情仍正常渲染，不因回放失败而空白
   await expect(drawer.locator('.root-cause-card')).toContainText('Node 未处于 Ready 状态')
 
@@ -329,4 +329,20 @@ test('Diagnosis evidence export preserves the loaded record and replay', async (
   expect(exported.record.evidence).toEqual(detail.evidence)
   expect(exported.replay.steps).toEqual(replayView.steps)
   expect(exported.replay_available).toBe(true)
+})
+
+
+test('diagnosis evidence remains usable when optional explanations fail', async ({ page }) => {
+  await page.route('**/api/v1/diagnoses/42/explanations', route => route.fulfill({ status: 503, json: { message: 'optional explanation storage offline' } }))
+  await page.goto('/diagnoses?id=42')
+  await expect(page.locator('.diagnosis-drawer')).toBeVisible()
+  await expect(page.locator('.ai-fallback-message')).toContainText('历史 AI 解释读取失败')
+  await expect(page.locator('.evidence-timeline')).toContainText('Ready = False')
+  await page.getByRole('button', { name: '下一步', exact: true }).click()
+  await expect(page.locator('.replay-step')).toContainText('Ready = False')
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.diagnosis-drawer')).toHaveCount(0)
+  await page.locator('.diagnosis-history-row').first().click()
+  await expect(page.locator('.diagnosis-drawer')).toBeVisible()
+  consoleErrors.splice(0, consoleErrors.length, ...consoleErrors.filter(message => !message.includes('503')))
 })

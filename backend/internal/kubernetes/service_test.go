@@ -911,3 +911,29 @@ func TestBackupKeepsResourceNotFoundWhenVeleroInstalledButBackupMissing(t *testi
 		t.Fatalf("expected ErrResourceNotFound without ErrVeleroUnavailable, got %v", err)
 	}
 }
+
+// Exercise the actual fetch and redaction path, including a cluster-scoped
+// placeholder namespace and ConfigMap values that must never reach the UI.
+func TestManifestSupportsVisibleResourceKinds(t *testing.T) {
+	for _, tt := range []struct{ kind, namespace, path string }{
+		{"Node", "_", "/api/v1/nodes/item"},
+		{"ConfigMap", "prod", "/api/v1/namespaces/prod/configmaps/item"},
+		{"StorageClass", "_", "/apis/storage.k8s.io/v1/storageclasses/item"},
+		{"HorizontalPodAutoscaler", "prod", "/apis/autoscaling/v2/namespaces/prod/horizontalpodautoscalers/item"},
+	} {
+		t.Run(tt.kind, func(t *testing.T) {
+			gateway := &gatewayStub{responses: map[string]gatewayResponse{
+				tt.path: {body: []byte(`{"metadata":{"name":"item","annotations":{"kubectl.kubernetes.io/last-applied-configuration":"raw-value"}},"data":{"password":"private-value"},"binaryData":{"raw":"encoded-value"},"token":"private-token"}`)},
+			}}
+			service := NewService(credentialStub{enabled: true}, gateway, nil)
+			result, err := service.Manifest(context.Background(), 7, tt.kind, tt.namespace, "item")
+			if err != nil {
+				t.Fatal(err)
+			}
+			annotations := result["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})
+			if result["data"] != "<redacted>" || result["binaryData"] != "<redacted>" || result["token"] != "<redacted>" || annotations["kubectl.kubernetes.io/last-applied-configuration"] != "<redacted>" {
+				t.Fatalf("sensitive fields not redacted: %v", result)
+			}
+		})
+	}
+}

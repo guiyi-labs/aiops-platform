@@ -78,31 +78,6 @@ func DefaultTools() []Tool {
 			},
 		},
 		{
-			Name:        "list_incidents",
-			Description: "List incidents tracked by the platform. Read-only.",
-			Path:        "/api/v1/incidents",
-			Args: []Arg{
-				{Name: "limit", Description: "maximum number of records to return"},
-			},
-			Query: []string{"limit"},
-		},
-		{
-			Name:        "get_incident",
-			Description: "Fetch one incident by id. Read-only.",
-			Path:        "/api/v1/incidents/{incident_id}",
-			Args: []Arg{
-				{Name: "incident_id", Description: "incident id", Required: true},
-			},
-		},
-		{
-			Name:        "get_incident_evidence",
-			Description: "Fetch the evidence attached to one incident. Read-only.",
-			Path:        "/api/v1/incidents/{incident_id}/evidence",
-			Args: []Arg{
-				{Name: "incident_id", Description: "incident id", Required: true},
-			},
-		},
-		{
 			Name:        "search_knowledge",
 			Description: "Search the distilled case library of previously resolved failures. Each entry carries the confirmed root cause and the remediation that worked. Read-only.",
 			Path:        "/api/v1/aiops/knowledge",

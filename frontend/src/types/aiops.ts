@@ -352,10 +352,10 @@ export type CaseStatus = 'active' | 'resolved' | 'stale'
 export type CaseConfidence = 'confirmed' | 'candidate' | 'contradicted' | 'unknown'
 
 export interface Factor {
-  dimension: string
+  kind: string
+  value: string
   weight: number
-  evidence_refs: EvidenceRef[]
-  reason: string
+  evidence?: EvidenceRef[]
 }
 
 export interface CorrelationCase {
@@ -367,11 +367,11 @@ export interface CorrelationCase {
   primary_resource: ResourceCitation
   status: CaseStatus
   confidence: CaseConfidence
-  evidence_completeness: number
+  evidence_completeness: 'complete' | 'partial' | 'insufficient'
   factors: Factor[]
   first_observed_at: string
   last_observed_at: string
-  diagnosis_ids: number[]
+  diagnosis_ids?: number[]
   root_change_candidate_id?: number
   created_at: string
   updated_at: string
@@ -397,8 +397,8 @@ export interface ResourceLink {
   case_id: number
   resource: ResourceCitation
   relation: string
-  topology_path: string[]
-  edge_ids: number[]
+  topology_path?: string[]
+  edge_ids?: number[]
   created_at: string
 }
 
@@ -410,8 +410,8 @@ export interface ChangeCandidate {
   confidence: CaseConfidence
   rank: number
   factors: Factor[]
-  evidence_refs: EvidenceRef[]
-  contradicting_refs: EvidenceRef[]
+  evidence_refs?: EvidenceRef[]
+  contradicting_refs?: EvidenceRef[]
   reason_code: string
   created_at: string
   updated_at: string
@@ -452,7 +452,7 @@ export interface ActionCandidate {
   code: string
   target: ResourceCitation
   eligible: boolean
-  blocked_reasons: string[]
+  blocked_reasons?: string[]
   source_case_id: number
   source_candidate_id?: number
 }

@@ -33,6 +33,8 @@ Usage:
       Print the aiops version.
 
 Global behavior:
+  Set AIOPS_API_TOKEN to authenticate case-library requests to --server.
+  Server query results are a bounded retrieval shortlist.
   Output is English. -o json emits machine-readable JSON for scripting.
 `
 

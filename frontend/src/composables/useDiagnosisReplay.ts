@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, getCurrentScope, onScopeDispose, ref, watch } from 'vue'
 import type { DiagnosisReplayStageID, DiagnosisReplayStep } from '../types/diagnosis'
 
 // useDiagnosisReplay drives the M94 replay mode over a diagnosis insight
@@ -60,8 +60,8 @@ export function useDiagnosisReplay(
 
   function next() {
     pause()
-    if (atEnd.value || cursor.value < 0) return
-    cursor.value += 1
+    if (filtered.value.length === 0 || atEnd.value) return
+    cursor.value = cursor.value < 0 ? 0 : cursor.value + 1
   }
 
   function prev() {
@@ -90,6 +90,8 @@ export function useDiagnosisReplay(
   watch(filtered, () => {
     if (cursor.value >= filtered.value.length) cursor.value = -1
   })
+
+  if (getCurrentScope()) onScopeDispose(pause)
 
   return {
     cursor,

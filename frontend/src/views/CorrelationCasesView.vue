@@ -9,7 +9,7 @@ import { getCorrelationCase, listCorrelationActions, listCorrelationCases } from
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import { useAuthStore } from '../stores/auth'
 import type { Cluster } from '../types/cluster'
-import type { ActionCandidate, CaseConfidence, CaseStatus, CaseView, CorrelationCase } from '../types/aiops'
+import type { ActionCandidate, CaseConfidence, CaseStatus, CaseView, CorrelationCase, Factor } from '../types/aiops'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -72,9 +72,15 @@ function formatTime(value: string): string {
   }
 }
 
-function completenessPercent(value: number): string {
-  if (value == null || Number.isNaN(value)) return '--'
-  return `${Math.round(value * 100)}%`
+function completenessLabel(value: CorrelationCase['evidence_completeness']): string {
+  return ({ complete: '完整', partial: '部分完整', insufficient: '证据不足' } as const)[value] ?? '未知'
+}
+
+function factorLabel(kind: Factor['kind']): string {
+  return ({ same_uid: '资源身份', topology_distance: '拓扑距离', time_distance: '时间距离',
+    change_symptom_rule: '变更与症状规则', signal_freshness: '信号新鲜度',
+    signal_completeness: '信号完整性', diagnosis_match: '诊断匹配', contradicting_signal: '矛盾信号',
+  } as Record<string, string>)[kind] ?? kind
 }
 
 function coverageLabel(c: string): string {
@@ -273,7 +279,7 @@ onMounted(initialize)
                 <span class="mini-badge" :style="{ color: confidenceColor(item.confidence), borderColor: confidenceColor(item.confidence) }">{{ confidenceLabel(item.confidence) }}</span>
               </div>
               <div class="case-row-meta">
-                <span>证据完整度 {{ completenessPercent(item.evidence_completeness) }}</span>
+                <span>证据完整度 {{ completenessLabel(item.evidence_completeness) }}</span>
                 <time>{{ formatTime(item.last_observed_at) }}</time>
               </div>
             </button>
@@ -308,7 +314,7 @@ onMounted(initialize)
           <div v-if="caseView?.case" class="case-detail-badges">
             <span class="mini-badge" :style="{ color: statusColor(caseView.case.status), borderColor: statusColor(caseView.case.status) }">{{ statusLabel(caseView.case.status) }}</span>
             <span class="mini-badge" :style="{ color: confidenceColor(caseView.case.confidence), borderColor: confidenceColor(caseView.case.confidence) }">{{ confidenceLabel(caseView.case.confidence) }}</span>
-            <span class="mini-badge neutral">证据完整度 {{ completenessPercent(caseView.case.evidence_completeness) }}</span>
+            <span class="mini-badge neutral">证据完整度 {{ completenessLabel(caseView.case.evidence_completeness) }}</span>
             <span class="mini-badge neutral">首次观察 {{ formatTime(caseView.case.first_observed_at) }}</span>
             <span class="mini-badge neutral">最近观察 {{ formatTime(caseView.case.last_observed_at) }}</span>
 
@@ -320,11 +326,11 @@ onMounted(initialize)
             <ul v-else class="factor-list">
               <li v-for="(factor, idx) in caseView.case.factors" :key="idx">
                 <div class="factor-head">
-                  <strong>{{ factor.dimension }}</strong>
+                  <strong>{{ factorLabel(factor.kind) }}</strong>
                   <span class="weight">权重 {{ factor.weight.toFixed(2) }}</span>
                 </div>
-                <p>{{ factor.reason }}</p>
-                <small v-if="factor.evidence_refs.length">证据 {{ factor.evidence_refs.length }} 条</small>
+                <p>{{ factor.value }}</p>
+                <small v-if="factor.evidence?.length">证据 {{ factor.evidence?.length }} 条</small>
               </li>
             </ul>
           </section>
@@ -382,7 +388,7 @@ onMounted(initialize)
                     <span class="mini-badge" :style="{ color: confidenceColor(cand.confidence), borderColor: confidenceColor(cand.confidence) }">{{ confidenceLabel(cand.confidence) }}</span>
                   </td>
                   <td>{{ cand.reason_code }}</td>
-                  <td>{{ cand.evidence_refs.length }}</td>
+                  <td>{{ cand.evidence_refs?.length ?? 0 }}</td>
                 </tr>
               </tbody>
             </table>
@@ -398,7 +404,7 @@ onMounted(initialize)
                   <span class="mini-badge" :class="{ eligible: action.eligible, blocked: !action.eligible }">{{ action.eligible ? '供人工参考' : '条件未满足' }}</span>
                 </div>
                 <small>目标：{{ resourceLabel(action.target) }} · 来源案例 #{{ action.source_case_id }}<span v-if="action.source_candidate_id"> · 候选 #{{ action.source_candidate_id }}</span></small>
-                <p v-if="action.blocked_reasons.length" class="action-blocked">阻塞原因：{{ action.blocked_reasons.join('；') }}</p>
+                <p v-if="action.blocked_reasons?.length" class="action-blocked">阻塞原因：{{ action.blocked_reasons.join('；') }}</p>
               </li>
             </ul>
           </section>

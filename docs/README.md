@@ -10,6 +10,7 @@
 | `changes/TEMPLATE.md` | change-record 标准模板：日期、状态、范围、Context、What Changed、Verification、Risks |
 | `kubesphere-optimization-plan.md` | M32 后以 KubeSphere 能力为底座、融合 AIOps 信号/诊断/AI/安全闭环的 M33-M45 路线和验收标准 |
 | `next-development-plan.md` | 已归档的 M26-M32 开发执行合同，不再作为当前开发入口 |
+| [console-demo-guide.md](console-demo-guide.md) | 五个主入口的演示路线、实际操作与验证边界 |
 | `development.md` | 本地开发、测试和运行方法 |
 | `development-handoff.md` | 当前里程碑、稳定基线、进行中工作和下次启动入口 |
 | `roadmap.md` | M19-M32 产品优化顺序、阶段状态、范围边界和发布前置条件 |
@@ -33,6 +34,8 @@ M32 后的权威优化入口见 `kubesphere-optimization-plan.md`。M25 之后�
 `references/final-product-gap-analysis.md` 已完成其 M27-M32 路线决策职责，现作为历史分析保留。
 
 当前发布冻结候选归档：
+
+- [2026-11-18-demo-readiness](changes/2026-11-18-demo-readiness.md)：案例对照演示、运行与工具检查及真实数据契约修复。
 
 - `docs/changes/2026-08-31-login-sidebar-navigation.md`：登录后侧边栏路由出口、Teleport 挂载时序、
   认证初始化闩锁修复及桌面/移动端 28 项 smoke 回归证据。

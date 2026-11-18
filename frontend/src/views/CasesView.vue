@@ -27,6 +27,8 @@ async function load() {
   const request = ++sequence
   loading.value = true
   error.value = ''
+  items.value = []
+  truncated.value = false
   try {
     const response = await listKnowledge(auth.accessToken, { q: query.value, resource_kind: kind.value })
     if (request !== sequence) return
@@ -47,7 +49,7 @@ onMounted(() => {
 <template>
   <ConsoleLayout eyebrow="案例记忆" title="历史案例">
     <nav class="workspace-tabs" aria-label="案例视图"><RouterLink to="/cases" :class="{ active: view === 'library' }" :aria-current="view === 'library' ? 'page' : undefined">案例库</RouterLink><RouterLink to="/cases?view=compare" :class="{ active: view === 'compare' }" :aria-current="view === 'compare' ? 'page' : undefined">检索对比</RouterLink></nav>
-    <CaseRetrievalLab v-show="view === 'compare'" :reference="reference" />
+    <CaseRetrievalLab v-if="view === 'compare'" :reference="reference" :entries="items" :library-loading="loading" :library-error="error" @select="comparison.select" @reload="load" />
     <div v-show="view === 'library'">
     <section class="page-toolbar"><div><strong>{{ total ?? '—' }}</strong><span> 条归档案例 · 已解决的诊断自动归档</span></div></section>
     <form class="case-search" @submit.prevent="load">

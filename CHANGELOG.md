@@ -9,6 +9,8 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+- 概览新增可全屏的集群立体态势：节点机柜、Pod 单元、流光归属链路、视角环绕与节点巡览，并展示真实资源指标和证据入口（[记录](docs/changes/2026-11-18-spatial-cluster.md)）。
+
 - 资源详情改为与列表并排展示，状态保持可见，支持直接切换、选中高亮和就地诊断反馈；已同步演示主机（[记录](docs/changes/2026-11-18-resource-browser.md)）。
 
 - 完成独立演示主机部署、诊断与案例迁移、真实集群直连接入及重启持久化验收（[记录](docs/changes/2026-11-18-demo-host-transfer.md)）。

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
-import { Activity, ArrowUpRight, Boxes, Check, CircleDot, Cpu, Database, Expand, Layers3, Minimize2, Network, RefreshCw, ScanLine, Server, ShieldCheck, TriangleAlert } from 'lucide-vue-next'
+import { Activity, ArrowUpRight, Boxes, Check, CircleDot, Cpu, Database, Expand, Layers3, Minimize2, RefreshCw, ScanLine, Server, ShieldCheck, TriangleAlert } from 'lucide-vue-next'
 import ConsoleLayout from '../components/ConsoleLayout.vue'
 import DashboardTrend from '../components/DashboardTrend.vue'
+import ClusterScene from '../components/ClusterScene.vue'
 import { listClusters } from '../api/clusters'
 import { listNodes, listPods, listEvents, listNodeMetrics, listPodMetrics } from '../api/kubernetes'
 import { listDiagnoses } from '../api/diagnosis'
@@ -35,12 +36,14 @@ const refreshKey = ref(0)
 const updatedAt = ref('')
 const autoRefresh = ref(true)
 const presentation = ref(false)
+const scenePresentation = ref(false)
 const dashboard = ref<HTMLElement | null>(null)
 const presentButton = ref<HTMLButtonElement | null>(null)
 const rankMode = ref<'cpu' | 'memory'>('cpu')
 let sequence = 0
 let timer: ReturnType<typeof setInterval> | undefined
 let previousOverflow = ''
+let presentationOrigin: HTMLElement | null = null
 const current = computed(() => clusters.value.find(item => item.id === selected.value))
 const isNodeReady = (node: NodeResource) => node.status.conditions.some(condition => condition.type === 'Ready' && condition.status === 'True')
 const readyNodes = computed(() => nodes.value?.filter(isNodeReady).length ?? null)
@@ -74,10 +77,6 @@ const rankValue = (item: { cpuMillicores: number; memoryBytes: number }) => rank
 const rankWidth = (item: { cpuMillicores: number; memoryBytes: number }) => rank.value.length && rankValue(rank.value[0]) > 0 ? rankValue(item) / rankValue(rank.value[0]) * 100 : 0
 const statusLabels: Record<DiagnosisStatus, string> = { open: '待确认', confirmed: '已确认', resolved: '已解决', dismissed: '已忽略' }
 const statusRows = computed(() => (['open', 'confirmed', 'resolved', 'dismissed'] as const).map((status, index) => ({ status, label: statusLabels[status], count: diagnoses.value?.filter(item => item.status === status).length ?? 0, color: ['var(--dash-amber)', 'var(--dash-red)', 'var(--dash-green)', 'var(--dash-violet)'][index] })))
-const topologyNodes = computed(() => (nodes.value ?? []).slice(0, 6).map((node, index, items) => {
-  const angle = -Math.PI / 2 + index * Math.PI * 2 / items.length
-  return { name: node.metadata.name, ready: isNodeReady(node), x: 260 + Math.cos(angle) * 162, y: 145 + Math.sin(angle) * 96, pods: pods.value?.filter(pod => pod.spec.nodeName === node.metadata.name).length ?? null }
-}))
 const latestEvents = computed(() => [...(events.value ?? [])].filter(item => item.type === 'Warning').sort((a, b) => Date.parse(b.lastTimestamp || b.metadata.creationTimestamp || '') - Date.parse(a.lastTimestamp || a.metadata.creationTimestamp || '')).slice(0, 3))
 function timestamp(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) }
 
@@ -126,7 +125,12 @@ async function initialize() {
   } catch { error.value = '无法读取集群配置，请稍后重试。' }
   finally { initialized.value = true }
 }
-async function enterPresentation() {
+async function enterScene(event: MouseEvent) {
+  scenePresentation.value = true
+  if (!presentation.value) await enterPresentation(event)
+}
+async function enterPresentation(event?: Event) {
+  presentationOrigin = event?.currentTarget instanceof HTMLElement ? event.currentTarget : null
   previousOverflow = document.body.style.overflow
   document.body.style.overflow = 'hidden'
   presentation.value = true
@@ -137,17 +141,20 @@ async function enterPresentation() {
 }
 async function exitPresentation() {
   presentation.value = false
+  scenePresentation.value = false
   document.body.style.overflow = previousOverflow
   if (document.fullscreenElement === dashboard.value) await document.exitFullscreen().catch(() => {})
   await nextTick()
-  presentButton.value?.focus()
+  if (presentationOrigin?.isConnected) presentationOrigin.focus()
+  else if (presentationOrigin?.classList.contains('scene-primary')) dashboard.value?.querySelector<HTMLButtonElement>('.scene-primary')?.focus()
+  else presentButton.value?.focus()
 }
 function onFullscreenChange() { if (!document.fullscreenElement && presentation.value) void exitPresentation() }
 function onKeydown(event: KeyboardEvent) {
   if (!presentation.value) return
   if (event.key === 'Escape') void exitPresentation()
   if (event.key === 'Tab') {
-    const elements = [...(dashboard.value?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], select:not(:disabled)') ?? [])].filter(element => element.getClientRects().length)
+    const elements = [...(dashboard.value?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], select:not(:disabled), [tabindex="0"]') ?? [])].filter(element => element.getClientRects().length)
     const first = elements[0]
     const last = elements.at(-1)
     if (event.shiftKey && (document.activeElement === first || document.activeElement === dashboard.value)) { event.preventDefault(); last?.focus() }
@@ -172,13 +179,13 @@ onUnmounted(() => {
 <template>
   <ConsoleLayout eyebrow="K8s 故障诊断" title="系统概览">
     <Teleport to="body" :disabled="!presentation">
-      <div ref="dashboard" class="dashboard" :class="{ 'dashboard-presentation': presentation }" :tabindex="presentation ? -1 : undefined" :role="presentation ? 'dialog' : undefined" :aria-modal="presentation ? true : undefined" aria-label="集群运行态势">
+      <div ref="dashboard" class="dashboard" :class="{ 'dashboard-presentation': presentation, 'scene-presentation': presentation && scenePresentation }" :tabindex="presentation ? -1 : undefined" :role="presentation ? 'dialog' : undefined" :aria-modal="presentation ? true : undefined" aria-label="集群运行态势">
         <header class="dash-hero">
           <div class="hero-orbit" aria-hidden="true"><ScanLine :size="62" /><i /><i /></div>
           <div class="hero-copy"><span class="hero-eyebrow"><i /> CLUSTER OBSERVATORY <span>/ 运行观测</span></span><h2>集群运行态势<span class="hero-slash"> / </span><small>从资源状态到故障线索</small></h2><p><span :class="{ 'service-unready': ready === false }">{{ ready === null ? '正在连接平台' : ready ? '平台服务就绪' : '平台服务暂不可用' }}</span><b>·</b>{{ current?.name ?? '等待接入集群' }}<b>·</b>{{ updatedAt ? `最近读取 ${timestamp(updatedAt)}` : '等待采集快照' }}</p></div>
           <div class="hero-actions">
             <select v-if="clusters.length" v-model="selected" aria-label="当前诊断集群" @change="changeCluster"><option v-for="cluster in clusters" :key="cluster.id" :value="cluster.id">{{ cluster.name }}</option></select>
-            <div class="hero-buttons"><button type="button" class="dash-action" :disabled="loading || !selected" aria-label="刷新概览" @click="load"><RefreshCw :size="14" :class="{ 'dash-spinning': loading }" />刷新</button><button v-if="!presentation" ref="presentButton" type="button" class="dash-action dash-action-primary" @click="enterPresentation"><Expand :size="14" />全屏展示</button><button v-else type="button" class="dash-action dash-action-primary" @click="exitPresentation"><Minimize2 :size="14" />退出展示</button></div>
+            <div class="hero-buttons"><button type="button" class="dash-action" :disabled="loading || !selected" aria-label="刷新概览" @click="load"><RefreshCw :size="14" :class="{ 'dash-spinning': loading }" />刷新</button><button v-if="!presentation" ref="presentButton" type="button" class="dash-action dash-action-primary" @click="enterPresentation"><Expand :size="14" />全屏展示</button><button v-if="presentation" type="button" class="dash-action" @click="scenePresentation = !scenePresentation">{{ scenePresentation ? '综合大屏' : '立体大屏' }}</button><button v-if="presentation" type="button" class="dash-action dash-action-primary" @click="exitPresentation"><Minimize2 :size="14" />退出展示</button></div>
           </div>
         </header>
         <div class="dash-status-strip"><span><i :class="{ paused: !autoRefresh }" />{{ loading ? '正在更新快照…' : '集群观测快照' }}</span><button type="button" :aria-pressed="autoRefresh" @click="autoRefresh = !autoRefresh"><Check v-if="autoRefresh" :size="12" />30 秒自动刷新{{ autoRefresh ? '已开启' : '已暂停' }}</button></div>
@@ -199,17 +206,7 @@ onUnmounted(() => {
               <div class="pressure-rule"><span>Pod 健康分布</span><strong>{{ pods === null ? '不可用' : `${healthyPods} / ${pods.length}` }}</strong></div>
               <div class="pod-health"><svg viewBox="0 0 72 72" role="img" :aria-label="pods === null ? 'Pod 健康分布不可用' : podDistribution.map(item => `${item.label} ${item.count}`).join('，')"><circle cx="36" cy="36" r="27" class="gauge-track" /><circle v-for="segment in podRing" :key="segment.label" cx="36" cy="36" r="27" fill="none" :stroke="segment.color" stroke-width="8" pathLength="100" :stroke-dasharray="`${segment.length} ${100 - segment.length}`" :stroke-dashoffset="segment.offset" transform="rotate(-90 36 36)" /><text x="36" y="40" text-anchor="middle">{{ pods?.length ?? '—' }}</text></svg><div><span v-for="item in podDistribution" :key="item.label"><i :style="{ background: item.color }" />{{ item.label }}<b>{{ pods === null ? '—' : item.count }}</b></span></div></div>
             </section>
-            <section class="dash-panel topology-panel" aria-labelledby="topology-title">
-              <header class="dash-panel-heading"><div><span class="dash-kicker">CLUSTER MAP</span><h2 id="topology-title"><Network :size="16" />集群资源拓扑</h2></div><RouterLink :to="{ path: '/diagnoses', query: { cluster: selected, view: 'topology' } }" aria-label="查看完整资源拓扑"><ArrowUpRight :size="18" /></RouterLink></header>
-              <svg class="cluster-map" viewBox="0 0 520 292" role="img" :aria-label="`当前集群展示 ${topologyNodes.length} 个节点及其 Pod 分布`">
-                <defs><radialGradient id="cluster-map-glow"><stop offset="0%" stop-color="var(--map-cyan)" stop-opacity=".13" /><stop offset="100%" stop-color="var(--map-cyan)" stop-opacity="0" /></radialGradient></defs>
-                <circle cx="260" cy="145" r="143" fill="url(#cluster-map-glow)" /><ellipse cx="260" cy="145" rx="162" ry="96" class="map-orbit" /><ellipse cx="260" cy="145" rx="105" ry="64" class="map-orbit inner" />
-                <g v-for="node in topologyNodes" :key="node.name" class="map-node" :class="{ 'map-node-warning': !node.ready }"><path :d="`M 260 145 Q ${node.x} 145 ${node.x} ${node.y}`" class="map-connection" /><circle :cx="node.x" :cy="node.y" r="19" class="map-node-halo" /><rect :x="node.x - 12" :y="node.y - 12" width="24" height="24" rx="7" class="map-node-body" /><path :d="`M ${node.x - 5} ${node.y - 3} h 10 M ${node.x - 5} ${node.y + 3} h 10`" class="map-node-icon" /><text :x="node.x" :y="node.y + 33" class="map-node-name" text-anchor="middle">{{ node.name.length > 22 ? node.name.slice(0, 20) + '…' : node.name }}</text><text :x="node.x" :y="node.y + 48" class="map-node-detail" text-anchor="middle">{{ node.ready ? 'Ready' : '未就绪' }} · {{ node.pods ?? '—' }} Pod</text><title>{{ node.name }} · {{ node.ready ? '就绪' : '未就绪' }} · {{ node.pods ?? '未知数量' }} 个样本 Pod</title></g>
-                <circle cx="260" cy="145" r="42" class="map-core-ring" /><circle cx="260" cy="145" r="32" class="map-core" /><path d="M260 126 l15 9 v18 l-15 9 -15 -9 v-18 Z M245 135 l15 9 15 -9 M260 144 v18" class="map-core-icon" />
-                <text v-if="!topologyNodes.length" x="260" y="224" text-anchor="middle" class="map-empty">{{ loading ? '正在读取集群节点' : nodes === null ? '节点数据暂不可用' : '当前集群暂无节点' }}</text>
-              </svg>
-              <footer class="map-footer"><span><i />就绪节点 <b>{{ readyNodes ?? '—' }}</b></span><span><i class="warn" />待关注 <b>{{ nodes === null ? '—' : nodes.length - (readyNodes ?? 0) }}</b></span><span>展示 {{ topologyNodes.length }} / {{ nodeCount ?? '—' }} 节点</span></footer><p class="map-note">连线表示集群归属 · Pod 数量来自已读取样本</p>
-            </section>
+            <ClusterScene :cluster-id="selected" :cluster-name="current?.name ?? ''" :nodes="nodes" :pods="pods" :metrics="nodeMetrics" :node-count="nodeCount" :expanded="presentation && scenePresentation" :loading="loading" @expand="enterScene" />
             <section class="dash-panel diagnosis-panel" aria-labelledby="distribution-title">
               <header class="dash-panel-heading"><div><span class="dash-kicker">DIAGNOSIS INSIGHT</span><h2 id="distribution-title"><ScanLine :size="16" />诊断处理分布</h2></div><RouterLink :to="{ path: '/diagnoses', query: { cluster: selected } }" aria-label="查看诊断记录"><ArrowUpRight :size="18" /></RouterLink></header>
               <div class="diagnosis-summary"><strong>{{ diagnoses?.filter(item => item.status === 'open' || item.status === 'confirmed').length ?? '—' }}</strong><span>条待处理记录<small>最近 {{ diagnoses?.length ?? '—' }} 条诊断样本</small></span></div>
@@ -272,7 +269,6 @@ onUnmounted(() => {
   .dashboard.dashboard-presentation .dash-stat { padding: 12px 18px; }
   .dashboard.dashboard-presentation .dash-stat > strong { font-size: 30px; margin: 7px 0; }
   .dashboard.dashboard-presentation .dash-main-grid { grid-template-columns: 1fr 1.5fr 1fr; gap: 12px; }
-  .dashboard.dashboard-presentation .cluster-map { flex: none; height: 220px; min-height: 220px; margin: auto 0; }
   .dashboard.dashboard-presentation .gauge-pair { margin-top: 14px; }
   .dashboard.dashboard-presentation .resource-gauge > svg { max-width: 100px; }
   .dashboard.dashboard-presentation .gauge-label { height: 100px; }
@@ -281,6 +277,20 @@ onUnmounted(() => {
   .dashboard.dashboard-presentation .rank-list li { padding: 5px 0; }
   .dashboard.dashboard-presentation .dash-bottom-grid { display: none; }
   .dashboard.dashboard-presentation .dashboard-footer { margin-top: 12px; }
+}
+.dashboard.scene-presentation { --text-secondary: #b2ccdf; --text-primary: #eff8ff; --bg-primary: #07121f; background: #07121f; }
+.dashboard.scene-presentation .dash-stats, .dashboard.scene-presentation .pressure-panel, .dashboard.scene-presentation .diagnosis-panel, .dashboard.scene-presentation .dash-secondary-grid, .dashboard.scene-presentation .dash-bottom-grid, .dashboard.scene-presentation .dashboard-footer { display: none; }
+.dashboard.scene-presentation .dash-main-grid { display: block; }
+.dashboard.scene-presentation .dash-hero { padding: 14px 22px; }
+.dashboard.scene-presentation .hero-orbit { width: 54px; height: 54px; }
+.dashboard.scene-presentation .hero-orbit > svg { width: 32px; }
+.dashboard.scene-presentation .hero-copy h2 { font-size: 20px; margin: 8px 0; }
+.dashboard.scene-presentation .cluster-scene { min-height: calc(100dvh - 205px); }
+@media (min-width: 1100px) and (min-height: 680px) {
+  .dashboard.scene-presentation { display: flex; flex-direction: column; overflow: hidden; height: 100dvh; }
+  .dashboard.scene-presentation .dash-hero, .dashboard.scene-presentation .dash-status-strip { flex-shrink: 0; }
+  .dashboard.scene-presentation .dash-main-grid { flex: 1; min-height: 0; }
+  .dashboard.scene-presentation .cluster-scene { height: 100%; min-height: 0; }
 }
 @media (max-width: 720px) { .dashboard-presentation { padding: 14px; } .dashboard .dash-segments button { min-height: 36px; } }
 @media (prefers-reduced-motion: reduce) { .dashboard *, .dashboard *::before, .dashboard *::after { animation: none !important; transition: none !important; } }
@@ -345,32 +355,6 @@ onUnmounted(() => {
 .pod-health span { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-secondary); }
 .pod-health i, .status-bars span i { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
 .pod-health b { font: 11px var(--font-mono); color: var(--text-primary); margin-left: auto; }
-.topology-panel { background: radial-gradient(ellipse at 50% 50%, var(--map-surface), var(--map-bg)); color: var(--map-text); border-color: var(--map-border); position: relative; overflow: hidden; display: flex; flex-direction: column; }
-.topology-panel::before { content: ''; pointer-events: none; position: absolute; inset: 0; opacity: .17; background-image: linear-gradient(var(--map-border) 1px, transparent 1px), linear-gradient(90deg, var(--map-border) 1px, transparent 1px); background-size: 24px 24px; mask-image: radial-gradient(ellipse, black, transparent 75%); }
-.topology-panel .dash-panel-heading { z-index: 1; }
-.topology-panel h2 { color: var(--map-text); }
-.topology-panel .dash-kicker, .topology-panel h2 svg { color: var(--map-muted); }
-.topology-panel .dash-panel-heading > a { color: var(--map-cyan); }
-.cluster-map { width: 100%; min-height: 238px; flex: 1; overflow: visible; z-index: 1; }
-.map-orbit { stroke: var(--map-border); stroke-width: 1; fill: none; stroke-dasharray: 3 6; }
-.map-orbit.inner { stroke-dasharray: none; opacity: .6; }
-.map-connection { stroke: var(--map-cyan); stroke-width: 1; fill: none; stroke-dasharray: 4 7; opacity: .6; animation: map-flow 16s linear infinite; }
-.map-node-halo { fill: var(--map-surface); stroke: var(--map-border); }
-.map-node-body { fill: var(--map-surface); stroke: var(--map-green); stroke-width: 1.5; }
-.map-node-icon { stroke: var(--map-green); fill: none; stroke-width: 1.5; }
-.map-node-warning .map-node-body, .map-node-warning .map-node-icon { stroke: var(--map-amber); }
-.map-node-name { fill: var(--map-text); font: 10px var(--font-mono); }
-.map-node-detail { fill: var(--map-muted); font: 9px var(--font-mono); }
-.map-core-ring { fill: color-mix(in srgb, var(--map-cyan) 5%, transparent); stroke: var(--map-border); stroke-width: 1; }
-.map-core { fill: var(--map-surface); stroke: var(--map-cyan); }
-.map-core-icon { stroke: var(--map-cyan); fill: none; stroke-width: 1.5; }
-.map-empty { fill: var(--map-muted); font-size: 12px; }
-.map-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 14px; margin-top: 5px; font-size: 10px; color: var(--map-muted); }
-.map-footer span { display: flex; align-items: center; gap: 5px; }
-.map-footer i { width: 5px; height: 5px; border-radius: 50%; background: var(--map-green); }
-.map-footer i.warn { background: var(--map-amber); }
-.map-footer b { color: var(--map-text); font: 12px var(--font-mono); }
-.map-note { margin: 12px 0 0; text-align: center; font-size: 9px; color: var(--map-muted); }
 .diagnosis-summary { display: flex; align-items: center; gap: 12px; margin: 24px 0; }
 .diagnosis-summary > strong { font: 500 43px/1 var(--font-mono); letter-spacing: -2px; }
 .diagnosis-summary > span { font-size: 12px; color: var(--text-secondary); }

@@ -1,0 +1,96 @@
+import { test, expect } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
+import { mockAuthenticatedAPI } from './api-fixtures'
+
+const node = (name: string, ready = 'True') => ({ metadata: { name, labels: name === 'master-01' ? { 'node-role.kubernetes.io/control-plane': '' } : {} }, spec: {}, status: { conditions: [{ type: 'Ready', status: ready }], allocatable: { cpu: '4', memory: '8Gi' }, addresses: [{ type: 'InternalIP', address: '192.168.31.211' }] } })
+const pod = (name: string, nodeName: string, phase = 'Running') => ({ metadata: { name, namespace: 'default', uid: name }, spec: { nodeName, containers: [{ name: 'app', image: 'app:v1' }] }, status: { phase, containerStatuses: [{ name: 'app', ready: phase === 'Running', restartCount: 0, state: {} }] } })
+
+test.beforeEach(async ({ page }) => {
+  page.on('pageerror', error => { throw error })
+  await mockAuthenticatedAPI(page)
+  await page.route('**/api/v1/clusters/1/metrics/history?*', route => route.fulfill({ status: 503, json: { message: 'history unavailable' } }))
+  await page.route('**/api/v1/clusters/1/nodes?*', route => route.fulfill({ json: { items: [node('master-01'), node('worker-01'), node('worker-02', 'False')], total: 3, remaining: 0 } }))
+  await page.route('**/api/v1/clusters/1/pods?*', route => route.fulfill({ json: { items: [pod('web-0', 'master-01'), pod('web-1', 'worker-01'), pod('pending-2', 'worker-02', 'Pending')], total: 3, remaining: 0 } }))
+  await page.route('**/api/v1/clusters/1/metrics/nodes?*', route => route.fulfill({ json: { items: [{ metadata: { name: 'master-01' }, usage: { cpu: '1', memory: '2Gi' }, timestamp: '2026-11-18T12:00:00Z' }], total: 1, remaining: 0 } }))
+})
+
+test('spatial scene selects real nodes, separates unavailable metrics and supports keyboard view controls', async ({ page }) => {
+  await page.goto('/')
+  const scene = page.getByRole('region', { name: '立体集群场景', exact: true })
+  const inspector = page.getByRole('complementary', { name: '选中节点状态' })
+  await expect(inspector).toContainText('master-01')
+  await expect(inspector).toContainText('25%')
+  await scene.getByRole('button', { name: '查看节点 worker-02，未就绪' }).press('Enter')
+  await expect(inspector).toContainText('worker-02')
+  await expect(inspector).toContainText('暂无指标')
+  await expect(inspector).not.toContainText('0%')
+  await expect(inspector.getByRole('link', { name: '查看节点证据' })).toHaveAttribute('href', '/workloads?cluster=1&kind=Node&name=worker-02')
+  const view = scene.getByRole('group', { name: /立体集群视图/ })
+  const before = await scene.locator('.scene-boundary').getAttribute('d')
+  await view.press('ArrowRight')
+  expect(await scene.locator('.scene-boundary').getAttribute('d')).not.toBe(before)
+  await expect(scene).toContainText('非网络流量或物理位置')
+})
+
+test('spatial fullscreen keeps exit, layout, themes and data inspection usable', async ({ page }, testInfo) => {
+  await page.goto('/')
+  const launch = page.getByRole('button', { name: '立体大屏', exact: true })
+  await launch.click()
+  const dialog = page.getByRole('dialog', { name: '集群运行态势' })
+  await page.waitForTimeout(500)
+  await expect(dialog).toHaveClass(/scene-presentation/)
+  if (testInfo.project.name === 'Desktop Chrome') {
+    const footer = await page.locator('.scene-footnote').boundingBox()
+    expect(footer!.y + footer!.height).toBeLessThanOrEqual(page.viewportSize()!.height)
+  }
+  await expect(page.getByLabel('场景数据摘要')).toContainText('3')
+  await page.getByRole('button', { name: '查看节点 worker-02，未就绪' }).click()
+  await expect(page.locator('.inspector-workloads')).toContainText('pending-2')
+  await expect(page.getByRole('button', { name: '综合大屏', exact: true })).toBeVisible()
+  for (const theme of ['theme-light', 'theme-dark']) {
+    await page.evaluate(value => { document.documentElement.classList.remove('theme-light', 'theme-dark'); document.documentElement.classList.add(value) }, theme)
+    await page.waitForTimeout(700)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
+    expect(audit.violations.filter(item => ['serious', 'critical'].includes(item.impact ?? '')).map(item => ({ id: item.id, nodes: item.nodes.map(node => ({ target: node.target, summary: node.failureSummary })) }))).toEqual([])
+    await page.screenshot({ path: `../.artifacts/spatial-cluster-20261118/${testInfo.project.name}-${theme}.png`, fullPage: true })
+  }
+  await page.getByRole('button', { name: '综合大屏', exact: true }).click()
+  await expect(dialog).not.toHaveClass(/scene-presentation/)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(launch).toBeFocused()
+})
+
+test('animation can pause and reduced motion disables camera automation', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('/')
+  const scene = page.getByRole('region', { name: '立体集群场景', exact: true })
+  await scene.getByRole('button', { name: '暂停动效', exact: true }).click()
+  await expect(scene).toHaveClass(/scene-paused/)
+  await scene.getByRole('button', { name: '继续动效', exact: true }).click()
+  await expect(scene).not.toHaveClass(/scene-paused/)
+  await scene.getByRole('button', { name: '环绕', exact: true }).click()
+  await expect(scene.getByRole('button', { name: '环绕', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await expect(scene).toHaveClass(/scene-paused/)
+  await expect(scene.getByRole('button', { name: '环绕', exact: true })).toBeDisabled()
+  await expect(scene.getByRole('button', { name: '巡览', exact: true })).toBeDisabled()
+})
+
+test('large scenes bound geometry and empty snapshots never invent healthy nodes', async ({ page }) => {
+  await page.route('**/api/v1/clusters/1/nodes?*', route => route.fulfill({ json: { items: Array.from({ length: 10 }, (_, index) => node(`node-${index}`)), total: 10, remaining: 0 } }))
+  await page.route('**/api/v1/clusters/1/pods?*', route => route.fulfill({ json: { items: Array.from({ length: 40 }, (_, index) => pod(`pod-${index}`, 'node-0')), total: 40, remaining: 0 } }))
+  await page.goto('/')
+  const scene = page.getByRole('region', { name: '立体集群场景', exact: true })
+  await expect(scene.locator('.spatial-node-label')).toHaveCount(6)
+  await expect(scene.locator('.pod-cell')).toHaveCount(18)
+  await expect(scene).toContainText('展示 6 / 10 节点')
+  await scene.getByRole('button', { name: '查看节点 node-0，Ready' }).click()
+  await expect(scene.locator('.inspector-pods')).toContainText('40')
+  await page.route('**/api/v1/clusters/1/nodes?*', route => route.fulfill({ status: 503, json: { message: 'nodes offline' } }))
+  await page.getByRole('button', { name: '刷新概览', exact: true }).click()
+  await expect(scene).toContainText('节点数据暂不可用')
+  await expect(scene.locator('.spatial-node-label')).toHaveCount(0)
+  await expect(scene.getByRole('complementary', { name: '选中节点状态' })).toHaveCount(0)
+})

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVirtualList, windowRows } from '../composables/useVirtualList'
-import { Boxes, ChevronRight, Clock3, Database, FileText, Gauge, Globe2, HardDrive, KeyRound, Layers, ListChecks, Network, Pause, RefreshCw, Search, Server, Settings, ShieldCheck, Sparkles, X } from 'lucide-vue-next'
+import { Boxes, ChevronRight, Clock3, Database, FileText, Gauge, Globe2, HardDrive, ExternalLink, KeyRound, Layers, ListChecks, Network, Pause, RefreshCw, Search, Server, Settings, ShieldCheck, Sparkles, X } from 'lucide-vue-next'
 
 import { listClusters } from '../api/clusters'
 import { diagnoseDeployment, diagnoseHorizontalPodAutoscaler, diagnoseIngress, diagnoseNode, diagnosePersistentVolumeClaim, diagnosePod, diagnoseService } from '../api/diagnosis'
@@ -102,6 +102,38 @@ const logs = ref('')
 const logLoading = ref(false)
 const diagnosis = ref<DiagnosisRecord | null>(null)
 const diagnosisLoading = ref(false)
+const diagnosisMessage = ref('')
+const diagnosisTone = ref<'pending' | 'neutral' | 'error' | 'success'>('neutral')
+const diagnosisTarget = ref('')
+const diagnosisResult = ref<DiagnosisRecord | null>(null)
+let diagnosisSequence = 0
+
+const browserItems = computed<ResourceDetail[]>(() => {
+  const items: Partial<Record<ResourceKind, ResourceDetail[]>> = {
+    Pod: filteredPods.value, Node: filteredNodes.value, Deployment: filteredDeployments.value,
+    Service: filteredServices.value, Ingress: filteredIngresses.value, PVC: filteredPersistentVolumeClaims.value,
+    StorageClass: filteredStorageClasses.value, ConfigMap: filteredConfigMaps.value,
+  }
+  return items[selectedKind.value] ?? filteredM17Rows.value.map(row => row.item)
+})
+const detailRoute = computed(() => detailSelection.value ? `/clusters/${selectedClusterID.value}/resources/${detailSelection.value.kind}/${detailSelection.value.namespace || '_'}/${detailSelection.value.name}` : '/workloads')
+
+function resourceKey(item: ResourceDetail) { return `${item.metadata.namespace || '_'}/${item.metadata.name}` }
+function isSelected(kind: ResourceKind, item: ResourceDetail) {
+  return detailSelection.value?.kind === kind && detailSelection.value.name === item.metadata.name && detailSelection.value.namespace === (item.metadata.namespace || '')
+}
+function switchDetail(event: Event) {
+  const item = browserItems.value.find(item => resourceKey(item) === (event.target as HTMLSelectElement).value)
+  if (item) void openResource(selectedKind.value, item.metadata.namespace, item.metadata.name)
+}
+function resetDiagnosis() {
+  diagnosisSequence++
+  diagnosisLoading.value = false
+  diagnosisMessage.value = ''
+  diagnosis.value = null
+  diagnosisResult.value = null
+}
+
 
 let initialized = false
 let resourceSequence = 0
@@ -118,6 +150,7 @@ const filteredStorageClasses = computed(() => filterResourcesByName(storageClass
 const filteredConfigMaps = computed(() => filterResourcesByName(configMaps.value, searchQuery.value))
 const filteredM17Rows = computed(() => m17Items(selectedKind.value).filter((item) => item.metadata.name.toLowerCase().includes(searchQuery.value)).map((item) => m17Row(selectedKind.value as M17ResourceKind, item)))
 const podVirtual = useVirtualList({ total: () => filteredPods.value.length, rowHeight: 56, overscan: 4 })
+function setPodScrollContainer(element: unknown) { podVirtual.container.value = element as HTMLElement | null }
 const podWindowRows = computed(() => windowRows(filteredPods.value, podVirtual.window.value))
 const podVisibleRows = computed(() => podWindowRows.value.visible)
 const podVirtualTopPad = computed(() => podWindowRows.value.topPad)
@@ -541,6 +574,7 @@ async function loadDetailFromRoute() {
   const selection = selectionFromRoute()
   const clusterID = selectedClusterID.value
   const sequence = ++detailSequence
+  resetDiagnosis()
   detailSelection.value = selection
   detail.value = null
   detailError.value = ''
@@ -614,13 +648,15 @@ async function selectKind(kind: ResourceKind) {
 
 async function openResource(kind: ResourceKind, resourceNamespace: string | undefined, name: string) {
   selectedKind.value = kind
-  const ns = isClusterScoped(kind) ? '_' : (resourceNamespace || '_')
   await router.push({
-    path: `/clusters/${selectedClusterID.value}/resources/${kind}/${ns}/${name}`,
+    path: '/workloads',
+    query: { ...baseRouteQuery(kind), ...(isClusterScoped(kind) ? {} : { namespace: resourceNamespace || '_' }), name },
   })
 }
 
 async function closeDetail() {
+  detailSequence++
+  resetDiagnosis()
   detailSelection.value = null
   detail.value = null
   relatedEvents.value = []
@@ -642,46 +678,44 @@ async function showLogs(pod: Pod, previous = false) {
 }
 
 async function runDiagnosis(kind: DiagnosableKind, item: ResourceDetail) {
-  if (!selectedClusterID.value) return
+  const clusterID = selectedClusterID.value
+  if (!clusterID || diagnosisLoading.value || (kind !== 'Node' && !item.metadata.namespace)) return
+  const request = ++diagnosisSequence
   diagnosis.value = null
+  diagnosisResult.value = null
   diagnosisLoading.value = true
-  errorMessage.value = ''
+  diagnosisTone.value = 'pending'
+  diagnosisTarget.value = `${kind} · ${item.metadata.namespace ? item.metadata.namespace + '/' : ''}${item.metadata.name}`
+  diagnosisMessage.value = '正在采集证据并匹配故障规则…'
+  const token = auth.accessToken
+  const ns = item.metadata.namespace || ''
+  const name = item.metadata.name
+  const runners = {
+    Pod: () => diagnosePod(token, clusterID, ns, name),
+    Deployment: () => diagnoseDeployment(token, clusterID, ns, name),
+    Service: () => diagnoseService(token, clusterID, ns, name),
+    Ingress: () => diagnoseIngress(token, clusterID, ns, name),
+    PVC: () => diagnosePersistentVolumeClaim(token, clusterID, ns, name),
+    HPA: () => diagnoseHorizontalPodAutoscaler(token, clusterID, ns, name),
+    Node: () => diagnoseNode(token, clusterID, name),
+  }
   try {
-    if (kind === 'Pod') {
-      const pod = item as Pod
-      if (!pod.metadata.namespace) return
-      diagnosis.value = await diagnosePod(auth.accessToken, selectedClusterID.value, pod.metadata.namespace, pod.metadata.name)
-    }
-    if (kind === 'Deployment') {
-      const deployment = item as Deployment
-      if (!deployment.metadata.namespace) return
-      diagnosis.value = await diagnoseDeployment(auth.accessToken, selectedClusterID.value, deployment.metadata.namespace, deployment.metadata.name)
-    }
-    if (kind === 'Service') {
-      const service = item as ServiceResource
-      if (!service.metadata.namespace) return
-      diagnosis.value = await diagnoseService(auth.accessToken, selectedClusterID.value, service.metadata.namespace, service.metadata.name)
-    }
-    if (kind === 'Ingress') {
-      const ingress = item as IngressResource
-      if (!ingress.metadata.namespace) return
-      diagnosis.value = await diagnoseIngress(auth.accessToken, selectedClusterID.value, ingress.metadata.namespace, ingress.metadata.name)
-    }
-    if (kind === 'PVC') {
-      const claim = item as PersistentVolumeClaim
-      if (!claim.metadata.namespace) return
-      diagnosis.value = await diagnosePersistentVolumeClaim(auth.accessToken, selectedClusterID.value, claim.metadata.namespace, claim.metadata.name)
-    }
-    if (kind === 'HPA') {
-      const hpa = item as HorizontalPodAutoscalerResource
-      if (!hpa.metadata.namespace) return
-      diagnosis.value = await diagnoseHorizontalPodAutoscaler(auth.accessToken, selectedClusterID.value, hpa.metadata.namespace, hpa.metadata.name)
-    }
-    if (kind === 'Node') diagnosis.value = await diagnoseNode(auth.accessToken, selectedClusterID.value, (item as NodeResource).metadata.name)
+    const result = await runners[kind]()
+    if (request !== diagnosisSequence) return
+    diagnosisResult.value = result
+    diagnosisTone.value = 'success'
+    diagnosisMessage.value = result.summary
+    // Keep feedback beside the resource; list actions can still open the full result.
+    if (!detailSelection.value) diagnosis.value = result
   } catch (err) {
-    errorMessage.value = err instanceof APIError && err.code === 'NO_RULE_MATCH' ? `${kind} 本次未命中已启用规则，未生成诊断记录。` : `${kind} 证据采集或诊断请求失败，请检查资源与集群连接。`
+    if (request !== diagnosisSequence) return
+    const noMatch = err instanceof APIError && err.code === 'NO_RULE_MATCH'
+    diagnosisTone.value = noMatch ? 'neutral' : 'error'
+    diagnosisMessage.value = noMatch
+      ? '本次未命中已启用规则，未生成诊断记录；这不代表资源一定健康。'
+      : '证据采集或诊断请求失败，请检查资源与集群连接后重试。'
   } finally {
-    diagnosisLoading.value = false
+    if (request === diagnosisSequence) diagnosisLoading.value = false
   }
 }
 
@@ -694,7 +728,7 @@ function onEscape(event: KeyboardEvent) {
 
 watch(() => [route.query.cluster, route.query.kind, route.query.namespace, route.query.name], syncFromRoute)
 onMounted(() => { window.addEventListener('keydown', onEscape); void initialize() })
-onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
+onBeforeUnmount(() => { resourceSequence++; detailSequence++; resetDiagnosis(); window.removeEventListener('keydown', onEscape) })
 </script>
 
 <template>
@@ -722,10 +756,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
     </nav>
 
     <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+    <section v-if="diagnosisMessage && !detailSelection" class="browser-diagnosis-feedback" :class="diagnosisTone" :role="diagnosisTone === 'error' ? 'alert' : 'status'"><strong>{{ diagnosisTarget }}</strong><p>{{ diagnosisMessage }}</p></section>
     <div v-if="initializing" class="resource-empty"><RefreshCw :size="28" class="spinning" /><strong>正在建立集群资源视图</strong></div>
     <div v-else-if="clusters.length === 0" class="resource-empty"><Boxes :size="30" /><strong>没有已启用的集群</strong><span>请先在“集群”页面导入、探测并启用集群。</span></div>
 
-    <section v-else class="resource-panel resource-workbench" :class="{ loading }">
+    <div class="resource-browse-layout" :class="{ 'has-detail': detailSelection }" :data-kind="selectedKind">
+    <section v-if="!initializing && clusters.length" class="resource-panel resource-workbench" :class="{ loading }">
       <div class="section-heading workload-heading">
         <div><p class="context-label">{{ selectedKind.toUpperCase() }} INVENTORY</p><h2>{{ kindLabel(selectedKind) }} 资源</h2></div>
         <span>{{ selectedCount }} total<span v-if="searchQuery"> · {{ matchedCount }} matched</span></span>
@@ -734,7 +770,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
       <div class="pod-table-wrap resource-table-wrap">
         <div
           v-if="selectedKind === 'Pod'"
-          ref="podVirtual.container"
+          :ref="setPodScrollContainer"
           class="pod-table resource-table virtual-list-scroll"
           data-testid="pod-virtual-list"
           :data-total-rows="filteredPods.length"
@@ -749,8 +785,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
               <tr v-if="filteredPods.length === 0"><td colspan="7" class="table-empty">当前范围没有 Pod</td></tr>
               <template v-else>
                 <tr v-if="podVirtualTopPad > 0" aria-hidden="true"><td :colspan="7" :style="{ height: podVirtualTopPad + 'px', padding: 0, border: 0 }"></td></tr>
-                <tr v-for="pod in podVisibleRows" :key="pod.metadata.uid || `${pod.metadata.namespace}/${pod.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('Pod', pod.metadata.namespace, pod.metadata.name)" @keydown.enter="openResource('Pod', pod.metadata.namespace, pod.metadata.name)">
-                  <td><strong>{{ pod.metadata.name }}</strong><span>{{ pod.spec.containers.map((item) => item.image).join(', ') }}</span></td><td>{{ pod.metadata.namespace }}</td><td><span class="resource-status" :class="statusClass(podReason(pod))">{{ podReason(pod) }}</span></td><td>{{ readyContainerCount(pod) }}/{{ pod.spec.containers.length }}</td><td>{{ restartCount(pod) }}</td><td>{{ pod.spec.nodeName || '--' }}</td>
+                <tr v-for="pod in podVisibleRows" :key="pod.metadata.uid || `${pod.metadata.namespace}/${pod.metadata.name}`" class="resource-row" :aria-current="isSelected('Pod', pod) ? 'true' : undefined" tabindex="0" @click="openResource('Pod', pod.metadata.namespace, pod.metadata.name)" @keydown.enter="openResource('Pod', pod.metadata.namespace, pod.metadata.name)">
+                  <td><strong :title="pod.metadata.name">{{ pod.metadata.name }}</strong><span v-if="detailSelection">{{ pod.metadata.namespace || '集群级资源' }}</span><span v-else>{{ pod.spec.containers.map((item) => item.image).join(', ') }}</span></td><td>{{ pod.metadata.namespace }}</td><td><span class="resource-status" :class="statusClass(podReason(pod))">{{ podReason(pod) }}</span></td><td>{{ readyContainerCount(pod) }}/{{ pod.spec.containers.length }}</td><td>{{ restartCount(pod) }}</td><td>{{ pod.spec.nodeName || '--' }}</td>
                   <td><div class="resource-row-actions"><button class="icon-button compact" type="button" title="查看日志" aria-label="查看日志" @click.stop="showLogs(pod)"><FileText :size="15" /></button><button v-if="diagnosticPodReasons.includes(podReason(pod))" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Pod', pod)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
                 </tr>
                 <tr v-if="podVirtualBottomPad > 0" aria-hidden="true"><td :colspan="7" :style="{ height: podVirtualBottomPad + 'px', padding: 0, border: 0 }"></td></tr>
@@ -762,8 +798,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else-if="selectedKind === 'Deployment'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>Namespace</th><th>副本</th><th>Available</th><th>Updated</th><th>镜像</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredDeployments" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('Deployment', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('Deployment', item.metadata.namespace, item.metadata.name)">
-              <td><strong>{{ item.metadata.name }}</strong><span>{{ Object.keys(item.spec.selector.matchLabels ?? {}).join(', ') || 'no selector' }}</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.status.readyReplicas }}/{{ item.spec.replicas ?? 1 }} Ready</td><td>{{ item.status.availableReplicas }}</td><td>{{ item.status.updatedReplicas }}</td><td class="truncate-cell">{{ imageSummary(item) }}</td>
+            <tr v-for="item in filteredDeployments" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" :aria-current="isSelected('Deployment', item) ? 'true' : undefined" tabindex="0" @click="openResource('Deployment', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('Deployment', item.metadata.namespace, item.metadata.name)">
+              <td><strong :title="item.metadata.name">{{ item.metadata.name }}</strong><span v-if="detailSelection">{{ item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ Object.keys(item.spec.selector.matchLabels ?? {}).join(', ') || 'no selector' }}</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.status.readyReplicas }}/{{ item.spec.replicas ?? 1 }} Ready</td><td>{{ item.status.availableReplicas }}</td><td>{{ item.status.updatedReplicas }}</td><td class="truncate-cell">{{ imageSummary(item) }}</td>
               <td><div class="resource-row-actions"><button v-if="item.status.unavailableReplicas > 0" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Deployment', item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredDeployments.length === 0"><td colspan="7" class="table-empty">当前范围没有 Deployment</td></tr>
@@ -773,8 +809,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else-if="selectedKind === 'Node'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>状态</th><th>调度</th><th>Internal IP</th><th>Kubelet</th><th>运行时</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredNodes" :key="item.metadata.uid || item.metadata.name" class="resource-row" tabindex="0" @click="openResource('Node', undefined, item.metadata.name)" @keydown.enter="openResource('Node', undefined, item.metadata.name)">
-              <td><strong>{{ item.metadata.name }}</strong><span>{{ item.status.nodeInfo.osImage || '--' }}</span></td><td><span class="resource-status" :class="nodeReady(item) === 'True' ? 'running' : 'failed'">{{ nodeReady(item) === 'True' ? 'Ready' : nodeReady(item) }}</span></td><td>{{ item.spec.unschedulable ? '已停止' : '可调度' }}</td><td>{{ nodeAddress(item) }}</td><td>{{ item.status.nodeInfo.kubeletVersion || '--' }}</td><td class="truncate-cell">{{ item.status.nodeInfo.containerRuntimeVersion || '--' }}</td>
+            <tr v-for="item in filteredNodes" :key="item.metadata.uid || item.metadata.name" class="resource-row" :aria-current="isSelected('Node', item) ? 'true' : undefined" tabindex="0" @click="openResource('Node', undefined, item.metadata.name)" @keydown.enter="openResource('Node', undefined, item.metadata.name)">
+              <td><strong :title="item.metadata.name">{{ item.metadata.name }}</strong><span v-if="detailSelection">{{ item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ item.status.nodeInfo.osImage || '--' }}</span></td><td><span class="resource-status" :class="nodeReady(item) === 'True' ? 'running' : 'failed'">{{ nodeReady(item) === 'True' ? 'Ready' : nodeReady(item) }}</span></td><td>{{ item.spec.unschedulable ? '已停止' : '可调度' }}</td><td>{{ nodeAddress(item) }}</td><td>{{ item.status.nodeInfo.kubeletVersion || '--' }}</td><td class="truncate-cell">{{ item.status.nodeInfo.containerRuntimeVersion || '--' }}</td>
               <td><div class="resource-row-actions"><button v-if="nodeDiagnosable(item)" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Node', item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredNodes.length === 0"><td colspan="7" class="table-empty">当前集群没有 Node</td></tr>
@@ -784,8 +820,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else-if="selectedKind === 'Service'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>Namespace</th><th>类型</th><th>Cluster IP</th><th>端口</th><th>Selector</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredServices" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('Service', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('Service', item.metadata.namespace, item.metadata.name)">
-              <td><strong>{{ item.metadata.name }}</strong><span>{{ item.spec.externalName || 'cluster service' }}</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.spec.type }}</td><td>{{ item.spec.clusterIP || '--' }}</td><td>{{ servicePortSummary(item) }}</td><td class="truncate-cell">{{ sortedEntries(item.spec.selector).map(([key, value]) => `${key}=${value}`).join(', ') || '--' }}</td>
+            <tr v-for="item in filteredServices" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" :aria-current="isSelected('Service', item) ? 'true' : undefined" tabindex="0" @click="openResource('Service', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('Service', item.metadata.namespace, item.metadata.name)">
+              <td><strong :title="item.metadata.name">{{ item.metadata.name }}</strong><span v-if="detailSelection">{{ item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ item.spec.externalName || 'cluster service' }}</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.spec.type }}</td><td>{{ item.spec.clusterIP || '--' }}</td><td>{{ servicePortSummary(item) }}</td><td class="truncate-cell">{{ sortedEntries(item.spec.selector).map(([key, value]) => `${key}=${value}`).join(', ') || '--' }}</td>
               <td><div class="resource-row-actions"><button v-if="!item.spec.externalName && Object.keys(item.spec.selector ?? {}).length > 0" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Service', item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredServices.length === 0"><td colspan="7" class="table-empty">当前范围没有 Service</td></tr>
@@ -795,8 +831,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else-if="selectedKind === 'Ingress'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>Namespace</th><th>Class</th><th>Hosts</th><th>路由</th><th>地址</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredIngresses" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('Ingress', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('Ingress', item.metadata.namespace, item.metadata.name)">
-              <td><strong>{{ item.metadata.name }}</strong><span>{{ formatTime(item.metadata.creationTimestamp) }}</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.spec.ingressClassName || '--' }}</td><td class="truncate-cell">{{ ingressHosts(item) }}</td><td>{{ ingressRouteCount(item) }}</td><td class="truncate-cell">{{ ingressAddresses(item) }}</td><td><div class="resource-row-actions"><button v-if="ingressBackends(item).some((routeItem) => routeItem.backend.service?.name)" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Ingress', item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
+            <tr v-for="item in filteredIngresses" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" :aria-current="isSelected('Ingress', item) ? 'true' : undefined" tabindex="0" @click="openResource('Ingress', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('Ingress', item.metadata.namespace, item.metadata.name)">
+              <td><strong :title="item.metadata.name">{{ item.metadata.name }}</strong><span v-if="detailSelection">{{ item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ formatTime(item.metadata.creationTimestamp) }}</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.spec.ingressClassName || '--' }}</td><td class="truncate-cell">{{ ingressHosts(item) }}</td><td>{{ ingressRouteCount(item) }}</td><td class="truncate-cell">{{ ingressAddresses(item) }}</td><td><div class="resource-row-actions"><button v-if="ingressBackends(item).some((routeItem) => routeItem.backend.service?.name)" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('Ingress', item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredIngresses.length === 0"><td colspan="7" class="table-empty">当前范围没有 Ingress</td></tr>
           </tbody>
@@ -805,8 +841,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else-if="selectedKind === 'PVC'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>Namespace</th><th>状态</th><th>StorageClass</th><th>申请</th><th>容量</th><th>访问模式</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredPersistentVolumeClaims" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('PVC', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('PVC', item.metadata.namespace, item.metadata.name)">
-              <td><strong>{{ item.metadata.name }}</strong><span>{{ item.spec.volumeName || '等待绑定' }}</span></td><td>{{ item.metadata.namespace }}</td><td><span class="resource-status" :class="statusClass(item.status.phase)">{{ item.status.phase || 'Unknown' }}</span></td><td>{{ storageClassName(item) }}</td><td>{{ item.spec.resources.requests?.storage || '--' }}</td><td>{{ item.status.capacity?.storage || '--' }}</td><td>{{ (item.status.accessModes ?? item.spec.accessModes ?? []).join(', ') || '--' }}</td><td><div class="resource-row-actions"><button v-if="item.status.phase === 'Pending'" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('PVC', item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
+            <tr v-for="item in filteredPersistentVolumeClaims" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" :aria-current="isSelected('PVC', item) ? 'true' : undefined" tabindex="0" @click="openResource('PVC', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('PVC', item.metadata.namespace, item.metadata.name)">
+              <td><strong :title="item.metadata.name">{{ item.metadata.name }}</strong><span v-if="detailSelection">{{ item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ item.spec.volumeName || '等待绑定' }}</span></td><td>{{ item.metadata.namespace }}</td><td><span class="resource-status" :class="statusClass(item.status.phase)">{{ item.status.phase || 'Unknown' }}</span></td><td>{{ storageClassName(item) }}</td><td>{{ item.spec.resources.requests?.storage || '--' }}</td><td>{{ item.status.capacity?.storage || '--' }}</td><td>{{ (item.status.accessModes ?? item.spec.accessModes ?? []).join(', ') || '--' }}</td><td><div class="resource-row-actions"><button v-if="item.status.phase === 'Pending'" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('PVC', item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredPersistentVolumeClaims.length === 0"><td colspan="8" class="table-empty">当前范围没有 PVC</td></tr>
           </tbody>
@@ -815,8 +851,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else-if="selectedKind === 'StorageClass'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>默认</th><th>Provisioner</th><th>回收策略</th><th>绑定模式</th><th>扩容</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredStorageClasses" :key="item.metadata.uid || item.metadata.name" class="resource-row" tabindex="0" @click="openResource('StorageClass', undefined, item.metadata.name)" @keydown.enter="openResource('StorageClass', undefined, item.metadata.name)">
-              <td><strong>{{ item.metadata.name }}</strong><span>{{ formatTime(item.metadata.creationTimestamp) }}</span></td><td>{{ isDefaultStorageClass(item) ? '是' : '否' }}</td><td class="truncate-cell">{{ item.provisioner }}</td><td>{{ item.reclaimPolicy || '--' }}</td><td>{{ item.volumeBindingMode || '--' }}</td><td>{{ item.allowVolumeExpansion === undefined ? '--' : item.allowVolumeExpansion ? '允许' : '不允许' }}</td><td><div class="resource-row-actions"><ChevronRight :size="16" /></div></td>
+            <tr v-for="item in filteredStorageClasses" :key="item.metadata.uid || item.metadata.name" class="resource-row" :aria-current="isSelected('StorageClass', item) ? 'true' : undefined" tabindex="0" @click="openResource('StorageClass', undefined, item.metadata.name)" @keydown.enter="openResource('StorageClass', undefined, item.metadata.name)">
+              <td><strong :title="item.metadata.name">{{ item.metadata.name }}</strong><span v-if="detailSelection">{{ item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ formatTime(item.metadata.creationTimestamp) }}</span></td><td>{{ isDefaultStorageClass(item) ? '是' : '否' }}</td><td class="truncate-cell">{{ item.provisioner }}</td><td>{{ item.reclaimPolicy || '--' }}</td><td>{{ item.volumeBindingMode || '--' }}</td><td>{{ item.allowVolumeExpansion === undefined ? '--' : item.allowVolumeExpansion ? '允许' : '不允许' }}</td><td><div class="resource-row-actions"><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredStorageClasses.length === 0"><td colspan="7" class="table-empty">当前集群没有 StorageClass</td></tr>
           </tbody>
@@ -825,8 +861,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else-if="selectedKind === 'ConfigMap'" class="pod-table resource-table">
           <thead><tr><th>名称</th><th>Namespace</th><th>不可变</th><th>Data keys</th><th>Binary keys</th><th>创建时间</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="item in filteredConfigMaps" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" tabindex="0" @click="openResource('ConfigMap', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('ConfigMap', item.metadata.namespace, item.metadata.name)">
-              <td><strong>{{ item.metadata.name }}</strong><span>{{ item.dataKeys.length + item.binaryDataKeys.length }} keys</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.immutable ? '是' : '否' }}</td><td class="truncate-cell">{{ item.dataKeys.join(', ') || '--' }}</td><td class="truncate-cell">{{ item.binaryDataKeys.join(', ') || '--' }}</td><td>{{ formatTime(item.metadata.creationTimestamp) }}</td><td><div class="resource-row-actions"><ChevronRight :size="16" /></div></td>
+            <tr v-for="item in filteredConfigMaps" :key="item.metadata.uid || `${item.metadata.namespace}/${item.metadata.name}`" class="resource-row" :aria-current="isSelected('ConfigMap', item) ? 'true' : undefined" tabindex="0" @click="openResource('ConfigMap', item.metadata.namespace, item.metadata.name)" @keydown.enter="openResource('ConfigMap', item.metadata.namespace, item.metadata.name)">
+              <td><strong :title="item.metadata.name">{{ item.metadata.name }}</strong><span v-if="detailSelection">{{ item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ item.dataKeys.length + item.binaryDataKeys.length }} keys</span></td><td>{{ item.metadata.namespace }}</td><td>{{ item.immutable ? '是' : '否' }}</td><td class="truncate-cell">{{ item.dataKeys.join(', ') || '--' }}</td><td class="truncate-cell">{{ item.binaryDataKeys.join(', ') || '--' }}</td><td>{{ formatTime(item.metadata.creationTimestamp) }}</td><td><div class="resource-row-actions"><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredConfigMaps.length === 0"><td colspan="7" class="table-empty">当前范围没有 ConfigMap</td></tr>
           </tbody>
@@ -835,8 +871,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
         <table v-else class="pod-table resource-table m17-resource-table">
           <thead><tr><th>名称</th><th>Namespace</th><th>状态</th><th>核心配置</th><th>当前范围</th><th>观测摘要</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="row in filteredM17Rows" :key="row.item.metadata.uid || `${row.item.metadata.namespace}/${row.item.metadata.name}`" class="resource-row" tabindex="0" @click="openResource(selectedKind, row.item.metadata.namespace, row.item.metadata.name)" @keydown.enter="openResource(selectedKind, row.item.metadata.namespace, row.item.metadata.name)">
-              <td><strong>{{ row.item.metadata.name }}</strong><span>{{ formatTime(row.item.metadata.creationTimestamp) }}</span></td><td>{{ row.item.metadata.namespace }}</td><td><span class="resource-status" :class="row.statusTone">{{ row.status }}</span></td><td class="truncate-cell">{{ row.primary }}</td><td class="truncate-cell">{{ row.secondary }}</td><td class="truncate-cell">{{ row.detail }}</td><td><div class="resource-row-actions"><button v-if="selectedKind === 'HPA' && m17HPASaturated(row.item)" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('HPA', row.item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
+            <tr v-for="row in filteredM17Rows" :key="row.item.metadata.uid || `${row.item.metadata.namespace}/${row.item.metadata.name}`" class="resource-row" :aria-current="isSelected(selectedKind, row.item) ? 'true' : undefined" tabindex="0" @click="openResource(selectedKind, row.item.metadata.namespace, row.item.metadata.name)" @keydown.enter="openResource(selectedKind, row.item.metadata.namespace, row.item.metadata.name)">
+              <td><strong :title="row.item.metadata.name">{{ row.item.metadata.name }}</strong><span v-if="detailSelection">{{ row.item.metadata.namespace || '集群级资源' }}</span><span v-else>{{ formatTime(row.item.metadata.creationTimestamp) }}</span></td><td>{{ row.item.metadata.namespace }}</td><td><span class="resource-status" :class="row.statusTone">{{ row.status }}</span></td><td class="truncate-cell">{{ row.primary }}</td><td class="truncate-cell">{{ row.secondary }}</td><td class="truncate-cell">{{ row.detail }}</td><td><div class="resource-row-actions"><button v-if="selectedKind === 'HPA' && m17HPASaturated(row.item)" class="icon-button compact diagnose" type="button" title="运行诊断" aria-label="运行诊断" :disabled="diagnosisLoading" @click.stop="runDiagnosis('HPA', row.item)"><Sparkles :size="15" /></button><ChevronRight :size="16" /></div></td>
             </tr>
             <tr v-if="filteredM17Rows.length === 0"><td colspan="7" class="table-empty">当前范围没有 {{ kindLabel(selectedKind) }}</td></tr>
           </tbody>
@@ -844,12 +880,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
       </div>
     </section>
 
-    <div v-if="detailSelection" class="log-overlay" @click.self="closeDetail">
-      <section class="resource-detail-drawer" role="dialog" aria-modal="true" :aria-label="`${detailSelection.kind} 详情`">
+      <section v-if="detailSelection" class="resource-detail-drawer browser-detail" role="region" :aria-label="`${detailSelection.kind} 详情`">
         <header class="resource-detail-header">
           <div class="resource-detail-title"><span class="resource-glyph" :class="detailSelection.kind.toLowerCase()"><component :is="kindIcons[detailSelection.kind]" :size="18" /></span><div><p class="context-label">{{ detailSelection.kind.toUpperCase() }} DETAIL</p><h2>{{ detailSelection.name }}</h2><span>{{ detailSelection.namespace || 'cluster-scoped' }}</span></div></div>
           <button class="icon-button" type="button" title="关闭详情" aria-label="关闭详情" @click="closeDetail"><X :size="18" /></button>
         </header>
+        <div class="browser-detail-navigation">
+          <label>切换资源<select aria-label="切换详情资源" :value="`${detailSelection.namespace || '_'}/${detailSelection.name}`" @change="switchDetail"><option v-if="!browserItems.some(item => isSelected(selectedKind, item))" :value="`${detailSelection.namespace || '_'}/${detailSelection.name}`">{{ detailSelection.name }}（不在当前列表）</option><option v-for="item in browserItems" :key="resourceKey(item)" :value="resourceKey(item)">{{ item.metadata.namespace ? item.metadata.namespace + '/' : '' }}{{ item.metadata.name }}</option></select></label>
+          <RouterLink v-if="['Pod', 'Deployment', 'Service', 'Ingress', 'Node', 'PVC', 'HPA', 'ConfigMap'].includes(detailSelection.kind)" :to="detailRoute"><ExternalLink :size="14" />完整详情</RouterLink>
+        </div>
+        <section v-if="diagnosisMessage" class="browser-diagnosis-feedback" :class="diagnosisTone" :role="diagnosisTone === 'error' ? 'alert' : 'status'" :aria-busy="diagnosisLoading">
+          <strong>{{ diagnosisTarget }}</strong><p><RefreshCw v-if="diagnosisLoading" :size="14" class="spinning" />{{ diagnosisMessage }}</p>
+          <button v-if="diagnosisResult" class="secondary-button" @click="diagnosis = diagnosisResult">查看诊断结论与证据</button>
+        </section>
 
         <div v-if="detailLoading" class="detail-loading"><RefreshCw :size="24" class="spinning" /><span>正在读取资源详情</span></div>
         <div v-else-if="detailError" class="detail-error"><strong>详情不可用</strong><span>{{ detailError }}</span><button class="secondary-button" type="button" @click="loadDetailFromRoute"><RefreshCw :size="15" />重试</button></div>
@@ -949,3 +992,58 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
     <div v-if="diagnosis" class="log-overlay" @click.self="diagnosis = null"><section class="diagnosis-drawer" role="dialog" aria-modal="true" aria-label="规则诊断"><header><div><p class="context-label">RULE DIAGNOSIS</p><h2>{{ diagnosis.rule_id }}</h2></div><button class="icon-button" aria-label="关闭诊断" @click="diagnosis = null"><X :size="18" /></button></header><span class="severity-badge">{{ diagnosis.severity }}</span><p class="diagnosis-summary">{{ diagnosis.summary }}</p><h3>可能根因</h3><ol><li v-for="item in diagnosis.root_causes" :key="item">{{ item }}</li></ol><h3>处理建议</h3><ol><li v-for="item in diagnosis.recommendations" :key="item">{{ item }}</li></ol><h3>证据</h3><article v-for="item in diagnosis.evidence" :key="`${item.type}-${item.source}`" class="evidence-card"><strong>{{ item.type }} · {{ item.source }}</strong><pre>{{ JSON.stringify(item.content, null, 2) }}</pre></article></section></div>
   </ConsoleLayout>
 </template>
+
+<style scoped>
+.resource-browse-layout { display: grid; min-width: 0; gap: 18px; align-items: start; }
+.resource-category-tabs button { color: var(--text-secondary); }
+.resource-category-tabs button.active, .resource-kind-tabs button.active { color: var(--accent-strong); }
+.resource-browse-layout > * { min-width: 0; }
+.browser-detail { width: 100%; height: auto; max-height: calc(100dvh - 100px); border: 1px solid var(--border-soft); border-radius: 10px; box-shadow: var(--shadow-sm); }
+.browser-detail .resource-detail-header { background: var(--bg-elevated); }
+.browser-detail .resource-detail-title h2 { max-width: 100%; }
+.browser-detail dt, .browser-detail .resource-detail-title > div > span,
+.browser-detail .container-row small, .browser-detail .condition-list small,
+.browser-detail .condition-list p, .browser-detail .detail-chip-list > span,
+.browser-detail .related-event-list small { color: var(--text-secondary); }
+.browser-detail .detail-chip-list b { color: var(--accent-strong); }
+.browser-detail :deep(.history-panel h3), .browser-detail :deep(.evaluation-copy),
+.browser-detail :deep(.chart-value-label) { color: var(--text-primary); }
+.browser-detail :deep(.coverage-primary:not(.degraded)) { color: var(--accent-strong); }
+.browser-detail :deep(.unit-label) { color: var(--text-secondary); }
+.browser-detail :deep(.evaluation-copy small), .browser-detail :deep(.evaluation-input em),
+.browser-detail :deep(.chart-value-label span), .browser-detail :deep(.chart-axis),
+.browser-detail :deep(.period-label), .browser-detail :deep(.gap-note),
+.browser-detail :deep(.container-select), .browser-detail :deep(.container-select select),
+.browser-detail :deep(.evaluation-input), .browser-detail :deep(.evaluation-input input),
+.browser-detail :deep(.evaluation-input select), .browser-detail :deep(.history-heading p),
+.browser-detail :deep(.segmented-control button:not(.active)) { color: var(--text-secondary); }
+.browser-detail-navigation { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 14px 0; }
+.browser-detail-navigation label { display: grid; flex: 1; min-width: 0; gap: 6px; color: var(--text-secondary); font-size: 11px; }
+.browser-detail-navigation select { width: 100%; min-width: 0; height: 34px; padding: 0 8px; color: var(--text-primary); background: var(--bg-elevated); border: 1px solid var(--border-soft); border-radius: 5px; }
+.browser-detail-navigation a { display: inline-flex; align-items: center; gap: 5px; padding: 9px 0; color: var(--accent-strong); font-size: 12px; white-space: nowrap; }
+.resource-row[aria-current='true'] { background: var(--accent-subtle); box-shadow: inset 3px 0 var(--accent-strong); }
+.browser-diagnosis-feedback { margin: 12px 0; padding: 12px; border: 1px solid var(--border-soft); border-radius: 7px; background: var(--bg-elevated); color: var(--text-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.browser-diagnosis-feedback p { display: flex; align-items: center; gap: 8px; margin: 7px 0 0; line-height: 1.7; }
+.browser-diagnosis-feedback.error { border-color: var(--status-danger); }
+.browser-diagnosis-feedback .secondary-button { margin-top: 10px; }
+@media (min-width: 1100px) {
+  .resource-browse-layout.has-detail { grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.3fr); }
+  .has-detail .browser-detail, .has-detail .resource-workbench { position: sticky; top: calc(var(--topbar-height) + 16px); }
+  .has-detail .resource-workbench { min-height: 0; }
+  .has-detail .resource-table-wrap { max-height: calc(100dvh - 190px); overflow: auto; }
+  .has-detail .virtual-list-scroll { max-height: calc(100dvh - 210px); }
+  .has-detail .resource-table { width: 100%; min-width: 0; table-layout: fixed; }
+  .has-detail:not([data-kind='Node']) .resource-table th:not(:first-child):not(:nth-child(3)),
+  .has-detail:not([data-kind='Node']) .resource-table td:not(:first-child):not(:nth-child(3)):not([colspan]) { display: none; }
+  .has-detail .resource-table th:first-child { width: 66%; }
+  .has-detail .resource-table td:first-child span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .has-detail .resource-table td:first-child strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .has-detail[data-kind='Node'] .resource-table th:nth-child(n+3),
+  .has-detail[data-kind='Node'] .resource-table td:nth-child(n+3) { display: none; }
+}
+@media (max-width: 1099px) {
+  .has-detail .resource-workbench { min-height: 0; max-height: 280px; overflow: auto; margin-bottom: 0; }
+  .has-detail .virtual-list-scroll { max-height: 200px; }
+  .browser-detail { max-height: 80dvh; }
+}
+</style>

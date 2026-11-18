@@ -9,7 +9,7 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
-- 备份控制台验证版本并准备独立演示主机部署材料；目标 SSH 认证待解决（[记录](docs/changes/2026-11-18-demo-host-transfer.md)）。
+- 完成独立演示主机部署、诊断与案例迁移、真实集群直连接入及重启持久化验收（[记录](docs/changes/2026-11-18-demo-host-transfer.md)）。
 
 - 完善案例更名前后演示、运行与只读工具检查，修复资源详情、回放和可选解释降级（[记录](docs/changes/2026-11-18-demo-readiness.md)）。
 

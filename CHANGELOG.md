@@ -9,6 +9,8 @@ Detailed change records for each milestone live under `docs/changes/`.
 
 ## [Unreleased]
 
+- 系统概览重排为左侧紧凑资源/诊断概况、中央立体场景、右侧节点与 Pod 详情，消除同排卡片被详情拉高的留白；按实际容器宽度自适应，并统一暗色搜索框（[记录](docs/changes/2026-11-19-dashboard-layout.md)）。
+
 - 立体场景支持直接点击机柜查看节点版本、调度状态与资源用量，展示该节点已读取的全部 Pod；支持搜索、异常筛选、展开容器信息及跳转详情与日志（[记录](docs/changes/2026-11-18-node-pod-inspection.md)）。
 
 - 概览新增可全屏的集群立体态势：节点机柜、Pod 单元、流光归属链路、视角环绕与节点巡览，并展示真实资源指标和证据入口（[记录](docs/changes/2026-11-18-spatial-cluster.md)）。

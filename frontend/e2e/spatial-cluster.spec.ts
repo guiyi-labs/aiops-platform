@@ -142,3 +142,35 @@ test('unavailable pod data differs from an empty node', async ({ page }) => {
   await expect(inspector).toContainText('Pod 数据暂不可用')
   await expect(inspector).not.toContainText('当前样本没有该节点的 Pod')
 })
+
+test('overview uses compact summaries beside the scene and keeps node inspection within its own column', async ({ page }) => {
+  await page.goto('/')
+  for (const width of [1920, 1440, 1180, 900, 375]) {
+    await page.setViewportSize({ width, height: 1080 })
+    await expect(page.locator('.scene-inspector h3')).toHaveText('master-01')
+    await page.waitForTimeout(150)
+    const layout = await page.evaluate(() => {
+      const rect = (selector: string) => {
+        const element = document.querySelector(selector)!
+        const { x, y, width, height } = element.getBoundingClientRect()
+        return { x, y, width, height }
+      }
+      return { pressure: rect('.pressure-panel'), diagnosis: rect('.diagnosis-panel'), scene: rect('.cluster-scene'), stage: rect('.scene-stage'), inspector: rect('.scene-inspector'), next: rect('.dash-secondary-grid'), overflow: document.documentElement.scrollWidth > innerWidth }
+    })
+    expect(layout.overflow).toBe(false)
+    expect(layout.pressure.height).toBeLessThan(500)
+    expect(layout.diagnosis.height).toBeLessThan(400)
+    if (width === 1920) {
+      expect(layout.diagnosis.y).toBeGreaterThan(layout.pressure.y + layout.pressure.height)
+      expect(layout.scene.x).toBeGreaterThan(layout.pressure.x + layout.pressure.width)
+      expect(layout.inspector.x).toBeGreaterThan(layout.stage.x + layout.stage.width)
+      expect(Math.abs(layout.inspector.y - layout.stage.y)).toBeLessThan(25)
+      expect(layout.scene.height).toBeLessThan(800)
+      expect(layout.next.y).toBeLessThan(layout.scene.y + 850)
+    }
+    if (width === 375) {
+      expect(layout.scene.y).toBeGreaterThan(layout.diagnosis.y)
+      expect(layout.inspector.y).toBeGreaterThan(layout.stage.y + layout.stage.height)
+    }
+  }
+})

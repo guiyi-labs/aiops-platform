@@ -270,6 +270,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
 </template>
 
 <style scoped>
+.cluster-scene { container: cluster-scene / inline-size; }
 .cluster-scene { --scene-bg: #081421; --scene-line: #24445a; --scene-muted: #9db6ca; --scene-text: #edf8ff; --scene-cyan: #6be8ed; --scene-green: #7ce6bb; --scene-amber: #ffd08c; position: relative; display: flex; flex-direction: column; padding: 20px; color: var(--scene-text); border-color: #27475c; background: radial-gradient(ellipse at 52% 42%, #103546 0%, #0a1b2c 42%, #071320 100%); overflow: hidden; }
 .cluster-scene::before { content: ''; position: absolute; pointer-events: none; inset: 0; background-image: radial-gradient(#77dbe326 .7px, transparent .7px); background-size: 22px 22px; mask-image: linear-gradient(transparent, #0006, transparent); }
 .scene-heading { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -284,7 +285,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
 .cluster-scene button.scene-primary { color: var(--scene-cyan); border-color: #3c747e; }
 .cluster-scene button:disabled { opacity: .5; cursor: default; }
 .cluster-scene :is(button, a, select, [tabindex]):focus-visible { outline: 2px solid var(--scene-cyan); outline-offset: 3px; }
-.scene-body { display: grid; min-width: 0; flex: 1; }
+.scene-body { display: grid; min-width: 0; min-height: 0; flex: 1; }
 .scene-stage { position: relative; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 .stage-coordinate { display: none; position: absolute; left: 18px; top: 16px; gap: 10px; align-items: center; color: var(--scene-muted); font: 10px var(--font-mono); }
 .stage-coordinate span { letter-spacing: 2px; }
@@ -381,7 +382,7 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
 .workloads-heading h4 { margin: 0; font-size: 12px; color: #e1f1fa; }
 .workloads-heading small { color: #b0ccde; font-size: 10px; }
 .workload-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.workload-filters input { min-width: 0; flex: 1; width: 120px; border: 1px solid #426779; background: #0b2234; color: #e1f1fa; border-radius: 6px; padding: 8px; font-size: 11px; }
+.workload-filters input { --text-primary: #e1f1fa; --bg-elevated: #0b2234; --border-default: #426779; min-width: 0; flex: 1; width: 120px; border: 1px solid #426779; background: #0b2234; color: #e1f1fa; border-radius: 6px; padding: 8px; font-size: 11px; }
 .workload-filters input::placeholder { color: #a6c3d6; }
 .workload-filters input:focus-visible { outline: 2px solid var(--scene-cyan); outline-offset: 2px; }
 .node-pod-list { list-style: none; padding: 0; margin: 8px 0 0; max-height: 300px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
@@ -405,6 +406,13 @@ onBeforeUnmount(() => { cancelAnimationFrame(frame); observer?.disconnect(); mot
 .inspector-workloads .workload-sample-note { font-size: 9px; color: #a6c3d6; margin-bottom: 0; }
 .inspector-workloads > p { font-size: 11px; color: #b7cfdf; line-height: 1.7; }
 .inspector-timestamp { font: 9px var(--font-mono); color: #a0c0d4; margin: 12px 0 0; }
+@container cluster-scene (min-width: 720px) {
+  .cluster-scene:not(.scene-expanded) .scene-body { grid-template-columns: minmax(0, 1fr) minmax(290px, 34%); gap: 20px; height: 600px; flex: none; }
+  .cluster-scene:not(.scene-expanded) .scene-stage { min-height: 0; }
+  .cluster-scene:not(.scene-expanded) .spatial-map { height: 100%; min-height: 0; }
+  .cluster-scene:not(.scene-expanded) .scene-inspector { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .cluster-scene:not(.scene-expanded) .scene-footnote { flex-direction: row; justify-content: space-between; text-align: left; gap: 16px; }
+}
 .scene-expanded { padding: 24px 28px; min-height: 680px; }
 .scene-expanded .scene-heading h2 { font-size: 20px; margin-top: 10px; letter-spacing: 2px; }
 .scene-expanded .scene-body { grid-template-columns: minmax(0, 1fr) minmax(320px, 29%); gap: 24px; align-items: center; }

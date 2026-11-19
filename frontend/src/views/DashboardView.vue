@@ -199,20 +199,22 @@ onUnmounted(() => {
             <article class="dash-stat" style="--stat-color: var(--dash-green)"><div><span>诊断记录</span><ShieldCheck :size="19" /></div><strong>{{ diagnosisCount ?? '—' }}<small>DIAGNOSES</small></strong><footer><i />当前集群 · 分布取最近 {{ diagnoses?.length ?? '—' }} 条</footer></article>
           </section>
           <div class="dash-main-grid">
-            <section class="dash-panel pressure-panel" aria-labelledby="pressure-title">
-              <header class="dash-panel-heading"><div><span class="dash-kicker">RESOURCE LOAD</span><h2 id="pressure-title"><Cpu :size="16" />资源水位</h2></div><span class="dash-badge">快照</span></header>
-              <div class="gauge-pair"><div v-for="gauge in gauges" :key="gauge.label" class="resource-gauge" :style="{ '--gauge-color': gauge.color }"><svg viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" class="gauge-track" /><circle cx="56" cy="56" r="46" class="gauge-value" pathLength="100" :stroke-dasharray="`${Math.max(0, Math.min(100, gauge.value ?? 0))} 100`" transform="rotate(-90 56 56)" /></svg><div class="gauge-label"><component :is="gauge.icon" :size="16" /><strong>{{ gauge.value ?? '—' }}<small v-if="gauge.value !== null">%</small></strong></div><b>{{ gauge.label }}</b><span>{{ gauge.detail }}</span></div></div>
-              <footer class="dash-footnote" :title="validMetrics.map(item => `${item.metadata.name} · 源时间 ${timestamp(item.timestamp)}`).join('；')">{{ validMetrics.length }} / {{ nodeCount ?? '—' }} 个节点有有效指标<span>占对应节点可分配资源</span></footer>
-              <div class="pressure-rule"><span>Pod 健康分布</span><strong>{{ pods === null ? '不可用' : `${healthyPods} / ${pods.length}` }}</strong></div>
-              <div class="pod-health"><svg viewBox="0 0 72 72" role="img" :aria-label="pods === null ? 'Pod 健康分布不可用' : podDistribution.map(item => `${item.label} ${item.count}`).join('，')"><circle cx="36" cy="36" r="27" class="gauge-track" /><circle v-for="segment in podRing" :key="segment.label" cx="36" cy="36" r="27" fill="none" :stroke="segment.color" stroke-width="8" pathLength="100" :stroke-dasharray="`${segment.length} ${100 - segment.length}`" :stroke-dashoffset="segment.offset" transform="rotate(-90 36 36)" /><text x="36" y="40" text-anchor="middle">{{ pods?.length ?? '—' }}</text></svg><div><span v-for="item in podDistribution" :key="item.label"><i :style="{ background: item.color }" />{{ item.label }}<b>{{ pods === null ? '—' : item.count }}</b></span></div></div>
-            </section>
+            <div class="dash-summary-rail" aria-label="资源与诊断概况">
+              <section class="dash-panel pressure-panel" aria-labelledby="pressure-title">
+                <header class="dash-panel-heading"><div><span class="dash-kicker">RESOURCE LOAD</span><h2 id="pressure-title"><Cpu :size="16" />资源水位</h2></div><span class="dash-badge">快照</span></header>
+                <div class="gauge-pair"><div v-for="gauge in gauges" :key="gauge.label" class="resource-gauge" :style="{ '--gauge-color': gauge.color }"><svg viewBox="0 0 112 112" aria-hidden="true"><circle cx="56" cy="56" r="46" class="gauge-track" /><circle cx="56" cy="56" r="46" class="gauge-value" pathLength="100" :stroke-dasharray="`${Math.max(0, Math.min(100, gauge.value ?? 0))} 100`" transform="rotate(-90 56 56)" /></svg><div class="gauge-label"><component :is="gauge.icon" :size="16" /><strong>{{ gauge.value ?? '—' }}<small v-if="gauge.value !== null">%</small></strong></div><b>{{ gauge.label }}</b><span>{{ gauge.detail }}</span></div></div>
+                <footer class="dash-footnote" :title="validMetrics.map(item => `${item.metadata.name} · 源时间 ${timestamp(item.timestamp)}`).join('；')">{{ validMetrics.length }} / {{ nodeCount ?? '—' }} 个节点有有效指标<span>占对应节点可分配资源</span></footer>
+                <div class="pressure-rule"><span>Pod 健康分布</span><strong>{{ pods === null ? '不可用' : `${healthyPods} / ${pods.length}` }}</strong></div>
+                <div class="pod-health"><svg viewBox="0 0 72 72" role="img" :aria-label="pods === null ? 'Pod 健康分布不可用' : podDistribution.map(item => `${item.label} ${item.count}`).join('，')"><circle cx="36" cy="36" r="27" class="gauge-track" /><circle v-for="segment in podRing" :key="segment.label" cx="36" cy="36" r="27" fill="none" :stroke="segment.color" stroke-width="8" pathLength="100" :stroke-dasharray="`${segment.length} ${100 - segment.length}`" :stroke-dashoffset="segment.offset" transform="rotate(-90 36 36)" /><text x="36" y="40" text-anchor="middle">{{ pods?.length ?? '—' }}</text></svg><div><span v-for="item in podDistribution" :key="item.label"><i :style="{ background: item.color }" />{{ item.label }}<b>{{ pods === null ? '—' : item.count }}</b></span></div></div>
+              </section>
+              <section class="dash-panel diagnosis-panel" aria-labelledby="distribution-title">
+                <header class="dash-panel-heading"><div><span class="dash-kicker">DIAGNOSIS INSIGHT</span><h2 id="distribution-title"><ScanLine :size="16" />诊断处理分布</h2></div><RouterLink :to="{ path: '/diagnoses', query: { cluster: selected } }" aria-label="查看诊断记录"><ArrowUpRight :size="18" /></RouterLink></header>
+                <div class="diagnosis-summary"><strong>{{ diagnoses?.filter(item => item.status === 'open' || item.status === 'confirmed').length ?? '—' }}</strong><span>条待处理记录<small>最近 {{ diagnoses?.length ?? '—' }} 条诊断样本</small></span></div>
+                <div class="status-bars"><div v-for="row in statusRows" :key="row.status"><div><span><i :style="{ background: row.color }" />{{ row.label }}</span><b>{{ diagnoses === null ? '—' : row.count }}</b></div><div class="dash-bar-track"><i :style="{ width: `${diagnoses?.length ? row.count / diagnoses.length * 100 : 0}%`, background: row.color }" /></div></div></div>
+                <footer class="dash-footnote">按当前处理状态统计<span>不代表实时故障数量</span></footer>
+              </section>
+            </div>
             <ClusterScene :cluster-id="selected" :cluster-name="current?.name ?? ''" :nodes="nodes" :pods="pods" :metrics="nodeMetrics" :node-count="nodeCount" :expanded="presentation && scenePresentation" :loading="loading" @expand="enterScene" />
-            <section class="dash-panel diagnosis-panel" aria-labelledby="distribution-title">
-              <header class="dash-panel-heading"><div><span class="dash-kicker">DIAGNOSIS INSIGHT</span><h2 id="distribution-title"><ScanLine :size="16" />诊断处理分布</h2></div><RouterLink :to="{ path: '/diagnoses', query: { cluster: selected } }" aria-label="查看诊断记录"><ArrowUpRight :size="18" /></RouterLink></header>
-              <div class="diagnosis-summary"><strong>{{ diagnoses?.filter(item => item.status === 'open' || item.status === 'confirmed').length ?? '—' }}</strong><span>条待处理记录<small>最近 {{ diagnoses?.length ?? '—' }} 条诊断样本</small></span></div>
-              <div class="status-bars"><div v-for="row in statusRows" :key="row.status"><div><span><i :style="{ background: row.color }" />{{ row.label }}</span><b>{{ diagnoses === null ? '—' : row.count }}</b></div><div class="dash-bar-track"><i :style="{ width: `${diagnoses?.length ? row.count / diagnoses.length * 100 : 0}%`, background: row.color }" /></div></div></div>
-              <footer class="dash-footnote">按当前处理状态统计<span>不代表实时故障数量</span></footer>
-            </section>
           </div>
           <div class="dash-secondary-grid">
             <DashboardTrend :token="auth.accessToken" :cluster-id="selected" :nodes="(nodes ?? []).map(node => node.metadata.name)" :refresh-key="refreshKey" />
@@ -234,7 +236,7 @@ onUnmounted(() => {
 
 <style>
 /* Shared dashboard surfaces also style the resource trend child. */
-.dashboard { --dash-cyan: var(--status-info); --dash-violet: var(--topo-ingress); --dash-amber: var(--status-warning); --dash-green: var(--status-success); --dash-red: var(--status-danger); --map-bg: #0b182b; --map-surface: #10243b; --map-border: #243f5c; --map-text: #eef6ff; --map-muted: #a8bfd8; --map-cyan: #59d8eb; --map-green: #64e6b0; --map-amber: #ffd080; color: var(--text-primary); }
+.dashboard { container: dashboard / inline-size; --dash-cyan: var(--status-info); --dash-violet: var(--topo-ingress); --dash-amber: var(--status-warning); --dash-green: var(--status-success); --dash-red: var(--status-danger); --map-bg: #0b182b; --map-surface: #10243b; --map-border: #243f5c; --map-text: #eef6ff; --map-muted: #a8bfd8; --map-cyan: #59d8eb; --map-green: #64e6b0; --map-amber: #ffd080; color: var(--text-primary); }
 .dashboard-presentation { position: fixed; inset: 0; z-index: 1000; overflow: auto; padding: 24px max(24px, calc((100vw - 1800px) / 2)); background: var(--bg-primary); outline: none; }
 .dashboard:fullscreen { width: 100%; height: 100%; box-sizing: border-box; }
 .dash-panel { min-width: 0; padding: 19px 20px 15px; border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-elevated); box-shadow: var(--shadow-xs); }
@@ -268,7 +270,7 @@ onUnmounted(() => {
   .dashboard.dashboard-presentation .dash-stats { gap: 12px; margin-bottom: 12px; }
   .dashboard.dashboard-presentation .dash-stat { padding: 12px 18px; }
   .dashboard.dashboard-presentation .dash-stat > strong { font-size: 30px; margin: 7px 0; }
-  .dashboard.dashboard-presentation .dash-main-grid { grid-template-columns: 1fr 1.5fr 1fr; gap: 12px; }
+  .dashboard.dashboard-presentation .dash-main-grid { gap: 12px; }
   .dashboard.dashboard-presentation .gauge-pair { margin-top: 14px; }
   .dashboard.dashboard-presentation .resource-gauge > svg { max-width: 100px; }
   .dashboard.dashboard-presentation .gauge-label { height: 100px; }
@@ -279,7 +281,7 @@ onUnmounted(() => {
   .dashboard.dashboard-presentation .dashboard-footer { margin-top: 12px; }
 }
 .dashboard.scene-presentation { --text-secondary: #b2ccdf; --text-primary: #eff8ff; --bg-primary: #07121f; background: #07121f; }
-.dashboard.scene-presentation .dash-stats, .dashboard.scene-presentation .pressure-panel, .dashboard.scene-presentation .diagnosis-panel, .dashboard.scene-presentation .dash-secondary-grid, .dashboard.scene-presentation .dash-bottom-grid, .dashboard.scene-presentation .dashboard-footer { display: none; }
+.dashboard.scene-presentation .dash-summary-rail, .dashboard.scene-presentation .dash-stats, .dashboard.scene-presentation .pressure-panel, .dashboard.scene-presentation .diagnosis-panel, .dashboard.scene-presentation .dash-secondary-grid, .dashboard.scene-presentation .dash-bottom-grid, .dashboard.scene-presentation .dashboard-footer { display: none; }
 .dashboard.scene-presentation .dash-main-grid { display: block; }
 .dashboard.scene-presentation .dash-hero { padding: 14px 22px; }
 .dashboard.scene-presentation .hero-orbit { width: 54px; height: 54px; }
@@ -334,7 +336,16 @@ onUnmounted(() => {
 .dash-stat strong small { color: var(--text-secondary); font-size: 9px; font-weight: 400; letter-spacing: 1px; }
 .dash-stat footer { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--text-secondary); }
 .dash-stat footer i { width: 4px; height: 4px; border-radius: 50%; background: var(--stat-color); }
-.dash-main-grid { display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 16px; align-items: stretch; }
+.dash-main-grid { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+.dash-summary-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; min-width: 0; align-items: start; }
+.dash-summary-rail .status-bars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+@container dashboard (min-width: 1050px) {
+  .dash-main-grid { grid-template-columns: minmax(260px, .75fr) minmax(0, 3fr); }
+  .dash-summary-rail { grid-template-columns: 1fr; }
+}
+@container dashboard (max-width: 599px) {
+  .dash-summary-rail { grid-template-columns: 1fr; }
+}
 .gauge-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 22px 0 0; }
 .resource-gauge { position: relative; min-width: 0; text-align: center; }
 .resource-gauge > svg { display: block; width: 100%; max-width: 120px; margin: 0 auto 8px; }
@@ -407,7 +418,7 @@ onUnmounted(() => {
 .dash-spinning { animation: orbit-spin 1s linear infinite; }
 @keyframes orbit-spin { to { transform: rotate(360deg); } }
 @keyframes map-flow { to { stroke-dashoffset: -110; } }
-@media (max-width: 1180px) { .hero-orbit { display: none; } .hero-copy h2 small, .hero-slash { display: none; } .dash-main-grid { grid-template-columns: 1fr 1.3fr; } .diagnosis-panel { grid-column: 1 / -1; } .diagnosis-summary { margin: 14px 0; } .diagnosis-panel .status-bars { grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 10px; } .diagnosis-panel .dash-footnote { margin-top: 10px; } }
+@media (max-width: 1180px) { .hero-orbit { display: none; } .hero-copy h2 small, .hero-slash { display: none; } .diagnosis-summary { margin: 14px 0; } .diagnosis-panel .dash-footnote { margin-top: 10px; } }
 @media (max-width: 860px) { .dash-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dash-secondary-grid, .dash-bottom-grid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .dash-hero { flex-direction: column; align-items: stretch; padding: 20px; gap: 18px; } .hero-copy h2 { font-size: 22px; } .hero-eyebrow { font-size: 9px; letter-spacing: 1px; } .hero-actions { min-width: 0; flex-direction: row; flex-wrap: wrap; } .hero-actions select { flex: 1; min-width: 145px; } .hero-buttons { flex: 1; } .dash-action { flex: 1; min-height: 40px; } .dash-main-grid { grid-template-columns: 1fr; } .diagnosis-panel { grid-column: auto; } .dash-panel { padding: 18px; } .dash-stat { padding: 14px; } .dash-stat strong small { font-size: 8px; letter-spacing: 0; } .dash-stat > strong { font-size: 29px; gap: 5px; } .dash-stat footer { font-size: 9px; line-height: 1.6; } .dash-stats { gap: 10px; } .gauge-pair { margin-top: 18px; } .gauge-label { height: 120px; } .pod-health { max-width: 290px; margin: 7px auto 0; } .diagnosis-panel .status-bars { grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 20px; } .cluster-map { min-height: 250px; } .dash-recent-list time { display: none; } .dash-status-strip button { min-height: 32px; font-size: 9px; } .dash-status-strip { font-size: 9px; } .dashboard-footer { line-height: 1.6; } }
 </style>
